@@ -1,0 +1,1753 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>3D Maze</title>
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href='data:application/manifest+json,{"name":"3D Game","short_name":"Game","start_url":".","display":"fullscreen","background_color":"#000000","theme_color":"#000000"}'>
+
+  <style>
+    html, body {
+      margin: 0; padding: 0; 
+      width: 100vw; height: 100dvh;
+      overflow: hidden; background: #000; touch-action: none;
+      font-family: 'Courier New', Courier, monospace;
+      position: fixed;
+    }
+
+    #game-container {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%); 
+      width: 100%; height: 100%;
+      overflow: hidden;
+      z-index: 1;
+    }
+    canvas { display: block; width: 100%; height: 100%; }
+    
+    #ui-layer {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; z-index: 10;
+    }
+
+    #fullscreen-msg {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      color: rgba(255,255,255,0.9); font-size: 13px; text-align: center;
+      text-shadow: 1px 1px 2px black;
+      transition: opacity 0.5s;
+    }
+
+    #hud-container {
+      position: absolute;
+      display: flex;
+      gap: 12px;
+      z-index: 100;
+      pointer-events: none;
+    }
+
+    .status-ui-set {
+      width: 130px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      display: none;
+    }
+
+    .bar-border {
+      width: 100%;
+      height: 8px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #hp-bar-border {
+      background: rgba(30, 0, 0, 0.7);
+      border: 1.5px solid rgba(255, 50, 50, 0.4);
+      box-shadow: 0 0 8px rgba(255,0,0,0.4);
+    }
+    #hp-bar-fill {
+      width: 100%; height: 100%;
+      background: linear-gradient(to right, #ff4d4d, #cc0000); 
+      transform-origin: left center;
+      transform: scaleX(1);
+      transition: transform 0.1s linear;
+    }
+    #hp-text {
+      margin-top: 4px;
+      color: white; font-weight: bold; font-size: 11px;
+      text-shadow: 1px 1px 2px #660000;
+      white-space: nowrap;
+    }
+
+    #stamina-bar-border {
+      background: rgba(0, 30, 0, 0.7);
+      border: 1.5px solid rgba(0, 255, 0, 0.4);
+      box-shadow: 0 0 8px rgba(0,255,0,0.4);
+    }
+    #stamina-bar-fill {
+      width: 100%; height: 100%;
+      background: linear-gradient(to right, #66ff33, #33cc00); 
+      transform-origin: left center;
+      transform: scaleX(1);
+      transition: transform 0.1s linear;
+    }
+    #stamina-text {
+      margin-top: 4px;
+      color: white; font-weight: bold; font-size: 11px;
+      text-shadow: 1px 1px 2px #006600;
+      white-space: nowrap;
+    }
+
+    #stage-display {
+      position: absolute;
+      color: #ffcc00;
+      font-size: 16px;
+      font-weight: bold;
+      text-shadow: 2px 2px 4px #000;
+      z-index: 100;
+      pointer-events: none;
+    }
+
+    #radar-container {
+      position: absolute;
+      z-index: 200;
+      width: 110px;
+      height: 110px;
+      background: rgba(0, 0, 0, 0.75);
+      border: 1.5px solid rgba(0, 255, 204, 0.5);
+      box-shadow: 0 0 10px rgba(0, 255, 204, 0.2);
+      border-radius: 4px;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    #radar-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #gimmick-message {
+      position: absolute;
+      color: #ff5555;
+      font-size: 18px;
+      font-weight: bold;
+      text-align: center;
+      max-width: 78vw;
+      padding: 14px 22px;
+      background: rgba(10, 0, 0, 0.62);
+      border: 1px solid rgba(255, 80, 80, 0.5);
+      border-radius: 5px;
+      text-shadow: 2px 2px 4px #000;
+      z-index: 300;
+      pointer-events: none;
+      opacity: 0;
+      filter: blur(6px);
+      transition: opacity 0.6s ease, filter 0.6s ease;
+      white-space: pre-line;
+    }
+    #gimmick-message.show {
+      opacity: 1;
+      filter: blur(0px);
+      transition: opacity 0.6s ease, filter 0.6s ease;
+    }
+    #gimmick-message.hide {
+      opacity: 0;
+      filter: blur(12px);
+      transition: opacity 1.2s ease, filter 1.2s ease;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+<div id="game-container"></div>
+
+<div id="ui-layer">
+  <div id="fullscreen-msg">화면을 터치하거나 클릭하면 풀스크린 모드가 됩니다 (PC: F11)</div>
+  <div id="stage-display">STAGE 1</div>
+  <div id="gimmick-message"></div>
+
+  <div id="radar-container">
+    <canvas id="radar-canvas" width="110" height="110"></canvas>
+  </div>
+
+  <div id="hud-container">
+    <div id="hp-ui" class="status-ui-set">
+      <div id="hp-bar-border" class="bar-border">
+        <div id="hp-bar-fill"></div>
+      </div>
+      <div id="hp-text">HP: 100%</div>
+    </div>
+
+    <div id="stamina-ui" class="status-ui-set">
+      <div id="stamina-bar-border" class="bar-border">
+        <div id="stamina-bar-fill"></div>
+      </div>
+      <div id="stamina-text">STAMINA: 100%</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const DEBUG_ENABLED = 0;
+  const vibrationEnabled = 1;
+
+  const container = document.getElementById('game-container');
+  const fullscreenMsg = document.getElementById('fullscreen-msg');
+  const hudContainer = document.getElementById('hud-container');
+  const stageDisplay = document.getElementById('stage-display');
+  const gimmickMsgEl = document.getElementById('gimmick-message');
+  const radarContainer = document.getElementById('radar-container');
+  const radarCanvas = document.getElementById('radar-canvas');
+  const radarCtx = radarCanvas.getContext('2d');
+  
+  const hpUI = document.getElementById('hp-ui');
+  const hpFill = document.getElementById('hp-bar-fill');
+  const hpText = document.getElementById('hp-text');
+
+  const staminaUI = document.getElementById('stamina-ui');
+  const staminaFill = document.getElementById('stamina-bar-fill');
+  const staminaText = document.getElementById('stamina-text');
+
+  // 주 입력 수단이 손가락(터치)인지 마우스인지로 PC/모바일을 구분한다.
+  // 터치스크린이 있어도 마우스로 조작 중이면(pointer: coarse가 false) PC로 취급.
+  // 이 값은 레이더 "크기"에만 사용한다 (PC만 크게). 레이더 "위치"는 화면 회전(rot) 기준으로 따로 정한다.
+  const isPC = !(window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0);
+
+  // PC는 화면이 넓으므로 레이더를 모바일보다 크게 표시한다 (모바일 크기는 기존 110px 그대로 유지).
+  const RADAR_SIZE = isPC ? 280 : 110;
+  if (isPC) {
+    radarCanvas.width = RADAR_SIZE;
+    radarCanvas.height = RADAR_SIZE;
+    radarContainer.style.width = RADAR_SIZE + 'px';
+    radarContainer.style.height = RADAR_SIZE + 'px';
+  }
+
+  const requestFullscreenMode = () => {
+    const elem = document.documentElement;
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen().catch(() => {});
+      } else if (elem.webkitRequestFullscreen) {
+        elem.webkitRequestFullscreen();
+      }
+    }
+  };
+
+  const handleFullscreenChange = () => {
+    fullscreenMsg.style.opacity = (document.fullscreenElement || document.webkitFullscreenElement) ? '0' : '1';
+  };
+
+  window.addEventListener('click', requestFullscreenMode);
+  window.addEventListener('touchstart', requestFullscreenMode, { passive: true });
+  document.addEventListener('fullscreenchange', handleFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x010204);
+  scene.fog = new THREE.FogExp2(0x010204, 0.055);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.35;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  container.appendChild(renderer.domElement);
+
+  let renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight);
+
+  const player = new THREE.Group();
+  scene.add(player);
+
+  const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+  player.add(camera);
+
+  scene.add(new THREE.AmbientLight(0x28303d, 0.55));
+
+  const lantern = new THREE.SpotLight(0xffffff, 11.0, 35, Math.PI / 3.5, 0.2, 1.0);
+  lantern.position.set(0.2, -0.2, 0);
+  camera.add(lantern);
+
+  const lanternTarget = new THREE.Object3D();
+  lanternTarget.position.set(0, 0, -5);
+  camera.add(lanternTarget);
+  lantern.target = lanternTarget;
+  lantern.castShadow = true;
+
+  // 뿔, 이글거리는 눈, 송곳니, 할퀴는 팔이 달린 둠 스타일 악마 스프라이트를
+  // 캔버스 2D로 절차적으로 그린다 (외부 이미지/그림 파일 없이 전부 코드로 생성).
+  // 종족별 색 팔레트를 두고, 스폰될 때마다 가중치 랜덤으로 하나를 골라 매번 다른
+  // 개체가 나오도록 한다.
+  const ENEMY_BREEDS = [
+    { weight: 0.55, skin: ['#7a3f22', '#9a5a33', '#3c1d0f', '#241209'], horn: ['#3a332c', '#57493a'], eye: ['#ffb400', 'rgba(255,140,0,0.35)', '#3a0a00'] }, // 임프: 적갈색 피부, 호박색 눈
+    { weight: 0.25, skin: ['#4a5240', '#6b7658', '#242a1c', '#141810'], horn: ['#2c2c28', '#464640'], eye: ['#a6ff2e', 'rgba(160,255,60,0.35)', '#1a3300'] }, // 구울: 병든 녹회색 피부, 형광 녹색 눈
+    { weight: 0.20, skin: ['#5c1414', '#7a2a1e', '#2c0808', '#1a0404'], horn: ['#241414', '#3a2222'], eye: ['#ff2a1a', 'rgba(255,60,30,0.4)', '#3a0000'] },  // 헬파이어: 검붉은 피부, 이글거리는 붉은 눈
+  ];
+  const pickEnemyBreed = () => {
+    let r = Math.random(), acc = 0;
+    for (const b of ENEMY_BREEDS) { acc += b.weight; if (r <= acc) return b; }
+    return ENEMY_BREEDS[0];
+  };
+
+  const createDoomEnemyTexture = () => {
+    const S = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = S; canvas.height = S;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+
+    const cx = S / 2;
+
+    const breed = pickEnemyBreed();
+    const [SKIN_BASE, SKIN_LIGHT, SKIN_DARK, SKIN_SHADOW] = breed.skin;
+    const [HORN, HORN_TIP] = breed.horn;
+    const [EYE_GLOW, EYE_HALO, EYE_PUPIL] = breed.eye;
+    const TEETH       = '#ece0bd';
+    const CLAW        = '#1a1410';
+    const MOUTH_DARK  = '#160a06';
+    // 개체마다 뿔 크기를 살짝씩 다르게 해서 같은 종족이어도 완전히 똑같아 보이지 않게 한다
+    const hornScale = 0.85 + Math.random() * 0.3;
+
+    // 부위 안쪽에 얼룩덜룩한 노이즈를 흩뿌려 매끈하지 않은 가죽/피부 질감을 낸다
+    const addSkinNoise = (x0, y0, x1, y1, density) => {
+      for (let i = 0; i < density; i++) {
+        const x = x0 + Math.random() * (x1 - x0);
+        const y = y0 + Math.random() * (y1 - y0);
+        ctx.fillStyle = Math.random() < 0.5 ? SKIN_DARK : SKIN_LIGHT;
+        ctx.globalAlpha = 0.35;
+        ctx.fillRect(Math.floor(x), Math.floor(y), 2, 2);
+      }
+      ctx.globalAlpha = 1;
+    };
+
+    // ---- 어깨/몸통 ----
+    ctx.fillStyle = SKIN_BASE;
+    ctx.beginPath();
+    ctx.moveTo(cx - 30, S);
+    ctx.lineTo(cx - 34, 96);
+    ctx.quadraticCurveTo(cx - 36, 78, cx - 22, 68);
+    ctx.lineTo(cx - 16, 74);
+    ctx.lineTo(cx - 16, S);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(cx + 30, S);
+    ctx.lineTo(cx + 34, 96);
+    ctx.quadraticCurveTo(cx + 36, 78, cx + 22, 68);
+    ctx.lineTo(cx + 16, 74);
+    ctx.lineTo(cx + 16, S);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(cx - 22, 68);
+    ctx.quadraticCurveTo(cx, 60, cx + 22, 68);
+    ctx.lineTo(cx + 20, S);
+    ctx.lineTo(cx - 20, S);
+    ctx.closePath();
+    ctx.fill();
+    addSkinNoise(cx - 34, 60, cx + 34, S, 260);
+
+    ctx.strokeStyle = SKIN_DARK;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cx - 2, 74); ctx.lineTo(cx - 6, 100); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx + 2, 74); ctx.lineTo(cx + 6, 100); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - 14, 82); ctx.quadraticCurveTo(cx, 88, cx + 14, 82); ctx.stroke();
+
+    // ---- 앞으로 뻗어 할퀴는 팔 ----
+    const drawArm = (side) => {
+      ctx.fillStyle = SKIN_BASE;
+      ctx.beginPath();
+      ctx.moveTo(cx + side * 18, 72);
+      ctx.quadraticCurveTo(cx + side * 48, 80, cx + side * 54, 104);
+      ctx.quadraticCurveTo(cx + side * 56, 116, cx + side * 46, 126);
+      ctx.lineTo(cx + side * 36, 122);
+      ctx.quadraticCurveTo(cx + side * 42, 104, cx + side * 32, 88);
+      ctx.quadraticCurveTo(cx + side * 24, 80, cx + side * 14, 80);
+      ctx.closePath();
+      ctx.fill();
+      addSkinNoise(cx + side * 14, 72, cx + side * 58, 128, 70);
+
+      ctx.strokeStyle = SKIN_DARK;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx + side * 22, 82);
+      ctx.quadraticCurveTo(cx + side * 40, 92, cx + side * 44, 112);
+      ctx.stroke();
+
+      ctx.fillStyle = CLAW;
+      for (let i = -1; i <= 1; i++) {
+        ctx.beginPath();
+        ctx.moveTo(cx + side * (40 + i * 7), 116);
+        ctx.lineTo(cx + side * (46 + i * 7), 132);
+        ctx.lineTo(cx + side * (37 + i * 7), 119);
+        ctx.closePath();
+        ctx.fill();
+      }
+    };
+    drawArm(-1);
+    drawArm(1);
+
+    // ---- 머리 ----
+    ctx.fillStyle = SKIN_BASE;
+    ctx.beginPath();
+    ctx.ellipse(cx, 42, 22, 26, 0, 0, Math.PI * 2);
+    ctx.fill();
+    addSkinNoise(cx - 22, 16, cx + 22, 68, 160);
+
+    ctx.fillStyle = SKIN_DARK;
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    ctx.ellipse(cx, 54, 18, 12, 0, 0, Math.PI);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // ---- 뿔: 두개골에서 두껍게 시작해 위로 휘어오르다 안쪽으로 갈고리처럼 굽는다 ----
+    const drawHorn = (side) => {
+      // 두개골 부착점(coefX=8, y=28)을 기준으로 hornScale만큼 확대/축소한 좌표를 만든다 -
+      // hornScale === 1이면 원래 좌표와 완전히 동일하다.
+      const h = (coefX, y) => [cx + side * (8 + (coefX - 8) * hornScale), 28 + (y - 28) * hornScale];
+
+      ctx.fillStyle = HORN;
+      ctx.beginPath();
+      ctx.moveTo(...h(8, 28));
+      ctx.lineTo(...h(18, 24));
+      ctx.quadraticCurveTo(...h(27, 14), ...h(22, 2));
+      ctx.quadraticCurveTo(...h(18, -8), ...h(8, -8));
+      ctx.quadraticCurveTo(...h(13, 2), ...h(12, 14));
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = SKIN_SHADOW;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(...h(15, 22));
+      ctx.quadraticCurveTo(...h(23, 12), ...h(18, -1));
+      ctx.stroke();
+
+      ctx.fillStyle = HORN_TIP;
+      const [tipX, tipY] = h(8, -8);
+      ctx.beginPath();
+      ctx.ellipse(tipX, tipY, 2.5 * hornScale, 3 * hornScale, side * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    drawHorn(-1);
+    drawHorn(1);
+
+    // ---- 미간 그림자 ----
+    ctx.fillStyle = SKIN_SHADOW;
+    ctx.beginPath();
+    ctx.moveTo(cx - 18, 30);
+    ctx.quadraticCurveTo(cx, 24, cx + 18, 30);
+    ctx.lineTo(cx + 16, 34);
+    ctx.quadraticCurveTo(cx, 29, cx - 16, 34);
+    ctx.closePath();
+    ctx.fill();
+
+    // ---- 이글거리는 눈 ----
+    const drawEye = (side) => {
+      ctx.fillStyle = EYE_HALO;
+      ctx.beginPath();
+      ctx.ellipse(cx + side * 9, 37, 8, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = EYE_GLOW;
+      ctx.beginPath();
+      ctx.ellipse(cx + side * 9, 37, 5, 3.4, -side * 0.15, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = EYE_PUPIL;
+      ctx.beginPath();
+      ctx.ellipse(cx + side * 9, 37, 1.8, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+    };
+    drawEye(-1);
+    drawEye(1);
+
+    // ---- 코 ----
+    ctx.fillStyle = SKIN_DARK;
+    ctx.beginPath();
+    ctx.moveTo(cx - 3, 42);
+    ctx.lineTo(cx + 3, 42);
+    ctx.lineTo(cx, 50);
+    ctx.closePath();
+    ctx.fill();
+
+    // ---- 입과 송곳니 ----
+    ctx.fillStyle = MOUTH_DARK;
+    ctx.beginPath();
+    ctx.moveTo(cx - 13, 53);
+    ctx.quadraticCurveTo(cx, 60, cx + 13, 53);
+    ctx.quadraticCurveTo(cx, 58, cx - 13, 53);
+    ctx.fill();
+
+    ctx.fillStyle = TEETH;
+    for (let i = -2; i <= 2; i++) {
+      const tx = cx + i * 5;
+      ctx.beginPath();
+      ctx.moveTo(tx - 2, 53.5);
+      ctx.lineTo(tx + 2, 53.5);
+      ctx.lineTo(tx, i % 2 === 0 ? 60 : 57);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.magFilter = texture.minFilter = THREE.NearestFilter;
+    return texture;
+  };
+
+  // (몬스터 텍스처는 고정된 하나를 공유하지 않고, spawnEnemies()에서 개체마다 새로 생성한다)
+
+  const createWallNormalTexture = () => {
+    const canvas = document.createElement('canvas');
+    [canvas.width, canvas.height] = [256, 256];
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(256, 256);
+    for (let i = 0; i < imgData.data.length; i += 4) {
+      imgData.data[i] = 128 + (Math.random() * 40 - 20);
+      imgData.data[i+1] = 128 + (Math.random() * 40 - 20);
+      imgData.data[i+2] = 255; imgData.data[i+3] = 255;
+    }
+    ctx.putImageData(imgData, 0, 0);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    return texture;
+  };
+
+  const createTileTexture = () => {
+    const canvas = document.createElement('canvas');
+    [canvas.width, canvas.height] = [512, 512];
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#d2dbe5'; ctx.fillRect(0, 0, 512, 512);
+
+    // 4x4 블록마다 fillRect를 16,384번 호출하던 것을 픽셀 버퍼 한 번의
+    // putImageData 호출로 대체 (초기 로딩 시 텍스처 생성 속도 향상)
+    const imgData = ctx.getImageData(0, 0, 512, 512);
+    const px = imgData.data;
+    for (let by = 0; by < 512; by += 4) {
+      for (let bx = 0; bx < 512; bx += 4) {
+        const val = Math.floor(Math.random() * 20);
+        const r = 210 + val, g = 218 + val, b = 230 + val;
+        for (let y = by; y < by + 4; y++) {
+          let rowStart = (y * 512 + bx) * 4;
+          for (let x = 0; x < 4; x++) {
+            const i = rowStart + x * 4;
+            // 기존 배경색(#d2dbe5) 위에 alpha 0.7로 얹은 것과 동일한 결과가 되도록 블렌딩
+            px[i]     = r * 0.7 + 210 * 0.3;
+            px[i + 1] = g * 0.7 + 219 * 0.3;
+            px[i + 2] = b * 0.7 + 229 * 0.3;
+            px[i + 3] = 255;
+          }
+        }
+      }
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    ctx.lineWidth = 12; ctx.strokeStyle = '#222831'; ctx.strokeRect(0, 0, 512, 512);
+    ctx.beginPath(); ctx.moveTo(256, 0); ctx.lineTo(256, 512); ctx.moveTo(0, 256); ctx.lineTo(512, 256); ctx.stroke();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(20, 20);
+    return texture;
+  };
+
+  const wallNormalMap = createWallNormalTexture();
+  const tileTexture = createTileTexture();
+
+  const floorShaderMat = new THREE.ShaderMaterial({
+    uniforms: {
+      tTile: { value: tileTexture },
+      uLightPos: { value: new THREE.Vector3() },
+      uLightDir: { value: new THREE.Vector3() },
+      uCamPos: { value: new THREE.Vector3() }
+    },
+    vertexShader: `
+      varying vec2 vUv; varying vec3 vWorldPos; varying vec3 vNormal;
+      void main() {
+        vUv = uv;
+        vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        vWorldPos = worldPos.xyz;
+        vNormal = normalize(mat3(modelMatrix) * normal);
+        gl_Position = projectionMatrix * viewMatrix * worldPos;
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D tTile; uniform vec3 uLightPos; uniform vec3 uLightDir; uniform vec3 uCamPos;
+      varying vec2 vUv; varying vec3 vWorldPos; varying vec3 vNormal;
+      void main() {
+        vec4 texColor = texture2D(tTile, vUv);
+        vec3 lightVector = uLightPos - vWorldPos;
+        float dist = length(lightVector);
+        vec3 L = normalize(lightVector), N = normalize(vNormal), V = normalize(uCamPos - vWorldPos);
+        float spotEffect = dot(-L, normalize(uLightDir)), spotCutoff = 0.80;
+        vec3 finalColor = texColor.rgb * 0.18;
+        if (spotEffect > spotCutoff) {
+          float attenuation = 1.0 / (1.0 + 0.08 * dist + 0.03 * dist * dist);
+          float spotIntensity = smoothstep(spotCutoff, 0.95, spotEffect) * attenuation;
+          float diff = max(dot(N, L), 0.0);
+          vec3 H = normalize(L + V);
+          float spec = pow(max(dot(N, H), 0.0), 32.0) * 1.5, glow = pow(max(dot(N, L), 0.0), 4.0) * 1.0; 
+          vec3 lightColor = vec3(1.0, 0.99, 0.95);
+          finalColor += texColor.rgb * diff * lightColor * spotIntensity + lightColor * (spec + glow) * spotIntensity;
+        }
+        gl_FragColor = vec4(finalColor, 1.0);
+      }
+    `
+  });
+
+  const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), floorShaderMat);
+  floorMesh.rotation.x = -Math.PI / 2;
+  scene.add(floorMesh);
+
+  const blockSize = 3;
+  let currentStage = 1, deathCountInStage = 0, currentDamage = 10, enemySpawnCooldown = 60.0;
+  let hitCooldownReduction = 0;
+  // 스테이지당 맞을 때마다 누적되는 피해량(체력/스테미너). 다음 스테이지 진입 시에만 초기화됨(무한 누적 가능, 상한 99).
+  let currentStaminaDamage = 15;
+  const BASE_HP_DMG = 10, BASE_STAMINA_DMG = 15, DMG_CAP = 99;
+  // 맞을 때마다 늘어나는 폭을 크게 잡아서, 안일하게 계속 맞으면 금방 상한(99)까지 치닫도록 한다.
+  const HP_DMG_STEP = 15, STAMINA_DMG_STEP = 20;
+  // 8스테이지부터는 스테이지 진입 시 첫 피격부터 최대체력의 절반이 깎인 채로 시작한다.
+  const HALF_HP_FROM_STAGE = 8;
+  const getBaseHpDamageForStage = (stage, hpMax) => stage >= HALF_HP_FROM_STAGE ? Math.round(hpMax / 2) : BASE_HP_DMG;
+  // 스테이지별 "등장"(최초 스폰 대기) / "재등장"(맞아서 줄어들 수 있는 최소 하한) 시간(초)
+  const SPAWN_BASE_BY_STAGE  = [60, 60, 60, 60, 45, 45, 30, 30, 30, 30];
+  const SPAWN_FLOOR_BY_STAGE = [45, 45, 45, 30, 30, 30, 15, 15, 15, 15];
+  // 스테이지가 오를수록 적 이동속도가 소폭 상승하되, 플레이어 전력질주(4.8)를 절대 넘지 않도록 상한을 둔다.
+  const ENEMY_BASE_SPEED = 1.8, ENEMY_SPEED_STEP = 0.35, ENEMY_SPEED_CAP = 4.5;
+  // 상위 스테이지(재등장 15초 구간, 7~10)부터는 한 대만 맞아도 스테미너가 무조건 전소된다.
+  const STAMINA_FULL_DRAIN_FROM_STAGE = 7;
+
+  // --- 출발/도착 스왑 기믹 (7~10 스테이지) ---
+  // 가짜 도착지점에 처음 닿으면: 출발/도착 역할이 뒤바뀌고, 그 대가로 이번 시도 한정 피해 누적이
+  // 스왑 이전(더 낮은) 수치로 완화된다. 진짜 도착지점(원래 출발지점)에 닿아야 스테이지가 클리어된다.
+  // 스테이지별 스왑 발동 확률(1스테이지는 100%로 미리 한 번 맛보여준다).
+  const SWAP_CHANCE_BY_STAGE = [1.0, 0.05, 0.10, 0.15, 0.20, 0.20, 0.50, 0.70, 0.90, 1.0];
+  const LEGACY_HP_DMG_STEP = 9, LEGACY_STAMINA_DMG_STEP = 12;
+  let stageSwapTriggered = false;
+  let startMarkerMesh = null, exitMarkerMesh = null;
+  let hasShownSwapHint = false;
+  let gimmickMsgHideTimeout = null;
+  const showGimmickMessage = (text, displayMs = 2600) => {
+    if (gimmickMsgHideTimeout) { clearTimeout(gimmickMsgHideTimeout); gimmickMsgHideTimeout = null; }
+    gimmickMsgEl.textContent = text;
+    gimmickMsgEl.classList.remove('hide');
+    void gimmickMsgEl.offsetWidth; // 트랜지션 강제 재시작(연속 트리거 대비)
+    gimmickMsgEl.classList.add('show');
+    gimmickMsgHideTimeout = setTimeout(() => {
+      gimmickMsgEl.classList.remove('show');
+      gimmickMsgEl.classList.add('hide');
+    }, displayMs);
+  };
+
+  const stageMemory = {};
+  const stageClearCache = {}; 
+
+  let mapGrid = [], mapWidth = 10, mapHeight = 10, startTile = {x: 0, z: 0}, exitTile = {x: 0, z: 0};
+  // wallMeshes: 씬에서 제거할 때 참조(벽 + 시작/도착 마커 포함)
+  // wallBoxMeshes: 레이캐스팅(레이더 시야, 적 시야) 전용 - 얇은 마커는 제외해 불필요한 교차 검사를 줄임
+  let mainPathData = [], wallMeshes = [], wallBoxMeshes = [], items = [];
+  let enemies = [];
+  let exploredMap = [];
+
+  const wallGeo = new THREE.BoxGeometry(blockSize, 3, blockSize);
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x181c22, roughness: 0.6, metalness: 0.1, normalMap: wallNormalMap, normalScale: new THREE.Vector2(1.5, 1.5) });
+  const startMarkerMat = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+  const exitMarkerMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+  const markerGeo = new THREE.BoxGeometry(blockSize * 0.9, 0.05, blockSize * 0.9);
+  const itemGeo = new THREE.SphereGeometry(0.4, 16, 16);
+  const itemMat = new THREE.MeshStandardMaterial({color: 0x00ffcc, emissive: 0x00aa88, roughness: 0.2});
+
+  const findPathAStar = (grid, start, goal) => {
+    const w = grid[0].length, h = grid.length;
+    const openSet = [], cameFrom = {}, gScore = {}, fScore = {};
+    const key = p => `${p.x},${p.z}`, heuristic = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.z - b.z);
+
+    gScore[key(start)] = 0; fScore[key(start)] = heuristic(start, goal);
+    openSet.push({ pos: start, f: fScore[key(start)] });
+
+    while (openSet.length > 0) {
+      openSet.sort((a, b) => a.f - b.f);
+      const current = openSet.shift().pos, curKey = key(current);
+
+      if (current.x === goal.x && current.z === goal.z) {
+        let path = [current], currKey = curKey;
+        while (cameFrom[currKey]) { path.unshift(cameFrom[currKey]); currKey = key(cameFrom[currKey]); }
+        return path;
+      }
+
+      for (let n of [{x: current.x + 1, z: current.z}, {x: current.x - 1, z: current.z}, {x: current.x, z: current.z + 1}, {x: current.x, z: current.z - 1}]) {
+        if (n.x >= 0 && n.x < w && n.z >= 0 && n.z < h && grid[n.z][n.x] === 0) {
+          let tentativeG = gScore[curKey] + 1;
+          if (tentativeG < (gScore[key(n)] ?? Infinity)) {
+            cameFrom[key(n)] = current; gScore[key(n)] = tentativeG; fScore[key(n)] = tentativeG + heuristic(n, goal);
+            if (!openSet.some(o => key(o.pos) === key(n))) openSet.push({ pos: n, f: fScore[key(n)] });
+          }
+        }
+      }
+    }
+    return null;
+  };
+
+  const generateStageData = (stageNum) => {
+    if (stageMemory[stageNum]) return stageMemory[stageNum];
+    const size = Math.min(22, 10 + (stageNum - 1) * 2), w = size, h = size;
+    let grid = Array.from({length: h}, () => Array(w).fill(1));
+
+    const carve = (x, z) => {
+      grid[z][x] = 0;
+      for (let [dx, dz] of [[0,-2],[0,2],[-2,0],[2,0]].sort(() => Math.random() - 0.5)) {
+        let nx = x + dx, nz = z + dz;
+        if (nx > 0 && nx < w - 1 && nz > 0 && nz < h - 1 && grid[nz][nx] === 1) {
+          grid[z + dz/2][x + dx/2] = 0; carve(nx, nz);
+        }
+      }
+    };
+    carve(1, 1);
+
+    let outerWalls = [];
+    for (let x = 1; x < w - 1; x++) {
+      if (grid[1][x] === 0) outerWalls.push({x, z: 1});
+      if (grid[h - 2][x] === 0) outerWalls.push({x, z: h - 2});
+    }
+    for (let z = 1; z < h - 1; z++) {
+      if (grid[z][1] === 0) outerWalls.push({x: 1, z});
+      if (grid[z][w - 2] === 0) outerWalls.push({x: w - 2, z});
+    }
+    
+    let sTile = outerWalls[Math.floor(Math.random() * outerWalls.length)], maxLen = -1, eTile = {x: 1, z: 1};
+    for (let z = 1; z < h - 1; z++) {
+      for (let x = 1; x < w - 1; x++) {
+        if (grid[z][x] === 0) {
+          let path = findPathAStar(grid, sTile, {x, z});
+          if (path && path.length > maxLen) { maxLen = path.length; eTile = {x, z}; }
+        }
+      }
+    }
+
+    const mainPath = findPathAStar(grid, sTile, eTile), itemPositions = [], deadEnds = [];
+    for (let z = 1; z < h - 1; z++) {
+      for (let x = 1; x < w - 1; x++) {
+        if (grid[z][x] === 0 && !(x === eTile.x && z === eTile.z) && !(x === sTile.x && z === sTile.z)) {
+          let wallCount = (grid[z+1][x] === 1) + (grid[z-1][x] === 1) + (grid[z][x+1] === 1) + (grid[z][x-1] === 1);
+          if (wallCount >= 3) deadEnds.push({x, z});
+        }
+      }
+    }
+
+    const itemCount = Math.min(6, 3 + Math.floor((stageNum - 1) / 3));
+    for (let i = 0; i < itemCount; i++) {
+      if (deadEnds.length > 0) itemPositions.push(deadEnds.splice(Math.floor(Math.random() * deadEnds.length), 1)[0]);
+      else if (mainPath?.length > 4) itemPositions.push(mainPath[Math.floor(Math.random() * (mainPath.length - 2)) + 1]);
+    }
+
+    return (stageMemory[stageNum] = { grid, startTile: sTile, exitTile: eTile, itemPositions, mainPath });
+  };
+
+  const tileToWorld = (tx, tz, w, h) => ({ x: (tx - w / 2 + 0.5) * blockSize, z: (tz - h / 2 + 0.5) * blockSize });
+  const worldToTile = (wx, wz, w, h) => ({ x: Math.floor(wx / blockSize + w / 2), z: Math.floor(wz / blockSize + h / 2) });
+  
+  const getCurrentSpawnCooldown = () => {
+    const idx = Math.min(SPAWN_BASE_BY_STAGE.length, Math.max(1, currentStage)) - 1;
+    return Math.max(SPAWN_FLOOR_BY_STAGE[idx], SPAWN_BASE_BY_STAGE[idx] - hitCooldownReduction);
+  };
+
+  const loadStage = (stageNum) => {
+    stageDisplay.textContent = `STAGE ${stageNum}`;
+    stageSwapTriggered = false;
+    wallMeshes.forEach(m => scene.remove(m)); wallMeshes = []; wallBoxMeshes = [];
+    items.forEach(i => scene.remove(i.mesh)); items = [];
+    
+    enemies.forEach(e => scene.remove(e.mesh));
+    enemies = [];
+
+    const sData = generateStageData(stageNum);
+    mapGrid = sData.grid; mapWidth = mapGrid[0].length; mapHeight = mapGrid.length;
+    startTile = sData.startTile; exitTile = sData.exitTile; mainPathData = sData.mainPath;
+
+    if (stageClearCache[stageNum]) {
+      exploredMap = stageClearCache[stageNum].map(row => [...row]);
+    } else {
+      exploredMap = Array.from({length: mapHeight}, () => Array(mapWidth).fill(false));
+    }
+
+    for (let z = 0; z < mapHeight; z++) {
+      for (let x = 0; x < mapWidth; x++) {
+        if (mapGrid[z][x] === 1) {
+          const wall = new THREE.Mesh(wallGeo, wallMat), pos = tileToWorld(x, z, mapWidth, mapHeight);
+          wall.position.set(pos.x, 1.5, pos.z); wall.castShadow = wall.receiveShadow = true;
+          scene.add(wall); wallMeshes.push(wall); wallBoxMeshes.push(wall);
+        }
+      }
+    }
+
+    const startW = tileToWorld(startTile.x, startTile.z, mapWidth, mapHeight);
+    const exitW = tileToWorld(exitTile.x, exitTile.z, mapWidth, mapHeight);
+
+    for (const [pos, mat, role] of [[startW, startMarkerMat, 'start'], [exitW, exitMarkerMat, 'exit']]) {
+      const marker = new THREE.Mesh(markerGeo, mat);
+      marker.position.set(pos.x, 0.02, pos.z); scene.add(marker); wallMeshes.push(marker);
+      if (role === 'start') startMarkerMesh = marker; else exitMarkerMesh = marker;
+    }
+
+    sData.itemPositions.forEach(p => {
+      const pos = tileToWorld(p.x, p.z, mapWidth, mapHeight);
+      const mesh = new THREE.Mesh(itemGeo, itemMat);
+      mesh.position.set(pos.x, 0.8, pos.z); scene.add(mesh);
+      items.push({ mesh, x: pos.x, z: pos.z, active: true });
+    });
+
+    player.position.set(startW.x, 1.6, startW.z);
+    enemySpawnCooldown = getCurrentSpawnCooldown();
+
+    if (stageNum === 1 && !hasShownSwapHint) {
+      hasShownSwapHint = true;
+      setTimeout(() => showGimmickMessage('출구를 찾아서 나가야 할 것 같아...', 3200), 1500);
+    }
+  };
+
+  const spawnEnemies = () => {
+    enemies.forEach(e => scene.remove(e.mesh));
+    enemies = [];
+
+    const targetCount = Math.min(4, 1 + Math.floor((currentStage - 1) / 2));
+    const deadEnds = [];
+    for (let z = 1; z < mapHeight - 1; z++) {
+      for (let x = 1; x < mapWidth - 1; x++) {
+        if (mapGrid[z][x] === 0 && !(x === exitTile.x && z === exitTile.z) && !(x === startTile.x && z === startTile.z)) {
+          if ((mapGrid[z+1][x] === 1) + (mapGrid[z-1][x] === 1) + (mapGrid[z][x+1] === 1) + (mapGrid[z][x-1] === 1) >= 3) deadEnds.push({ x, z });
+        }
+      }
+    }
+
+    for (let i = 0; i < targetCount; i++) {
+      // 개체마다 새로 텍스처를 생성해서(종족/뿔 크기 랜덤) 매번 다른 몬스터가 나오게 한다.
+      // transparent + alphaTest: 캔버스의 투명한 배경이 검은 사각형으로 렌더링되지 않고
+      // 실루엣만 깔끔하게 뚫려 보이도록 한다.
+      const enemyTexture = createDoomEnemyTexture();
+      const enemyMesh = new THREE.Sprite(new THREE.SpriteMaterial({ map: enemyTexture, transparent: true, alphaTest: 0.1 }));
+      enemyMesh.scale.set(2.2, 2.2, 1.0); enemyMesh.position.y = 1.1; scene.add(enemyMesh);
+
+      let spawnTile = deadEnds.length > 0 ? deadEnds[Math.floor(Math.random() * deadEnds.length)] : startTile;
+      const pos = tileToWorld(spawnTile.x, spawnTile.z, mapWidth, mapHeight);
+      enemyMesh.position.set(pos.x, 1.1, pos.z);
+
+      enemies.push({
+        mesh: enemyMesh,
+        state: 'search',
+        targetPos: new THREE.Vector3(pos.x, 1.1, pos.z),
+        searchTimer: 0,
+        groanTimer: Math.random() * 2 // 처음부터 전부 동시에 울지 않도록 시작 시점을 흩어둔다
+      });
+    }
+  };
+
+  loadStage(currentStage);
+
+  const postShaderMat = new THREE.ShaderMaterial({
+    uniforms: { tDiffuse: { value: null }, uTime: { value: 0 } },
+    vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position, 1.0); }`,
+    fragmentShader: `
+      uniform sampler2D tDiffuse; uniform float uTime; varying vec2 vUv;
+      void main() {
+        vec4 color = texture2D(tDiffuse, vUv);
+        color.rgb *= smoothstep(0.75, 0.2, length(vUv - 0.5));
+        color.rgb += (fract(sin(dot(vUv * uTime, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.025;
+        gl_FragColor = color;
+      }
+    `
+  });
+
+  const postScene = new THREE.Scene();
+  postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postShaderMat));
+  const postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+  // 사운드 엔진
+  let audioCtx = null;
+  const initAudio = () => {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    startHorrorAmbience();
+  };
+
+  // 최초의 클릭/키다운/터치 이벤트 핸들러 안에서 동기적으로 initAudio()를 호출해,
+  // 데스크톱 브라우저의 오디오 자동재생 정책도 확실히 통과하도록 잠금을 풀어준다.
+  const unlockAudioOnce = () => { initAudio(); };
+  window.addEventListener('click', unlockAudioOnce, { once: true });
+  window.addEventListener('keydown', unlockAudioOnce, { once: true });
+  window.addEventListener('touchstart', unlockAudioOnce, { once: true, passive: true });
+
+  // 탭을 껐다가 다시 보거나 포커스를 되찾았을 때도 혹시 suspended 상태면 복구
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+  });
+
+  // 소리 갭과 랜덤 변동이 들어간 발소리 엔진
+  const playFootstep = () => {
+    initAudio();
+    if (vibrationEnabled && navigator.vibrate) navigator.vibrate(20);
+
+    // 랜덤 미세 시간 오차 (±0.015초) 적용
+    let randomOffset = (Math.random() * 0.03) - 0.015;
+    let t = audioCtx.currentTime + Math.max(0, randomOffset);
+
+    // 1. 딱딱한 저음 타격 (Triangle Wave) - 무음 갭을 위해 매우 짧게 자름
+    let osc1 = audioCtx.createOscillator();
+    let gain1 = audioCtx.createGain();
+    
+    // 피치 미세 랜더마이징
+    let pitchVar = (Math.random() * 30) - 15;
+    osc1.type = 'triangle';
+    osc1.frequency.setValueAtTime(210 + pitchVar, t);
+    osc1.frequency.exponentialRampToValueAtTime(30, t + 0.035);
+
+    gain1.gain.setValueAtTime(0.75, t);
+    gain1.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+
+    osc1.connect(gain1);
+    gain1.connect(audioCtx.destination);
+    
+    osc1.start(t);
+    osc1.stop(t + 0.035);
+
+    // 2. 딱딱한 접촉음 (Square Wave Click)
+    let osc2 = audioCtx.createOscillator();
+    let gain2 = audioCtx.createGain();
+
+    osc2.type = 'square';
+    osc2.frequency.setValueAtTime(750 + pitchVar, t);
+    osc2.frequency.exponentialRampToValueAtTime(140, t + 0.012);
+
+    gain2.gain.setValueAtTime(0.25, t);
+    gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.012);
+
+    osc2.connect(gain2);
+    gain2.connect(audioCtx.destination);
+
+    osc2.start(t);
+    osc2.stop(t + 0.012);
+
+    // 3. 단단한 마찰 노이즈 (Highpass Noise) - 깔끔하게 무음이 되도록 잔향 제거
+    let bufferSize = audioCtx.sampleRate * 0.025;
+    let buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    let data = buffer.getChannelData(0);
+    for (let j = 0; j < bufferSize; j++) {
+      data[j] = Math.random() * 2 - 1;
+    }
+
+    let noise = audioCtx.createBufferSource();
+    noise.buffer = buffer;
+
+    let filter = audioCtx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 1800;
+
+    let noiseGain = audioCtx.createGain();
+    noiseGain.gain.setValueAtTime(0.3, t);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.025);
+
+    noise.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(audioCtx.destination);
+
+    noise.start(t);
+  };
+
+  const playWindSfx = () => {
+    initAudio();
+    let t = audioCtx.currentTime;
+    let bufferSize = audioCtx.sampleRate * 2.5;
+    let buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    let data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    let noise = audioCtx.createBufferSource();
+    noise.buffer = buffer;
+
+    let filter = audioCtx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(300, t);
+    filter.frequency.linearRampToValueAtTime(700, t + 1.2);
+    filter.frequency.linearRampToValueAtTime(250, t + 2.5);
+    filter.Q.value = 4.0;
+
+    let gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.0, t);
+    gain.gain.linearRampToValueAtTime(0.25, t + 1.0);
+    gain.gain.linearRampToValueAtTime(0.0, t + 2.5);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    noise.start(t);
+  };
+
+  setInterval(() => {
+    if (Math.random() < 0.4) playWindSfx();
+  }, 12000);
+
+  // ==================== 공포 분위기 배경음(BGM) ====================
+  // 외부 음원 파일 없이(단일 HTML 유지) Web Audio API만으로 만든 절차적 앰비언트.
+  // 1) 저음 드론: 서로 살짝 불협인 저주파 오실레이터 여러 개 + 각자 느린 디튠 LFO로
+  //    "웅웅거리며 흔들리는" 불안한 저음 배경을 계속 깐다.
+  // 2) 필터 컷오프에도 아주 느린 LFO를 걸어 소리가 서서히 숨쉬듯 열렸다 닫히게 한다.
+  // 3) 15~35초에 한 번씩 불협 화음의 "스팅어"(현/피아노 계열 타격음)를 랜덤 패닝으로 터뜨려
+  //    긴장감을 준다.
+  // 4) 적이 추격(chase) 상태가 되면 별도의 "긴장 레이어"(심장박동 + 필터를 밝게)가 페이드인된다.
+  let bgmStarted = false;
+  let masterFilter = null;
+  let chaseTensionGain = null;
+  let chaseActive = false;
+  let heartbeatIntervalId = null;
+
+  const startHorrorAmbience = () => {
+    if (bgmStarted || !audioCtx) return;
+    bgmStarted = true;
+
+    const bgmGain = audioCtx.createGain();
+    bgmGain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+    bgmGain.gain.exponentialRampToValueAtTime(0.26, audioCtx.currentTime + 6); // 배경음 볼륨 (요청으로 상향)
+    bgmGain.connect(audioCtx.destination);
+
+    // 어둡고 먹먹하게 - 저역만 통과시키는 마스터 필터 (chase 중엔 컷오프를 밝게 열어준다)
+    masterFilter = audioCtx.createBiquadFilter();
+    masterFilter.type = 'lowpass';
+    masterFilter.frequency.value = 220;
+    masterFilter.Q.value = 0.7;
+    masterFilter.connect(bgmGain);
+
+    // 필터 컷오프가 아주 느리게 열렸다 닫혔다 하며 "숨쉬는" 느낌을 준다
+    const filterLfo = audioCtx.createOscillator();
+    filterLfo.frequency.value = 0.025 + Math.random() * 0.02;
+    const filterLfoGain = audioCtx.createGain();
+    filterLfoGain.gain.value = 90;
+    filterLfo.connect(filterLfoGain);
+    filterLfoGain.connect(masterFilter.frequency);
+    filterLfo.start();
+
+    // 서로 살짝 불협인(단2도/트라이톤 근처) 저음 드론 3겹
+    const droneFreqs = [41.2, 43.7, 61.7];
+    droneFreqs.forEach((f, i) => {
+      const osc = audioCtx.createOscillator();
+      osc.type = i === 2 ? 'sawtooth' : 'sine';
+      osc.frequency.value = f;
+
+      const g = audioCtx.createGain();
+      g.gain.value = 1 / droneFreqs.length;
+      osc.connect(g);
+      g.connect(masterFilter);
+      osc.start();
+
+      // 오실레이터마다 느리고 제각각인 디튠 LFO로 삐뚤빼뚤한 불안감을 만든다
+      const lfo = audioCtx.createOscillator();
+      lfo.frequency.value = 0.04 + Math.random() * 0.08;
+      const lfoGain = audioCtx.createGain();
+      lfoGain.gain.value = 3 + Math.random() * 5;
+      lfo.connect(lfoGain);
+      lfoGain.connect(osc.detune);
+      lfo.start();
+    });
+
+    // 추격 중에만 페이드인되는 긴장 레이어(심장박동 소리가 여기로 들어간다)
+    chaseTensionGain = audioCtx.createGain();
+    chaseTensionGain.gain.value = 0.0001;
+    chaseTensionGain.connect(audioCtx.destination);
+
+    scheduleHorrorStinger();
+  };
+
+  const scheduleHorrorStinger = () => {
+    const delay = 15000 + Math.random() * 20000;
+    setTimeout(() => {
+      playHorrorStinger();
+      scheduleHorrorStinger();
+    }, delay);
+  };
+
+  // 불협 화음(근음 + 단2도 + 트라이톤)을 랜덤 위치에서 짧게 때리고 길게 사라지는 스팅어
+  const playHorrorStinger = () => {
+    if (!audioCtx || audioCtx.state !== 'running') return;
+    const t = audioCtx.currentTime;
+
+    const panner = audioCtx.createStereoPanner ? audioCtx.createStereoPanner() : null;
+    if (panner) panner.pan.value = Math.random() * 2 - 1;
+
+    const stingGain = audioCtx.createGain();
+    const peak = 0.09 + Math.random() * 0.16; // 배경음 볼륨 상향에 맞춰 스팅어도 함께 키움
+    stingGain.gain.setValueAtTime(0.0001, t);
+    stingGain.gain.exponentialRampToValueAtTime(peak, t + 0.06);
+    stingGain.gain.exponentialRampToValueAtTime(0.0001, t + 3 + Math.random() * 2.5);
+
+    if (panner) { panner.connect(stingGain); }
+    stingGain.connect(audioCtx.destination);
+    const dest = panner || stingGain;
+
+    const base = 55 * Math.pow(2, Math.floor(Math.random() * 3)); // 55 / 110 / 220Hz 대
+    const intervals = [1, Math.pow(2, 1 / 12), Math.pow(2, 6 / 12)]; // 근음, 단2도, 트라이톤
+    intervals.forEach(ratio => {
+      const osc = audioCtx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = base * ratio;
+      osc.connect(dest);
+      osc.start(t);
+      osc.stop(t + 6);
+    });
+  };
+
+  // 낮고 둔중한 심장박동 - chase 상태인 동안만 일정 간격으로 울린다
+  const playHeartbeatThump = () => {
+    if (!audioCtx || !chaseTensionGain) return;
+    const t = audioCtx.currentTime;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.45, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+    g.connect(chaseTensionGain);
+
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(64, t);
+    osc.frequency.exponentialRampToValueAtTime(34, t + 0.28);
+    osc.connect(g);
+    osc.start(t);
+    osc.stop(t + 0.35);
+  };
+
+  // 적 중 하나라도 추격(chase) 중이면 BGM이 긴장 모드로 바뀐다:
+  // 필터가 밝게 열려 드론이 또렷/날카로워지고, 심장박동 레이어가 페이드인된다.
+  const setChaseState = (active) => {
+    if (active === chaseActive || !audioCtx) return;
+    chaseActive = active;
+    const t = audioCtx.currentTime;
+
+    if (masterFilter) {
+      masterFilter.frequency.cancelScheduledValues(t);
+      masterFilter.frequency.setTargetAtTime(active ? 460 : 220, t, active ? 0.5 : 1.6);
+    }
+
+    if (chaseTensionGain) {
+      chaseTensionGain.gain.cancelScheduledValues(t);
+      chaseTensionGain.gain.setTargetAtTime(active ? 0.3 : 0.0001, t, active ? 0.4 : 1.0);
+    }
+
+    if (active) {
+      if (!heartbeatIntervalId) {
+        playHeartbeatThump();
+        heartbeatIntervalId = setInterval(playHeartbeatThump, 620);
+      }
+    } else if (heartbeatIntervalId) {
+      clearInterval(heartbeatIntervalId);
+      heartbeatIntervalId = null;
+    }
+  };
+
+  // 적이 다가올 때 내는 괴상한 신음/그르렁 소리. 거리가 가까울수록 크고 또렷해진다.
+  const playMonsterGroan = (distance, chasing) => {
+    if (!audioCtx || audioCtx.state !== 'running') return;
+    const t = audioCtx.currentTime;
+    const proximity = Math.max(0, Math.min(1, 1 - distance / 13));
+    if (proximity <= 0) return;
+
+    const g = audioCtx.createGain();
+    const peak = (0.05 + proximity * 0.22) * (chasing ? 1.3 : 1);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.18);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.1 + Math.random() * 0.9);
+    g.connect(audioCtx.destination);
+
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 320 + proximity * 500;
+    filter.connect(g);
+
+    // 낮게 으르렁대다가 점점 가라앉는 톱니파 - 짐승 같은 신음의 몸통
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sawtooth';
+    const baseFreq = 65 + Math.random() * 40;
+    osc.frequency.setValueAtTime(baseFreq, t);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.55, t + 0.9);
+    osc.connect(filter);
+    osc.start(t);
+    osc.stop(t + 2);
+
+    // 그르렁대는 진동(비브라토) - 가까울수록 더 격하게 떤다
+    const vibrato = audioCtx.createOscillator();
+    vibrato.frequency.value = 6 + Math.random() * 5 + proximity * 6;
+    const vibratoGain = audioCtx.createGain();
+    vibratoGain.gain.value = 12 + proximity * 25;
+    vibrato.connect(vibratoGain);
+    vibratoGain.connect(osc.frequency);
+    vibrato.start(t);
+    vibrato.stop(t + 2);
+
+    // 아주 가까울 때는 날카로운 쇳소리 끼익 소리를 살짝 얹는다
+    if (proximity > 0.55 && Math.random() < 0.5) {
+      const shriek = audioCtx.createOscillator();
+      shriek.type = 'square';
+      shriek.frequency.setValueAtTime(900 + Math.random() * 400, t + 0.1);
+      shriek.frequency.exponentialRampToValueAtTime(500, t + 0.5);
+      const shriekGain = audioCtx.createGain();
+      shriekGain.gain.setValueAtTime(0.0001, t + 0.1);
+      shriekGain.gain.exponentialRampToValueAtTime(0.05 * proximity, t + 0.15);
+      shriekGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+      shriek.connect(shriekGain);
+      shriekGain.connect(audioCtx.destination);
+      shriek.start(t + 0.1);
+      shriek.stop(t + 0.6);
+    }
+  };
+
+  let isLandscape = false;
+
+  const applyUILayout = () => {
+    const rawW = window.innerWidth, rawH = window.innerHeight;
+    isLandscape = rawW > rawH;
+
+    const w = isLandscape ? rawW : rawH;
+    const h = isLandscape ? rawH : rawW;
+    const rot = isLandscape ? 0 : 90;
+
+    container.style.width = w + 'px'; container.style.height = h + 'px';
+    container.style.transform = `translate(-50%, -50%) rotate(${rot}deg)`;
+    renderer.setSize(w, h); renderTarget.setSize(w, h); camera.aspect = w / h;
+
+    fullscreenMsg.style.transform = `translate(-50%, -50%) rotate(${rot}deg)`;
+    fullscreenMsg.style.top = fullscreenMsg.style.left = '50%';
+
+    gimmickMsgEl.style.transform = `translate(-50%, -50%) rotate(${rot}deg)`;
+    gimmickMsgEl.style.top = gimmickMsgEl.style.left = '50%';
+
+    hudContainer.style.top = isLandscape ? 'calc(15px + env(safe-area-inset-top, 0px))' : '50%';
+    hudContainer.style.left = isLandscape ? '50%' : (rawW - 30) + 'px';
+    hudContainer.style.transform = isLandscape ? 'translateX(-50%) rotate(0deg)' : 'translate(-50%, -50%) rotate(90deg)';
+
+    stageDisplay.style.top = isLandscape ? 'calc(15px + env(safe-area-inset-top, 0px))' : 'calc(30px + env(safe-area-inset-top, 0px))';
+    stageDisplay.style.left = isLandscape ? 'calc(20px + env(safe-area-inset-left, 0px))' : 'auto';
+    stageDisplay.style.right = isLandscape ? 'auto' : 'calc(10px + env(safe-area-inset-right, 0px))';
+    stageDisplay.style.transform = `rotate(${rot}deg)`;
+
+    // 레이더 위치는 화면 회전 여부(rot)로 판단한다 (isPC는 크기에만 사용):
+    // - rot === 0 (회전 없음): PC, 그리고 모바일 "진짜 가로 모드" 둘 다 화면 그대로 우측 상단.
+    // - rot === 90 (세로 화면을 90도 돌려 보여주는 "가짜 가로 모드"): 우측 하단에 앵커해두면,
+    //   실제로 기기를 돌려 쥔 사용자 시점에서는 그게 우측 상단으로 보인다 - 여기는 절대 건드리지 않는다.
+    if (rot === 0) {
+      radarContainer.style.top = 'calc(15px + env(safe-area-inset-top, 0px))';
+      radarContainer.style.bottom = 'auto';
+      radarContainer.style.left = 'auto';
+      radarContainer.style.right = 'calc(15px + env(safe-area-inset-right, 0px))';
+      radarContainer.style.transform = `rotate(${rot}deg)`;
+    } else {
+      radarContainer.style.top = 'auto';
+      radarContainer.style.bottom = 'calc(15px + env(safe-area-inset-bottom, 0px))';
+      radarContainer.style.left = 'auto';
+      radarContainer.style.right = 'calc(15px + env(safe-area-inset-right, 0px))';
+      radarContainer.style.transform = `rotate(${rot}deg)`;
+    }
+
+    camera.updateProjectionMatrix();
+  };
+
+  applyUILayout();
+  window.addEventListener('resize', applyUILayout);
+
+  let moveTouchId = null, lookTouchId = null;
+  let moveStartX = 0, moveStartY = 0, moveMoveX = 0, moveMoveY = 0;
+  let lookPrevX = 0, lookPrevY = 0, pitch = 0, stepTimer = 0;
+  let lastMoveTapTime = 0, isRunRequested = false, isRunning = false, stillTimer = 0;
+
+  const keys = { w: false, a: false, s: false, d: false, shift: false };
+  let isPointerLocked = false;
+
+  renderer.domElement.addEventListener('click', () => {
+    if (!isPointerLocked) renderer.domElement.requestPointerLock();
+  });
+
+  document.addEventListener('pointerlockchange', () => {
+    isPointerLocked = (document.pointerLockElement === renderer.domElement);
+  });
+
+  window.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    if (k === 'w' || e.code === 'KeyW') keys.w = true;
+    if (k === 's' || e.code === 'KeyS') keys.s = true;
+    if (k === 'a' || e.code === 'KeyA') keys.a = true;
+    if (k === 'd' || e.code === 'KeyD') keys.d = true;
+    if (e.key === 'Shift') keys.shift = true;
+  });
+
+  window.addEventListener('keyup', (e) => {
+    const k = e.key.toLowerCase();
+    if (k === 'w' || e.code === 'KeyW') keys.w = false;
+    if (k === 's' || e.code === 'KeyS') keys.s = false;
+    if (k === 'a' || e.code === 'KeyA') keys.a = false;
+    if (k === 'd' || e.code === 'KeyD') keys.d = false;
+    if (e.key === 'Shift') keys.shift = false;
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (isPointerLocked) {
+      const sensitivity = 0.002;
+      player.rotation.y -= e.movementX * sensitivity;
+      pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, pitch - e.movementY * sensitivity));
+      camera.rotation.x = pitch;
+    }
+  });
+
+  window.addEventListener('touchstart', (e) => {
+    for (let t of e.changedTouches) {
+      let isMoveZone = isLandscape ? (t.clientX < window.innerWidth / 2) : (t.clientY < window.innerHeight / 2);
+      if (isMoveZone && moveTouchId === null) {
+        moveTouchId = t.identifier; moveStartX = t.clientX; moveStartY = t.clientY; moveMoveX = moveMoveY = 0;
+        isRunRequested = (performance.now() - lastMoveTapTime < 300 && !isExhausted);
+        lastMoveTapTime = performance.now(); stillTimer = 0;
+      } else if (!isMoveZone && lookTouchId === null) {
+        lookTouchId = t.identifier; lookPrevX = t.clientX; lookPrevY = t.clientY;
+      }
+    }
+  }, { passive: true });
+
+  window.addEventListener('touchmove', (e) => {
+    for (let t of e.changedTouches) {
+      if (t.identifier === moveTouchId) {
+        moveMoveX = t.clientX - moveStartX; moveMoveY = t.clientY - moveStartY;
+      } else if (t.identifier === lookTouchId) {
+        let deltaX = t.clientX - lookPrevX, deltaY = t.clientY - lookPrevY;
+        player.rotation.y -= (isLandscape ? deltaX : deltaY) * 0.004;
+        pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, pitch - (isLandscape ? deltaY : -deltaX) * 0.004));
+        camera.rotation.x = pitch;
+        lookPrevX = t.clientX; lookPrevY = t.clientY;
+      }
+    }
+  }, { passive: true });
+
+  const handleTouchEnd = (e) => {
+    for (let t of e.changedTouches) {
+      if (t.identifier === moveTouchId) { moveTouchId = null; moveMoveX = moveMoveY = 0; isRunRequested = isRunning = false; stillTimer = 0; }
+      else if (t.identifier === lookTouchId) { lookTouchId = null; }
+    }
+  };
+  window.addEventListener('touchend', handleTouchEnd, { passive: true });
+  window.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+
+  let maxHp = 100, maxStamina = 250;
+  let currentHp = maxHp, currentStamina = maxStamina, isExhausted = false;
+
+  // 최적화: 기존에는 모든 벽(맵이 커지면 수백 개)을 매 프레임 2번씩 선형 스캔했다.
+  // 맵이 이미 격자 구조이므로, 좌표를 타일로 변환해 주변 3x3 타일만 확인하면 충분하다.
+  const checkCollision = (nextX, nextZ) => {
+    const r = 0.35;
+    const tile = worldToTile(nextX, nextZ, mapWidth, mapHeight);
+    for (let dz = -1; dz <= 1; dz++) {
+      const tz = tile.z + dz;
+      if (tz < 0 || tz >= mapHeight) continue;
+      const row = mapGrid[tz];
+      for (let dx = -1; dx <= 1; dx++) {
+        const tx = tile.x + dx;
+        if (tx < 0 || tx >= mapWidth || row[tx] !== 1) continue;
+        const pos = tileToWorld(tx, tz, mapWidth, mapHeight);
+        const half = blockSize / 2;
+        if (nextX + r > pos.x - half && nextX - r < pos.x + half && nextZ + r > pos.z - half && nextZ - r < pos.z + half) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  const radarRaycaster = new THREE.Raycaster();
+  const radarDirToTile = new THREE.Vector3();
+  const radarDirToExit = new THREE.Vector3();
+  const radarDirToEnemy = new THREE.Vector3();
+  const radarForwardDir = new THREE.Vector3();
+
+  const renderRadar = () => {
+    const cw = radarCanvas.width, ch = radarCanvas.height;
+    radarCtx.clearRect(0, 0, cw, ch);
+    if (!mapGrid.length) return;
+
+    let pTile = worldToTile(player.position.x, player.position.z, mapWidth, mapHeight);
+    radarForwardDir.set(0, 0, -1).applyQuaternion(player.quaternion);
+    
+    for (let dz = -4; dz <= 4; dz++) {
+      for (let dx = -4; dx <= 4; dx++) {
+        let nx = pTile.x + dx, nz = pTile.z + dz;
+        if (nx >= 0 && nx < mapWidth && nz >= 0 && nz < mapHeight) {
+          let tileWorldPos = tileToWorld(nx, nz, mapWidth, mapHeight);
+          radarDirToTile.set(tileWorldPos.x - player.position.x, 0, tileWorldPos.z - player.position.z);
+          let dist = radarDirToTile.length();
+          radarDirToTile.normalize();
+          let angle = radarForwardDir.angleTo(radarDirToTile);
+
+          if ((dist <= 3.5 && angle < Math.PI * 0.4) || (dx === 0 && dz === 0)) {
+            if (mapGrid[nz][nx] === 1) {
+              exploredMap[nz][nx] = true;
+            } else {
+              radarRaycaster.set(player.position, radarDirToTile);
+              radarRaycaster.far = dist;
+              let intersects = radarRaycaster.intersectObjects(wallBoxMeshes);
+              if (intersects.length === 0) exploredMap[nz][nx] = true;
+            }
+          }
+        }
+      }
+    }
+
+    if (pTile.x >= 0 && pTile.x < mapWidth && pTile.z >= 0 && pTile.z < mapHeight) {
+      exploredMap[pTile.z][pTile.x] = true;
+    }
+
+    const cellSize = Math.min(cw / mapWidth, ch / mapHeight);
+    const offsetX = (cw - mapWidth * cellSize) / 2, offsetY = (ch - mapHeight * cellSize) / 2;
+
+    for (let z = 0; z < mapHeight; z++) {
+      for (let x = 0; x < mapWidth; x++) {
+        if (exploredMap[z][x]) {
+          radarCtx.fillStyle = mapGrid[z][x] === 1 ? 'rgba(50, 60, 80, 0.9)' : 'rgba(15, 20, 30, 0.6)';
+          radarCtx.fillRect(offsetX + x * cellSize, offsetY + z * cellSize, cellSize + 0.5, cellSize + 0.5);
+        }
+      }
+    }
+
+    if (stageClearCache[currentStage] && mainPathData && mainPathData.length > 0) {
+      radarCtx.fillStyle = 'rgba(0, 255, 204, 0.25)';
+      for (let pt of mainPathData) {
+        if (exploredMap[pt.z] && exploredMap[pt.z][pt.x]) {
+          radarCtx.fillRect(offsetX + pt.x * cellSize + cellSize * 0.25, offsetY + pt.z * cellSize + cellSize * 0.25, cellSize * 0.5, cellSize * 0.5);
+        }
+      }
+    }
+
+    const drawDot = (worldPos, color, size) => {
+      let t = worldToTile(worldPos.x, worldPos.z, mapWidth, mapHeight);
+      if (exploredMap[t.z] && exploredMap[t.z][t.x]) {
+        radarCtx.fillStyle = color; radarCtx.beginPath();
+        radarCtx.arc(offsetX + (t.x + 0.5) * cellSize, offsetY + (t.z + 0.5) * cellSize, size, 0, Math.PI * 2);
+        radarCtx.fill();
+      }
+    };
+
+    radarCtx.fillStyle = '#0055ff';
+    radarCtx.fillRect(offsetX + startTile.x * cellSize, offsetY + startTile.z * cellSize, cellSize, cellSize);
+
+    let exW = tileToWorld(exitTile.x, exitTile.z, mapWidth, mapHeight);
+    radarDirToExit.set(exW.x - player.position.x, 0, exW.z - player.position.z);
+    let distToExit = radarDirToExit.length();
+    radarDirToExit.normalize();
+    let angleToExit = radarForwardDir.angleTo(radarDirToExit);
+
+    radarRaycaster.set(player.position, radarDirToExit);
+    radarRaycaster.far = distToExit;
+    let exitIntersects = radarRaycaster.intersectObjects(wallBoxMeshes);
+    if (distToExit <= 3.5 || (distToExit <= 10.0 && angleToExit < Math.PI * 0.4 && exitIntersects.length === 0)) {
+      exploredMap[exitTile.z][exitTile.x] = true;
+    }
+
+    if (exploredMap[exitTile.z] && exploredMap[exitTile.z][exitTile.x]) {
+      radarCtx.fillStyle = '#ff3333';
+      radarCtx.fillRect(offsetX + exitTile.x * cellSize, offsetY + exitTile.z * cellSize, cellSize, cellSize);
+    }
+
+    items.forEach(i => i.active && drawDot(i, '#00ffcc', Math.max(1.5, cellSize * 0.3)));
+    
+    enemies.forEach(enemy => {
+      let eTile = worldToTile(enemy.mesh.position.x, enemy.mesh.position.z, mapWidth, mapHeight);
+      radarDirToEnemy.set(enemy.mesh.position.x - player.position.x, 0, enemy.mesh.position.z - player.position.z);
+      let distToEnemy = radarDirToEnemy.length();
+      radarDirToEnemy.normalize();
+      let angleToEnemy = radarForwardDir.angleTo(radarDirToEnemy);
+
+      radarRaycaster.set(player.position, radarDirToEnemy);
+      radarRaycaster.far = distToEnemy;
+      let intersects = radarRaycaster.intersectObjects(wallBoxMeshes);
+
+      if (exploredMap[eTile.z]?.[eTile.x] && distToEnemy <= 10.0 && angleToEnemy < Math.PI * 0.4 && intersects.length === 0) {
+        drawDot(enemy.mesh.position, '#ff0055', Math.max(2, cellSize * 0.4));
+      }
+    });
+    
+    radarCtx.fillStyle = '#00ff00'; radarCtx.beginPath();
+    radarCtx.arc(offsetX + (pTile.x + 0.5) * cellSize, offsetY + (pTile.z + 0.5) * cellSize, Math.max(2.5, cellSize * 0.45), 0, Math.PI * 2);
+    radarCtx.fill();
+  };
+
+  const clock = new THREE.Clock();
+  const lightWorldPos = new THREE.Vector3(), lightWorldDir = new THREE.Vector3(), camWorldPos = new THREE.Vector3();
+
+  // 매 프레임 new THREE.Vector3()/new THREE.Raycaster()를 반복 생성하지 않도록
+  // 재사용할 객체들을 미리 만들어둔다 (GC 부담 감소)
+  const moveForwardVec = new THREE.Vector3();
+  const moveStrafeVec = new THREE.Vector3();
+  const moveVector = new THREE.Vector3();
+  const enemyRaycaster = new THREE.Raycaster();
+  const enemyDirVec = new THREE.Vector3();
+  const enemyMoveDirVec = new THREE.Vector3();
+
+  // HP/스태미나 UI는 값이 바뀔 때만 DOM에 쓴다 (매 프레임 동일한 문자열을 다시 써서
+  // 발생하는 불필요한 스타일/텍스트 갱신을 방지)
+  let lastHpPct = -1, lastStaminaPct = -1, lastHpVisible = null, lastStaminaVisible = null;
+
+  // 레이더는 시야 확보를 위해 매 프레임 다수의 레이캐스팅을 수행해 비용이 크다.
+  // 사람 눈에는 10fps 정도로 갱신해도 충분히 부드러워 보이므로 주기적으로만 갱신한다.
+  const RADAR_UPDATE_INTERVAL = 0.1;
+  let radarUpdateTimer = 0;
+
+  const animate = () => {
+    requestAnimationFrame(animate);
+    const delta = Math.min(clock.getDelta(), 0.1), time = clock.getElapsedTime();
+
+    if (enemySpawnCooldown > 0) enemySpawnCooldown = Math.max(0, enemySpawnCooldown - delta);
+    if (enemySpawnCooldown <= 0 && enemies.length === 0) spawnEnemies();
+
+    let isKeyboardMoving = keys.w || keys.s || keys.a || keys.d;
+    let touchMoveMag = moveTouchId !== null ? Math.hypot(moveMoveX, moveMoveY) : 0;
+    let isTouchMoving = touchMoveMag > 5;
+    let isStandingStill = !isKeyboardMoving && !isTouchMoving;
+
+    currentHp = Math.min(maxHp, currentHp + ((currentHp < 50 ? 1.0 : 0.4) + (isStandingStill ? 0.8 : 0)) * delta);
+
+    const hpPct = Math.round((currentHp / maxHp) * 100);
+    const hpVisible = currentHp < maxHp;
+    if (hpPct !== lastHpPct) {
+      hpFill.style.transform = `scaleX(${currentHp / maxHp})`;
+      hpText.textContent = `HP: ${hpPct}%`;
+      lastHpPct = hpPct;
+    }
+    if (hpVisible !== lastHpVisible) {
+      hpUI.style.display = hpVisible ? 'flex' : 'none';
+      lastHpVisible = hpVisible;
+    }
+
+    const staminaPct = Math.round((currentStamina / maxStamina) * 100);
+    const staminaVisible = currentStamina < maxStamina;
+    if (staminaPct !== lastStaminaPct) {
+      staminaFill.style.transform = `scaleX(${currentStamina / maxStamina})`;
+      staminaText.textContent = `STAMINA: ${staminaPct}%`;
+      lastStaminaPct = staminaPct;
+    }
+    if (staminaVisible !== lastStaminaVisible) {
+      staminaUI.style.display = staminaVisible ? 'flex' : 'none';
+      lastStaminaVisible = staminaVisible;
+    }
+
+    if (isKeyboardMoving || isTouchMoving) {
+      let moveDirX = 0, moveDirZ = 0;
+
+      if (isKeyboardMoving) {
+        if (keys.w) moveDirZ += 1;
+        if (keys.s) moveDirZ -= 1;
+        if (keys.a) moveDirX -= 1;
+        if (keys.d) moveDirX += 1;
+
+        let len = Math.hypot(moveDirX, moveDirZ);
+        if (len > 0) { moveDirX /= len; moveDirZ /= len; }
+
+        let wantRun = keys.shift && moveDirZ > 0 && !isExhausted;
+        if (wantRun) {
+          isRunning = true;
+          currentStamina = Math.max(0, currentStamina - 30 * delta);
+          if (currentStamina === 0) { isRunning = false; isExhausted = true; }
+        } else {
+          isRunning = false;
+          currentStamina = Math.min(maxStamina, currentStamina + 10 * delta);
+        }
+      } else if (isTouchMoving) {
+        moveDirX = isLandscape ? (moveMoveX / touchMoveMag) : (moveMoveY / touchMoveMag);
+        moveDirZ = isLandscape ? (-moveMoveY / touchMoveMag) : (moveMoveX / touchMoveMag);
+
+        if (isRunRequested && moveDirZ > 0.7 && !isExhausted) {
+          isRunning = true;
+          currentStamina = Math.max(0, currentStamina - 30 * delta);
+          if (currentStamina === 0) { isRunning = false; isExhausted = true; isRunRequested = false; }
+        } else {
+          isRunning = false; isRunRequested = false;
+          currentStamina = Math.min(maxStamina, currentStamina + 10 * delta);
+        }
+      }
+
+      if (isExhausted && currentStamina >= maxStamina * 0.35) isExhausted = false;
+
+      let currentSpeed = (isRunning ? 4.8 : (isExhausted ? 1.8 : 3.5)) * delta;
+      moveForwardVec.set(0, 0, -moveDirZ).applyQuaternion(player.quaternion).multiplyScalar(currentSpeed);
+      moveStrafeVec.set(moveDirX, 0, 0).applyQuaternion(player.quaternion).multiplyScalar(currentSpeed);
+      moveVector.copy(moveForwardVec).add(moveStrafeVec);
+
+      if (!checkCollision(player.position.x + moveVector.x, player.position.z)) player.position.x += moveVector.x;
+      if (!checkCollision(player.position.x, player.position.z + moveVector.z)) player.position.z += moveVector.z;
+
+      // 발소리 간격 조정 (뛰기: 0.38초, 걷기: 0.52초, 탈진: 0.65초로 연사 느낌 해제)
+      let stepInterval = isRunning ? 0.38 : (isExhausted ? 0.65 : 0.52);
+      if ((stepTimer += delta) >= stepInterval) { 
+        playFootstep(); 
+        stepTimer = 0; 
+      }
+    } else {
+      isRunning = false;
+      currentStamina = Math.min(maxStamina, currentStamina + 20 * delta);
+    }
+
+    let curPTile = worldToTile(player.position.x, player.position.z, mapWidth, mapHeight);
+    if (curPTile.x === exitTile.x && curPTile.z === exitTile.z) {
+      const swapChance = SWAP_CHANCE_BY_STAGE[Math.min(SWAP_CHANCE_BY_STAGE.length, currentStage) - 1];
+      if (!stageSwapTriggered && Math.random() < swapChance) {
+        // 가짜 도착지점: 스테이지는 클리어되지 않고, 출발/도착 역할만 뒤바뀐다.
+        [startTile, exitTile] = [exitTile, startTile];
+        if (startMarkerMesh && exitMarkerMesh) {
+          [startMarkerMesh.material, exitMarkerMesh.material] = [exitMarkerMesh.material, startMarkerMesh.material];
+        }
+        // 뒤바뀐 진짜 도착지점을 레이더에 즉시(탐사 여부와 무관하게) 표시해준다.
+        if (exploredMap[exitTile.z]) exploredMap[exitTile.z][exitTile.x] = true;
+        if (exploredMap[startTile.z]) exploredMap[startTile.z][startTile.x] = true;
+
+        // 스왑 대가로 이번 시도 한정 피해 누적이 완화된다(이전 스크립트 수준으로).
+        currentDamage = BASE_HP_DMG;
+        currentStaminaDamage = BASE_STAMINA_DMG;
+        stageSwapTriggered = true;
+
+        showGimmickMessage('되돌아가시오...\n출발점과 도착점이 뒤바뀌었다.', 2600);
+      } else {
+        stageClearCache[currentStage] = exploredMap.map(row => [...row]);
+        currentStage = Math.min(10, currentStage + 1);
+        deathCountInStage = 0;
+        // 스테이지당 누적된 적 피해량/스폰 쿨다운 감소치는 다음 스테이지 진입 시 초기화된다.
+        hitCooldownReduction = 0;
+
+        maxHp = 100 + (currentStage - 1) * 5;
+        maxStamina = 250 + (currentStage - 1) * 10;
+        currentHp = maxHp;
+        currentStamina = maxStamina;
+        currentDamage = getBaseHpDamageForStage(currentStage, maxHp);
+        currentStaminaDamage = BASE_STAMINA_DMG;
+
+        loadStage(currentStage);
+      }
+    }
+
+    items.forEach(item => {
+      if (item.active && Math.hypot(player.position.x - item.x, player.position.z - item.z) < 1.0) {
+        if (currentHp < maxHp || currentStamina < maxStamina) {
+          item.active = false; scene.remove(item.mesh); 
+          currentHp = Math.min(maxHp, currentHp + 15);
+          currentStamina = Math.min(maxStamina, currentStamina + 25);
+        }
+      }
+    });
+
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      let enemy = enemies[i];
+      let distToPlayer = player.position.distanceTo(enemy.mesh.position);
+      enemyDirVec.copy(player.position).sub(enemy.mesh.position).normalize();
+      enemyRaycaster.set(enemy.mesh.position, enemyDirVec);
+      enemyRaycaster.far = distToPlayer;
+      let intersects = enemyRaycaster.intersectObjects(wallBoxMeshes);
+
+      enemy.state = (intersects.length === 0 || intersects[0].distance > distToPlayer) && distToPlayer < 10 ? 'chase' : (enemy.state === 'chase' ? 'search' : enemy.state);
+
+      // 다가올 때 괴상한 신음/그르렁 소리 - 가까울수록, 추격 중일수록 더 자주/크게 운다
+      enemy.groanTimer -= delta;
+      if (enemy.groanTimer <= 0) {
+        if (distToPlayer < 13) {
+          playMonsterGroan(distToPlayer, enemy.state === 'chase');
+          const base = enemy.state === 'chase' ? 1.3 : 4.0;
+          enemy.groanTimer = base + Math.random() * (enemy.state === 'chase' ? 1.6 : 3.5);
+        } else {
+          enemy.groanTimer = 1.5; // 사거리 밖이면 다음 체크까지만 미뤄둔다
+        }
+      }
+
+      let enemySpeed = Math.min(ENEMY_SPEED_CAP, ENEMY_BASE_SPEED + (currentStage - 1) * ENEMY_SPEED_STEP);
+
+      if (enemy.state === 'chase') {
+        enemy.mesh.position.addScaledVector(enemyDirVec, enemySpeed * delta);
+      } else {
+        enemy.searchTimer += delta;
+        if (enemy.searchTimer > 2.5) {
+          enemy.searchTimer = 0;
+          let pPath = findPathAStar(mapGrid, worldToTile(enemy.mesh.position.x, enemy.mesh.position.z, mapWidth, mapHeight), curPTile);
+          if (pPath?.length > 1) {
+            let nextW = tileToWorld(pPath[1].x, pPath[1].z, mapWidth, mapHeight);
+            enemy.targetPos.set(nextW.x, 1.1, nextW.z);
+          }
+        }
+        enemyMoveDirVec.copy(enemy.targetPos).sub(enemy.mesh.position);
+        if (enemyMoveDirVec.length() > 0.2) {
+          enemyMoveDirVec.normalize();
+          enemy.mesh.position.addScaledVector(enemyMoveDirVec, (enemySpeed * 0.5) * delta);
+        }
+      }
+
+      if (distToPlayer < 1.0) {
+        // 한방딜 자체는 늘리지 않되, 맞을 때마다(스테이지 내 누적) 다음 피격의 피해량이 점점 커진다.
+        // 단, 스왑 기믹이 발동된 뒤(진짜 도착지점을 찾으러 가는 중)에는 이전 스크립트 수준으로 완화된다.
+        currentHp -= currentDamage;
+        if (currentStage >= STAMINA_FULL_DRAIN_FROM_STAGE && !stageSwapTriggered) {
+          currentStamina = 0; isExhausted = true;
+        } else {
+          currentStamina = Math.max(0, currentStamina - currentStaminaDamage);
+          if (currentStamina <= 0) isExhausted = true;
+        }
+
+        const hpStep = stageSwapTriggered ? LEGACY_HP_DMG_STEP : HP_DMG_STEP;
+        const stStep = stageSwapTriggered ? LEGACY_STAMINA_DMG_STEP : STAMINA_DMG_STEP;
+        currentDamage = Math.min(DMG_CAP, currentDamage + hpStep);
+        currentStaminaDamage = Math.min(DMG_CAP, currentStaminaDamage + stStep);
+
+        scene.remove(enemy.mesh);
+        enemies.splice(i, 1);
+
+        hitCooldownReduction += 15;
+        enemySpawnCooldown = getCurrentSpawnCooldown();
+
+        if (currentHp <= 0) {
+          if (++deathCountInStage >= 3) {
+            deathCountInStage = 0; currentStage = 1;
+            currentDamage = BASE_HP_DMG; currentStaminaDamage = BASE_STAMINA_DMG; hitCooldownReduction = 0;
+            maxHp = 100; maxStamina = 250;
+          }
+          currentHp = maxHp; loadStage(currentStage);
+        }
+        break;
+      }
+    }
+
+    // 추격 중인 적이 하나라도 있으면 BGM을 긴장 모드로 전환 (심장박동 + 필터 개방)
+    setChaseState(enemies.some(e => e.state === 'chase'));
+
+    lantern.getWorldPosition(lightWorldPos);
+    lanternTarget.getWorldPosition(lightWorldDir); lightWorldDir.sub(lightWorldPos).normalize();
+    camera.getWorldPosition(camWorldPos);
+
+    floorShaderMat.uniforms.uLightPos.value.copy(lightWorldPos);
+    floorShaderMat.uniforms.uLightDir.value.copy(lightWorldDir);
+    floorShaderMat.uniforms.uCamPos.value.copy(camWorldPos);
+
+    renderer.setRenderTarget(renderTarget); renderer.render(scene, camera);
+    postShaderMat.uniforms.tDiffuse.value = renderTarget.texture;
+    postShaderMat.uniforms.uTime.value = time;
+    renderer.setRenderTarget(null); renderer.render(postScene, postCamera);
+
+    // 레이더는 초당 60번이 아니라 초당 ~10번만 갱신 (레이캐스팅 비용이 큰 부분)
+    radarUpdateTimer += delta;
+    if (radarUpdateTimer >= RADAR_UPDATE_INTERVAL) {
+      radarUpdateTimer = 0;
+      renderRadar();
+    }
+  };
+
+  animate();
+</script>
+</body>
+</html>

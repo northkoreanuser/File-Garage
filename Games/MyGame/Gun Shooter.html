@@ -1,0 +1,1836 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>탑다운 슈터</title>
+  <style>
+    :root{
+      --bg:#0f1217;
+      --floor:#1a1f26;
+      --amber:#ffb454;
+      --teal:#2dd4bf;
+      --red:#ff5a5a;
+      --gold:#facc15;
+      --dim:#7b8590;
+      --ink:#e8ecef;
+    }
+    *{box-sizing:border-box;}
+    html,body{
+      margin:0; height:100%; background:var(--bg); overflow:hidden;
+      font-family:'Consolas','Menlo','Courier New',monospace;
+      color:var(--ink);
+    }
+    #wrap{
+      position:relative; width:100%; height:100%;
+      display:flex; align-items:center; justify-content:center;
+    }
+    canvas{
+      background:var(--floor);
+      box-shadow:0 0 0 2px #000, 0 0 60px rgba(0,0,0,.6);
+      cursor:crosshair;
+      display:block;
+    }
+    .hud{
+      position:absolute; pointer-events:none; letter-spacing:.06em;
+    }
+    #hp-wrap{ top:16px; left:16px; }
+    #hp-label{ font-size:11px; color:var(--dim); margin-bottom:4px; }
+    #hp-bar-bg{ width:220px; height:14px; background:#000; border:1px solid #3a4048; }
+    #hp-bar{ height:100%; background:linear-gradient(90deg,var(--red),#ff9a5a); width:100%; transition:width .12s; }
+    
+    #ammo-wrap{ right:16px; bottom:16px; text-align:right; }
+    #ammo-label{ font-size:11px; color:var(--dim); }
+    #ammo-num{ font-size:28px; color:var(--amber); font-weight:bold; }
+    #weapon-name{ font-size:13px; color:var(--teal); margin-top:4px; }
+    
+    #score-wrap{ top:16px; right:16px; text-align:right; }
+    #score-label{ font-size:11px; color:var(--dim); }
+    #score-num{ font-size:22px; color:var(--gold); }
+    #wave-wrap{ top:44px; right:16px; text-align:right; font-size:11px; color:var(--dim); }
+    #reload-note{ bottom:40px; right:16px; text-align:right; font-size:11px; color:var(--amber); opacity:0; transition:opacity .15s; }
+    #heal-indicator{ position:absolute; bottom:56px; left:16px; font-size:11px; color:var(--teal); opacity:0; transition:opacity .3s; }
+    #grenade-cd{
+      position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+      font-size:13px; color:var(--gold); background:rgba(15,18,23,0.8);
+      padding:4px 16px; border-radius:20px; border:1px solid rgba(250,204,21,0.3);
+      pointer-events:none;
+    }
+    #grenade-cd span{ color:var(--amber); font-weight:bold; }
+    
+    #coin-hud{
+      position:absolute; top:16px; left:50%; transform:translateX(-50%);
+      background:rgba(15,18,23,0.85);
+      border:1px solid var(--gold);
+      border-radius:20px;
+      padding:6px 18px 6px 14px;
+      font-size:18px;
+      color:var(--gold);
+      pointer-events:none;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      box-shadow:0 0 20px rgba(250,204,21,0.15);
+    }
+    #coin-hud span{ font-weight:bold; }
+    
+    #center-msg{
+      top:50%; left:50%; transform:translate(-50%,-50%); text-align:center;
+      pointer-events:auto;
+      background:rgba(15,18,23,0.92);
+      padding:30px 40px;
+      border:1px solid #2a2f38;
+      border-radius:8px;
+      min-width:340px;
+    }
+    #center-msg h1{ font-size:26px; letter-spacing:.1em; margin:0 0 10px; color:var(--amber);}
+    #center-msg p{ font-size:13px; color:var(--dim); line-height:1.7; margin:4px 0;}
+    #center-msg .key{ color:var(--teal); }
+    #center-msg button{
+      margin-top:16px; pointer-events:auto; cursor:pointer;
+      background:var(--amber); color:#1a1400; border:none; font-weight:bold;
+      padding:10px 22px; font-family:inherit; font-size:13px; letter-spacing:.08em;
+      border-radius:4px;
+    }
+    #center-msg button:hover{ background:#ffc574; }
+    .hidden{ display:none !important; }
+    
+    #wasm-badge{
+      bottom:16px; left:16px; font-size:10px; color:var(--dim); letter-spacing:.08em;
+    }
+    #wasm-badge b{ color:var(--teal); }
+    
+    #lighting-toggle{
+      position:absolute; bottom:16px; right:200px;
+      pointer-events:auto; cursor:pointer;
+      background:rgba(20,23,27,0.8); color:var(--dim);
+      border:1px solid #3a4048; padding:6px 12px;
+      font-family:inherit; font-size:10px; letter-spacing:.05em;
+      border-radius:4px;
+    }
+    #lighting-toggle:hover{ background:rgba(255,180,84,0.15); color:var(--amber); }
+
+    #shop-toggle{
+      position:absolute; bottom:16px; right:16px;
+      pointer-events:auto; cursor:pointer;
+      background:rgba(20,23,27,0.9); color:var(--gold);
+      border:1px solid #facc15; padding:6px 16px;
+      font-family:inherit; font-size:12px; letter-spacing:.05em;
+      border-radius:4px;
+      font-weight:bold;
+    }
+    #shop-toggle:hover{ background:#facc15; color:#0f1217; }
+
+    #shop-panel{
+      position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+      background:rgba(15,18,23,0.97);
+      border:1px solid #2a2f38;
+      border-radius:12px;
+      padding:30px 40px;
+      min-width:460px;
+      pointer-events:auto;
+      backdrop-filter:blur(4px);
+      box-shadow:0 0 60px rgba(0,0,0,0.8);
+      display:none;
+      max-height:80vh;
+      overflow-y:auto;
+    }
+    #shop-panel.active{ display:block; }
+    #shop-panel h2{ color:var(--gold); margin-top:0; text-align:center; letter-spacing:.1em; }
+    .shop-item{
+      display:flex; justify-content:space-between; align-items:center;
+      padding:8px 0; border-bottom:1px solid #1e232b;
+    }
+    .shop-item:last-child{border-bottom:none;}
+    .shop-item .name{ color:var(--ink); font-weight:bold; }
+    .shop-item .price{ color:var(--gold); margin-right:12px; }
+    .shop-item .desc{ font-size:11px; color:var(--dim); margin-left:8px; }
+    .shop-btn{
+      background:var(--gold); color:#0f1217; border:none;
+      padding:4px 14px; border-radius:4px; font-weight:bold;
+      cursor:pointer; font-family:inherit; font-size:12px;
+    }
+    .shop-btn:hover{ opacity:0.8; }
+    .shop-btn:disabled{ opacity:0.3; cursor:not-allowed; }
+    #shop-close{
+      position:absolute; top:10px; right:16px;
+      background:none; border:none; color:var(--dim);
+      font-size:22px; cursor:pointer;
+    }
+    #shop-close:hover{ color:var(--ink); }
+    #coin-display{
+      text-align:center; font-size:18px; color:var(--gold);
+      margin-bottom:16px;
+    }
+    .upgrade-badge{ color:var(--teal); font-size:11px; margin-left:4px; }
+    .owned-badge{ color:#4ade80; font-size:11px; margin-left:4px; }
+    .section-title{ color:var(--dim); font-size:13px; margin:12px 0 6px; letter-spacing:.1em; border-bottom:1px solid #1e232b; padding-bottom:4px; }
+    .save-info{ color:var(--dim); font-size:10px; text-align:center; margin-top:12px; border-top:1px solid #1e232b; padding-top:10px; }
+    .save-info button{
+      background:none; border:1px solid #3a4048; color:var(--dim);
+      padding:2px 12px; border-radius:4px; cursor:pointer;
+      font-family:inherit; font-size:10px;
+    }
+    .save-info button:hover{ color:var(--ink); border-color:var(--dim); }
+  </style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c" width="900" height="600"></canvas>
+
+  <!-- HUD -->
+  <div class="hud" id="hp-wrap">
+    <div id="hp-label">HP</div>
+    <div id="hp-bar-bg"><div id="hp-bar"></div></div>
+  </div>
+  <div class="hud" id="heal-indicator">❤️ 자동 회복 중...</div>
+
+  <div class="hud" id="coin-hud">🪙 <span id="coin-hud-num">0</span></div>
+
+  <div class="hud" id="ammo-wrap">
+    <div id="ammo-label">AMMO</div>
+    <div id="ammo-num">8 / 8</div>
+    <div id="weapon-name">권총</div>
+    <div id="reload-note">R 재장전</div>
+  </div>
+
+  <div class="hud" id="score-wrap">
+    <div id="score-label">SCORE</div>
+    <div id="score-num">0</div>
+  </div>
+  <div class="hud" id="wave-wrap">적 <span id="enemy-count">0</span>기 · ⚙️ <span id="turret-count">0</span></div>
+
+  <div class="hud" id="wasm-badge">PHYSICS: <b>WASM</b> · <span id="fps">60</span> fps</div>
+
+  <div class="hud" id="grenade-cd">💣 <span id="grenade-cd-text">준비</span></div>
+
+  <button id="lighting-toggle">💡 라이팅 ON</button>
+  <button id="shop-toggle">🏪 상점</button>
+
+  <!-- 상점 패널 -->
+  <div id="shop-panel">
+    <button id="shop-close">✕</button>
+    <h2>🏪 상점</h2>
+    <div id="coin-display">🪙 <span id="shop-coins">0</span></div>
+    
+    <div class="section-title">🔫 무기</div>
+    <div id="shop-weapons"></div>
+    
+    <div class="section-title">⬆️ 업그레이드</div>
+    <div id="shop-upgrades"></div>
+    
+    <div class="section-title">⚙️ 특수 장비</div>
+    <div id="shop-specials"></div>
+    
+    <div class="save-info">
+      <button id="save-reset-btn">초기화</button>
+    </div>
+  </div>
+
+  <!-- 시작/게임오버 -->
+  <div class="hud" id="center-msg">
+    <h1 id="msg-title">드럼통 지대</h1>
+    <p><span class="key">WASD</span> 이동 &nbsp;·&nbsp; <span class="key">마우스</span> 조준 &nbsp;·&nbsp; <span class="key">좌클릭</span> 발사</p>
+    <p><span class="key">R</span> 재장전 &nbsp;·&nbsp; <span class="key">1-7</span> 무기 전환 &nbsp;·&nbsp; <span class="key">Q</span> 상점</p>
+    <p><span class="key">T</span> 포탑 설치 &nbsp;·&nbsp; <span class="key">G</span> 수류탄 (쿨 15초)</p>
+    <button id="start-btn">전투 시작</button>
+  </div>
+</div>
+
+<script>
+(async function(){
+"use strict";
+// WASM
+const PHYSICS_WASM_B64 = "AGFzbQEAAAABDgJgAX8Bf2AEfX99fQF/AwMCAAEFAwEABAcRAgZtZW1vcnkCAARzdGVwAAEKyQYCBwAgAEEgbAu+BgMEfxh9Bn9BACEEAkADQCAEIAFODQEgBBAAIQYgBioCGCEOIA5DAAAAAFwEQCAGKgIUIQ0gBioCACEIIAYqAgQhCSAGKgIIIQogBioCDCELIAYqAhAhDCAIIAogAJSSIQggCSALIACUkiEJIA1DAABAQFsEQCAIQwAASMJdIAggAkMAAEhCkl5yIAlDAABIwl0gCSADQwAASEKSXnJyBEBDAAAAACEOCwUgCCAMk0MAAAAAXQRAIAwhCEMAAAAAIQoLIAggDJIgAl4EQCACIAyTIQhDAAAAACEKCyAJIAyTQwAAAABdBEAgDCEJQwAAAAAhCwsgCSAMkiADXgRAIAMgDJMhCUMAAAAAIQsLCyAGIAg4AgAgBiAJOAIEIAYgCjgCCCAGIAs4AgwgBiAOOAIYCyAEQQFqIQQMAAsLQQAhIEEAIQQCQANAIAQgAU4NASAEEAAhBiAGKgIYIQ4gDkMAAAAAXARAIAYqAgAhCCAGKgIEIQkgBioCECEMIAYqAhQhDSAGKgIcIRcgBEEBaiEFAkADQCAFIAFODQEgBRAAIQcgByoCGCEVIBVDAAAAAFwEQCAHKgIAIQ8gByoCBCEQIAcqAhAhEyAHKgIUIRQgByoCHCEWIA8gCJMhGCAQIAmTIRkgGCAYlCAZIBmUkiEaIAwgE5IhGyAaIBsgG5RdBEAgDUMAAEBAWyEkIBRDAABAQFshJSAkICVHBEAgJARAIAQhIiAFISMgFyAWXARAQYAMICBBCGxqISEgISAiNgIAICEgIzYCBCAgQQFqISAgBkMAAAAAOAIYQwAAAAAhDgsFIAUhIiAEISMgFiAXXARAQYAMICBBCGxqISEgISAiNgIAICEgIzYCBCAgQQFqISAgB0MAAAAAOAIYCwsFICRFBEAgGkMXt9E4l5EhHCAbIByTIR0gGCAclSEeIBkgHJUhHyAIIB4gHZRDAAAAP5STIQggCSAfIB2UQwAAAD+UkyEJIA8gHiAdlEMAAAA/lJIhDyAQIB8gHZRDAAAAP5SSIRAgBiAIOAIAIAYgCTgCBCAHIA84AgAgByAQOAIECwsLCyAFQQFqIQUMAAsLCyAEQQFqIQQMAAsLICAL";
+
+function b64ToBytes(b64){
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+const wasmBytes = b64ToBytes(PHYSICS_WASM_B64);
+const { instance: wasmInstance } = await WebAssembly.instantiate(wasmBytes, {});
+const wasmMemory = wasmInstance.exports.memory;
+const wasmStep = wasmInstance.exports.step;
+let F32 = new Float32Array(wasmMemory.buffer);
+let I32 = new Int32Array(wasmMemory.buffer);
+function refreshViews(){
+  if (F32.buffer !== wasmMemory.buffer){
+    F32 = new Float32Array(wasmMemory.buffer);
+    I32 = new Int32Array(wasmMemory.buffer);
+  }
+}
+const STRIDE_F = 8;
+const EVENT_BASE_F32IDX = 1536/4;
+const TYPE_PLAYER=0, TYPE_ENEMY=1, TYPE_BARREL=2, TYPE_BULLET=3, TYPE_GRENADE=4;
+const MAX_BODIES = 48;
+const PLAYER_IDX = 0;
+const ENEMY_LO = 1, ENEMY_HI = 6;
+const BARREL_LO = 7, BARREL_HI = 14;
+const BULLET_LO = 15, BULLET_HI = 47;
+function setBody(i, x,y,vx,vy,radius,type,team,active){
+  const b = i*STRIDE_F;
+  F32[b+0]=x; F32[b+1]=y; F32[b+2]=vx; F32[b+3]=vy;
+  F32[b+4]=radius; F32[b+5]=type; F32[b+6]=active?1:0; F32[b+7]=team;
+}
+function getX(i){ return F32[i*STRIDE_F+0]; }
+function getY(i){ return F32[i*STRIDE_F+1]; }
+function setVX(i,v){ F32[i*STRIDE_F+2]=v; }
+function setVY(i,v){ F32[i*STRIDE_F+3]=v; }
+function getVX(i){ return F32[i*STRIDE_F+2]; }
+function getVY(i){ return F32[i*STRIDE_F+3]; }
+function isActive(i){ return F32[i*STRIDE_F+6] !== 0; }
+function setActive(i,v){ F32[i*STRIDE_F+6] = v?1:0; }
+function getTeam(i){ return F32[i*STRIDE_F+7]; }
+
+// 오디오
+const actx = new (window.AudioContext || window.webkitAudioContext)();
+function resumeAudio(){ if(actx.state === 'suspended') actx.resume(); }
+function noiseBuffer(duration){
+  const n = Math.max(1, Math.floor(actx.sampleRate*duration));
+  const buf = actx.createBuffer(1, n, actx.sampleRate);
+  const d = buf.getChannelData(0);
+  for(let i=0;i<n;i++) d[i] = Math.random()*2-1;
+  return buf;
+}
+function playGunshot(pan=0, pitch=1, vol=0.5){
+  resumeAudio();
+  const t0 = actx.currentTime;
+  const src = actx.createBufferSource();
+  src.buffer = noiseBuffer(0.08);
+  const bp = actx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 1800*pitch;
+  bp.Q.value = 0.7;
+  const gain = actx.createGain();
+  gain.gain.setValueAtTime(vol, t0);
+  gain.gain.exponentialRampToValueAtTime(0.001, t0+0.08);
+  const panner = actx.createStereoPanner();
+  panner.pan.value = Math.max(-1,Math.min(1,pan));
+  src.connect(bp); bp.connect(gain); gain.connect(panner); panner.connect(actx.destination);
+  src.start(t0); src.stop(t0+0.09);
+}
+function playExplosion(pan=0, isGrenade=false){
+  resumeAudio();
+  const t0 = actx.currentTime;
+  const src = actx.createBufferSource();
+  src.buffer = noiseBuffer(isGrenade ? 1.2 : 0.7);
+  const lp = actx.createBiquadFilter();
+  lp.type='lowpass';
+  lp.frequency.setValueAtTime(isGrenade ? 7000 : 3500, t0);
+  lp.frequency.exponentialRampToValueAtTime(isGrenade ? 150 : 120, t0+0.8);
+  const gain = actx.createGain();
+  gain.gain.setValueAtTime(isGrenade ? 2.0 : 1.2, t0);
+  gain.gain.exponentialRampToValueAtTime(0.001, t0+0.9);
+  const panner = actx.createStereoPanner();
+  panner.pan.value = Math.max(-1,Math.min(1,pan));
+  src.connect(lp); lp.connect(gain); gain.connect(panner); panner.connect(actx.destination);
+  src.start(t0); src.stop(t0+0.85);
+  const osc = actx.createOscillator();
+  osc.type='square';
+  osc.frequency.setValueAtTime(1200, t0);
+  osc.frequency.exponentialRampToValueAtTime(400, t0+0.15);
+  const g2 = actx.createGain();
+  g2.gain.setValueAtTime(0.3, t0);
+  g2.gain.exponentialRampToValueAtTime(0.001, t0+0.18);
+  osc.connect(g2); g2.connect(panner);
+  osc.start(t0); osc.stop(t0+0.2);
+  const src2 = actx.createBufferSource();
+  src2.buffer = noiseBuffer(0.04);
+  const bp2 = actx.createBiquadFilter();
+  bp2.type='bandpass';
+  bp2.frequency.value = 4000;
+  bp2.Q.value = 0.5;
+  const g3 = actx.createGain();
+  g3.gain.setValueAtTime(0.5, t0);
+  g3.gain.exponentialRampToValueAtTime(0.001, t0+0.05);
+  src2.connect(bp2); bp2.connect(g3); g3.connect(panner);
+  src2.start(t0); src2.stop(t0+0.06);
+  if(isGrenade){
+    const osc2 = actx.createOscillator();
+    osc2.type='sine';
+    osc2.frequency.setValueAtTime(60, t0);
+    osc2.frequency.exponentialRampToValueAtTime(18, t0+0.7);
+    const g4 = actx.createGain();
+    g4.gain.setValueAtTime(1.2, t0);
+    g4.gain.exponentialRampToValueAtTime(0.001, t0+0.7);
+    osc2.connect(g4); g4.connect(panner);
+    osc2.start(t0); osc2.stop(t0+0.75);
+  }
+}
+function playMetalClang(pan=0, intensity=1){
+  resumeAudio();
+  const t0 = actx.currentTime;
+  const panner = actx.createStereoPanner();
+  panner.pan.value = Math.max(-1,Math.min(1,pan));
+  panner.connect(actx.destination);
+  const volScale = Math.min(1, intensity * 0.8 + 0.2);
+  [1900, 2700, 3600].forEach((f,idx)=>{
+    const osc = actx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(f, t0);
+    osc.frequency.exponentialRampToValueAtTime(f*0.55, t0+0.16+idx*0.02);
+    const g = actx.createGain();
+    g.gain.setValueAtTime((0.16/(idx+1)) * volScale, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0+0.18+idx*0.03);
+    osc.connect(g); g.connect(panner);
+    osc.start(t0); osc.stop(t0+0.22);
+  });
+  const src = actx.createBufferSource();
+  src.buffer = noiseBuffer(0.05);
+  const bp = actx.createBiquadFilter();
+  bp.type='bandpass'; bp.frequency.value = 2600; bp.Q.value = 1.4;
+  const gn = actx.createGain();
+  gn.gain.setValueAtTime(0.28 * volScale, t0);
+  gn.gain.exponentialRampToValueAtTime(0.001, t0+0.06);
+  src.connect(bp); bp.connect(gn); gn.connect(panner);
+  src.start(t0); src.stop(t0+0.07);
+}
+
+function playWhoosh(pan=0, intensity=1){
+  resumeAudio();
+  const t0 = actx.currentTime;
+  const panner = actx.createStereoPanner();
+  panner.pan.value = Math.max(-1,Math.min(1,pan));
+  panner.connect(actx.destination);
+  const src = actx.createBufferSource();
+  src.buffer = noiseBuffer(0.12);
+  const bp = actx.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.setValueAtTime(1200 + intensity * 400, t0);
+  bp.frequency.exponentialRampToValueAtTime(300 + intensity * 100, t0+0.10);
+  bp.Q.value = 0.6;
+  const gain = actx.createGain();
+  const vol = 0.08 + intensity * 0.12;
+  gain.gain.setValueAtTime(vol, t0);
+  gain.gain.exponentialRampToValueAtTime(0.001, t0+0.12);
+  src.connect(bp); bp.connect(gain); gain.connect(panner);
+  src.start(t0); src.stop(t0+0.13);
+  const osc = actx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(600 + intensity * 300, t0);
+  osc.frequency.exponentialRampToValueAtTime(200 + intensity * 100, t0+0.09);
+  const g2 = actx.createGain();
+  g2.gain.setValueAtTime(0.04 + intensity * 0.06, t0);
+  g2.gain.exponentialRampToValueAtTime(0.001, t0+0.10);
+  osc.connect(g2); g2.connect(panner);
+  osc.start(t0); osc.stop(t0+0.11);
+}
+
+function playHurt(){
+  resumeAudio();
+  const t0 = actx.currentTime;
+  const osc = actx.createOscillator();
+  osc.type='sawtooth';
+  osc.frequency.setValueAtTime(220,t0);
+  osc.frequency.exponentialRampToValueAtTime(80,t0+0.15);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.3,t0);
+  g.gain.exponentialRampToValueAtTime(0.001,t0+0.16);
+  osc.connect(g); g.connect(actx.destination);
+  osc.start(t0); osc.stop(t0+0.17);
+}
+function playHitMarker(){
+  resumeAudio();
+  const t0 = actx.currentTime;
+  const osc = actx.createOscillator();
+  osc.type='triangle';
+  osc.frequency.setValueAtTime(1200,t0);
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.18,t0);
+  g.gain.exponentialRampToValueAtTime(0.001,t0+0.05);
+  osc.connect(g); g.connect(actx.destination);
+  osc.start(t0); osc.stop(t0+0.06);
+}
+function playReload(){
+  resumeAudio();
+  const t0 = actx.currentTime;
+  for(let k=0;k<2;k++){
+    const osc = actx.createOscillator();
+    osc.type='square';
+    osc.frequency.setValueAtTime(500+k*300, t0+k*0.09);
+    const g = actx.createGain();
+    g.gain.setValueAtTime(0.12, t0+k*0.09);
+    g.gain.exponentialRampToValueAtTime(0.001, t0+k*0.09+0.05);
+    osc.connect(g); g.connect(actx.destination);
+    osc.start(t0+k*0.09); osc.stop(t0+k*0.09+0.06);
+  }
+}
+function playCoin(){
+  resumeAudio();
+  const t0 = actx.currentTime;
+  [880,1100].forEach((f,i)=>{
+    const osc = actx.createOscillator();
+    osc.type='square';
+    osc.frequency.value=f;
+    const g=actx.createGain();
+    g.gain.setValueAtTime(0.08,t0+i*0.06);
+    g.gain.exponentialRampToValueAtTime(0.001,t0+i*0.06+0.08);
+    osc.connect(g); g.connect(actx.destination);
+    osc.start(t0+i*0.06); osc.stop(t0+i*0.06+0.09);
+  });
+}
+
+// ========== 무기 ==========
+const WEAPONS = {
+  pistol:   { name:'권총',   ammo:12, maxAmmo:12, speed:780,  spread:0.03, fireRate:0.16, damage:16,  reloadTime:0.7,  pitch:1.0,  vol:0.5,  bullets:1,  cost:0 },
+  shotgun:  { name:'샷건',   ammo:6,  maxAmmo:6,  speed:680,  spread:0.22, fireRate:0.5,  damage:10,  reloadTime:1.2,  pitch:0.7,  vol:0.7,  bullets:7,  cost:30 },
+  sniper:   { name:'스나이퍼',ammo:5,  maxAmmo:5,  speed:1200, spread:0.005,fireRate:0.9,  damage:45,  reloadTime:1.5,  pitch:0.6,  vol:0.6,  bullets:1,  cost:40 },
+  ak47:     { name:'AK47',   ammo:30, maxAmmo:30, speed:750,  spread:0.08, fireRate:0.09, damage:14,  reloadTime:1.3,  pitch:0.9,  vol:0.55, bullets:1,  cost:50 },
+  mp5:      { name:'MP5',    ammo:25, maxAmmo:25, speed:700,  spread:0.05, fireRate:0.07, damage:12,  reloadTime:0.9,  pitch:1.1,  vol:0.45, bullets:1,  cost:35 },
+  uzi:      { name:'UZI',    ammo:20, maxAmmo:20, speed:660,  spread:0.12, fireRate:0.05, damage:10,  reloadTime:0.8,  pitch:1.2,  vol:0.4,  bullets:1,  cost:25 },
+  minigun:  { name:'미니건', ammo:60, maxAmmo:60, speed:720,  spread:0.14, fireRate:0.035, damage:9,  reloadTime:2.0,  pitch:0.5,  vol:0.35, bullets:1,  cost:80 },
+};
+const WEAPON_LIST = ['pistol','shotgun','sniper','ak47','mp5','uzi','minigun'];
+let currentWeaponKey = 'pistol';
+let ownedWeapons = ['pistol'];
+let coins = 0;
+
+// ========== 업그레이드 ==========
+const upgrades = {
+  healRate: { name:'자동 회복 속도', base:0.5, max:3.0, costBase:20, costMult:1.5, level:0, desc:'초당 회복량 +0.5' },
+  maxHp:    { name:'최대 체력', base:100, max:200, costBase:25, costMult:1.6, level:0, desc:'최대 체력 +15' },
+  coinBonus:{ name:'코인 획득량', base:1.0, max:3.0, costBase:30, costMult:1.7, level:0, desc:'적 처치 코인 +0.5배' },
+  turret:   { name:'자동 포탑', base:0, max:3, costBase:40, costMult:2.0, level:0, desc:'포탑 1기 추가' },
+};
+const UPGRADE_KEYS = ['healRate','maxHp','coinBonus','turret'];
+
+function getUpgradeCost(key){
+  const u = upgrades[key];
+  return Math.floor(u.costBase * Math.pow(u.costMult, u.level));
+}
+function applyUpgrade(key){
+  const u = upgrades[key];
+  if(u.level >= u.max) return false;
+  const cost = getUpgradeCost(key);
+  if(coins < cost) return false;
+  coins -= cost;
+  u.level++;
+  if(key === 'maxHp' && entities[PLAYER_IDX]){
+    const p = entities[PLAYER_IDX];
+    const add = 15;
+    p.maxHp += add;
+    p.hp = Math.min(p.hp + add, p.maxHp);
+  }
+  playCoin();
+  updateHud();
+  updateShopUI();
+  return true;
+}
+
+// ========== 포탑 ==========
+let turrets = [];
+let turretPlacementMode = false;
+
+function placeTurret(x, y){
+  if(turrets.length >= upgrades.turret.level) return false;
+  for(const t of turrets){
+    if(Math.hypot(t.x - x, t.y - y) < 50) return false;
+  }
+  turrets.push({
+    x, y, angle:0, cooldown:0,
+    range:300, damage:8, fireRate:0.6
+  });
+  return true;
+}
+
+function updateTurrets(dt){
+  for(const t of turrets){
+    t.cooldown -= dt;
+    let target = -1, minDist = t.range;
+    for(let j=ENEMY_LO; j<=ENEMY_HI; j++){
+      if(!entities[j]) continue;
+      const ex = getX(j), ey = getY(j);
+      const d = Math.hypot(ex - t.x, ey - t.y);
+      if(d < minDist){ minDist = d; target = j; }
+    }
+    if(target >= 0 && t.cooldown <= 0){
+      const ex = getX(target), ey = getY(target);
+      const ang = Math.atan2(ey - t.y, ex - t.x);
+      const slot = allocBulletSlot();
+      if(slot >= 0){
+        const speed = 500;
+        const vx = Math.cos(ang)*speed, vy = Math.sin(ang)*speed;
+        setBody(slot, t.x + Math.cos(ang)*20, t.y + Math.sin(ang)*20, vx, vy, 3, TYPE_BULLET, 0, true);
+        entities[slot] = { kind:'bullet', team:0, damage: t.damage, isTurret:true };
+        t.cooldown = t.fireRate;
+        playGunshot((t.x/WORLD_W)*2-1, 0.9, 0.2);
+      }
+    }
+    if(target >= 0){
+      const ex = getX(target), ey = getY(target);
+      t.angle = Math.atan2(ey - t.y, ex - t.x);
+    }
+  }
+}
+
+function drawTurrets(){
+  for(const t of turrets){
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    ctx.rotate(t.angle);
+    ctx.fillStyle = '#2a2f38';
+    ctx.beginPath(); ctx.arc(0,0,14,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#4a6a7a';
+    ctx.fillRect(2,-3,18,6);
+    ctx.fillStyle = '#7b8590';
+    ctx.fillRect(16,-2,6,4);
+    if(lightingEnabled){
+      const grad = ctx.createRadialGradient(0,0,2,0,0,30);
+      grad.addColorStop(0,'rgba(45,212,191,0.15)');
+      grad.addColorStop(1,'rgba(45,212,191,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(0,0,30,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+// ========== 드럼통 ==========
+const BARREL_COUNT = 8;
+const BARREL_SPOTS = [
+  [150,120],[750,120],[150,480],[750,480],
+  [450,90],[450,510],[280,300],[620,300]
+];
+function spawnBarrel(slot, x, y){
+  setBody(slot, x, y, 0,0, 18, TYPE_BARREL, 2, true);
+  entities[slot] = { kind:'barrel' };
+}
+function resetBarrels(){
+  for(let i=0; i<BARREL_COUNT; i++){
+    const slot = BARREL_LO + i;
+    if(i < BARREL_SPOTS.length){
+      spawnBarrel(slot, BARREL_SPOTS[i][0], BARREL_SPOTS[i][1]);
+    }
+  }
+}
+function getNextEmptyBarrelSlot(){
+  for(let i=BARREL_LO; i<=BARREL_HI; i++){
+    if(!entities[i] || !isActive(i)){
+      return i - BARREL_LO;
+    }
+  }
+  return -1;
+}
+
+// ========== 수류탄 ==========
+let grenadeMode = false;
+let grenadeCooldown = 0;
+const GRENADE_COOLDOWN = 15;
+const GRENADE_RADIUS = 170;
+const GRENADE_DAMAGE = 85;
+const SHOCKWAVE_RADIUS = 280;
+
+function throwGrenade(angle, targetX, targetY){
+  if(grenadeCooldown > 0) return false;
+  const px = getX(PLAYER_IDX), py = getY(PLAYER_IDX);
+  const slot = allocBulletSlot();
+  if(slot < 0) return false;
+  
+  const dx = targetX - px, dy = targetY - py;
+  const dist = Math.min(350, Math.hypot(dx, dy));
+  const finalX = px + Math.cos(angle) * dist;
+  const finalY = py + Math.sin(angle) * dist;
+  
+  const travelTime = 0.5;
+  const speed = dist / travelTime;
+  const vx = Math.cos(angle) * speed;
+  const vy = Math.sin(angle) * speed;
+  
+  setBody(slot, px + Math.cos(angle)*25, py + Math.sin(angle)*25, vx, vy, 10, TYPE_GRENADE, 0, true);
+  entities[slot] = { 
+    kind:'grenade', team:0, timer: travelTime, 
+    damage: GRENADE_DAMAGE, radius: GRENADE_RADIUS,
+    vx: vx, vy: vy,
+    startX: px, startY: py,
+    targetX: finalX, targetY: finalY,
+    travelTime: travelTime,
+    elapsed: 0,
+    drag: 0.98
+  };
+  grenadeCooldown = GRENADE_COOLDOWN;
+  updateGrenadeUI();
+  playGunshot((px/WORLD_W)*2-1, 0.4, 0.3);
+  return true;
+}
+
+function updateGrenadeUI(){
+  const el = document.getElementById('grenade-cd-text');
+  if(grenadeCooldown > 0){
+    el.textContent = Math.ceil(grenadeCooldown) + 's';
+    el.style.color = '#ff5a5a';
+  } else {
+    el.textContent = '준비';
+    el.style.color = '#facc15';
+  }
+}
+
+function updateGrenades(dt){
+  for(let i=BULLET_LO; i<=BULLET_HI; i++){
+    if(!entities[i] || entities[i].kind !== 'grenade') continue;
+    const g = entities[i];
+    g.elapsed += dt;
+    const progress = Math.min(g.elapsed / g.travelTime, 1);
+    const x = g.startX + (g.targetX - g.startX) * progress;
+    const y = g.startY + (g.targetY - g.startY) * progress;
+    const remaining = 1 - progress;
+    const vx = (g.targetX - g.startX) / g.travelTime * (0.3 + 0.7 * remaining);
+    const vy = (g.targetY - g.startY) / g.travelTime * (0.3 + 0.7 * remaining);
+    setBody(i, x, y, vx, vy, 10, TYPE_GRENADE, 0, true);
+    
+    if(progress >= 1){
+      const fx = getX(i), fy = getY(i);
+      entities[i] = null;
+      setActive(i, false);
+      freeBulletSlot(i);
+      triggerGrenadeExplosion(fx, fy);
+    }
+  }
+}
+
+function triggerGrenadeExplosion(x, y){
+  spawnExplosionFx(x, y, true, 1.8);
+  playExplosion((x/WORLD_W)*2-1, true);
+  triggerShake(28);
+  if(lightingEnabled){
+    explosionLights.push({
+      x, y, radius: 300, intensity: 2.8,
+      color: [1.0, 0.8, 0.2],
+      life: 1.2, t: 0
+    });
+  }
+  shockwaves.push({ x, y, radius: 0, maxRadius: SHOCKWAVE_RADIUS, life: 0.9, t: 0 });
+  shockwaves.push({ x, y, radius: 0, maxRadius: SHOCKWAVE_RADIUS*1.5, life: 0.32, t: 0, sonic:true });
+  triggerDistortionPulse(1.6);
+  
+  for(let j=0; j<MAX_BODIES; j++){
+    if(!entities[j]) continue;
+    if(j >= BULLET_LO && j <= BULLET_HI) continue;
+    const dx = getX(j)-x, dy = getY(j)-y;
+    const dist = Math.hypot(dx,dy);
+    if(dist < GRENADE_RADIUS){
+      const dmg = GRENADE_DAMAGE * (1 - dist/GRENADE_RADIUS);
+      if(entities[j].kind === 'player') damagePlayer(dmg * 0.7);
+      else if(entities[j].kind === 'enemy') damageEnemy(j, dmg);
+      else if(entities[j].kind === 'barrel') explodeBarrel(j);
+    }
+    if(!entities[j]) continue;
+    if(dist < GRENADE_RADIUS && dist > 10){
+      const power = 40 * (1 - dist/GRENADE_RADIUS) * 1.2;
+      const angle = Math.atan2(getY(j)-y, getX(j)-x);
+      if(entities[j].kind === 'player'){
+        entities[j].kvx = (entities[j].kvx||0) + Math.cos(angle) * power;
+        entities[j].kvy = (entities[j].kvy||0) + Math.sin(angle) * power;
+        if(dist < SHOCKWAVE_RADIUS){
+          const shockDmg = 2 * (1 - dist/SHOCKWAVE_RADIUS);
+          damagePlayer(shockDmg);
+        }
+      } else if(entities[j].kind === 'enemy'){
+        entities[j].kvx = (entities[j].kvx||0) + Math.cos(angle) * power;
+        entities[j].kvy = (entities[j].kvy||0) + Math.sin(angle) * power;
+        if(dist < SHOCKWAVE_RADIUS){
+          const shockDmg = 4 * (1 - dist/SHOCKWAVE_RADIUS);
+          damageEnemy(j, shockDmg);
+        }
+      }
+    }
+  }
+}
+
+let shockwaves = [];
+
+// ========== 월드 ==========
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const WORLD_W = canvas.width, WORLD_H = canvas.height;
+const entities = new Array(MAX_BODIES).fill(null);
+const freeBulletSlots = [];
+for(let i=BULLET_LO;i<=BULLET_HI;i++) freeBulletSlots.push(i);
+function allocBulletSlot(){ return freeBulletSlots.length ? freeBulletSlots.shift() : -1; }
+function freeBulletSlot(i){ entities[i]=null; setActive(i,false); freeBulletSlots.push(i); }
+
+let score = 0;
+let gameOver = false;
+let gameStarted = false;
+let killsForNextWave = 3;
+let waveEnemyCap = 3;
+let enemyRespawnTimer = 0;
+let healTimer = 0;
+const keys = {};
+const mouse = {x:WORLD_W/2, y:WORLD_H/2, down:false};
+let shakeT = 0, shakeMag = 0;
+const particles = [];
+let lightingEnabled = true;
+const explosionLights = [];
+let muzzleFlashLight = null;
+let shopOpen = false;
+let isPaused = false; // 게임 일시정지 상태
+
+// ========== 플레이어 ==========
+function resetPlayer(){
+  setBody(PLAYER_IDX, WORLD_W/2, WORLD_H/2, 0,0, 16, TYPE_PLAYER, 0, true);
+  entities[PLAYER_IDX] = { 
+    kind:'player', hp:100, maxHp:100, 
+    ammo:12, maxAmmo:12,
+    reloading:false, reloadT:0, fireCd:0, facing:0,
+    muzzleFlash:0, kvx:0, kvy:0
+  };
+}
+
+// ========== 적 ==========
+function randEdgeSpawnPoint(){
+  const margin = 40;
+  const side = Math.floor(Math.random()*4);
+  if(side===0) return [margin, margin+Math.random()*(WORLD_H-2*margin)];
+  if(side===1) return [WORLD_W-margin, margin+Math.random()*(WORLD_H-2*margin)];
+  if(side===2) return [margin+Math.random()*(WORLD_W-2*margin), margin];
+  return [margin+Math.random()*(WORLD_W-2*margin), WORLD_H-margin];
+}
+function spawnEnemy(slot){
+  const [x,y] = randEdgeSpawnPoint();
+  setBody(slot, x, y, 0,0, 15, TYPE_ENEMY, 1, true);
+  entities[slot] = {
+    kind:'enemy', hp:40, maxHp:40, fireCd:1+Math.random(),
+    strafeDir: Math.random()<0.5?1:-1, hitFlash:0, kvx:0, kvy:0
+  };
+}
+function countAliveEnemies(){
+  let c=0;
+  for(let i=ENEMY_LO;i<=ENEMY_HI;i++) if(entities[i]) c++;
+  return c;
+}
+function findFreeEnemySlot(){
+  for(let i=ENEMY_LO;i<=ENEMY_HI;i++) if(!entities[i]) return i;
+  return -1;
+}
+function resetEnemies(){
+  for(let i=ENEMY_LO;i<=ENEMY_HI;i++){ entities[i]=null; setActive(i,false); }
+  waveEnemyCap = 3; killsForNextWave = 3;
+  for(let n=0;n<waveEnemyCap;n++){ const slot = findFreeEnemySlot(); if(slot>=0) spawnEnemy(slot); }
+}
+
+function fullReset(){
+  score = 0; gameOver = false;
+  particles.length = 0; explosionLights.length = 0; shockwaves = [];
+  canvas.style.filter = '';
+  turrets = [];
+  turretPlacementMode = false; grenadeMode = false;
+  grenadeCooldown = 0;
+  UPGRADE_KEYS.forEach(k => upgrades[k].level = 0);
+  coins = 0;
+  ownedWeapons = ['pistol'];
+  currentWeaponKey = 'pistol';
+  resetPlayer(); resetBarrels(); resetEnemies();
+  healTimer = 0;
+  for(let i=BULLET_LO;i<=BULLET_HI;i++){ entities[i]=null; setActive(i,false); }
+  freeBulletSlots.length = 0;
+  for(let i=BULLET_LO;i<=BULLET_HI;i++) freeBulletSlots.push(i);
+  isPaused = false;
+  shopOpen = false;
+  document.getElementById('shop-panel').classList.remove('active');
+  updateGrenadeUI();
+  updateHud(); updateShopUI();
+  document.getElementById('center-msg').classList.add('hidden');
+}
+
+// ========== 폭발 ==========
+const BLAST_RADIUS = 150;
+const BLAST_DAMAGE = 91;
+
+function explodeBarrel(idx){
+  if(!entities[idx] || entities[idx].kind!=='barrel') return;
+  const x = getX(idx), y = getY(idx);
+  entities[idx] = null; setActive(idx,false);
+  spawnExplosionFx(x,y,false, 1.4);
+  playExplosion((x/WORLD_W)*2-1, false);
+  triggerShake(18);
+  if(lightingEnabled){
+    explosionLights.push({
+      x, y, radius: 220, intensity: 1.8,
+      color: [1.0, 0.6, 0.2],
+      life: 1.0, t: 0
+    });
+  }
+  shockwaves.push({ x, y, radius: 0, maxRadius: 200, life: 0.6, t: 0 });
+  shockwaves.push({ x, y, radius: 0, maxRadius: 300, life: 0.26, t: 0, sonic:true });
+  triggerDistortionPulse(1.0);
+  
+  for(let i=0;i<MAX_BODIES;i++){
+    if(i===idx || !entities[i]) continue;
+    if(i>=BULLET_LO && i<=BULLET_HI) continue;
+    const dx = getX(i)-x, dy = getY(i)-y;
+    const dist = Math.hypot(dx,dy);
+    if(dist < BLAST_RADIUS){
+      const dmg = BLAST_DAMAGE * (1 - dist/BLAST_RADIUS);
+      if(entities[i].kind==='barrel') explodeBarrel(i);
+      else if(entities[i].kind==='player') damagePlayer(dmg);
+      else if(entities[i].kind==='enemy') damageEnemy(i, dmg);
+    }
+    if(!entities[i]) continue;
+    if(dist < 200 && dist > 10){
+      const power = 25 * (1 - dist/200);
+      const angle = Math.atan2(getY(i)-y, getX(i)-x);
+      if(entities[i].kind === 'player' || entities[i].kind === 'enemy'){
+        entities[i].kvx = (entities[i].kvx||0) + Math.cos(angle) * power;
+        entities[i].kvy = (entities[i].kvy||0) + Math.sin(angle) * power;
+      }
+    }
+  }
+  setTimeout(()=>{
+    if(gameOver) return;
+    const emptySlot = getNextEmptyBarrelSlot();
+    if(emptySlot >= 0){
+      const slot = BARREL_LO + emptySlot;
+      const spotIdx = emptySlot % BARREL_SPOTS.length;
+      spawnBarrel(slot, BARREL_SPOTS[spotIdx][0], BARREL_SPOTS[spotIdx][1]);
+    }
+  }, 5000 + Math.random()*3000);
+}
+function spawnRicochetFx(x,y,impactAngle){
+  for(let k=0;k<16;k++){
+    const spread = (Math.random()-0.5)*1.7;
+    const a = impactAngle + Math.PI + spread;
+    const sp = 160+Math.random()*320;
+    particles.push({
+      x,y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp,
+      life: 0.1+Math.random()*0.16,
+      t:0,
+      color: Math.random()<0.5 ? '#fff7d6' : '#ffd23f',
+      size: 1.2+Math.random()*2,
+      spark:true
+    });
+  }
+  particles.push({ring:true, x,y, t:0, life:0.16, spark:true});
+}
+function triggerDistortionPulse(strength=1){
+  canvas.style.filter = `blur(${1.5*strength}px) saturate(1.35) contrast(1.08)`;
+  clearTimeout(canvas._distortionTimer);
+  canvas._distortionTimer = setTimeout(()=>{ canvas.style.filter = ''; }, 90*strength);
+}
+function spawnExplosionFx(x,y, isGrenade, scale=1.0){
+  const count = isGrenade ? 70 : 35;
+  for(let k=0;k<count;k++){
+    const a = Math.random()*Math.PI*2;
+    const sp = 60+Math.random()*(isGrenade ? 400 : 260) * scale;
+    const colors = isGrenade ? ['#ffb454','#ff5a5a','#facc15','#ff8c00','#ffffff'] : ['#ffb454','#ff5a5a','#ff8c00'];
+    particles.push({
+      x,y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp,
+      life: 0.3+Math.random()*(isGrenade ? 0.7 : 0.4) * scale,
+      t:0,
+      color: colors[Math.floor(Math.random()*colors.length)],
+      size: 2+Math.random()*(isGrenade ? 6 : 4) * scale
+    });
+  }
+  for(let k=0;k<20;k++){
+    const a = Math.random()*Math.PI*2;
+    const sp = 100+Math.random()*200;
+    particles.push({
+      x,y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp,
+      life: 0.1+Math.random()*0.2,
+      t:0,
+      color: '#ffffff',
+      size: 1+Math.random()*2
+    });
+  }
+  particles.push({ring:true, x,y, t:0, life: isGrenade ? 0.9 : 0.5});
+}
+function damagePlayer(dmg){
+  const p = entities[PLAYER_IDX];
+  if(!p || gameOver) return;
+  p.hp -= dmg;
+  playHurt();
+  triggerShake(6);
+  if(p.hp <= 0){ p.hp = 0; endGame(); }
+  updateHud();
+}
+function damageEnemy(idx, dmg){
+  const e = entities[idx];
+  if(!e) return;
+  e.hp -= dmg;
+  e.hitFlash = 0.12;
+  playHitMarker();
+  if(e.hp <= 0){
+    entities[idx] = null; setActive(idx, false);
+    score += 10;
+    const bonus = upgrades.coinBonus.level * 0.5 + 1.0;
+    coins += Math.floor(5 * bonus);
+    killsForNextWave--;
+    spawnExplosionFx(getX(idx), getY(idx), false, 0.8);
+    playCoin();
+    updateHud(); updateShopUI();
+    if(killsForNextWave <= 0){
+      waveEnemyCap = Math.min(6, waveEnemyCap+1);
+      killsForNextWave = waveEnemyCap + 2;
+    }
+    enemyRespawnTimer = 0.6;
+  }
+}
+function triggerShake(mag){ shakeMag = Math.max(shakeMag, mag); shakeT = 0.25; }
+
+// ========== 발사 ==========
+function fireBullet(fromIdx, team, speed, spread, extraOffset, damage, count, pitch, vol){
+  const slot = allocBulletSlot();
+  if(slot < 0) return;
+  const x0 = getX(fromIdx), y0 = getY(fromIdx);
+  let dx, dy;
+  if(fromIdx === PLAYER_IDX){
+    dx = mouse.x - x0; dy = mouse.y - y0;
+  } else {
+    dx = getX(PLAYER_IDX) - x0; dy = getY(PLAYER_IDX) - y0;
+  }
+  let ang = Math.atan2(dy,dx);
+  for(let b=0; b<count; b++){
+    const aOff = (Math.random()*2-1)*spread;
+    const a = ang + aOff;
+    const vx = Math.cos(a)*speed, vy = Math.sin(a)*speed;
+    const ox = Math.cos(a)*(extraOffset||20), oy = Math.sin(a)*(extraOffset||20);
+    const s = (b===0) ? slot : allocBulletSlot();
+    if(s < 0) continue;
+    setBody(s, x0+ox, y0+oy, vx, vy, 3.5, TYPE_BULLET, team, true);
+    entities[s] = { kind:'bullet', team, damage: damage||16 };
+  }
+  const pan = ((x0)/WORLD_W)*2-1;
+  playGunshot(pan, pitch||1, vol||0.5);
+  if(team === 0 && lightingEnabled){
+    const p = entities[PLAYER_IDX];
+    if(p) p.muzzleFlash = 0.12;
+    muzzleFlashLight = {
+      x: x0 + Math.cos(ang)*25,
+      y: y0 + Math.sin(ang)*25,
+      radius: 60, intensity: 2.0,
+      color: [1.0, 0.9, 0.6],
+      life: 0.15, t: 0
+    };
+  }
+  return slot;
+}
+
+// ========== 업데이트 ==========
+function updatePlayer(dt, paused){
+  const p = entities[PLAYER_IDX];
+  if(!p) return;
+  if(!paused){
+    let mx=0,my=0;
+    if(keys['w']||keys['arrowup']) my -= 1;
+    if(keys['s']||keys['arrowdown']) my += 1;
+    if(keys['a']||keys['arrowleft']) mx -= 1;
+    if(keys['d']||keys['arrowright']) mx += 1;
+    const speed = 160;
+    const len = Math.hypot(mx,my) || 1;
+    const vx = (mx/len) * speed;
+    const vy = (my/len) * speed;
+    const kDecay = Math.pow(0.02, dt);
+    p.kvx = (p.kvx||0) * kDecay;
+    p.kvy = (p.kvy||0) * kDecay;
+    setVX(PLAYER_IDX, vx + p.kvx);
+    setVY(PLAYER_IDX, vy + p.kvy);
+    p.facing = Math.atan2(mouse.y-getY(PLAYER_IDX), mouse.x-getX(PLAYER_IDX));
+    
+    if(p.reloading){
+      p.reloadT -= dt;
+      if(p.reloadT<=0){ p.reloading=false; p.ammo = p.maxAmmo; updateHud(); }
+    }
+    p.fireCd -= dt;
+    if(p.muzzleFlash > 0) p.muzzleFlash -= dt;
+    
+    if(mouse.down && p.fireCd<=0 && !p.reloading && !gameOver && !turretPlacementMode && !grenadeMode){
+      const w = getWeapon();
+      if(p.ammo>0){
+        fireBullet(PLAYER_IDX, 0, w.speed, w.spread, 20, w.damage, w.bullets, w.pitch, w.vol);
+        p.ammo--; p.fireCd = w.fireRate;
+        updateHud();
+        if(p.ammo===0) tryReload();
+      } else {
+        tryReload();
+      }
+    }
+    
+    const healRate = 0.5 + upgrades.healRate.level * 0.5;
+    if(p.hp < p.maxHp && p.hp > 0){
+      healTimer += dt;
+      if(healTimer >= 1.0 / healRate){
+        p.hp = Math.min(p.hp + 1, p.maxHp);
+        healTimer = 0;
+        updateHud();
+        document.getElementById('heal-indicator').style.opacity = '1';
+        setTimeout(()=>{ document.getElementById('heal-indicator').style.opacity = '0'; }, 300);
+      }
+    } else {
+      healTimer = 0;
+    }
+  } else {
+    // 일시정지: 속도 0, 위치 유지
+    setVX(PLAYER_IDX, 0);
+    setVY(PLAYER_IDX, 0);
+  }
+}
+
+let whooshCooldown = 0;
+
+function checkWhooshSounds(dt){
+  if(gameOver || !gameStarted || isPaused) return;
+  whooshCooldown -= dt;
+  if(whooshCooldown > 0) return;
+  
+  const px = getX(PLAYER_IDX), py = getY(PLAYER_IDX);
+  
+  for(let i=ENEMY_LO; i<=ENEMY_HI; i++){
+    if(!entities[i]) continue;
+    const ex = getX(i), ey = getY(i);
+    const dist = Math.hypot(ex - px, ey - py);
+    if(dist < 110 && dist > 30){
+      const speed = Math.hypot(getVX(i), getVY(i));
+      if(speed > 80){
+        const pan = ((ex - px) / WORLD_W) * 2;
+        const intensity = Math.min(1, (speed - 80) / 200);
+        playWhoosh(pan, intensity * 0.7);
+        whooshCooldown = 0.08;
+        return;
+      }
+    }
+  }
+  
+  for(let i=BULLET_LO; i<=BULLET_HI; i++){
+    if(!entities[i] || entities[i].team !== 1) continue;
+    const bx = getX(i), by = getY(i);
+    const dist = Math.hypot(bx - px, by - py);
+    if(dist < 90 && dist > 10){
+      const speed = Math.hypot(getVX(i), getVY(i));
+      if(speed > 200){
+        const pan = ((bx - px) / WORLD_W) * 2;
+        const intensity = Math.min(1, (speed - 200) / 500);
+        playWhoosh(pan, intensity * 0.5 + 0.2);
+        whooshCooldown = 0.06;
+        return;
+      }
+    }
+  }
+}
+
+function updateEnemies(dt, paused){
+  const px = getX(PLAYER_IDX), py = getY(PLAYER_IDX);
+  for(let i=ENEMY_LO;i<=ENEMY_HI;i++){
+    const e = entities[i];
+    if(!e) continue;
+    if(!paused){
+      const ex = getX(i), ey = getY(i);
+      const dx = px-ex, dy = py-ey;
+      const dist = Math.hypot(dx,dy) || 1;
+      const dirx = dx/dist, diry = dy/dist;
+      let speed = 75;
+      let vx=0, vy=0;
+      if(dist > 340){ vx = dirx*speed; vy = diry*speed; }
+      else if(dist < 130){ vx = -dirx*speed*0.9; vy = -diry*speed*0.9; }
+      else { vx = -diry*speed*e.strafeDir + dirx*18; vy = dirx*speed*e.strafeDir + diry*18; }
+      const kDecay = Math.pow(0.02, dt);
+      e.kvx = (e.kvx||0) * kDecay;
+      e.kvy = (e.kvy||0) * kDecay;
+      setVX(i, vx + e.kvx);
+      setVY(i, vy + e.kvy);
+      if(e.hitFlash>0) e.hitFlash -= dt;
+      e.fireCd -= dt;
+      if(e.fireCd <= 0 && dist < 460 && !gameOver){
+        fireBullet(i, 1, 480, 0.16, 18, 12, 1, 0.85, 0.4);
+        e.fireCd = 1.1 + Math.random()*0.9;
+      }
+    } else {
+      // 일시정지: 속도 0, 위치 유지
+      setVX(i, 0);
+      setVY(i, 0);
+    }
+  }
+  if(!paused){
+    if(countAliveEnemies() < waveEnemyCap){
+      enemyRespawnTimer -= dt;
+      if(enemyRespawnTimer<=0){
+        const slot = findFreeEnemySlot();
+        if(slot>=0) spawnEnemy(slot);
+        enemyRespawnTimer = 1.4;
+      }
+    }
+  }
+}
+
+function reclaimExpiredBullets(){
+  for(let i=BULLET_LO;i<=BULLET_HI;i++){
+    if(entities[i] && !isActive(i)) freeBulletSlot(i);
+  }
+}
+function processBulletHits(count){
+  for(let k=0;k<count;k++){
+    const bulletIdx = I32[EVENT_BASE_F32IDX + k*2];
+    const otherIdx  = I32[EVENT_BASE_F32IDX + k*2 + 1];
+    const bData = entities[bulletIdx];
+    const dmg = (bData && bData.damage) ? bData.damage : 16;
+    const bx = getX(bulletIdx), by = getY(bulletIdx);
+    const bvx = getVX(bulletIdx), bvy = getVY(bulletIdx);
+    freeBulletSlot(bulletIdx);
+    const target = entities[otherIdx];
+    if(!target) continue;
+    if(target.kind==='barrel'){
+      spawnRicochetFx(bx, by, Math.atan2(bvy, bvx));
+      const impactSpeed = Math.hypot(bvx, bvy);
+      const intensity = Math.min(1, impactSpeed / 800);
+      playMetalClang((bx/WORLD_W)*2-1, intensity);
+      explodeBarrel(otherIdx);
+    }
+    else if(target.kind==='player') damagePlayer(dmg);
+    else if(target.kind==='enemy') damageEnemy(otherIdx, dmg);
+  }
+}
+function updateParticles(dt){
+  for(let i=particles.length-1;i>=0;i--){
+    const pt = particles[i];
+    pt.t += dt;
+    if(!pt.ring){ pt.x += pt.vx*dt; pt.y += pt.vy*dt; pt.vx *= 0.92; pt.vy *= 0.92; }
+    if(pt.t >= pt.life) particles.splice(i,1);
+  }
+  for(let i=shockwaves.length-1; i>=0; i--){
+    const sw = shockwaves[i];
+    sw.t += dt;
+    sw.radius = (sw.t / sw.life) * sw.maxRadius;
+    if(sw.t >= sw.life) shockwaves.splice(i,1);
+  }
+}
+function updateLights(dt){
+  if(muzzleFlashLight){ muzzleFlashLight.t += dt; if(muzzleFlashLight.t >= muzzleFlashLight.life) muzzleFlashLight = null; }
+  for(let i=explosionLights.length-1; i>=0; i--){
+    const l = explosionLights[i];
+    l.t += dt;
+    if(l.t >= l.life) explosionLights.splice(i,1);
+  }
+}
+function endGame(){
+  gameOver = true;
+  document.getElementById('msg-title').textContent = '💀 전사했습니다';
+  document.getElementById('center-msg').classList.remove('hidden');
+  document.getElementById('start-btn').textContent = '🔄 다시 시작';
+}
+
+// ========== HUD ==========
+function updateHud(){
+  const p = entities[PLAYER_IDX];
+  if(!p) return;
+  document.getElementById('hp-bar').style.width = Math.max(0,(p.hp/p.maxHp*100))+'%';
+  document.getElementById('score-num').textContent = score;
+  document.getElementById('enemy-count').textContent = countAliveEnemies();
+  document.getElementById('coin-hud-num').textContent = coins;
+  document.getElementById('turret-count').textContent = turrets.length;
+  const w = getWeapon();
+  document.getElementById('weapon-name').textContent = w.name;
+  document.getElementById('ammo-num').textContent = p.reloading ? '재장전...' : (p.ammo+' / '+p.maxAmmo);
+  document.getElementById('reload-note').style.opacity = (p.ammo<p.maxAmmo && !p.reloading) ? '1':'0';
+}
+function updateShopUI(){
+  document.getElementById('shop-coins').textContent = coins;
+  const wContainer = document.getElementById('shop-weapons');
+  wContainer.innerHTML = '';
+  WEAPON_LIST.forEach(key => {
+    const w = WEAPONS[key];
+    const owned = ownedWeapons.includes(key);
+    const div = document.createElement('div');
+    div.className = 'shop-item';
+    div.innerHTML = `
+      <span><span class="name">${w.name}</span><span class="desc">(${w.maxAmmo}발 · 데미지 ${w.damage})</span></span>
+      <span>
+        ${owned ? '✅ 보유' : `<span class="price">🪙 ${w.cost}</span><button class="shop-btn weapon-btn" data-key="${key}" ${coins < w.cost ? 'disabled':''}>구매</button>`}
+      </span>
+    `;
+    wContainer.appendChild(div);
+  });
+  document.querySelectorAll('.weapon-btn').forEach(btn => {
+    btn.addEventListener('click', (e)=>{
+      const key = btn.dataset.key;
+      const w = WEAPONS[key];
+      if(ownedWeapons.includes(key)) return;
+      if(coins < w.cost) return;
+      coins -= w.cost;
+      ownedWeapons.push(key);
+      currentWeaponKey = key;
+      const p = entities[PLAYER_IDX];
+      if(p){ p.maxAmmo = w.maxAmmo; p.ammo = w.maxAmmo; }
+      updateShopUI();
+      updateHud();
+      playCoin();
+    });
+  });
+  
+  const uContainer = document.getElementById('shop-upgrades');
+  uContainer.innerHTML = '';
+  UPGRADE_KEYS.forEach(key => {
+    const u = upgrades[key];
+    const cost = getUpgradeCost(key);
+    const maxed = u.level >= u.max;
+    const div = document.createElement('div');
+    div.className = 'shop-item';
+    div.innerHTML = `
+      <span><span class="name">${u.name}</span><span class="upgrade-badge">Lv.${u.level}/${u.max}</span><span class="desc">${u.desc}</span></span>
+      <span>
+        ${maxed ? '✅ MAX' : `<span class="price">🪙 ${cost}</span><button class="shop-btn upgrade-btn" data-key="${key}" ${coins < cost ? 'disabled':''}>업그레이드</button>`}
+      </span>
+    `;
+    uContainer.appendChild(div);
+  });
+  document.querySelectorAll('.upgrade-btn').forEach(btn => {
+    btn.addEventListener('click', (e)=>{
+      const key = btn.dataset.key;
+      applyUpgrade(key);
+    });
+  });
+  
+  const sContainer = document.getElementById('shop-specials');
+  sContainer.innerHTML = '';
+  const turretDiv = document.createElement('div');
+  turretDiv.className = 'shop-item';
+  const maxTurret = upgrades.turret.level;
+  const currentTurret = turrets.length;
+  turretDiv.innerHTML = `
+    <span><span class="name">⚙️ 포탑 설치</span><span class="desc">(T키) 설치 가능: ${maxTurret - currentTurret}개</span></span>
+    <span><button class="shop-btn" id="turret-place-btn" ${maxTurret <= currentTurret ? 'disabled':''}>설치 모드</button></span>
+  `;
+  sContainer.appendChild(turretDiv);
+  document.getElementById('turret-place-btn').addEventListener('click', ()=>{
+    shopOpen = false;
+    isPaused = false;
+    document.getElementById('shop-panel').classList.remove('active');
+    turretPlacementMode = true;
+    grenadeMode = false;
+  });
+}
+
+function getWeapon(){ return WEAPONS[currentWeaponKey]; }
+function tryReload(){
+  const p = entities[PLAYER_IDX];
+  if(!p || p.reloading || p.ammo===p.maxAmmo || gameOver) return;
+  p.reloading = true; p.reloadT = getWeapon().reloadTime || 0.9;
+  playReload();
+}
+
+// ========== 렌더링 ==========
+function drawFloor(){
+  ctx.fillStyle = '#1a1f26';
+  ctx.fillRect(0,0,WORLD_W,WORLD_H);
+  ctx.strokeStyle = 'rgba(255,255,255,0.035)';
+  ctx.lineWidth = 1;
+  const gap = 40;
+  for(let x=0;x<=WORLD_W;x+=gap){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,WORLD_H); ctx.stroke(); }
+  for(let y=0;y<=WORLD_H;y+=gap){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(WORLD_W,y); ctx.stroke(); }
+  ctx.strokeStyle = 'rgba(255,180,84,0.25)';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(4,4,WORLD_W-8,WORLD_H-8);
+}
+function drawLitShape(x, y, radius, shape, baseColor, lightPos, lightIntensity) {
+  ctx.save(); ctx.translate(x,y); const r = radius;
+  if(shape === 'circle') {
+    ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2);
+    ctx.fillStyle = baseColor; ctx.fill();
+    if(lightingEnabled && lightPos){
+      const dx = x - lightPos.x, dy = y - lightPos.y;
+      const dist = Math.hypot(dx,dy);
+      if(dist < 300){
+        const intensity = lightIntensity * (1 - dist/300);
+        const grad = ctx.createRadialGradient(-dx*0.3, -dy*0.3, 0, -dx*0.3, -dy*0.3, r*0.8);
+        grad.addColorStop(0, `rgba(255,255,255,${intensity*0.3})`);
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = grad; ctx.fill();
+      }
+    }
+    ctx.lineWidth=2; ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.stroke();
+  } else if(shape === 'barrel') {
+    ctx.fillStyle = baseColor;
+    ctx.fillRect(-r, -r*1.1, r*2, r*2.2);
+    ctx.strokeStyle = '#3a1a08'; ctx.lineWidth = 2;
+    ctx.strokeRect(-r, -r*1.1, r*2, r*2.2);
+    ctx.fillStyle = '#ffb454';
+    ctx.fillRect(-r, -r*0.5, r*2, 4);
+    ctx.fillRect(-r, r*0.3, r*2, 4);
+    ctx.fillStyle = '#3a1a08';
+    ctx.beginPath(); ctx.arc(0,0,4,0,Math.PI*2); ctx.fill();
+    if(lightingEnabled && lightPos){
+      const dx = x - lightPos.x, dy = y - lightPos.y;
+      const dist = Math.hypot(dx,dy);
+      if(dist < 300){
+        const intensity = lightIntensity * (1 - dist/300);
+        ctx.fillStyle = `rgba(255,255,255,${intensity*0.15})`;
+        ctx.fillRect(-r*0.6, -r*0.9, r*1.2, r*1.8);
+      }
+    }
+  }
+  ctx.restore();
+}
+function drawPlayer(){
+  const p = entities[PLAYER_IDX];
+  if(!p) return;
+  const x=getX(PLAYER_IDX), y=getY(PLAYER_IDX);
+  const ang = p.facing||0;
+  if(lightingEnabled) {
+    const grad = ctx.createRadialGradient(x, y, 10, x, y, 120);
+    grad.addColorStop(0, 'rgba(45,212,191,0.08)');
+    grad.addColorStop(1, 'rgba(45,212,191,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(x, y, 120, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.save(); ctx.translate(x,y); ctx.rotate(ang);
+  if(p.muzzleFlash > 0 && lightingEnabled) {
+    const grad = ctx.createRadialGradient(25,0,2,25,0,40);
+    grad.addColorStop(0,'rgba(255,255,200,0.9)');
+    grad.addColorStop(0.3,'rgba(255,200,100,0.5)');
+    grad.addColorStop(1,'rgba(255,200,100,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(25,0,40,0,Math.PI*2); ctx.fill();
+  }
+  ctx.fillStyle = '#0e2b28';
+  ctx.fillRect(6,-3,20,6);
+  ctx.restore();
+  const light = lightingEnabled ? {x: mouse.x, y: mouse.y, intensity:0.5} : null;
+  drawLitShape(x, y, 16, 'circle', '#2dd4bf', light, 0.5);
+  ctx.beginPath(); ctx.arc(x,y,16,0,Math.PI*2);
+  ctx.lineWidth=2; ctx.strokeStyle='#0f3f3a'; ctx.stroke();
+}
+function drawEnemy(i){
+  const e = entities[i];
+  const x=getX(i), y=getY(i);
+  const ang = Math.atan2(getY(PLAYER_IDX)-y, getX(PLAYER_IDX)-x);
+  ctx.save(); ctx.translate(x,y); ctx.rotate(ang);
+  ctx.fillStyle = '#3a1414';
+  ctx.fillRect(5,-3,18,6);
+  ctx.restore();
+  const color = e.hitFlash>0 ? '#ffffff' : '#ff5a5a';
+  const light = lightingEnabled ? {x: getX(PLAYER_IDX), y: getY(PLAYER_IDX), intensity:0.7} : null;
+  drawLitShape(x, y, 15, 'circle', color, light, 0.7);
+  const w=28;
+  ctx.fillStyle='#000'; ctx.fillRect(x-w/2, y-26, w, 4);
+  ctx.fillStyle='#ff5a5a'; ctx.fillRect(x-w/2, y-26, w*Math.max(0,e.hp/e.maxHp), 4);
+}
+function drawBarrel(i){
+  const x=getX(i), y=getY(i);
+  if(lightingEnabled) {
+    const grad = ctx.createRadialGradient(x,y,5,x,y,60);
+    grad.addColorStop(0,'rgba(194,65,12,0.05)');
+    grad.addColorStop(1,'rgba(194,65,12,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(x,y,60,0,Math.PI*2); ctx.fill();
+  }
+  const light = lightingEnabled ? {x: mouse.x, y: mouse.y, intensity:0.4} : null;
+  drawLitShape(x, y, 14, 'barrel', '#c2410c', light, 0.4);
+  const slotIdx = i - BARREL_LO;
+  ctx.fillStyle = 'rgba(255,180,84,0.3)';
+  ctx.font = '9px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(`#${slotIdx+1}`, x, y-24);
+}
+function drawBullet(i){
+  const x=getX(i), y=getY(i);
+  const vx=getVX(i), vy=getVY(i);
+  const ang = Math.atan2(vy,vx);
+  ctx.save(); ctx.translate(x,y); ctx.rotate(ang);
+  const grad = ctx.createLinearGradient(-14,0,4,0);
+  const col = getTeam(i)===0 ? '#bff7ee' : '#ffd7d7';
+  grad.addColorStop(0,'rgba(255,255,255,0)');
+  grad.addColorStop(1,col);
+  ctx.strokeStyle = grad; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-14,0); ctx.lineTo(4,0); ctx.stroke();
+  ctx.restore();
+  if(lightingEnabled) {
+    const grad = ctx.createRadialGradient(x,y,0,x,y,15);
+    grad.addColorStop(0,'rgba(255,255,255,0.15)');
+    grad.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(x,y,15,0,Math.PI*2); ctx.fill();
+  }
+}
+function drawGrenade(i){
+  const x=getX(i), y=getY(i);
+  ctx.save(); ctx.translate(x,y);
+  ctx.fillStyle = '#3a3a3a';
+  ctx.beginPath(); ctx.arc(0,0,10,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#5a5a5a';
+  ctx.fillRect(-4,-2,8,4);
+  const flash = Math.sin(performance.now() / 100) > 0;
+  if(flash){
+    ctx.fillStyle = 'rgba(255,200,50,0.3)';
+    ctx.beginPath(); ctx.arc(0,0,14,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawParticles(){
+  for(const pt of particles){
+    const a = 1 - pt.t/pt.life;
+    if(pt.ring){
+      const maxR = pt.spark ? 24 : 90;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 6 + (pt.t/pt.life)*maxR, 0, Math.PI*2);
+      ctx.strokeStyle = pt.spark ? `rgba(255,240,190,${a*0.9})` : `rgba(255,180,84,${a*0.8})`;
+      ctx.lineWidth = pt.spark ? 2.2*a+0.4 : 4*a+1;
+      ctx.stroke();
+      continue;
+    }
+    if(pt.spark){
+      ctx.strokeStyle = pt.color;
+      ctx.globalAlpha = Math.max(0,a);
+      ctx.lineWidth = pt.size;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(pt.x, pt.y);
+      ctx.lineTo(pt.x - pt.vx*0.028, pt.y - pt.vy*0.028);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      continue;
+    }
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.size*a, 0, Math.PI*2);
+    ctx.fillStyle = pt.color;
+    ctx.globalAlpha = Math.max(0,a);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  for(const sw of shockwaves){
+    const a = 1 - sw.t/sw.life;
+    if(sw.sonic){
+      ctx.save();
+      ctx.globalCompositeOperation = 'screen';
+      ctx.lineWidth = 2.5*a + 0.6;
+      ctx.strokeStyle = `rgba(255,70,70,${a*0.35})`;
+      ctx.beginPath(); ctx.arc(sw.x, sw.y, sw.radius+4, 0, Math.PI*2); ctx.stroke();
+      ctx.strokeStyle = `rgba(90,255,255,${a*0.35})`;
+      ctx.beginPath(); ctx.arc(sw.x, sw.y, sw.radius-4, 0, Math.PI*2); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,255,255,${a*0.6})`;
+      ctx.lineWidth = 1.5*a + 0.4;
+      ctx.beginPath(); ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI*2); ctx.stroke();
+      ctx.restore();
+      continue;
+    }
+    ctx.strokeStyle = `rgba(255,255,255,${a * 0.35})`;
+    ctx.lineWidth = 6 * a + 2;
+    ctx.beginPath();
+    ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(255,200,100,${a * 0.2})`;
+    ctx.lineWidth = 12 * a + 4;
+    ctx.beginPath();
+    ctx.arc(sw.x, sw.y, sw.radius * 0.85, 0, Math.PI*2);
+    ctx.stroke();
+  }
+}
+function drawLights(){
+  for(const l of explosionLights){
+    const intensity = l.intensity * (1 - l.t/l.life);
+    const grad = ctx.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.radius * (1 - l.t/l.life * 0.5));
+    const r = Math.round(l.color[0]*255), g = Math.round(l.color[1]*255), b = Math.round(l.color[2]*255);
+    grad.addColorStop(0, `rgba(${r},${g},${b},${intensity*0.4})`);
+    grad.addColorStop(0.3, `rgba(${r},${g},${b},${intensity*0.2})`);
+    grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(l.x, l.y, l.radius * (1 - l.t/l.life * 0.5), 0, Math.PI*2); ctx.fill();
+  }
+  if(muzzleFlashLight){
+    const l = muzzleFlashLight;
+    const intensity = l.intensity * (1 - l.t/l.life);
+    const grad = ctx.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.radius);
+    grad.addColorStop(0, `rgba(255,255,200,${intensity*0.6})`);
+    grad.addColorStop(0.3, `rgba(255,200,100,${intensity*0.3})`);
+    grad.addColorStop(1, `rgba(255,200,100,0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(l.x, l.y, l.radius, 0, Math.PI*2); ctx.fill();
+  }
+  if(lightingEnabled && entities[PLAYER_IDX]){
+    const px = getX(PLAYER_IDX), py = getY(PLAYER_IDX);
+    const grad = ctx.createRadialGradient(px, py, 5, px, py, 100);
+    grad.addColorStop(0,'rgba(45,212,191,0.05)');
+    grad.addColorStop(1,'rgba(45,212,191,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(px, py, 100, 0, Math.PI*2); ctx.fill();
+  }
+}
+function render(){
+  ctx.save();
+  if(shakeMag>0.1){
+    ctx.translate((Math.random()*2-1)*shakeMag, (Math.random()*2-1)*shakeMag);
+  }
+  drawFloor();
+  drawLights();
+  drawTurrets();
+  for(let i=BARREL_LO;i<=BARREL_HI;i++) if(entities[i]) drawBarrel(i);
+  for(let i=BULLET_LO;i<=BULLET_HI;i++){
+    if(entities[i]){
+      if(entities[i].kind === 'grenade') drawGrenade(i);
+      else drawBullet(i);
+    }
+  }
+  for(let i=ENEMY_LO;i<=ENEMY_HI;i++) if(entities[i]) drawEnemy(i);
+  if(entities[PLAYER_IDX] && !gameOver) drawPlayer();
+  drawParticles();
+  
+  if(turretPlacementMode){
+    const canPlace = Math.hypot(mouse.x - getX(PLAYER_IDX), mouse.y - getY(PLAYER_IDX)) <= 300;
+    const px = getX(PLAYER_IDX), py = getY(PLAYER_IDX);
+    ctx.strokeStyle = 'rgba(45,212,191,0.15)';
+    ctx.setLineDash([4,8]);
+    ctx.beginPath(); ctx.arc(px, py, 300, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(45,212,191,0.3)';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('📦 설치 가능 영역', px, py-310);
+    ctx.textAlign = 'left';
+    
+    ctx.strokeStyle = canPlace ? 'rgba(45,212,191,0.8)' : 'rgba(255,90,90,0.6)';
+    ctx.setLineDash([6,6]);
+    ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 14, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.fillStyle = canPlace ? 'rgba(45,212,191,0.2)' : 'rgba(255,90,90,0.15)';
+    ctx.fill();
+    ctx.setLineDash([]);
+    ctx.fillStyle = canPlace ? '#2dd4bf' : '#ff5a5a';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`⚙️ 포탑 설치 (💰20코인)`, mouse.x, mouse.y-30);
+    if(!canPlace){
+      ctx.fillStyle = '#ff5a5a';
+      ctx.fillText('❌ 플레이어 근방으로 이동하세요', mouse.x, mouse.y-48);
+    }
+    ctx.textAlign = 'left';
+  }
+  
+  if(grenadeMode){
+    const px = getX(PLAYER_IDX), py = getY(PLAYER_IDX);
+    const ang = Math.atan2(mouse.y - py, mouse.x - px);
+    const dist = Math.min(350, Math.hypot(mouse.x - px, mouse.y - py));
+    const endX = px + Math.cos(ang) * dist;
+    const endY = py + Math.sin(ang) * dist;
+    
+    ctx.strokeStyle = 'rgba(255,200,50,0.3)';
+    ctx.setLineDash([4,6]);
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    const steps = 20;
+    for(let i=0; i<=steps; i++){
+      const t = i / steps;
+      const cx = px + (endX - px) * t;
+      const cy = py + (endY - py) * t;
+      if(i===0) ctx.moveTo(cx, cy);
+      else ctx.lineTo(cx, cy);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(255,200,50,0.3)';
+    ctx.beginPath(); ctx.arc(endX, endY, GRENADE_RADIUS, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,200,50,0.05)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,200,50,0.1)';
+    ctx.setLineDash([8,8]);
+    ctx.beginPath(); ctx.arc(endX, endY, SHOCKWAVE_RADIUS, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = grenadeCooldown <= 0 ? '#facc15' : '#ff5a5a';
+    ctx.font = '12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`💣 수류탄 (${grenadeCooldown > 0 ? Math.ceil(grenadeCooldown)+'s' : '쿨 15초'})`, mouse.x, mouse.y-30);
+    if(grenadeCooldown > 0){
+      ctx.fillStyle = '#ff5a5a';
+      ctx.fillText(`⏳ ${Math.ceil(grenadeCooldown)}초 대기`, mouse.x, mouse.y-48);
+    }
+    ctx.textAlign = 'left';
+  }
+  
+  if(!gameOver && entities[PLAYER_IDX] && !turretPlacementMode && !grenadeMode){
+    ctx.strokeStyle='rgba(255,180,84,0.35)';
+    ctx.setLineDash([4,6]);
+    ctx.beginPath();
+    ctx.moveTo(getX(PLAYER_IDX),getY(PLAYER_IDX));
+    ctx.lineTo(mouse.x,mouse.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.restore();
+}
+
+// ========== 메인 루프 ==========
+let lastT = performance.now();
+let fpsAcc=0, fpsCount=0, fpsShown=60;
+
+function frame(now){
+  let dt = (now-lastT)/1000;
+  lastT = now;
+  dt = Math.min(dt, 0.05);
+  refreshViews();
+  fpsAcc += dt; fpsCount++;
+  if(fpsAcc>0.5){ fpsShown = Math.round(fpsCount/fpsAcc); fpsAcc=0; fpsCount=0; document.getElementById('fps').textContent = fpsShown; }
+  
+  if(grenadeCooldown > 0 && gameStarted && !gameOver){
+    grenadeCooldown = Math.max(0, grenadeCooldown - dt);
+    updateGrenadeUI();
+  }
+  
+  // ===== 일시정지 처리 =====
+  // isPaused가 true이면 wasmStep에 dt=0 전달 (모든 물리 정지)
+  const physicsDt = isPaused ? 0 : dt;
+  
+  // 슬로우모션: 수류탄 조준 중
+  let effectiveDt = physicsDt;
+  if(grenadeMode && !gameOver && !shopOpen && !turretPlacementMode && !isPaused){
+    effectiveDt = physicsDt * 0.2;
+  }
+  
+  // WASM 물리 업데이트 (isPaused면 dt=0 -> 아무것도 안 움직임)
+  wasmStep(effectiveDt, MAX_BODIES, WORLD_W, WORLD_H);
+  reclaimExpiredBullets();
+  
+  // 게임 로직 업데이트 (isPaused면 업데이트 안 함)
+  if(!isPaused && gameStarted && !gameOver){
+    updatePlayer(effectiveDt, false);
+    updateEnemies(effectiveDt, false);
+    updateTurrets(effectiveDt);
+    updateGrenades(effectiveDt);
+    const evCount = wasmStep(effectiveDt, MAX_BODIES, WORLD_W, WORLD_H);
+    processBulletHits(evCount);
+    reclaimExpiredBullets();
+    checkWhooshSounds(dt);
+  } else if(isPaused) {
+    // 일시정지: 플레이어와 적의 속도를 0으로 유지
+    updatePlayer(dt, true);
+    updateEnemies(dt, true);
+    // 수류탄은 업데이트하지 않음 (위치 고정)
+  }
+  
+  // 파티클과 라이트는 항상 업데이트 (isPaused여도)
+  updateParticles(dt);
+  updateLights(dt);
+  if(shakeT>0){ shakeT -= dt; shakeMag *= 0.9; } else shakeMag = 0;
+  render();
+  requestAnimationFrame(frame);
+}
+
+// ========== 이벤트 ==========
+window.addEventListener('keydown', e=>{
+  const k = e.key.toLowerCase();
+  keys[k] = true;
+  if(k==='r') tryReload();
+  if(k==='q') { toggleShop(); }
+  if(k==='t' && gameStarted && !gameOver && !shopOpen) {
+    turretPlacementMode = !turretPlacementMode;
+    grenadeMode = false;
+  }
+  if(k==='g' && gameStarted && !gameOver && !shopOpen) {
+    if(grenadeCooldown <= 0){
+      grenadeMode = !grenadeMode;
+      turretPlacementMode = false;
+    }
+  }
+  if(k>= '1' && k<= '7'){
+    const idx = parseInt(k)-1;
+    if(idx < WEAPON_LIST.length){
+      const key = WEAPON_LIST[idx];
+      if(ownedWeapons.includes(key)){
+        currentWeaponKey = key;
+        const p = entities[PLAYER_IDX];
+        if(p){ const w = getWeapon(); p.maxAmmo = w.maxAmmo; p.ammo = w.maxAmmo; p.reloading = false; }
+        updateHud();
+      }
+    }
+  }
+  if(k==='escape') {
+    turretPlacementMode = false;
+    grenadeMode = false;
+    if(shopOpen) {
+      shopOpen = false;
+      isPaused = false;
+      document.getElementById('shop-panel').classList.remove('active');
+    }
+  }
+  resumeAudio();
+});
+window.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()] = false; });
+canvas.addEventListener('mousemove', e=>{
+  const r = canvas.getBoundingClientRect();
+  mouse.x = (e.clientX - r.left) * (canvas.width/r.width);
+  mouse.y = (e.clientY - r.top) * (canvas.height/r.height);
+});
+canvas.addEventListener('mousedown', e=>{
+  mouse.down = true;
+  resumeAudio();
+  if(turretPlacementMode && gameStarted && !gameOver && !shopOpen){
+    const x = mouse.x, y = mouse.y;
+    const px = getX(PLAYER_IDX), py = getY(PLAYER_IDX);
+    if(Math.hypot(x - px, y - py) <= 300){
+      if(placeTurret(x, y)){
+        playCoin();
+        turretPlacementMode = false;
+        updateHud();
+      }
+    }
+  }
+  if(grenadeMode && gameStarted && !gameOver && !shopOpen){
+    const px = getX(PLAYER_IDX), py = getY(PLAYER_IDX);
+    const ang = Math.atan2(mouse.y - py, mouse.x - px);
+    if(throwGrenade(ang, mouse.x, mouse.y)){
+      grenadeMode = false;
+      updateHud();
+    }
+  }
+});
+window.addEventListener('mouseup', e=>{ mouse.down = false; });
+
+document.getElementById('lighting-toggle').addEventListener('click', function(){
+  lightingEnabled = !lightingEnabled;
+  this.textContent = lightingEnabled ? '💡 라이팅 ON' : '💡 라이팅 OFF';
+});
+
+function toggleShop(){
+  if(!gameStarted || gameOver) return;
+  shopOpen = !shopOpen;
+  isPaused = shopOpen; // 상점 열면 일시정지
+  document.getElementById('shop-panel').classList.toggle('active', shopOpen);
+  if(shopOpen) {
+    turretPlacementMode = false;
+    grenadeMode = false;
+    updateShopUI();
+  }
+}
+document.getElementById('shop-toggle').addEventListener('click', toggleShop);
+document.getElementById('shop-close').addEventListener('click', ()=>{
+  shopOpen = false;
+  isPaused = false;
+  document.getElementById('shop-panel').classList.remove('active');
+});
+
+document.getElementById('save-reset-btn').addEventListener('click', ()=>{
+  if(confirm('진행 데이터를 초기화하시겠습니까?')){
+    fullReset();
+    gameStarted = true;
+    const p = entities[PLAYER_IDX];
+    if(p){ const w = getWeapon(); p.maxAmmo = w.maxAmmo; p.ammo = w.maxAmmo; }
+    updateHud();
+    updateShopUI();
+    updateGrenadeUI();
+  }
+});
+
+document.getElementById('start-btn').addEventListener('click', ()=>{
+  resumeAudio();
+  if(gameOver || !gameStarted){
+    fullReset();
+    gameStarted = true;
+    gameOver = false;
+    const p = entities[PLAYER_IDX];
+    if(p){ const w = getWeapon(); p.maxAmmo = w.maxAmmo; p.ammo = w.maxAmmo; }
+    updateHud();
+    updateShopUI();
+    updateGrenadeUI();
+  }
+});
+
+// 초기화
+resetPlayer(); resetBarrels(); resetEnemies();
+for(let i=ENEMY_LO;i<=ENEMY_HI;i++){ entities[i]=null; setActive(i,false); }
+updateHud();
+updateShopUI();
+updateGrenadeUI();
+requestAnimationFrame(frame);
+
+})();
+</script>
+</body>
+</html>
