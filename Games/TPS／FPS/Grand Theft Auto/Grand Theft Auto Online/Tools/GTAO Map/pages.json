@@ -1,9 +1,9 @@
 {
   "folders": [],
   "files": [
-    "favicon.png",
-    "GTAOMap.ahk",
-    "GTAOMap.ico",
-    "WebView2Loader.dll"
+    {"name": "favicon.png", "size": 11002},
+    {"name": "GTAOMap.ahk", "size": 20205},
+    {"name": "GTAOMap.ico", "size": 118334},
+    {"name": "WebView2Loader.dll", "size": 135056}
   ]
 }

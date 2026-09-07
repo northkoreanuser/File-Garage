@@ -1,15 +1,15 @@
 {
   "folders": [],
   "files": [
-    "01.png",
-    "02.png",
-    "03.png",
-    "04.png",
-    "05.png",
-    "06.png",
-    "07.png",
-    "08.png",
-    "09.png",
-    "order.json"
+    {"name": "01.png", "size": 7301766},
+    {"name": "02.png", "size": 7217212},
+    {"name": "03.png", "size": 7329550},
+    {"name": "04.png", "size": 7276570},
+    {"name": "05.png", "size": 7216748},
+    {"name": "06.png", "size": 7312609},
+    {"name": "07.png", "size": 7327224},
+    {"name": "08.png", "size": 7376134},
+    {"name": "09.png", "size": 7248539},
+    {"name": "order.json", "size": 575}
   ]
 }

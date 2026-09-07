@@ -53,11 +53,12 @@ IndexDir(dir, isRoot) {
     {
         if ShouldExclude(A_LoopFileName, isRoot)
             continue
-        files.Push(A_LoopFileName)
+        ; 웹훅(localserver.ahk)이 다운로드 전에 HEAD 요청 없이도 파일 크기를 알 수 있도록 같이 남긴다.
+        files.Push({name: A_LoopFileName, size: A_LoopFileSize})
     }
 
     SortNamesKo(folders)
-    SortNamesKo(files)
+    SortFilesKo(files)
 
     WritePagesJson(dir, folders, files)
     DirCount++
@@ -107,10 +108,32 @@ SortNamesKo(ByRef arr) {
 }
 
 ; ------------------------------------------------------------
-; 폴더 하나의 pages.json 작성 -> {"folders":[...], "files":[...]}
+; files 배열은 {name, size} 객체라서 SortNamesKo를 그대로 못 쓴다.
+; "이름`t크기`n" 형태의 줄로 만들어 이름 기준으로만 정렬한 다음(탭 뒤의 크기는
+; 서로 다른 이름을 가진 줄들의 정렬 순서에 영향을 주지 않는다) 다시 객체로 되돌린다.
+; ------------------------------------------------------------
+SortFilesKo(ByRef arr) {
+    if (arr.Length() = 0)
+        return
+    list := ""
+    for index, f in arr
+        list .= f.name . "`t" . f.size . "`n"
+    list := RTrim(list, "`n")
+    Sort, list
+    lines := StrSplit(list, "`n")
+    out := []
+    for index, line in lines {
+        parts := StrSplit(line, "`t")
+        out.Push({name: parts[1], size: parts[2] + 0})
+    }
+    arr := out
+}
+
+; ------------------------------------------------------------
+; 폴더 하나의 pages.json 작성 -> {"folders":[...], "files":[{"name":...,"size":...}, ...]}
 ; ------------------------------------------------------------
 WritePagesJson(dir, folders, files) {
-    json := "{`n  ""folders"": " . BuildJsonArray(folders) . ",`n  ""files"": " . BuildJsonArray(files) . "`n}`n"
+    json := "{`n  ""folders"": " . BuildJsonArray(folders) . ",`n  ""files"": " . BuildFilesJsonArray(files) . "`n}`n"
 
     outFile := dir . "\pages.json"
     if FileExist(outFile)
@@ -125,6 +148,19 @@ BuildJsonArray(arr) {
     first := true
     for index, name in arr {
         out .= (first ? "" : ",") . "`n    """ . JsonEscape(name) . """"
+        first := false
+    }
+    out .= "`n  ]"
+    return out
+}
+
+BuildFilesJsonArray(arr) {
+    if (arr.Length() = 0)
+        return "[]"
+    out := "["
+    first := true
+    for index, f in arr {
+        out .= (first ? "" : ",") . "`n    {""name"": """ . JsonEscape(f.name) . """, ""size"": " . f.size . "}"
         first := false
     }
     out .= "`n  ]"

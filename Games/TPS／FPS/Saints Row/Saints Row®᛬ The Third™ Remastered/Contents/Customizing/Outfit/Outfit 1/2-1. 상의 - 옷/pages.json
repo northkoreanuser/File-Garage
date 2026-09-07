@@ -1,11 +1,11 @@
 {
   "folders": [],
   "files": [
-    "01.png",
-    "02.png",
-    "03.png",
-    "04.png",
-    "05.png",
-    "order.json"
+    {"name": "01.png", "size": 6570507},
+    {"name": "02.png", "size": 6470670},
+    {"name": "03.png", "size": 6473739},
+    {"name": "04.png", "size": 6498256},
+    {"name": "05.png", "size": 6448768},
+    {"name": "order.json", "size": 353}
   ]
 }

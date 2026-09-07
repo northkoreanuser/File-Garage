@@ -1,9 +1,9 @@
 {
   "folders": [],
   "files": [
-    "01.png",
-    "02.png",
-    "03.png",
-    "order.json"
+    {"name": "01.png", "size": 6351517},
+    {"name": "02.png", "size": 6337377},
+    {"name": "03.png", "size": 6297673},
+    {"name": "order.json", "size": 242}
   ]
 }

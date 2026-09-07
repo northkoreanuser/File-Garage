@@ -237,6 +237,34 @@
   }
   .start-submenu.open { display: block; }
 
+  /* ---------- 환경설정 창 ---------- */
+  .settings-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.25);
+    display: none; align-items: center; justify-content: center; z-index: 50;
+  }
+  .settings-overlay.open { display: flex; }
+  .settings-panel {
+    width: 380px; max-width: calc(100vw - 32px);
+    background: rgba(250,250,250,.98); backdrop-filter: blur(20px);
+    border: 1px solid rgba(0,0,0,.08); border-radius: 10px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.4);
+    overflow: hidden;
+  }
+  .settings-titlebar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; border-bottom: 1px solid #e5e5e5; font-size: 13.5px; font-weight: 600; color: #222;
+  }
+  .settings-close { border: none; background: transparent; font-size: 14px; color: #555; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+  .settings-close:hover { background: #e9e9e9; }
+  .settings-body { padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+  .settings-row { display: flex; flex-direction: column; gap: 4px; }
+  .settings-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #222; cursor: pointer; }
+  .settings-check input { width: 15px; height: 15px; }
+  .settings-hint { font-size: 11.5px; color: #888; margin-left: 23px; line-height: 1.4; }
+  .settings-label { font-size: 13px; color: #222; }
+  .settings-select { height: 30px; border: 1px solid #d5d5d5; border-radius: 4px; padding: 0 8px; font-size: 12.5px; background: #fff; }
+  .settings-divider { height: 1px; background: rgba(0,0,0,.08); }
+
   /* ---------- 우클릭 커스텀 메뉴 ---------- */
   .ctx-menu {
     position: fixed; min-width: 170px;
@@ -329,6 +357,43 @@
   </div>
   <div class="start-menu-divider"></div>
   <div class="start-apps" id="startApps"></div>
+  <div class="start-menu-divider"></div>
+  <div class="start-app-row" id="settingsMenuRow">
+    <div class="start-app-icon">&#9881;</div>
+    <span class="start-app-name">설정</span>
+  </div>
+</div>
+
+<div class="settings-overlay" id="settingsOverlay">
+  <div class="settings-panel">
+    <div class="settings-titlebar">
+      <span>환경설정</span>
+      <button class="settings-close" id="settingsCloseBtn" title="닫기">&#x2715;</button>
+    </div>
+    <div class="settings-body">
+      <div class="settings-row">
+        <label class="settings-check"><input type="checkbox" id="setEditEnabled"> 파일 "수정" 메뉴 사용</label>
+        <div class="settings-hint">우클릭 메뉴에 "GitHub에서 수정"을 추가로 표시합니다. GitHub의 해당 파일 편집 화면으로 이동합니다.</div>
+      </div>
+      <div class="settings-row">
+        <label class="settings-check"><input type="checkbox" id="setDeleteEnabled"> 파일 "삭제" 메뉴 사용</label>
+        <div class="settings-hint">우클릭 메뉴에 "GitHub에서 삭제"를 추가로 표시합니다. 색인과 실제 저장소가 어긋날 수 있어 기본은 꺼져 있습니다 — git으로 직접 지우고 커밋하는 편이 안전합니다.</div>
+      </div>
+      <div class="settings-row">
+        <label class="settings-check"><input type="checkbox" id="setGithubLinks"> GitHub 바로가기 표시</label>
+        <div class="settings-hint">우클릭 메뉴에 "GitHub에서 보기 / 다운로드"를 추가로 표시합니다.</div>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-row">
+        <span class="settings-label">파일 더블클릭 시 동작 (폴더 · html 파일 제외)</span>
+        <select class="settings-select" id="setDoubleClick">
+          <option value="open">열기 (로컬 프로그램)</option>
+          <option value="download">다운로드</option>
+          <option value="edit">수정 (GitHub) — "수정" 메뉴를 켜야 선택 가능</option>
+        </select>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="taskbar">
@@ -377,6 +442,49 @@ function getOwnerRepo() {
   return { owner, repo };
 }
 
+/* ============ GitHub 바로가기 (보기/다운로드/수정/삭제) ============
+   이 페이지 자체는 정적 사이트라 파일을 직접 쓸 수 없다. 수정/삭제는 항상
+   GitHub의 해당 파일 위치로 이동시키는 것으로 대신한다 (그마저도 환경설정에서
+   기본은 꺼져 있음 - 색인과 저장소가 어긋날 수 있어서, 직접 git으로 지우고
+   커밋하는 편이 더 안전하기 때문).
+================================================================== */
+let cachedDefaultBranch = null;
+async function getDefaultBranchCached() {
+  if (cachedDefaultBranch) return cachedDefaultBranch;
+  const { owner, repo } = getOwnerRepo();
+  if (!owner || !repo) return "main";
+  try {
+    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}`);
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    cachedDefaultBranch = data.default_branch || "main";
+  } catch (e) {
+    cachedDefaultBranch = "main"; // 조회 실패해도 링크 자체는 열리도록 합리적인 기본값으로 진행
+  }
+  return cachedDefaultBranch;
+}
+function githubItemPath(it) { return it.path.map(encodeURIComponent).join("/"); }
+async function openGithubBlob(it) {
+  const { owner, repo } = getOwnerRepo();
+  const branch = await getDefaultBranchCached();
+  window.open(`https://github.com/${owner}/${repo}/blob/${branch}/${githubItemPath(it)}`, "_blank", "noopener,noreferrer");
+}
+async function openGithubRaw(it) {
+  const { owner, repo } = getOwnerRepo();
+  const branch = await getDefaultBranchCached();
+  window.open(`https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${githubItemPath(it)}`, "_blank", "noopener,noreferrer");
+}
+async function openGithubEdit(it) {
+  const { owner, repo } = getOwnerRepo();
+  const branch = await getDefaultBranchCached();
+  window.open(`https://github.com/${owner}/${repo}/edit/${branch}/${githubItemPath(it)}`, "_blank", "noopener,noreferrer");
+}
+async function openGithubDelete(it) {
+  const { owner, repo } = getOwnerRepo();
+  const branch = await getDefaultBranchCached();
+  window.open(`https://github.com/${owner}/${repo}/delete/${branch}/${githubItemPath(it)}`, "_blank", "noopener,noreferrer");
+}
+
 function isHtml(name) { return /\.html$/i.test(name); }
 function escapeHtml(s) {
   return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -419,7 +527,9 @@ const els = {};
 ["winTitle","btnMin","btnMax","btnClose","btnNavToggle","btnBack","btnForward","btnUp",
  "btnRefresh","breadcrumb","searchInput","navPane","contentPane","statusText","repoLink",
  "win","taskbarApp","clock","titlebar","startBtn","startMenu","startAvatar","startUserName",
- "startUserLink","startApps","trayIcons","toast"].forEach(id => els[id] = document.getElementById(id));
+ "startUserLink","startApps","trayIcons","toast","settingsMenuRow","settingsOverlay",
+ "settingsCloseBtn","setEditEnabled","setDeleteEnabled","setGithubLinks","setDoubleClick"
+].forEach(id => els[id] = document.getElementById(id));
 
 /* ============ 창 조작 (최소화/최대화/닫기) ============ */
 els.btnMin.onclick = () => els.win.classList.toggle("minimized");
@@ -451,6 +561,69 @@ function writeCache(pathArr, entry) {
 function clearCache(pathArr) {
   try { localStorage.removeItem(cacheKey(pathArr)); } catch (e) {}
   dirCache.delete(pathArr.join("/"));
+}
+
+/* ============ 환경설정 (윈도우 설정창 스타일 + 로컬 스토리지) ============
+   - 수정/삭제는 이 페이지에서 직접 할 수 없다(정적 사이트라 쓰기 권한이 없음).
+     대신 GitHub의 해당 파일 위치로 이동시키는 것 뿐이며, 그마저도 기본은 꺼져 있다.
+   - 더블클릭 삭제는 사고 위험이 커서 애초에 옵션에서 제외한다.
+================================================================== */
+const DEFAULT_SETTINGS = {
+  editEnabled: false,
+  deleteEnabled: false,
+  githubLinksEnabled: true,
+  doubleClickAction: "open" // "open" | "download" | "edit" ("edit"은 editEnabled가 true일 때만 유효)
+};
+function settingsKey() { return `idx:${repoName}:settings`; }
+function loadSettings() {
+  let s = { ...DEFAULT_SETTINGS };
+  try {
+    const raw = localStorage.getItem(settingsKey());
+    if (raw) s = { ...s, ...JSON.parse(raw) };
+  } catch (e) { /* 무시 */ }
+  if (s.doubleClickAction === "edit" && !s.editEnabled) s.doubleClickAction = "open";
+  return s;
+}
+function saveSettings() {
+  try { localStorage.setItem(settingsKey(), JSON.stringify(settings)); } catch (e) {}
+}
+let settings = { ...DEFAULT_SETTINGS };
+
+function applySettingsToPanel() {
+  els.setEditEnabled.checked = settings.editEnabled;
+  els.setDeleteEnabled.checked = settings.deleteEnabled;
+  els.setGithubLinks.checked = settings.githubLinksEnabled;
+  const editOption = els.setDoubleClick.querySelector('option[value="edit"]');
+  editOption.disabled = !settings.editEnabled;
+  els.setDoubleClick.value = settings.doubleClickAction;
+}
+function setupSettingsPanel() {
+  els.settingsMenuRow.onclick = (e) => {
+    e.stopPropagation();
+    els.startMenu.classList.remove("open");
+    closeAllSubmenus();
+    openSettingsPanel();
+  };
+  els.settingsCloseBtn.onclick = () => els.settingsOverlay.classList.remove("open");
+  els.settingsOverlay.onclick = (e) => { if (e.target === els.settingsOverlay) els.settingsOverlay.classList.remove("open"); };
+
+  els.setEditEnabled.onchange = () => {
+    settings.editEnabled = els.setEditEnabled.checked;
+    if (!settings.editEnabled && settings.doubleClickAction === "edit") settings.doubleClickAction = "open";
+    saveSettings();
+    applySettingsToPanel();
+  };
+  els.setDeleteEnabled.onchange = () => { settings.deleteEnabled = els.setDeleteEnabled.checked; saveSettings(); };
+  els.setGithubLinks.onchange = () => { settings.githubLinksEnabled = els.setGithubLinks.checked; saveSettings(); };
+  els.setDoubleClick.onchange = () => {
+    if (els.setDoubleClick.value === "edit" && !settings.editEnabled) { els.setDoubleClick.value = settings.doubleClickAction; return; }
+    settings.doubleClickAction = els.setDoubleClick.value;
+    saveSettings();
+  };
+}
+function openSettingsPanel() {
+  applySettingsToPanel();
+  els.settingsOverlay.classList.add("open");
 }
 
 /* ============ 시작 메뉴 (GitHub 계정 카드) ============ */
@@ -613,6 +786,31 @@ const LOCAL_HELPER_PORT_MAX = 8020;
 const HELPER_SIGNATURE = "AHK-REPO-INDEXER-LOCALHELPER-v1";
 let cachedHelperPort = null; // 한 번 찾으면 이 페이지가 살아있는 동안은 재사용
 
+// localserver.ahk 웹훅이 필요한 작업(열기/다운로드)인데 못 찾았을 때, 에러 대신
+// index.html에 내장해둔 localserver.ahk 원본을 즉시 blob으로 내려받게 해준다
+// ("자가 치유" - 사용자가 바로 실행만 하면 되도록).
+const LOCALSERVER_AHK_B64 = "77u/OyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KOyDroZzsu6wg7Zes7Y28IOyEnOuyhCAtIEF1dG9Ib3RrZXkgdjEKOwo7IGluZGV4Lmh0bWwoSFRUUFProZwg7Zi47Iqk7YyF65CcIEdpdEh1YiBQYWdlcynsl5DshJwg66Gc7Lus66GcIO2MjOydvOydhAo7ICLsl7TquLAiIC8gIuuLpOyatOuhnOuTnCIg7ZWgIOyImCDsnojqsowg7ZW07KO864qUIOuhnOy7rCDsm7ntm4Ug7ISc67KELgo7IC0gR0VUIC9waW5nICAgICAgICAgICAgICAtPiDsgrTslYTsnojripTsp4Ag7ZmV7J247JqpICjqs6DsnKAg7ISc66qFIOusuOyekOyXtCDsnZHri7UsIOyVhOuemCDssLjqs6ApCjsgLSBHRVQgL29wZW4/dXJsPS4uLiZzaXplPS4uLiAgICAgLT4g6re4IFVSTOydhCAldGVtcCXsl5Ag67Cb7JWE7IScIOuwlOuhnCDsi6Ttloko7Jew6rKwIO2UhOuhnOq3uOueqOycvOuhnCDsl7TquLApCjsgLSBHRVQgL2Rvd25sb2FkP3VybD0uLi4mc2l6ZT0uLi4gLT4g7KCA7J6lIOuMgO2ZlOyDgeyekOulvCDrnYTsm4zshJwg7IKs7Jqp7J6Q6rCAIOqzoOuluCDsnITsuZjsl5Ag64uk7Jq066Gc65OcCjsgICAoc2l6ZeuKlCDshKDtg53qsJIuIGluZGV4Lmh0bWzsnbQg7IOJ7J247JeQIOyggOyepeuQnCDtjIzsnbwg7YGs6riw66W8IOyVjOqzoCDsnojsnLzrqbQg6rCZ7J20IOuztOuCtOyjvOqzoCwKOyAgICDsl4bsnLzrqbQg7J20IOyEnOuyhOqwgCBIRUFEIOyalOyyreycvOuhnCDsp4HsoJEg7JWM7JWE64K464ukLikKOwo7IO2PrO2KuOuKlCDqs6DsoJXtlZjsp4Ag7JWK6rOgIDgwMDB+ODAyMCDsgqzsnbTsl5DshJwg67mE7Ja07J6I64qUIOqxuCDrj5nsoIHsnLzroZwg7J6h64qU64ukLgo7IGluZGV4Lmh0bWzrj4Qg6rCZ7J2AIOuylOychOulvCDsiqTsupTtlbTshJwg7J2R64u17ZWY64qUIO2PrO2KuOulvCDssL7slYQg7JO064ukICjslpHsqr0g64ukIOuPmeyggSkuCjsg6re4IOuylOychOyXkCDsnbTrr7gg64uk66W4IOustOq0gO2VnCDtlITroZzqt7jrnqjsnbQg65ag7J6I7J2EIOyImOuPhCDsnojsnLzrr4DroZwsIC9waW5n7J2AIOuLqOyInAo7ICJPSyLqsIAg7JWE64uI6528IOydtCDtl6ztjbzrp4zsnZgg6rOg7JygIOyEnOuqhShIRUxQRVJfU0lHTkFUVVJFKeydhCDsnZHri7XtlZzri6QgLQo7IGluZGV4Lmh0bWzsnYAg7KCV7ZmV7Z6IIOq3uCDrrLjsnpDsl7TsnbQg7JmA7JW866eMICLssL7slZjri6Qi6rOgIO2MkOuLqO2VnOuLpC4KOwo7IOywuOqzoDogSFRUUFMg7Y6Y7J207KeA7JeQ7IScIGh0dHA6Ly8xMjcuMC4wLjHroZwg7JqU7LKt7ZWY64qUIOqxtCDtgazroazsnZgKOyAiTG9jYWwgTmV0d29yayBBY2Nlc3MiIOygleyxhSDrlYzrrLjsl5Ag7LKY7J2MIO2VnCDrsojsnYAg67iM65287Jqw7KCAIOq2jO2VnAo7IO2MneyXheydtCDrnKzri6QuIOq3uOqxtCDsoJXsg4HsnbTqs6AsIOyCrOyaqeyekOqwgCDtl4jsmqnsnYQg64iM65+s7JW8IOuPmeyeke2VnOuLpC4KOyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KI05vRW52CiNQZXJzaXN0ZW50CiNTaW5nbGVJbnN0YW5jZSwgRm9yY2UKU2V0QmF0Y2hMaW5lcywgLTEKClBPUlRfTUlOIDo9IDgwMDAKUE9SVF9NQVggOj0gODAyMAo7IC9waW5nIOydkeuLteycvOuhnCDsnbQg66y47J6Q7Je07J2EIOuPjOugpOykgOuLpC4g64uo7IicICJPSyLripQgODAwMH44MDIwIOyCrOydtOyXkCDrlqDsnojripQKOyDri6Trpbgg66y06rSA7ZWcIO2UhOuhnOq3uOueqOydtCDsmrDsl7Dtnogg6rCZ7J2AIOydkeuLteydhCDspIQg7IiY64+EIOyeiOyWtOyEnCwg7J20IO2XrO2NvOunjOydmAo7IOqzoOycoO2VnCDshJzrqoXsnLzroZwg6rWs67aE7ZWc64ukLiBpbmRleC5odG1s7J2AIOygle2Zle2eiCDsnbQg66y47J6Q7Je07J2EIO2ZleyduO2VnOuLpC4KSEVMUEVSX1NJR05BVFVSRSA6PSAiQUhLLVJFUE8tSU5ERVhFUi1MT0NBTEhFTFBFUi12MSIKCjsg7Je06riwL+uLpOyatOuhnOuTnCDtjIzsnbzsnbQg7J20IO2BrOq4sCjrsJTsnbTtirgp66W8IOuEmOycvOuptCDsp4TtlonrpaAg7ZGc7IucIOuLpOyatOuhnOuNlOulvCDsgqzsmqntlZzri6QuCjsg7ZWE7JqU7ZWY66m0IOydtCDqsJLrp4wg67CU6r6466m0IOuQqC4KQ3VzdG9tRG93bmxvYWRUaHJlc2hvbGRCeXRlcyA6PSA1MCAqIDEwMjQgKiAxMDI0Cgo7IOyehOyLnO2MjOydvCDtlITroZzshLjsiqQg7KCV66asIOqygOyCrCDso7zquLAobXMpLiDtlYTsmpTtlZjrqbQg7J20IOqwkuunjCDrsJTqvrjrqbQg65CoLgpQcm9jQ2hlY2tJbnRlcnZhbE1zIDo9IDMwMDAwCgpSdW5uaW5nUHJvY3MgOj0gW10gICA7IFt7cGlkLCBwYXRofSwgLi4uXSAi7Je06riwIuuhnCDsi6TtlontlbTshJwgdGVtcOyXkCDrgqjslYTsnojripQg7YyM7J2865OkIOy2lOyggQpVbmlxdWVDb3VudGVyIDo9IDAKQnVzeSA6PSBmYWxzZSAgICAgICAgIDsg7KeE7ZaJ66WgIOuLpOyatOuhnOuTnCDrj4TspJEg7J6s7KeE7J6FIOuwqeyngOyaqSAo6rCc7J247JqpIOuLqOydvCDshJzrsoTrnbwg64+Z7IucIOuLpOyatOuhnOuTnOuKlCDrp4nripTri6QpCgpib3VuZFVybCA6PSBTdGFydFdlYmhvb2tTZXJ2ZXIoUE9SVF9NSU4sIFBPUlRfTUFYLCBBX1NjcmlwdERpciAuICJcd2ViaG9vay5sb2ciKQppZiAhYm91bmRVcmwgewogICAgTXNnQm94LCA0MDk2LCDroZzsu6wg7Zes7Y28LCAlUE9SVF9NSU4lfiVQT1JUX01BWCUg7IKs7J207JeQIOyXtCDsiJgg7J6I64qUIO2PrO2KuOqwgCDsl4bsirXri4jri6QuCiAgICBFeGl0QXBwCn0KU2V0VGltZXIsIENoZWNrUnVubmluZ1Byb2NzLCAlIFByb2NDaGVja0ludGVydmFsTXMKVHJheVRpcCwg66Gc7LusIO2XrO2NvCDsi6Ttlokg7KSRLCAlIGJvdW5kVXJsIC4gIiDsl5DshJwg64yA6riwIOykkeyeheuLiOuLpC4iLCAzCnJldHVybgoKOyA9PT09PT09PT09PT09PT09PT09PT0g7ISc67KEIOyLnOyekSAocG9ydE1pbn5wb3J0TWF4IOyCrOydtOyXkOyEnCDruYgg7Y+s7Yq4IO2DkOyDiSkgPT09PT09PT09PT09PT09PT09PT09ClN0YXJ0V2ViaG9va1NlcnZlcihwb3J0TWluLCBwb3J0TWF4LCBsb2dGaWxlIDo9ICJ3ZWJob29rLmxvZyIpIHsKICAgIGdsb2JhbCBXSFNvY2ssIFdITG9nLCBXTV9XSCA6PSAweDU1NTUKICAgIFdITG9nIDo9IGxvZ0ZpbGUKICAgIERsbENhbGwoIkxvYWRMaWJyYXJ5IiwgIlN0ciIsICJXczJfMzIuZGxsIikKICAgIFZhclNldENhcGFjaXR5KHcsIDQwMCwgMCksIERsbENhbGwoIldzMl8zMlxXU0FTdGFydHVwIiwgIlVTaG9ydCIsIDB4MjAyLCAiUHRyIiwgJncpCiAgICBXSFNvY2sgOj0gRGxsQ2FsbCgiV3MyXzMyXHNvY2tldCIsICJJbnQiLCAyLCAiSW50IiwgMSwgIkludCIsIDYsICJQdHIiKQogICAgb3YgOj0gMSwgRGxsQ2FsbCgiV3MyXzMyXHNldHNvY2tvcHQiLCAiUHRyIiwgV0hTb2NrLCAiSW50IiwgMHhGRkZGLCAiSW50IiwgNCwgIlB0ciIsICZvdiwgIkludCIsIDQpCgogICAgYm91bmQgOj0gZmFsc2UKICAgIHBvcnQgOj0gcG9ydE1pbgogICAgTG9vcCwgJSAocG9ydE1heCAtIHBvcnRNaW4gKyAxKSB7CiAgICAgICAgVmFyU2V0Q2FwYWNpdHkoc2EsIDE2LCAwKSwgTnVtUHV0KDIsIHNhLCAwLCAiVVNob3J0IiksIE51bVB1dChEbGxDYWxsKCJXczJfMzJcaHRvbnMiLCAiVVNob3J0IiwgcG9ydCwgIlVTaG9ydCIpLCBzYSwgMiwgIlVTaG9ydCIpLCBOdW1QdXQoRGxsQ2FsbCgiV3MyXzMyXGluZXRfYWRkciIsICJBU3RyIiwgIjEyNy4wLjAuMSIsICJVSW50IiksIHNhLCA0LCAiVUludCIpCiAgICAgICAgaWYgKERsbENhbGwoIldzMl8zMlxiaW5kIiwgIlB0ciIsIFdIU29jaywgIlB0ciIsICZzYSwgIkludCIsIDE2KSAhPSAtMSkgewogICAgICAgICAgICBib3VuZCA6PSB0cnVlCiAgICAgICAgICAgIGJyZWFrCiAgICAgICAgfQogICAgICAgIHBvcnQrKwogICAgfQogICAgaWYgIWJvdW5kCiAgICAgICAgcmV0dXJuIGZhbHNlCgogICAgRGxsQ2FsbCgiV3MyXzMyXGxpc3RlbiIsICJQdHIiLCBXSFNvY2ssICJJbnQiLCA1KQogICAgRGxsQ2FsbCgiV3MyXzMyXFdTQUFzeW5jU2VsZWN0IiwgIlB0ciIsIFdIU29jaywgIlB0ciIsIEFfU2NyaXB0SHduZCwgIlVJbnQiLCBXTV9XSCwgIkludCIsIDgpCiAgICBPbk1lc3NhZ2UoV01fV0gsICJXSFNvY2tldEV2ZW50IiksIE9uRXhpdCgiV0hDbGVhbnVwIikKICAgIHJldHVybiAiaHR0cDovLzEyNy4wLjAuMToiIC4gcG9ydAp9Cgo7ID09PT09PT09PT09PT09PT09PT09PSDshozsvJMg7J2067Kk7Yq4ID09PT09PT09PT09PT09PT09PT09PQpXSFNvY2tldEV2ZW50KHdQYXJhbSwgbFBhcmFtKSB7CiAgICBnbG9iYWwgV0hTb2NrLCBXTV9XSAogICAgRXZlbnQgOj0gbFBhcmFtICYgMHhGRkZGCgogICAgaWYgKHdQYXJhbSA9IFdIU29jayAmJiBFdmVudCA9IDgpCiAgICAgICAgQ2xpZW50IDo9IERsbENhbGwoIldzMl8zMlxhY2NlcHQiLCAiUHRyIiwgV0hTb2NrLCAiUHRyIiwgMCwgIlB0ciIsIDAsICJQdHIiKSwgQ2xpZW50ICE9IC0xICYmIERsbENhbGwoIldzMl8zMlxXU0FBc3luY1NlbGVjdCIsICJQdHIiLCBDbGllbnQsICJQdHIiLCBBX1NjcmlwdEh3bmQsICJVSW50IiwgV01fV0gsICJJbnQiLCAweDIxKQoKICAgIGlmIChFdmVudCA9IDEpCiAgICAgICAgV0hIYW5kbGVSZXF1ZXN0KHdQYXJhbSksIERsbENhbGwoIldzMl8zMlxjbG9zZXNvY2tldCIsICJQdHIiLCB3UGFyYW0pCgogICAgaWYgKEV2ZW50ID0gMHgyMCkKICAgICAgICBEbGxDYWxsKCJXczJfMzJcY2xvc2Vzb2NrZXQiLCAiUHRyIiwgd1BhcmFtKQp9Cgo7ID09PT09PT09PT09PT09PT09PT09PSDsmpTssq0g7LKY66asICjrnbzsmrDtjIUgKyDroZzqt7gpID09PT09PT09PT09PT09PT09PT09PQpXSEhhbmRsZVJlcXVlc3QoQ2xpZW50KSB7CiAgICBnbG9iYWwgV0hMb2csIEhFTFBFUl9TSUdOQVRVUkUKICAgIFZhclNldENhcGFjaXR5KGJ1ZiwgODE5MiwgMCksIHJlY2VpdmVkIDo9IERsbENhbGwoIldzMl8zMlxyZWN2IiwgIlB0ciIsIENsaWVudCwgIlB0ciIsICZidWYsICJJbnQiLCA4MTkyLCAiSW50IiwgMCkKICAgIGlmIChyZWNlaXZlZCA8PSAwKQogICAgICAgIHJldHVybgoKICAgIHJlcXVlc3QgOj0gU3RyR2V0KCZidWYsIHJlY2VpdmVkLCAiVVRGLTgiKQogICAgaWYgIVJlZ0V4TWF0Y2gocmVxdWVzdCwgImltKV4oXFMrKVxzKyhcUyspXHMrSFRUUCIsIG0pCiAgICAgICAgcmV0dXJuIFdIU2VuZChDbGllbnQsIDQwMCwgIkJhZCBSZXF1ZXN0IikKCiAgICBtZXRob2QgOj0gbTEsIHJlcVBhdGggOj0gbTIKCiAgICA7IOqyveuhnOyZgCDsv7zrpqzsiqTtirjrp4Eg67aE66asICgvb3Blbj91cmw9Li4uJnNpemU9Li4uIC0+IHJvdXRlUGF0aD0vb3BlbiwgcXVlcnlTdHI9dXJsPS4uLiZzaXplPS4uLikKICAgIHFQb3MgOj0gSW5TdHIocmVxUGF0aCwgIj8iKQogICAgcm91dGVQYXRoIDo9IHFQb3MgPyBTdWJTdHIocmVxUGF0aCwgMSwgcVBvcyAtIDEpIDogcmVxUGF0aAogICAgcXVlcnlTdHIgOj0gcVBvcyA/IFN1YlN0cihyZXFQYXRoLCBxUG9zICsgMSkgOiAiIgoKICAgIGZpbGVVcmwgOj0gIiIKICAgIGlmIFJlZ0V4TWF0Y2gocXVlcnlTdHIsICIoPzpefCYpdXJsPShbXiZdKikiLCBxbSkKICAgICAgICBmaWxlVXJsIDo9IFVybERlY29kZShxbTEpCgogICAgc2l6ZVBhcmFtIDo9ICIiCiAgICBpZiBSZWdFeE1hdGNoKHF1ZXJ5U3RyLCAiKD86XnwmKXNpemU9KFteJl0qKSIsIHNtKQogICAgICAgIHNpemVQYXJhbSA6PSBVcmxEZWNvZGUoc20xKQoKICAgIEZvcm1hdFRpbWUsIHRzLCwgeXl5eS1NTS1kZCBISDptbTpzcwogICAgRmlsZUFwcGVuZCwgJSB0cyAuICIgICIgLiBtZXRob2QgLiAiICIgLiByZXFQYXRoIC4gImBuIiwgJVdITG9nJSwgVVRGLTgKCiAgICBpZiAobWV0aG9kID0gIk9QVElPTlMiKSB7CiAgICAgICAgV0hTZW5kKENsaWVudCwgMjAwLCAiIikKICAgICAgICByZXR1cm4KICAgIH0KCiAgICBpZiAocm91dGVQYXRoID0gIi9waW5nIikgewogICAgICAgIFdIU2VuZChDbGllbnQsIDIwMCwgSEVMUEVSX1NJR05BVFVSRSkKICAgIH0gZWxzZSBpZiAocm91dGVQYXRoID0gIi9vcGVuIikgewogICAgICAgIEhhbmRsZU9wZW4oQ2xpZW50LCBmaWxlVXJsLCBzaXplUGFyYW0pCiAgICB9IGVsc2UgaWYgKHJvdXRlUGF0aCA9ICIvZG93bmxvYWQiKSB7CiAgICAgICAgSGFuZGxlRG93bmxvYWQoQ2xpZW50LCBmaWxlVXJsLCBzaXplUGFyYW0pCiAgICB9IGVsc2UgewogICAgICAgIFdIU2VuZChDbGllbnQsIDQwNCwgIk5vdCBGb3VuZCIpCiAgICB9Cn0KCjsgPT09PT09PT09PT09PT09PT09PT09IOyXtOq4sDog7J2066aEIOyViCDqsrnsuZjqsowgdGVtcOyXkCDrsJvslYTshJwg67CU66GcIOyLpO2WiSArIFBJRCDstpTsoIEgPT09PT09PT09PT09PT09PT09PT09CkhhbmRsZU9wZW4oQ2xpZW50LCBmaWxlVXJsLCBzaXplUGFyYW0pIHsKICAgIGdsb2JhbCBSdW5uaW5nUHJvY3MsIEJ1c3kKICAgIGlmIChmaWxlVXJsID0gIiIpCiAgICAgICAgcmV0dXJuIFdIU2VuZChDbGllbnQsIDQwMCwgInVybCDtjIzrnbzrr7jthLDqsIAg7JeG7Iq164uI64ukIikKICAgIGlmIChCdXN5KQogICAgICAgIHJldHVybiBXSFNlbmQoQ2xpZW50LCA1MDMsICLri6Trpbgg64uk7Jq066Gc65Oc6rCAIOynhO2WiSDspJHsnoXri4jri6QuIOyeoOyLnCDtm4Qg64uk7IucIOyLnOuPhO2VmOyEuOyalCIpCgogICAgZGVzdCA6PSBVbmlxdWVUZW1wUGF0aChmaWxlVXJsKQogICAgb2sgOj0gRG93bmxvYWRXaXRoT3B0aW9uYWxQcm9ncmVzcyhmaWxlVXJsLCBkZXN0LCBzaXplUGFyYW0sICLsl6zripQiKQogICAgaWYgIW9rCiAgICAgICAgcmV0dXJuIFdIU2VuZChDbGllbnQsIDUwMiwgIuuLpOyatOuhnOuTnCDsi6TtjKgiKQoKICAgIHBpZCA6PSAwCiAgICBSdW4sICVkZXN0JSwsLCBwaWQKICAgIGlmIHBpZAogICAgICAgIFJ1bm5pbmdQcm9jcy5QdXNoKHtwaWQ6IHBpZCwgcGF0aDogZGVzdH0pCiAgICBXSFNlbmQoQ2xpZW50LCAyMDAsICJPSyIpCn0KCjsgPT09PT09PT09PT09PT09PT09PT09IOuLpOyatOuhnOuTnDog7KCA7J6lIOuMgO2ZlOyDgeyekCAtPiDsgqzsmqnsnpDqsIAg6rOg66W4IOychOy5mOyXkCDsoIDsnqUgPT09PT09PT09PT09PT09PT09PT09CkhhbmRsZURvd25sb2FkKENsaWVudCwgZmlsZVVybCwgc2l6ZVBhcmFtKSB7CiAgICBnbG9iYWwgQnVzeQogICAgaWYgKGZpbGVVcmwgPSAiIikKICAgICAgICByZXR1cm4gV0hTZW5kKENsaWVudCwgNDAwLCAidXJsIO2MjOudvOuvuO2EsOqwgCDsl4bsirXri4jri6QiKQogICAgaWYgKEJ1c3kpCiAgICAgICAgcmV0dXJuIFdIU2VuZChDbGllbnQsIDUwMywgIuuLpOuluCDri6TsmrTroZzrk5zqsIAg7KeE7ZaJIOykkeyeheuLiOuLpC4g7J6g7IucIO2bhCDri6Tsi5wg7Iuc64+E7ZWY7IS47JqUIikKCiAgICBuYW1lIDo9IFVybFRvRmlsZU5hbWUoZmlsZVVybCkKICAgIHNhdmVQYXRoIDo9ICIiCiAgICBGaWxlU2VsZWN0RmlsZSwgc2F2ZVBhdGgsIFMxNiwgJUFfTXlEb2N1bWVudHMlXCVuYW1lJSwg64uk7Jq066Gc65OcIOychOy5mCDshKDtg50sIOuqqOuToCDtjIzsnbwgKCouKikKICAgIGlmIChzYXZlUGF0aCA9ICIiKQogICAgICAgIHJldHVybiBXSFNlbmQoQ2xpZW50LCAyMDAsICJDQU5DRUxMRUQiKQoKICAgIG9rIDo9IERvd25sb2FkV2l0aE9wdGlvbmFsUHJvZ3Jlc3MoZmlsZVVybCwgc2F2ZVBhdGgsIHNpemVQYXJhbSwgIuuLpOyatOuhnOuTnCIpCiAgICBpZiAhb2sKICAgICAgICByZXR1cm4gV0hTZW5kKENsaWVudCwgNTAyLCAi64uk7Jq066Gc65OcIOyLpO2MqCIpCgogICAgV0hTZW5kKENsaWVudCwgMjAwLCAiT0siKQp9Cgo7ID09PT09PT09PT09PT09PT09PT09PSB0ZW1wIO2MjOydvOuqhSDstqnrj4wg67Cp7KeAICjqsJnsnYAg7J2066aEIO2MjOydvOydhCDsl6zrn6wg67KIL+yXrOufrCDtj7TrjZTsl5DshJwg7Je07Ja064+EIOyViCDqsrnsuagpID09PT09PT09PT09PT09PT09PT09PQpVbmlxdWVUZW1wUGF0aChmaWxlVXJsKSB7CiAgICBnbG9iYWwgVW5pcXVlQ291bnRlcgogICAgbmFtZSA6PSBVcmxUb0ZpbGVOYW1lKGZpbGVVcmwpCiAgICBVbmlxdWVDb3VudGVyICs9IDEKICAgIHJldHVybiBBX1RlbXAgLiAiXHJpXyIgLiBBX1RpY2tDb3VudCAuICJfIiAuIFVuaXF1ZUNvdW50ZXIgLiAiXyIgLiBuYW1lCn0KCjsgPT09PT09PT09PT09PT09PT09PT09IOyLpO2Wie2VtOuRlCB0ZW1wIO2MjOydvCDsoJXrpqw6IFBJROqwgCDrjZQg7J207IOBIOyXhuycvOuptCDtjIzsnbwg7IKt7KCcICjtg4DsnbTrqLjroZwg7KO86riwIOqygOyCrCkgPT09PT09PT09PT09PT09PT09PT09Cjsg7JWE656YIOuRkCDqsJwoQ2hlY2tSdW5uaW5nUHJvY3MsIERvd25sb2FkUHJvZ3Jlc3NUaWNrKeuKlCDtlajsiJgoTmFtZSgpeyB9KeqwgCDslYTri4jrnbwKOyDroIjsnbTruJQg6riw67CYIOyEnOu4jOujqO2LtOydtOudvOyEnCwg7LWc7IOB7JyEKOyekOuPmSDsi6Ttlokg6rWs7JetKeyZgCDrp4jssKzqsIDsp4DroZwg7LKY7J2M67aA7YSwCjsg7KCE7JetIOyKpOy9lO2UhOulvCDqt7jrjIDroZwg7JO064ukIC0g7ZWo7IiYIOyViOyXkOyEnOunjCDtlYTsmpTtlZwgImdsb2JhbCIg7ISg7Ja47J20IO2VhOyalCDsl4bri6QuCkNoZWNrUnVubmluZ1Byb2NzOgogICAgcmVtYWluaW5nIDo9IFtdCiAgICBmb3IgaW5kZXgsIGVudHJ5IGluIFJ1bm5pbmdQcm9jcyB7CiAgICAgICAgUHJvY2VzcywgRXhpc3QsICUgZW50cnkucGlkCiAgICAgICAgaWYgKEVycm9yTGV2ZWwgPSAwKSB7CiAgICAgICAgICAgIGlmIEZpbGVFeGlzdChlbnRyeS5wYXRoKQogICAgICAgICAgICAgICAgRmlsZURlbGV0ZSwgJSBlbnRyeS5wYXRoCiAgICAgICAgfSBlbHNlIHsKICAgICAgICAgICAgcmVtYWluaW5nLlB1c2goZW50cnkpCiAgICAgICAgfQogICAgfQogICAgUnVubmluZ1Byb2NzIDo9IHJlbWFpbmluZwpyZXR1cm4KCjsgPT09PT09PT09PT09PT09PT09PT09IHNpemUg7YyM652866+47YSwIOyasOyEoCDsgqzsmqksIOyXhuycvOuptCBIRUFE66GcIENvbnRlbnQtTGVuZ3RoIOyhsO2ajCA9PT09PT09PT09PT09PT09PT09PT0KUmVzb2x2ZUZpbGVTaXplKHVybCwgc2l6ZVBhcmFtKSB7CiAgICBzaXplIDo9IHNpemVQYXJhbSArIDAKICAgIGlmIChzaXplUGFyYW0gIT0gIiIgJiYgc2l6ZSA+IDApCiAgICAgICAgcmV0dXJuIHNpemUKICAgIHJldHVybiBIZWFkQ29udGVudExlbmd0aCh1cmwpCn0KSGVhZENvbnRlbnRMZW5ndGgodXJsKSB7CiAgICBzaXplIDo9IDAKICAgIHRyeSB7CiAgICAgICAgQ29tT2JqRXJyb3IoMCkKICAgICAgICByZXEgOj0gQ29tT2JqQ3JlYXRlKCJXaW5IdHRwLldpbkh0dHBSZXF1ZXN0LjUuMSIpCiAgICAgICAgcmVxLk9wZW4oIkhFQUQiLCB1cmwpCiAgICAgICAgcmVxLlNlbmQoKQogICAgICAgIHNpemUgOj0gcmVxLkdldFJlc3BvbnNlSGVhZGVyKCJDb250ZW50LUxlbmd0aCIpICsgMAogICAgfSBjYXRjaCBlIHsKICAgICAgICBzaXplIDo9IDAKICAgIH0KICAgIHJldHVybiBzaXplCn0KCjsgPT09PT09PT09PT09PT09PT09PT09IOyehOqzhOqwkiDrhJjsnLzrqbQg7KeE7ZaJ66WgIO2RnOyLnCDri6TsmrTroZzrk5wsIOyVhOuLiOuptCDqt7jrg6Ug64uk7Jq066Gc65OcID09PT09PT09PT09PT09PT09PT09PQpEb3dubG9hZFdpdGhPcHRpb25hbFByb2dyZXNzKHVybCwgZGVzdCwgc2l6ZVBhcmFtLCB2ZXJiKSB7CiAgICBnbG9iYWwgQ3VzdG9tRG93bmxvYWRUaHJlc2hvbGRCeXRlcywgQnVzeQogICAgc2l6ZSA6PSBSZXNvbHZlRmlsZVNpemUodXJsLCBzaXplUGFyYW0pCgogICAgQnVzeSA6PSB0cnVlCiAgICBpZiAoc2l6ZSA+IEN1c3RvbURvd25sb2FkVGhyZXNob2xkQnl0ZXMpIHsKICAgICAgICBEb3dubG9hZEZpbGVXaXRoUHJvZ3Jlc3ModXJsLCBkZXN0LCB2ZXJiLCBzaXplKQogICAgfSBlbHNlIHsKICAgICAgICBVcmxEb3dubG9hZFRvRmlsZSwgJXVybCUsICVkZXN0JQogICAgfQogICAgQnVzeSA6PSBmYWxzZQogICAgcmV0dXJuIEZpbGVFeGlzdChkZXN0KSA/IHRydWUgOiBmYWxzZQp9Cgo7ID09PT09PT09PT09PT09PT09PT09PSDsp4TtlonrpaAg7ZGc7IucIOuLpOyatOuhnOuNlCAo7IKs7Jqp7J6Q6rCAIOykgCBEb3dubG9hZEZpbGUoKSDsmIjsi5wg6riw67CYKSA9PT09PT09PT09PT09PT09PT09PT0KRG93bmxvYWRGaWxlV2l0aFByb2dyZXNzKHVybCwgZGVzdCwgdmVyYiwgZmluYWxTaXplKSB7CiAgICBnbG9iYWwgRExfU2F2ZUZpbGVBcywgRExfRmluYWxTaXplLCBETF9MYXN0U2l6ZSwgRExfTGFzdFRpY2sKICAgIERMX1NhdmVGaWxlQXMgOj0gZGVzdAogICAgRExfRmluYWxTaXplIDo9IGZpbmFsU2l6ZQogICAgRExfTGFzdFNpemUgOj0gMAogICAgRExfTGFzdFRpY2sgOj0gQV9UaWNrQ291bnQKICAgIFByb2dyZXNzLCBIODAsLCAlIHZlcmIgIiDspJEuLi4iLCDroZzsu6wg7Zes7Y28IOuLpOyatOuhnOuTnAogICAgU2V0VGltZXIsIERvd25sb2FkUHJvZ3Jlc3NUaWNrLCAyMDAKICAgIFVybERvd25sb2FkVG9GaWxlLCAldXJsJSwgJWRlc3QlCiAgICBTZXRUaW1lciwgRG93bmxvYWRQcm9ncmVzc1RpY2ssIE9mZgogICAgUHJvZ3Jlc3MsIE9mZgp9CkRvd25sb2FkUHJvZ3Jlc3NUaWNrOgogICAgaWYgIUZpbGVFeGlzdChETF9TYXZlRmlsZUFzKQogICAgICAgIHJldHVybgogICAgY3VyIDo9IDAKICAgIGYgOj0gRmlsZU9wZW4oRExfU2F2ZUZpbGVBcywgInIiKQogICAgaWYgSXNPYmplY3QoZikgewogICAgICAgIGN1ciA6PSBmLkxlbmd0aAogICAgICAgIGYuQ2xvc2UoKQogICAgfQogICAgbm93VGljayA6PSBBX1RpY2tDb3VudAogICAgZWxhcHNlZCA6PSBub3dUaWNrIC0gRExfTGFzdFRpY2sKICAgIHNwZWVkIDo9IGVsYXBzZWQgPiAwID8gUm91bmQoKGN1ciAtIERMX0xhc3RTaXplKSAvIDEwMjQgLyAoZWxhcHNlZCAvIDEwMDApKSA6IDAKICAgIERMX0xhc3RTaXplIDo9IGN1cgogICAgRExfTGFzdFRpY2sgOj0gbm93VGljawogICAgcGVyY2VudCA6PSBETF9GaW5hbFNpemUgPiAwID8gUm91bmQoY3VyIC8gRExfRmluYWxTaXplICogMTAwKSA6IDAKICAgIGlmIChwZXJjZW50ID4gMTAwKQogICAgICAgIHBlcmNlbnQgOj0gMTAwCiAgICBQcm9ncmVzcywgJXBlcmNlbnQlLCwgJSAiW+yGjeuPhDogIiBzcGVlZCAiIEtiL3NdIFsiIHBlcmNlbnQgIiVdIiwg66Gc7LusIO2XrO2NvCDri6TsmrTroZzrk5wKcmV0dXJuCgo7ID09PT09PT09PT09PT09PT09PT09PSBVUkzsnZgg66eI7KeA66eJIOqyveuhnCDsobDqsIHsnYQg7YyM7J2866qF7Jy866GcIOyCrOyaqSA9PT09PT09PT09PT09PT09PT09PT0KVXJsVG9GaWxlTmFtZSh1KSB7CiAgICBpZiAocCA6PSBJblN0cih1LCAiIyIpKQogICAgICAgIHUgOj0gU3ViU3RyKHUsIDEsIHAgLSAxKQogICAgaWYgKHAgOj0gSW5TdHIodSwgIj8iKSkKICAgICAgICB1IDo9IFN1YlN0cih1LCAxLCBwIC0gMSkKICAgIHBhcnRzIDo9IFN0clNwbGl0KHUsICIvIikKICAgIG5hbWUgOj0gcGFydHMuTGVuZ3RoKCkgPyBwYXJ0c1twYXJ0cy5MZW5ndGgoKV0gOiAiIgogICAgcmV0dXJuIG5hbWUgPSAiIiA/ICJkb3dubG9hZCIgOiBuYW1lCn0KCjsgPT09PT09PT09PT09PT09PT09PT09IO2NvOyEvO2KuCDsnbjsvZTrlKkg65SU7L2U65OcIChVVEYtOCDrsJTsnbTtirgg6re464yA66GcIOuqqOyVhOyEnCDtlZwg67KI7JeQIOuzgO2ZmCkgPT09PT09PT09PT09PT09PT09PT09ClVybERlY29kZShzdHIpIHsKICAgIGxlbiA6PSBTdHJMZW4oc3RyKQogICAgaWYgKGxlbiA9IDApCiAgICAgICAgcmV0dXJuICIiCiAgICBWYXJTZXRDYXBhY2l0eShidWYsIGxlbiwgMCkKICAgIG4gOj0gMAogICAgcG9zIDo9IDEKICAgIHdoaWxlIChwb3MgPD0gbGVuKSB7CiAgICAgICAgYyA6PSBTdWJTdHIoc3RyLCBwb3MsIDEpCiAgICAgICAgaWYgKGMgPSAiJSIgJiYgcG9zICsgMiA8PSBsZW4pIHsKICAgICAgICAgICAgTnVtUHV0KCIweCIgLiBTdWJTdHIoc3RyLCBwb3MgKyAxLCAyKSwgYnVmLCBuLCAiVUNoYXIiKQogICAgICAgICAgICBuICs9IDEKICAgICAgICAgICAgcG9zICs9IDMKICAgICAgICB9IGVsc2UgewogICAgICAgICAgICBOdW1QdXQoQXNjKGMpLCBidWYsIG4sICJVQ2hhciIpCiAgICAgICAgICAgIG4gKz0gMQogICAgICAgICAgICBwb3MgKz0gMQogICAgICAgIH0KICAgIH0KICAgIHJldHVybiBuID8gU3RyR2V0KCZidWYsIG4sICJVVEYtOCIpIDogIiIKfQoKOyA9PT09PT09PT09PT09PT09PT09PT0g7J2R64u1IOyghOyGoSAoQ09SUyDtl6TrjZQg7Y+s7ZWoKSA9PT09PT09PT09PT09PT09PT09PT0KV0hTZW5kKENsaWVudCwgc3RhdHVzLCB0ZXh0KSB7CiAgICBzdGF0dXNUZXh0IDo9IChzdGF0dXMgPSAyMDApID8gIk9LIiA6IChzdGF0dXMgPSA0MDApID8gIkJhZCBSZXF1ZXN0IiA6IChzdGF0dXMgPSA0MDQpID8gIk5vdCBGb3VuZCIgOiAoc3RhdHVzID0gNTAyKSA/ICJCYWQgR2F0ZXdheSIgOiAoc3RhdHVzID0gNTAzKSA/ICJTZXJ2aWNlIFVuYXZhaWxhYmxlIiA6ICJFcnJvciIKICAgIFZhclNldENhcGFjaXR5KGJvZHlCdWYsIFN0clB1dCh0ZXh0LCAiVVRGLTgiKSwgMCksIGJvZHlMZW4gOj0gU3RyUHV0KHRleHQsICZib2R5QnVmLCAiVVRGLTgiKSAtIDEKICAgIGhlYWRlciA6PSAiSFRUUC8xLjEgIiAuIHN0YXR1cyAuICIgIiAuIHN0YXR1c1RleHQgLiAiYHJgbiIKICAgICAgICAuICJBY2Nlc3MtQ29udHJvbC1BbGxvdy1PcmlnaW46ICpgcmBuIgogICAgICAgIC4gIkFjY2Vzcy1Db250cm9sLUFsbG93LU1ldGhvZHM6IEdFVCwgT1BUSU9OU2ByYG4iCiAgICAgICAgLiAiQ29udGVudC1UeXBlOiB0ZXh0L3BsYWluOyBjaGFyc2V0PXV0Zi04YHJgbiIKICAgICAgICAuICJDb250ZW50LUxlbmd0aDogIiAuIGJvZHlMZW4gLiAiYHJgbiIKICAgICAgICAuICJDb25uZWN0aW9uOiBjbG9zZWByYG5gcmBuIgogICAgaGVhZGVyTGVuIDo9IFN0clB1dChoZWFkZXIsICJVVEYtOCIpIC0gMSwgdG90YWwgOj0gaGVhZGVyTGVuICsgYm9keUxlbgoKICAgIFZhclNldENhcGFjaXR5KHJlc3BCdWYsIHRvdGFsLCAwKSwgU3RyUHV0KGhlYWRlciwgJnJlc3BCdWYsICJVVEYtOCIpCiAgICBpZiAoYm9keUxlbiA+IDApCiAgICAgICAgRGxsQ2FsbCgiUnRsTW92ZU1lbW9yeSIsICJQdHIiLCAmcmVzcEJ1ZiArIGhlYWRlckxlbiwgIlB0ciIsICZib2R5QnVmLCAiUHRyIiwgYm9keUxlbikKCiAgICBzZW50VG90YWwgOj0gMAogICAgd2hpbGUgKHNlbnRUb3RhbCA8IHRvdGFsKSB7CiAgICAgICAgc2VudCA6PSBEbGxDYWxsKCJXczJfMzJcc2VuZCIsICJQdHIiLCBDbGllbnQsICJQdHIiLCAmcmVzcEJ1ZiArIHNlbnRUb3RhbCwgIkludCIsIHRvdGFsIC0gc2VudFRvdGFsLCAiSW50IiwgMCkKICAgICAgICBpZiAoc2VudCA8PSAwKQogICAgICAgICAgICBicmVhawogICAgICAgIHNlbnRUb3RhbCArPSBzZW50CiAgICB9Cn0KCjsgPT09PT09PT09PT09PT09PT09PT09IOyiheujjCDsspjrpqwgPT09PT09PT09PT09PT09PT09PT09CldIQ2xlYW51cCgpIHsKICAgIGdsb2JhbCBXSFNvY2sKICAgIERsbENhbGwoIldzMl8zMlxjbG9zZXNvY2tldCIsICJQdHIiLCBXSFNvY2spLCBEbGxDYWxsKCJXczJfMzJcV1NBQ2xlYW51cCIpCn0K"; // localserver.ahk 원본 그대로(UTF-8 BOM 포함)를 base64로 담아둔 것
+function downloadEmbeddedHelper() {
+  try {
+    const binary = atob(LOCALSERVER_AHK_B64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: "application/octet-stream" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "localserver.ahk";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  } catch (e) { /* 브라우저가 blob 다운로드를 막는 극단적인 경우엔 그냥 넘어간다 */ }
+}
+function offerHelperDownload(actionLabel) {
+  downloadEmbeddedHelper();
+  showToast(`로컬 헬퍼(localserver.ahk)를 찾지 못해 대신 다운로드했습니다.\n실행한 뒤 "${actionLabel}"을(를) 다시 눌러주세요.`, { kind: "warn", sticky: true });
+}
+
 function absoluteFileUrl(path) {
   const base = location.origin + location.pathname.replace(/[^/]*$/, "");
   return base + path.map(encodeURIComponent).join("/");
@@ -647,16 +845,16 @@ async function ensureHelperPort() {
   cachedHelperPort = await scanForHelperPort();
   return cachedHelperPort;
 }
-function localHelperUnavailableToast() {
-  showToast(`로컬 헬퍼(localserver.ahk)를 찾을 수 없습니다 (${LOCAL_HELPER_PORT_MIN}~${LOCAL_HELPER_PORT_MAX} 포트 스캔).\n실행 중인지, 방금 뜬 브라우저의 로컬 네트워크 권한 팝업을 허용했는지 확인하세요.`, { kind: "warn", sticky: true });
+function sizeQueryParam(it) {
+  return (it && it.size > 0) ? `&size=${encodeURIComponent(it.size)}` : "";
 }
 async function localHelperOpen(it) {
   const port = await ensureHelperPort();
-  if (port === null) { localHelperUnavailableToast(); return; }
+  if (port === null) { offerHelperDownload("로컬 프로그램으로 열기"); return; }
   const url = absoluteFileUrl(it.path);
   showToast(`여는 중: ${it.name}`);
   try {
-    const res = await fetch(`http://127.0.0.1:${port}/open?url=${encodeURIComponent(url)}`);
+    const res = await fetch(`http://127.0.0.1:${port}/open?url=${encodeURIComponent(url)}${sizeQueryParam(it)}`);
     if (!res.ok) throw new Error(String(res.status));
     showToast(`열었습니다: ${it.name}`);
   } catch (e) {
@@ -665,11 +863,11 @@ async function localHelperOpen(it) {
 }
 async function localHelperDownload(it) {
   const port = await ensureHelperPort();
-  if (port === null) { localHelperUnavailableToast(); return; }
+  if (port === null) { offerHelperDownload("다운로드"); return; }
   const url = absoluteFileUrl(it.path);
   showToast(`저장 위치를 선택하세요: ${it.name}`);
   try {
-    const res = await fetch(`http://127.0.0.1:${port}/download?url=${encodeURIComponent(url)}`);
+    const res = await fetch(`http://127.0.0.1:${port}/download?url=${encodeURIComponent(url)}${sizeQueryParam(it)}`);
     const text = await res.text();
     if (!res.ok) throw new Error(String(res.status));
     showToast(text.includes("CANCELLED") ? "다운로드가 취소되었습니다." : `다운로드 완료: ${it.name}`);
@@ -707,12 +905,23 @@ function showContextMenu(x, y, items) {
 function buildFileMenuItems(it) {
   if (it.type === "folder") return [];
   const items = [];
-  if (it.type === "html") items.push({ label: "새 탭에서 열기", action: () => activate(it.path, it.type) });
+  if (it.type === "html") items.push({ label: "새 탭에서 열기", action: () => activate(it) });
   items.push({ label: "로컬 프로그램으로 열기", action: () => localHelperOpen(it) });
   items.push({ label: "다운로드", action: () => localHelperDownload(it) });
+  if (settings.githubLinksEnabled) {
+    items.push({ label: "GitHub에서 보기", action: () => openGithubBlob(it) });
+    items.push({ label: "GitHub에서 다운로드", action: () => openGithubRaw(it) });
+  }
+  if (settings.editEnabled) items.push({ label: "GitHub에서 수정", action: () => openGithubEdit(it) });
+  if (settings.deleteEnabled) items.push({ label: "GitHub에서 삭제", action: () => openGithubDelete(it) });
   return items;
 }
-document.addEventListener("contextmenu", (e) => { e.preventDefault(); });
+// 기본 우클릭 메뉴가 우리 커스텀 메뉴와 같이 뜨는 걸 막기 위해 최대한 이중으로 막는다:
+// capture 단계(가장 먼저 실행) + bubble 단계 + document.oncontextmenu까지 전부 false 처리.
+function blockNativeContextMenu(e) { e.preventDefault(); return false; }
+document.addEventListener("contextmenu", blockNativeContextMenu, true);
+document.addEventListener("contextmenu", blockNativeContextMenu, false);
+document.oncontextmenu = () => false;
 document.addEventListener("click", closeContextMenu);
 document.addEventListener("scroll", closeContextMenu, true);
 
@@ -731,8 +940,12 @@ async function loadDir(pathArr) {
   const data = await res.json();
   const folders = filterNames(Array.isArray(data.folders) ? data.folders : [], pathArr)
     .sort((a, b) => a.localeCompare(b, "ko"));
-  const files = filterNames(Array.isArray(data.files) ? data.files : [], pathArr)
-    .sort((a, b) => a.localeCompare(b, "ko"));
+  // indexer.ahk가 파일마다 {name, size} 객체로 저장한다(웹훅 다운로드에 크기가 필요해서).
+  // 혹시 예전 방식(순수 문자열 배열)의 pages.json이 섞여 있어도 방어적으로 처리한다.
+  const rawFiles = Array.isArray(data.files) ? data.files : [];
+  const fileObjs = rawFiles.map(f => typeof f === "string" ? { name: f, size: 0 } : { name: String(f.name || ""), size: Number(f.size) || 0 });
+  const keptNames = new Set(filterNames(fileObjs.map(f => f.name), pathArr));
+  const files = fileObjs.filter(f => keptNames.has(f.name)).sort((a, b) => a.name.localeCompare(b.name, "ko"));
   const entry = { folders, files };
   dirCache.set(key, entry);
   writeCache(pathArr, entry);
@@ -804,7 +1017,7 @@ async function fetchGithubListing(pathArr) {
 }
 function compareWithIndex(pathArr, ghNames) {
   const entry = dirCache.get(pathArr.join("/")) || { folders: [], files: [] };
-  const indexNames = [...entry.folders, ...entry.files];
+  const indexNames = [...entry.folders, ...entry.files.map(f => f.name)];
   const ghSet = new Set(ghNames);
   const idxSet = new Set(indexNames);
   const missing = ghNames.filter(n => !idxSet.has(n));   // GitHub엔 있는데 색인엔 없음
@@ -819,8 +1032,9 @@ function compareWithIndex(pathArr, ghNames) {
   showToast(lines.join("\n"), { kind: "warn", sticky: true });
 }
 
-/* 폴더 열기 / html 파일 열기 (뷰어는 아직 없음 -> html만 지원) */
-async function activate(path, type) {
+/* 폴더 열기 / html 파일 열기(호스팅된 페이지) / 일반 파일은 환경설정의 더블클릭 동작을 따른다 */
+async function activate(it) {
+  const { path, type } = it;
   if (type === "folder") {
     els.searchInput.value = "";
     await navigate(path);
@@ -838,7 +1052,14 @@ async function activate(path, type) {
     window.open(url, "_blank", "noopener,noreferrer");
     return;
   }
-  flashStatus("이 파일 형식은 아직 열 수 없습니다.");
+  // 일반 파일: 환경설정에서 고른 더블클릭 동작을 따른다 (기본값은 "열기")
+  if (settings.doubleClickAction === "download") {
+    localHelperDownload(it);
+  } else if (settings.doubleClickAction === "edit" && settings.editEnabled) {
+    openGithubEdit(it);
+  } else {
+    localHelperOpen(it);
+  }
 }
 function flashStatus(msg) {
   clearTimeout(statusFlashTimer);
@@ -923,7 +1144,7 @@ async function renderContentPane() {
   }
   currentItems = [
     ...entry.folders.map(name => ({ name, path: [...currentPath, name], type: "folder" })),
-    ...entry.files.map(name => ({ name, path: [...currentPath, name], type: isHtml(name) ? "html" : "file" }))
+    ...entry.files.map(f => ({ name: f.name, size: f.size, path: [...currentPath, f.name], type: isHtml(f.name) ? "html" : "file" }))
   ];
   currentOpts = { emptyText: "이 폴더는 비어 있습니다." };
   paintContentPane();
@@ -947,7 +1168,7 @@ function buildGrid(items, opts) {
     const subHtml = opts.flat ? `<div class="sub">${escapeHtml(it.path.slice(0, -1).join("/") || repoName)}</div>` : "";
     cell.innerHTML = `<div class="icon">${icon}</div><div class="label">${escapeHtml(it.name)}</div>${subHtml}`;
     cell.onclick = () => { selected = { path: it.path, name: it.name, type: it.type }; paintContentPane(); updateStatus(); };
-    cell.ondblclick = () => activate(it.path, it.type);
+    cell.ondblclick = () => activate(it);
     cell.oncontextmenu = (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -979,7 +1200,7 @@ async function crawlAll(pathArr) {
   const entry = await loadDir(pathArr);
   let results = [];
   entry.folders.forEach(name => results.push({ name, path: [...pathArr, name], type: "folder" }));
-  entry.files.forEach(name => results.push({ name, path: [...pathArr, name], type: isHtml(name) ? "html" : "file" }));
+  entry.files.forEach(f => results.push({ name: f.name, size: f.size, path: [...pathArr, f.name], type: isHtml(f.name) ? "html" : "file" }));
   for (const name of entry.folders) {
     const sub = await crawlAll([...pathArr, name]);
     results = results.concat(sub);
@@ -1064,9 +1285,15 @@ async function main() {
   if (owner && repo) {
     els.repoLink.innerHTML = `<a href="https://github.com/${owner}/${repo}" target="_blank" rel="noopener noreferrer">${owner}/${repo}</a>`;
   }
+  settings = loadSettings();
+  setupSettingsPanel();
   setupStartMenu(owner);
   renderNavPane();
   renderBreadcrumb();
+
+  // 페이지 로드시 로컬 헬퍼가 켜져 있는지 조용히 한 번 확인해둔다 (다운로드 안내 등 아무것도 띄우지 않음 -
+  // 그냥 나중에 열기/다운로드를 누를 때 바로 쓸 수 있도록 미리 캐싱만 해두는 것).
+  ensureHelperPort();
 
   window.addEventListener("hashchange", () => {
     const p = hashToPath(location.hash) || [];

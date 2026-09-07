@@ -6,10 +6,10 @@
     "4. 의상 - 흰색 교복 2"
   ],
   "files": [
-    "favicon.ico",
-    "folders.json",
-    "index.html",
-    "previewer.ahk",
-    "WebView2Loader.dll"
+    {"name": "favicon.ico", "size": 89346},
+    {"name": "folders.json", "size": 351},
+    {"name": "index.html", "size": 31134},
+    {"name": "previewer.ahk", "size": 31336},
+    {"name": "WebView2Loader.dll", "size": 135056}
   ]
 }
