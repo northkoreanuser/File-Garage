@@ -26,6 +26,7 @@
 
   /* ---------- 창(window) ---------- */
   .window {
+    position: relative; /* 아래 리사이즈 손잡이들의 절대좌표 기준 */
     width: 960px;
     max-width: 100%;
     height: 640px;
@@ -38,6 +39,23 @@
     flex-direction: column;
     transition: width .15s ease, height .15s ease, border-radius .15s ease;
   }
+  /* 리사이즈 도중엔 위 transition이 매 프레임 지연을 만들어 손을 따라오지 못하는 느낌을 주므로 끈다. */
+  .window.resizing { transition: none; }
+  /* 한 번이라도 드래그로 옮기거나(.positioned) 크기를 바꾸면, 원래 있던 max-width/max-height(뷰포트
+     기준 상한)에 더는 눌리지 않게 해서 사용자가 원하는 크기로 자유롭게(화면 크기까지) 키울 수 있다. */
+  .window.positioned { max-width: none; max-height: none; }
+  /* ---------- 창 크기 조절 손잡이 (실제 윈도우처럼 가장자리/모서리를 끌어서 리사이즈) ---------- */
+  .rz { position: absolute; z-index: 20; }
+  .rz-n, .rz-s { left: 6px; right: 6px; height: 6px; cursor: ns-resize; }
+  .rz-n { top: -3px; } .rz-s { bottom: -3px; }
+  .rz-e, .rz-w { top: 6px; bottom: 6px; width: 6px; cursor: ew-resize; }
+  .rz-e { right: -3px; } .rz-w { left: -3px; }
+  .rz-ne, .rz-nw, .rz-se, .rz-sw { width: 12px; height: 12px; }
+  .rz-ne { top: -3px; right: -3px; cursor: nesw-resize; }
+  .rz-nw { top: -3px; left: -3px; cursor: nwse-resize; }
+  .rz-se { bottom: -3px; right: -3px; cursor: nwse-resize; }
+  .rz-sw { bottom: -3px; left: -3px; cursor: nesw-resize; }
+  .window.maximized .rz { display: none; } /* 최대화 상태에서는 손잡이로 크기를 바꿀 수 없다 */
   /* 최대화: desktop의 padding/flex-centering 계산에 얹히면(=일반 flex 항목으로 남아있으면) 위아래좌우로
      여백이 생기고 심지어 뷰포트를 넘쳐서 스크롤바까지 생긴다(브라우저 티가 남). 대신 position:fixed로
      아예 desktop 레이아웃에서 빠져나와 뷰포트 기준 top/left/right/bottom(작업표시줄 높이만 제외)으로
@@ -97,7 +115,7 @@
   }
   .tool-btn:hover:not(:disabled) { background: #e9e9e9; border-color: #d5d5d5; }
   .tool-btn:disabled { color: #c4c4c4; cursor: default; }
-  .nav-toggle { display: none; }
+  .nav-toggle { display: flex; }
   .address-bar {
     flex: 1; height: 30px;
     background: #fff; border: 1px solid #d5d5d5; border-radius: 4px;
@@ -125,24 +143,37 @@
     background: #f6f6f6;
     border-right: 1px solid #e1e1e1;
     overflow-y: auto;
+    overflow-x: auto;
     padding: 6px 0;
     font-size: 13px;
     user-select: none; /* 드래그로 텍스트가 선택되는 걸 막음 (키보드 포커스 이동을 위한 클릭과 충돌 방지) */
     outline: none;
   }
+  /* 탐색창(트리)은 기본적으로 꺼진 채로 시작한다 - 주소창(#...) 링크로 들어왔을 때만 켜진 채로
+     시작한다(아래 main()의 hadHashOnLoad 참고). 화면 폭에 상관없이 이 규칙이 적용되며, 좁은
+     화면에서는 아래 미디어쿼리가 열렸을 때의 표시 방식(오버레이+슬라이드)만 추가로 바꾼다. */
+  .nav-pane:not(.open) { display: none; }
   .nav-root {
     display: flex; align-items: center; gap: 6px;
     padding: 5px 10px; margin: 0 4px 2px;
     cursor: pointer; font-weight: 600; color: #333;
     border-radius: 4px; border: 1px solid transparent;
+    width: fit-content; max-width: none;
   }
   .nav-root:hover { background: #ececec; }
   .nav-root.selected { background: #cce8ff; border-color: #99d1ff; }
+  /* 방향키로 옮겨다니는 중인 "포커스" 표시 - 점선 테두리. 파란 선택 박스와는 별개로, 엔터를
+     눌러야 비로소 파란 선택이 그 자리로 확정된다(실제 윈도우 탐색기와 동일한 방식). */
+  .nav-root.kbd-focus, .tree-row.kbd-focus { outline: 1px dotted #555; outline-offset: -1px; }
+  /* width: fit-content - 파란 선택 배경이 텍스트 폭에 딱 맞게 붙는다(오른쪽으로 쓸데없이 안 늘어남).
+     동시에 트리 창이 가로로 스크롤될 때(깊은 폴더/긴 이름) 실제 내용 폭만큼만 박스가 생기므로,
+     스크롤해서 오른쪽으로 가도 파란 배경이 중간에 잘리지 않고 글자 끝까지 정확히 따라온다. */
   .tree-row {
     display: flex; align-items: center; gap: 4px;
     padding: 4px 6px; margin: 0 4px;
     cursor: pointer; border-radius: 4px; color: #333;
     white-space: nowrap; border: 1px solid transparent;
+    width: fit-content; max-width: none;
   }
   .tree-row:hover { background: #ececec; }
   .tree-row.selected { background: #cce8ff; border-color: #99d1ff; }
@@ -198,6 +229,13 @@
   .taskbar-app.active { background: rgba(0,0,0,.09); border-bottom: 2px solid #0078d4; }
   .tray-right { position: absolute; right: 14px; display: flex; align-items: center; gap: 10px; }
   .clock { font-size: 12px; color: #222; text-align: center; line-height: 1.3; user-select: none; white-space: nowrap; }
+  .battery {
+    display: flex; align-items: center; gap: 4px;
+    padding: 4px 6px; border-radius: 4px; cursor: default;
+    font-size: 12.5px; color: #333;
+  }
+  .battery:hover { background: rgba(0,0,0,.07); }
+  .battery .bicon { font-size: 15px; line-height: 1; }
   .weather {
     display: flex; align-items: center; gap: 5px; cursor: pointer;
     font-size: 12px; color: #222; padding: 5px 8px; border-radius: 6px; user-select: none;
@@ -354,6 +392,8 @@
 
 <div class="desktop">
   <div class="window" id="win">
+    <div class="rz rz-n"></div><div class="rz rz-s"></div><div class="rz rz-e"></div><div class="rz rz-w"></div>
+    <div class="rz rz-ne"></div><div class="rz rz-nw"></div><div class="rz rz-se"></div><div class="rz rz-sw"></div>
     <div class="titlebar" id="titlebar">
       <div class="tb-icon">📁</div>
       <div class="tb-title" id="winTitle">Repo Index</div>
@@ -462,6 +502,7 @@
   <div class="taskbar-app active" id="taskbarApp">📁 탐색기</div>
   <div class="tray-icons" id="trayIcons"></div>
   <div class="tray-right">
+    <div class="battery" id="batteryWidget" title="배터리" style="display:none;"></div>
     <div class="weather" id="weatherWidget" title="날씨 자세히 보기" style="display:none;"></div>
     <div class="clock" id="clock"></div>
   </div>
@@ -598,6 +639,8 @@ let selected = null;            // {path, name, type}
 let multiSelected = new Set();  // 드래그 다중 선택된 항목들의 path key (내용창)
 let expanded = new Set();       // 탐색창(왼쪽)에서 펼쳐진 폴더 pathKey
 let treeFileHighlightKey = null; // 탐색창(왼쪽)에서 파란 포커스로 강조 중인 "파일" 행의 pathKey (내용창 선택과는 별개)
+let treeFocusKey = null; // 방향키로 옮겨다니는 중인 "키보드 포커스" 행의 key (점선 테두리) - 파란 선택(치)과는 별개.
+                          // 실제 윈도우처럼, 방향키는 이 포커스만 옮기고 엔터를 눌러야 비로소 선택(파란 박스)이 확정된다.
 let history = [];               // 앱 자체 뒤로/앞으로 스택 (window.history와 다름, 이름 겹침 주의)
 let historyIndex = -1;
 let currentItems = [];          // 현재 내용창에 그려진 항목들
@@ -610,7 +653,7 @@ let openSubmenuEls = [];
 const els = {};
 ["winTitle","btnMin","btnMax","btnClose","btnNavToggle","btnBack","btnForward","btnUp",
  "btnRefresh","breadcrumb","searchInput","navPane","contentPane","statusText","repoLink",
- "win","taskbarApp","clock","weatherWidget","titlebar","startBtn","startMenu","startAvatar","startUserName",
+ "win","taskbarApp","clock","batteryWidget","weatherWidget","titlebar","startBtn","startMenu","startAvatar","startUserName",
  "startUserLink","startApps","trayIcons","toast","settingsMenuRow","settingsOverlay",
  "settingsCloseBtn","setGithubLinks","setDoubleClick","setKillHelperBtn",
  "setSearchScope","setSearchRelative","setPreloadAllBtn","setAeroEnabled"
@@ -679,12 +722,77 @@ els.titlebar.addEventListener("dblclick", toggleMaximize);
     let newLeft = winStartLeft + dx;
     let newTop = winStartTop + dy;
     newLeft = Math.max(-(rect.width - minVisible), Math.min(newLeft, window.innerWidth - minVisible));
-    newTop = Math.max(0, Math.min(newTop, window.innerHeight - 40));
+    // 세로는 타이틀바(40px)가 작업표시줄(48px, 뷰포트 하단에 고정) 위로 항상 완전히 남아있게 막는다 -
+    // 이전엔 window.innerHeight - 40까지 내려갈 수 있어서 타이틀바 전체가 작업표시줄 뒤로 숨어버려
+    // 창을 다시 끌어올릴 수단이 없어지는(=창을 못 쓰게 되는) 문제가 있었다.
+    const TASKBAR_H = 48, TITLEBAR_H = 40;
+    newTop = Math.max(0, Math.min(newTop, window.innerHeight - TASKBAR_H - TITLEBAR_H));
     els.win.style.left = newLeft + "px";
     els.win.style.top = newTop + "px";
   });
   window.addEventListener("mouseup", () => { dragging = false; });
 })();
+
+/* ============ 창 크기 조절(리사이즈) - 실제 윈도우처럼 가장자리/모서리를 끌어서 크기를 바꾼다 ============ */
+(function setupWindowResize() {
+  const MIN_W = 480, MIN_H = 320;
+  const TASKBAR_H = 48;
+  [
+    ["rz-n", "n"], ["rz-s", "s"], ["rz-e", "e"], ["rz-w", "w"],
+    ["rz-ne", "ne"], ["rz-nw", "nw"], ["rz-se", "se"], ["rz-sw", "sw"],
+  ].forEach(([cls, dir]) => {
+    const handle = els.win.querySelector("." + cls);
+    if (!handle) return;
+    handle.addEventListener("mousedown", (e) => {
+      if (els.win.classList.contains("maximized")) return;
+      e.preventDefault();
+      e.stopPropagation(); // 타이틀바 드래그(이동)과 겹치지 않게
+
+      const rect = els.win.getBoundingClientRect();
+      const startX = e.clientX, startY = e.clientY;
+      const startW = rect.width, startH = rect.height, startLeft = rect.left, startTop = rect.top;
+      if (!els.win.classList.contains("positioned")) {
+        // 드래그로 옮긴 적이 없어 아직 desktop의 flex 중앙 정렬로 잡혀 있던 상태라면, 지금 위치를
+        // 고정 좌표로 못박아야 한쪽 가장자리를 고정한 채 반대쪽만 늘이고 줄일 수 있다.
+        els.win.classList.add("positioned");
+      }
+      els.win.classList.add("resizing");
+      els.win.style.left = startLeft + "px";
+      els.win.style.top = startTop + "px";
+
+      const maxW = window.innerWidth;
+      const maxH = window.innerHeight - TASKBAR_H;
+
+      function onMove(ev) {
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        let newW = startW, newH = startH, newLeft = startLeft, newTop = startTop;
+        if (dir.includes("e")) newW = Math.max(MIN_W, Math.min(startW + dx, maxW));
+        if (dir.includes("s")) newH = Math.max(MIN_H, Math.min(startH + dy, maxH));
+        if (dir.includes("w")) {
+          newW = Math.max(MIN_W, Math.min(startW - dx, maxW));
+          newLeft = startLeft + (startW - newW);
+        }
+        if (dir.includes("n")) {
+          newH = Math.max(MIN_H, Math.min(startH - dy, maxH));
+          newTop = startTop + (startH - newH);
+        }
+        els.win.style.width = newW + "px";
+        els.win.style.height = newH + "px";
+        els.win.style.left = newLeft + "px";
+        els.win.style.top = newTop + "px";
+      }
+      function onUp() {
+        els.win.classList.remove("resizing");
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+      }
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    });
+  });
+})();
+
 els.btnClose.onclick = () => {
   els.win.classList.add("closed");
   els.taskbarApp.classList.remove("active");
@@ -698,7 +806,7 @@ els.taskbarApp.onclick = () => {
     navigate([]);
   }
 };
-els.btnNavToggle.onclick = () => els.navPane.classList.toggle("open");
+els.btnNavToggle.onclick = () => { if (isNavPaneOpen()) closeNavPane(); else openNavPane(); };
 
 /* ============ 로컬 스토리지 (폴더 캐시 + 마지막 경로 기억) ============
    - 폴더 하나를 읽을 때마다 로컬 스토리지에 계속 쌓인다 (무한 누적).
@@ -983,7 +1091,7 @@ let cachedHelperPort = null; // 한 번 찾으면 이 페이지가 살아있는 
 // index.html에 내장해둔 localserver.ahk 원본을 즉시 blob으로 내려받게 해준다
 // ("자가 치유" - 사용자가 바로 실행만 하면 되도록).
 const LOCALSERVER_AHK_B64 = "77u/OyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KOyDroZzsu6wg7Zes7Y28IOyEnOuyhCAtIEF1dG9Ib3RrZXkgdjEKOwo7IGluZGV4Lmh0bWwoSFRUUFProZwg7Zi47Iqk7YyF65CcIEdpdEh1YiBQYWdlcynsl5DshJwg66Gc7Lus66GcIO2MjOydvOydhAo7ICLsl7TquLAiIC8gIuuLpOyatOuhnOuTnCIg7ZWgIOyImCDsnojqsowg7ZW07KO864qUIOuhnOy7rCDsm7ntm4Ug7ISc67KELgo7IC0gR0VUIC9waW5nICAgICAgICAgICAgICAtPiDsgrTslYTsnojripTsp4Ag7ZmV7J247JqpICjqs6DsnKAg7ISc66qFIOusuOyekOyXtCDsnZHri7UsIOyVhOuemCDssLjqs6ApCjsgLSBHRVQgL29wZW4/dXJsPS4uLiZzaXplPS4uLiAgICAgLT4g6re4IFVSTOydhCAldGVtcCXsl5Ag67Cb7JWE7IScIOuwlOuhnCDsi6Ttloko7Jew6rKwIO2UhOuhnOq3uOueqOycvOuhnCDsl7TquLApCjsgLSBHRVQgL2Rvd25sb2FkP3VybD0uLi4mc2l6ZT0uLi4gLT4g7KCA7J6lIOuMgO2ZlOyDgeyekOulvCDrnYTsm4zshJwg7IKs7Jqp7J6Q6rCAIOqzoOuluCDsnITsuZjsl5Ag64uk7Jq066Gc65OcCjsgICAoc2l6ZeuKlCDshKDtg53qsJIuIGluZGV4Lmh0bWzsnbQg7IOJ7J247JeQIOyggOyepeuQnCDtjIzsnbwg7YGs6riw66W8IOyVjOqzoCDsnojsnLzrqbQg6rCZ7J20IOuztOuCtOyjvOqzoCwKOyAgICDsl4bsnLzrqbQg7J20IOyEnOuyhOqwgCBIRUFEIOyalOyyreycvOuhnCDsp4HsoJEg7JWM7JWE64K464ukLikKOyAtIEdFVCAva2lsbCAgICAgICAgICAgICAgLT4g7J20IO2XrO2NvCDtlITroZzshLjsiqTrpbwg7KKF66OM7ZWc64ukICgjTm9UcmF5SWNvbuydtOudvCDtirjroIjsnbQg66mU64m066GcCjsgICDrqrsg64GE64uILCBpbmRleC5odG1sIO2ZmOqyveyEpOygleydmCAi7Ju57ZuFIOyiheujjCIg67KE7Yq87J20IOydtOqxuOuhnCDrgYjri6QpCjsgLSBHRVQgL3BpY2tmb2xkZXIgICAgICAgIC0+IO2PtOuNlCDshKDtg50g64yA7ZmU7IOB7J6Q66W8IO2VnCDrsogg652E7JuM7IScIOqzoOuluCDqsr3roZzrpbwg7J2R64u1ICjri6TspJEg64uk7Jq066Gc65Oc7JqpLgo7ICAg7Jes65+sIO2MjOydvOydhCDrsJvsnYQg65WM66eI64ukIOunpOuyiCDsoIDsnqUg64yA7ZmU7IOB7J6Q66W8IOudhOyasOuKlCDrjIDsi6AsIO2PtOuNlOulvCDrlLEg7ZWcIOuyiOunjCDqs6DrpbTqsowg7ZWc64ukKQo7IC0gR0VUIC9zYXZldG9mb2xkZXI/dXJsPS4uLiZzaXplPS4uLiZmb2xkZXI9Li4uJm5hbWU9Li4uIC0+IOuMgO2ZlOyDgeyekCDsl4bsnbQg67CU66GcIOq3uCDtj7TrjZTsl5Ag7KCA7J6lCjsgICAo7J2066aE7J20IOydtOuvuCDsnojsnLzrqbQgIiAoMiki7LKY65+8IOuSpOyXkCDrsojtmLjrpbwg67aZ7JesIOyViCDqsrnsuZjqsowg7ZWc64ukKQo7Cjsg7Y+s7Yq464qUIOqzoOygle2VmOyngCDslYrqs6AgODAwMH44MDIwIOyCrOydtOyXkOyEnCDruYTslrTsnojripQg6rG4IOuPmeyggeycvOuhnCDsnqHripTri6QuCjsgaW5kZXguaHRtbOuPhCDqsJnsnYAg67KU7JyE66W8IOyKpOy6lO2VtOyEnCDsnZHri7XtlZjripQg7Y+s7Yq466W8IOywvuyVhCDsk7Tri6QgKOyWkeyqvSDri6Qg64+Z7KCBKS4KOyDqt7gg67KU7JyE7JeQIOydtOuvuCDri6Trpbgg66y06rSA7ZWcIO2UhOuhnOq3uOueqOydtCDrlqDsnojsnYQg7IiY64+EIOyeiOycvOuvgOuhnCwgL3BpbmfsnYAg64uo7IicCjsgIk9LIuqwgCDslYTri4jrnbwg7J20IO2XrO2NvOunjOydmCDqs6DsnKAg7ISc66qFKEhFTFBFUl9TSUdOQVRVUkUp7J2EIOydkeuLte2VnOuLpCAtCjsgaW5kZXguaHRtbOydgCDsoJXtmZXtnogg6re4IOusuOyekOyXtOydtCDsmYDslbzrp4wgIuywvuyVmOuLpCLqs6Ag7YyQ64uo7ZWc64ukLgo7Cjsg7LC46rOgOiBIVFRQUyDtjpjsnbTsp4Dsl5DshJwgaHR0cDovLzEyNy4wLjAuMeuhnCDsmpTssq3tlZjripQg6rG0IO2BrOuhrOydmAo7ICJMb2NhbCBOZXR3b3JrIEFjY2VzcyIg7KCV7LGFIOuVjOusuOyXkCDsspjsnYwg7ZWcIOuyiOydgCDruIzrnbzsmrDsoIAg6raM7ZWcCjsg7Yyd7JeF7J20IOucrOuLpC4g6re46rG0IOygleyDgeydtOqzoCwg7IKs7Jqp7J6Q6rCAIO2XiOyaqeydhCDriIzrn6zslbwg64+Z7J6R7ZWc64ukLgo7ID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQojTm9FbnYKI1BlcnNpc3RlbnQKI1NpbmdsZUluc3RhbmNlLCBGb3JjZQojTm9UcmF5SWNvbgpTZXRCYXRjaExpbmVzLCAtMQoKUE9SVF9NSU4gOj0gODAwMApQT1JUX01BWCA6PSA4MDIwCjsgL3Bpbmcg7J2R64u17Jy866GcIOydtCDrrLjsnpDsl7TsnYQg64+M66Ck7KSA64ukLiDri6jsiJwgIk9LIuuKlCA4MDAwfjgwMjAg7IKs7J207JeQIOuWoOyeiOuKlAo7IOuLpOuluCDrrLTqtIDtlZwg7ZSE66Gc6re4656o7J20IOyasOyXsO2eiCDqsJnsnYAg7J2R64u17J2EIOykhCDsiJjrj4Qg7J6I7Ja07IScLCDsnbQg7Zes7Y2866eM7J2YCjsg6rOg7Jyg7ZWcIOyEnOuqheycvOuhnCDqtazrtoTtlZzri6QuIGluZGV4Lmh0bWzsnYAg7KCV7ZmV7Z6IIOydtCDrrLjsnpDsl7TsnYQg7ZmV7J247ZWc64ukLgpIRUxQRVJfU0lHTkFUVVJFIDo9ICJBSEstUkVQTy1JTkRFWEVSLUxPQ0FMSEVMUEVSLXYxIgoKOyDsl7TquLAv64uk7Jq066Gc65OcIO2MjOydvOydtCDsnbQg7YGs6riwKOuwlOydtO2KuCnrpbwg64SY7Jy866m0IOynhO2WieuloCDtkZzsi5wg64uk7Jq066Gc642U66W8IOyCrOyaqe2VnOuLpC4KOyDtlYTsmpTtlZjrqbQg7J20IOqwkuunjCDrsJTqvrjrqbQg65CoLgpDdXN0b21Eb3dubG9hZFRocmVzaG9sZEJ5dGVzIDo9IDUwICogMTAyNCAqIDEwMjQKCjsgUElEIOqwkOyLnCDso7zquLAobXMpLiDrqqnroZ3sl5Ag662U6rCAIOyeiOydhCDrlYzrp4wg7J20IOyjvOq4sOuhnCDqs4Tsho0g64+M66m07IScICLsponrsJwi7JeQIOqwgOq5neqyjCDtmZXsnbjtlZzri6QKOyAo66qp66Gd7J20IOu5hOuptCDtg4DsnbTrqLgg7J6Q7LK066W8IOq6vOyEnCDrhoDsp4Ag7JWK64qU64ukKS4g7ZWE7JqU7ZWY66m0IOydtCDqsJLrp4wg67CU6r6466m0IOuQqC4KUHJvY0NoZWNrSW50ZXJ2YWxNcyA6PSAyMDAKOyDtlITroZzshLjsiqTqsIAg64Gd64KcIOqxuCDtmZXsnbjtlZwg65KkIHRlbXAg7YyM7J28IOyCreygnOulvCDrqocg67KI6rmM7KeAIOyerOyLnOuPhO2VoOyngC4g7ZWE7JqU7ZWY66m0IOydtCDqsJLrp4wg67CU6r6466m0IOuQqC4KUHJvY0RlbGV0ZU1heFJldHJpZXMgOj0gMzAKClJ1bm5pbmdQcm9jcyA6PSBbXSAgIDsgW3twaWQsIHBhdGh9LCAuLi5dICLsl7TquLAi66GcIOyLpO2Wie2VtOyEnCB0ZW1w7JeQIOuCqOyVhOyeiOuKlCDtjIzsnbzrk6Qg7LaU7KCBClVuaXF1ZUNvdW50ZXIgOj0gMApCdXN5IDo9IGZhbHNlICAgICAgICAgOyDsp4TtlonrpaAg64uk7Jq066Gc65OcIOuPhOykkSDsnqzsp4TsnoUg67Cp7KeA7JqpICjqsJzsnbjsmqkg64uo7J28IOyEnOuyhOudvCDrj5nsi5wg64uk7Jq066Gc65Oc64qUIOunieuKlOuLpCkKCmJvdW5kVXJsIDo9IFN0YXJ0V2ViaG9va1NlcnZlcihQT1JUX01JTiwgUE9SVF9NQVgsIEFfU2NyaXB0RGlyIC4gIlx3ZWJob29rLmxvZyIpCmlmICFib3VuZFVybCB7CiAgICBNc2dCb3gsIDQwOTYsIOuhnOy7rCDtl6ztjbwsICVQT1JUX01JTiV+JVBPUlRfTUFYJSDsgqzsnbTsl5Ag7Je0IOyImCDsnojripQg7Y+s7Yq46rCAIOyXhuyKteuLiOuLpC4KICAgIEV4aXRBcHAKfQo7ICNOb1RyYXlJY29u7J206528IO2KuOugiOydtCDslYTsnbTsvZjsnYQg66eI7Jqw7Iqk66GcIOyasO2BtOumre2VtOyEnCDrgYwg7IiYIOyXhuuLpCAtIGluZGV4Lmh0bWwg7ZmY6rK97ISk7KCV7J2YCjsgIuybue2bhSDsooXro4wiIOuyhO2KvOydtCAva2lsbCDsmpTssq3snYQg67O064K07IScIOuBhOuKlCDqsowg7Jyg7J287ZWcIOygleyDgSDsooXro4wg67Cp67KV7J2064ukLgpyZXR1cm4KCjsgPT09PT09PT09PT09PT09PT09PT09IOyEnOuyhCDsi5zsnpEgKHBvcnRNaW5+cG9ydE1heCDsgqzsnbTsl5DshJwg67mIIO2PrO2KuCDtg5Dsg4kpID09PT09PT09PT09PT09PT09PT09PQpTdGFydFdlYmhvb2tTZXJ2ZXIocG9ydE1pbiwgcG9ydE1heCwgbG9nRmlsZSA6PSAid2ViaG9vay5sb2ciKSB7CiAgICBnbG9iYWwgV0hTb2NrLCBXSExvZywgV01fV0ggOj0gMHg1NTU1CiAgICBXSExvZyA6PSBsb2dGaWxlCiAgICBEbGxDYWxsKCJMb2FkTGlicmFyeSIsICJTdHIiLCAiV3MyXzMyLmRsbCIpCiAgICBWYXJTZXRDYXBhY2l0eSh3LCA0MDAsIDApLCBEbGxDYWxsKCJXczJfMzJcV1NBU3RhcnR1cCIsICJVU2hvcnQiLCAweDIwMiwgIlB0ciIsICZ3KQogICAgV0hTb2NrIDo9IERsbENhbGwoIldzMl8zMlxzb2NrZXQiLCAiSW50IiwgMiwgIkludCIsIDEsICJJbnQiLCA2LCAiUHRyIikKICAgIG92IDo9IDEsIERsbENhbGwoIldzMl8zMlxzZXRzb2Nrb3B0IiwgIlB0ciIsIFdIU29jaywgIkludCIsIDB4RkZGRiwgIkludCIsIDQsICJQdHIiLCAmb3YsICJJbnQiLCA0KQoKICAgIGJvdW5kIDo9IGZhbHNlCiAgICBwb3J0IDo9IHBvcnRNaW4KICAgIExvb3AsICUgKHBvcnRNYXggLSBwb3J0TWluICsgMSkgewogICAgICAgIFZhclNldENhcGFjaXR5KHNhLCAxNiwgMCksIE51bVB1dCgyLCBzYSwgMCwgIlVTaG9ydCIpLCBOdW1QdXQoRGxsQ2FsbCgiV3MyXzMyXGh0b25zIiwgIlVTaG9ydCIsIHBvcnQsICJVU2hvcnQiKSwgc2EsIDIsICJVU2hvcnQiKSwgTnVtUHV0KERsbENhbGwoIldzMl8zMlxpbmV0X2FkZHIiLCAiQVN0ciIsICIxMjcuMC4wLjEiLCAiVUludCIpLCBzYSwgNCwgIlVJbnQiKQogICAgICAgIGlmIChEbGxDYWxsKCJXczJfMzJcYmluZCIsICJQdHIiLCBXSFNvY2ssICJQdHIiLCAmc2EsICJJbnQiLCAxNikgIT0gLTEpIHsKICAgICAgICAgICAgYm91bmQgOj0gdHJ1ZQogICAgICAgICAgICBicmVhawogICAgICAgIH0KICAgICAgICBwb3J0KysKICAgIH0KICAgIGlmICFib3VuZAogICAgICAgIHJldHVybiBmYWxzZQoKICAgIERsbENhbGwoIldzMl8zMlxsaXN0ZW4iLCAiUHRyIiwgV0hTb2NrLCAiSW50IiwgNSkKICAgIERsbENhbGwoIldzMl8zMlxXU0FBc3luY1NlbGVjdCIsICJQdHIiLCBXSFNvY2ssICJQdHIiLCBBX1NjcmlwdEh3bmQsICJVSW50IiwgV01fV0gsICJJbnQiLCA4KQogICAgT25NZXNzYWdlKFdNX1dILCAiV0hTb2NrZXRFdmVudCIpLCBPbkV4aXQoIldIQ2xlYW51cCIpCiAgICByZXR1cm4gImh0dHA6Ly8xMjcuMC4wLjE6IiAuIHBvcnQKfQoKOyA9PT09PT09PT09PT09PT09PT09PT0g7IaM7LyTIOydtOuypO2KuCA9PT09PT09PT09PT09PT09PT09PT0KV0hTb2NrZXRFdmVudCh3UGFyYW0sIGxQYXJhbSkgewogICAgZ2xvYmFsIFdIU29jaywgV01fV0gKICAgIEV2ZW50IDo9IGxQYXJhbSAmIDB4RkZGRgoKICAgIGlmICh3UGFyYW0gPSBXSFNvY2sgJiYgRXZlbnQgPSA4KQogICAgICAgIENsaWVudCA6PSBEbGxDYWxsKCJXczJfMzJcYWNjZXB0IiwgIlB0ciIsIFdIU29jaywgIlB0ciIsIDAsICJQdHIiLCAwLCAiUHRyIiksIENsaWVudCAhPSAtMSAmJiBEbGxDYWxsKCJXczJfMzJcV1NBQXN5bmNTZWxlY3QiLCAiUHRyIiwgQ2xpZW50LCAiUHRyIiwgQV9TY3JpcHRId25kLCAiVUludCIsIFdNX1dILCAiSW50IiwgMHgyMSkKCiAgICBpZiAoRXZlbnQgPSAxKQogICAgICAgIFdISGFuZGxlUmVxdWVzdCh3UGFyYW0pLCBEbGxDYWxsKCJXczJfMzJcY2xvc2Vzb2NrZXQiLCAiUHRyIiwgd1BhcmFtKQoKICAgIGlmIChFdmVudCA9IDB4MjApCiAgICAgICAgRGxsQ2FsbCgiV3MyXzMyXGNsb3Nlc29ja2V0IiwgIlB0ciIsIHdQYXJhbSkKfQoKOyA9PT09PT09PT09PT09PT09PT09PT0g7JqU7LKtIOyymOumrCAo65287Jqw7YyFICsg66Gc6re4KSA9PT09PT09PT09PT09PT09PT09PT0KV0hIYW5kbGVSZXF1ZXN0KENsaWVudCkgewogICAgZ2xvYmFsIFdITG9nLCBIRUxQRVJfU0lHTkFUVVJFCiAgICBWYXJTZXRDYXBhY2l0eShidWYsIDgxOTIsIDApLCByZWNlaXZlZCA6PSBEbGxDYWxsKCJXczJfMzJccmVjdiIsICJQdHIiLCBDbGllbnQsICJQdHIiLCAmYnVmLCAiSW50IiwgODE5MiwgIkludCIsIDApCiAgICBpZiAocmVjZWl2ZWQgPD0gMCkKICAgICAgICByZXR1cm4KCiAgICByZXF1ZXN0IDo9IFN0ckdldCgmYnVmLCByZWNlaXZlZCwgIlVURi04IikKICAgIGlmICFSZWdFeE1hdGNoKHJlcXVlc3QsICJpbSleKFxTKylccysoXFMrKVxzK0hUVFAiLCBtKQogICAgICAgIHJldHVybiBXSFNlbmQoQ2xpZW50LCA0MDAsICJCYWQgUmVxdWVzdCIpCgogICAgbWV0aG9kIDo9IG0xLCByZXFQYXRoIDo9IG0yCgogICAgOyDqsr3roZzsmYAg7L+866as7Iqk7Yq466eBIOu2hOumrCAoL29wZW4/dXJsPS4uLiZzaXplPS4uLiAtPiByb3V0ZVBhdGg9L29wZW4sIHF1ZXJ5U3RyPXVybD0uLi4mc2l6ZT0uLi4pCiAgICBxUG9zIDo9IEluU3RyKHJlcVBhdGgsICI/IikKICAgIHJvdXRlUGF0aCA6PSBxUG9zID8gU3ViU3RyKHJlcVBhdGgsIDEsIHFQb3MgLSAxKSA6IHJlcVBhdGgKICAgIHF1ZXJ5U3RyIDo9IHFQb3MgPyBTdWJTdHIocmVxUGF0aCwgcVBvcyArIDEpIDogIiIKCiAgICBmaWxlVXJsIDo9ICIiCiAgICBpZiBSZWdFeE1hdGNoKHF1ZXJ5U3RyLCAiKD86XnwmKXVybD0oW14mXSopIiwgcW0pCiAgICAgICAgZmlsZVVybCA6PSBVcmxEZWNvZGUocW0xKQoKICAgIHNpemVQYXJhbSA6PSAiIgogICAgaWYgUmVnRXhNYXRjaChxdWVyeVN0ciwgIig/Ol58JilzaXplPShbXiZdKikiLCBzbSkKICAgICAgICBzaXplUGFyYW0gOj0gVXJsRGVjb2RlKHNtMSkKCiAgICBmb2xkZXJQYXJhbSA6PSAiIgogICAgaWYgUmVnRXhNYXRjaChxdWVyeVN0ciwgIig/Ol58Jilmb2xkZXI9KFteJl0qKSIsIGZtKQogICAgICAgIGZvbGRlclBhcmFtIDo9IFVybERlY29kZShmbTEpCgogICAgbmFtZVBhcmFtIDo9ICIiCiAgICBpZiBSZWdFeE1hdGNoKHF1ZXJ5U3RyLCAiKD86XnwmKW5hbWU9KFteJl0qKSIsIG5tKQogICAgICAgIG5hbWVQYXJhbSA6PSBVcmxEZWNvZGUobm0xKQoKICAgIEZvcm1hdFRpbWUsIHRzLCwgeXl5eS1NTS1kZCBISDptbTpzcwogICAgRmlsZUFwcGVuZCwgJSB0cyAuICIgICIgLiBtZXRob2QgLiAiICIgLiByZXFQYXRoIC4gImBuIiwgJVdITG9nJSwgVVRGLTgKCiAgICBpZiAobWV0aG9kID0gIk9QVElPTlMiKSB7CiAgICAgICAgV0hTZW5kKENsaWVudCwgMjAwLCAiIikKICAgICAgICByZXR1cm4KICAgIH0KCiAgICBpZiAocm91dGVQYXRoID0gIi9waW5nIikgewogICAgICAgIFdIU2VuZChDbGllbnQsIDIwMCwgSEVMUEVSX1NJR05BVFVSRSkKICAgIH0gZWxzZSBpZiAocm91dGVQYXRoID0gIi9vcGVuIikgewogICAgICAgIEhhbmRsZU9wZW4oQ2xpZW50LCBmaWxlVXJsLCBzaXplUGFyYW0pCiAgICB9IGVsc2UgaWYgKHJvdXRlUGF0aCA9ICIvZG93bmxvYWQiKSB7CiAgICAgICAgSGFuZGxlRG93bmxvYWQoQ2xpZW50LCBmaWxlVXJsLCBzaXplUGFyYW0pCiAgICB9IGVsc2UgaWYgKHJvdXRlUGF0aCA9ICIva2lsbCIpIHsKICAgICAgICBIYW5kbGVLaWxsKENsaWVudCkKICAgIH0gZWxzZSBpZiAocm91dGVQYXRoID0gIi9waWNrZm9sZGVyIikgewogICAgICAgIEhhbmRsZVBpY2tGb2xkZXIoQ2xpZW50KQogICAgfSBlbHNlIGlmIChyb3V0ZVBhdGggPSAiL3NhdmV0b2ZvbGRlciIpIHsKICAgICAgICBIYW5kbGVTYXZlVG9Gb2xkZXIoQ2xpZW50LCBmaWxlVXJsLCBzaXplUGFyYW0sIGZvbGRlclBhcmFtLCBuYW1lUGFyYW0pCiAgICB9IGVsc2UgewogICAgICAgIFdIU2VuZChDbGllbnQsIDQwNCwgIk5vdCBGb3VuZCIpCiAgICB9Cn0KCjsgPT09PT09PT09PT09PT09PT09PT09IOyiheujjDogI05vVHJheUljb27snbTrnbwg7Yq466CI7J20IOuplOuJtOuhnCDrqrsg64GE64uILCBpbmRleC5odG1sIO2ZmOqyveyEpOygleydmAo7ICLsm7ntm4Ug7KKF66OMIiDrsoTtirzsnbQg7J20IOudvOyasO2KuOuhnCDsnbQg7ZSE66Gc7IS47Iqk66W8IOuBiOuLpC4g7J2R64u17J2EIOuovOyggCDquajrgZftlZjqsowg67O064K06rOgIOyGjOy8k+ydhAo7IOuLq+ydgCDrkqQg7KKF66OM7ZW07JW8IOu4jOudvOyasOyggCDsqr3sl5DshJwgZmV0Y2jqsIAg7JeQ65+sIOyXhuydtCDsoJXsg4Eg7JmE66OM65Cc64ukLiA9PT09PT09PT09PT09PT09PT09PT0KSGFuZGxlS2lsbChDbGllbnQpIHsKICAgIFdIU2VuZChDbGllbnQsIDIwMCwgIkJZRSIpCiAgICBEbGxDYWxsKCJXczJfMzJcY2xvc2Vzb2NrZXQiLCAiUHRyIiwgQ2xpZW50KQogICAgRXhpdEFwcAp9Cgo7ID09PT09PT09PT09PT09PT09PT09PSDsl7TquLA6IOydtOumhCDslYgg6rK57LmY6rKMIHRlbXDsl5Ag67Cb7JWE7IScIOuwlOuhnCDsi6TtlokgKyBQSUQg7LaU7KCBID09PT09PT09PT09PT09PT09PT09PQpIYW5kbGVPcGVuKENsaWVudCwgZmlsZVVybCwgc2l6ZVBhcmFtKSB7CiAgICBnbG9iYWwgUnVubmluZ1Byb2NzLCBCdXN5LCBQcm9jQ2hlY2tJbnRlcnZhbE1zCiAgICBpZiAoZmlsZVVybCA9ICIiKQogICAgICAgIHJldHVybiBXSFNlbmQoQ2xpZW50LCA0MDAsICJ1cmwg7YyM652866+47YSw6rCAIOyXhuyKteuLiOuLpCIpCiAgICBpZiAoQnVzeSkKICAgICAgICByZXR1cm4gV0hTZW5kKENsaWVudCwgNTAzLCAi64uk66W4IOuLpOyatOuhnOuTnOqwgCDsp4Ttlokg7KSR7J6F64uI64ukLiDsnqDsi5wg7ZuEIOuLpOyLnCDsi5zrj4TtlZjshLjsmpQiKQoKICAgIGRlc3QgOj0gVW5pcXVlVGVtcFBhdGgoZmlsZVVybCkKICAgIG9rIDo9IERvd25sb2FkV2l0aE9wdGlvbmFsUHJvZ3Jlc3MoZmlsZVVybCwgZGVzdCwgc2l6ZVBhcmFtLCAi7Jes64qUIikKICAgIGlmICFvawogICAgICAgIHJldHVybiBXSFNlbmQoQ2xpZW50LCA1MDIsICLri6TsmrTroZzrk5wg7Iuk7YyoIikKCiAgICA7IFVzZUVycm9yTGV2ZWzsnYQg67CY65Oc7IucIOu2meyduOuLpDog7JeG7Jy866m0IOyXsOqysOuQnCDtlITroZzqt7jrnqjsnbQg7JeG64qUIOuTsSDsi6Ttlonsl5AKICAgIDsg7Iuk7Yyo7ZaI7J2EIOuVjCBBSEvqsIAg7J6Q7LK0IOyYpOulmCDrjIDtmZTsg4HsnpDrpbwg652E7Jqw66m07IScIOyKpO2BrOumve2KuCDsoITssrQoPeydtCDsm7ntm4Ug7ISc67KEKeqwgAogICAgOyDqt7gg7LC97J2EIOuLq+q4sCDsoITquYzsp4Ag66mI7Law67KE66aw64ukLiBVc2VFcnJvckxldmVs7J2EIOyTsOuptCDqt7jrn7Ag64yA7ZmU7IOB7J6QIOyXhuydtAogICAgOyBFcnJvckxldmVs66eMICJFUlJPUiLroZwg7ISk7KCV65CY6rOgIOyKpO2BrOumve2KuOuKlCDqs4Tsho0g7Iuk7ZaJ65Cc64ukLgogICAgcGlkIDo9IDAKICAgIFJ1biwgJWRlc3QlLCwgVXNlRXJyb3JMZXZlbCwgcGlkCiAgICBpZiAoRXJyb3JMZXZlbCA9ICJFUlJPUiIpIHsKICAgICAgICBpZiBGaWxlRXhpc3QoZGVzdCkKICAgICAgICAgICAgRmlsZURlbGV0ZSwgJWRlc3QlCiAgICAgICAgcmV0dXJuIFdIU2VuZChDbGllbnQsIDUwMiwgIuyXsOqysOuQnCDtlITroZzqt7jrnqjsnbQg7JeG7Ja0IOyXtCDsiJgg7JeG7Iq164uI64ukIikKICAgIH0KICAgIGlmIHBpZCB7CiAgICAgICAgUnVubmluZ1Byb2NzLlB1c2goe3BpZDogcGlkLCBwYXRoOiBkZXN0fSkKICAgICAgICA7IOqwkOyLnCDrqqnroZ3snbQg67Cp6riIIOu5hOyWtOyeiOuLpOqwgCDtlZjrgpjrnbzrj4Qg7IOd6rK87Jy866m0IO2DgOydtOuouOulvCDsvKDri6Qo7KaJ67CcIOqygOyCrCDsi5zsnpEpLgogICAgICAgIDsg7J2066+4IOuPjOqzoCDsnojsl4jsnLzrqbQgU2V0VGltZXLrpbwg64uk7IucIO2YuOy2nO2VtOuPhCDqt7jrg6Ug7KO86riw66eMIOqwseyLoOuQoCDrv5Ag66y47KCcIOyXhuuLpC4KICAgICAgICBTZXRUaW1lciwgQ2hlY2tSdW5uaW5nUHJvY3MsICUgUHJvY0NoZWNrSW50ZXJ2YWxNcwogICAgfQogICAgV0hTZW5kKENsaWVudCwgMjAwLCAiT0siKQp9Cgo7ID09PT09PT09PT09PT09PT09PT09PSDri6TsmrTroZzrk5w6IOyggOyepSDrjIDtmZTsg4HsnpAgLT4g7IKs7Jqp7J6Q6rCAIOqzoOuluCDsnITsuZjsl5Ag7KCA7J6lID09PT09PT09PT09PT09PT09PT09PQpIYW5kbGVEb3dubG9hZChDbGllbnQsIGZpbGVVcmwsIHNpemVQYXJhbSkgewogICAgZ2xvYmFsIEJ1c3kKICAgIGlmIChmaWxlVXJsID0gIiIpCiAgICAgICAgcmV0dXJuIFdIU2VuZChDbGllbnQsIDQwMCwgInVybCDtjIzrnbzrr7jthLDqsIAg7JeG7Iq164uI64ukIikKICAgIGlmIChCdXN5KQogICAgICAgIHJldHVybiBXSFNlbmQoQ2xpZW50LCA1MDMsICLri6Trpbgg64uk7Jq066Gc65Oc6rCAIOynhO2WiSDspJHsnoXri4jri6QuIOyeoOyLnCDtm4Qg64uk7IucIOyLnOuPhO2VmOyEuOyalCIpCgogICAgbmFtZSA6PSBVcmxUb0ZpbGVOYW1lKGZpbGVVcmwpCiAgICBzYXZlUGF0aCA6PSAiIgogICAgRmlsZVNlbGVjdEZpbGUsIHNhdmVQYXRoLCBTMTYsICVBX015RG9jdW1lbnRzJVwlbmFtZSUsIOuLpOyatOuhnOuTnCDsnITsuZgg7ISg7YOdLCDrqqjrk6Ag7YyM7J28ICgqLiopCiAgICBpZiAoc2F2ZVBhdGggPSAiIikKICAgICAgICByZXR1cm4gV0hTZW5kKENsaWVudCwgMjAwLCAiQ0FOQ0VMTEVEIikKCiAgICBvayA6PSBEb3dubG9hZFdpdGhPcHRpb25hbFByb2dyZXNzKGZpbGVVcmwsIHNhdmVQYXRoLCBzaXplUGFyYW0sICLri6TsmrTroZzrk5wiKQogICAgaWYgIW9rCiAgICAgICAgcmV0dXJuIFdIU2VuZChDbGllbnQsIDUwMiwgIuuLpOyatOuhnOuTnCDsi6TtjKgiKQoKICAgIFdIU2VuZChDbGllbnQsIDIwMCwgIk9LIikKfQoKOyA9PT09PT09PT09PT09PT09PT09PT0g64uk7KSRIOuLpOyatOuhnOuTnOyaqTog7Y+0642UIOyEoO2DnSDrjIDtmZTsg4HsnpDrpbwg7ZWcIOuyiOunjCDrnYTsm4AgPT09PT09PT09PT09PT09PT09PT09CkhhbmRsZVBpY2tGb2xkZXIoQ2xpZW50KSB7CiAgICBmb2xkZXIgOj0gU2VsZWN0Rm9sZGVyRXgoIiIsICLri6TsmrTroZzrk5wg67Cb7J2EIO2PtOuNlOulvCDshKDtg53tlZjshLjsmpQiKQogICAgaWYgKGZvbGRlciA9ICIiKQogICAgICAgIHJldHVybiBXSFNlbmQoQ2xpZW50LCAyMDAsICJDQU5DRUxMRUQiKQogICAgV0hTZW5kKENsaWVudCwgMjAwLCBmb2xkZXIpCn0KCjsgPT09PT09PT09PT09PT09PT09PT09IOuLpOykkSDri6TsmrTroZzrk5zsmqk6IOuMgO2ZlOyDgeyekCDsl4bsnbQg7KeA7KCV65CcIO2PtOuNlOyXkCDrsJTroZwg7KCA7J6lID09PT09PT09PT09PT09PT09PT09PQpIYW5kbGVTYXZlVG9Gb2xkZXIoQ2xpZW50LCBmaWxlVXJsLCBzaXplUGFyYW0sIGZvbGRlciwgbmFtZVBhcmFtKSB7CiAgICBnbG9iYWwgQnVzeQogICAgaWYgKGZpbGVVcmwgPSAiIiB8fCBmb2xkZXIgPSAiIikKICAgICAgICByZXR1cm4gV0hTZW5kKENsaWVudCwgNDAwLCAidXJsL2ZvbGRlciDtjIzrnbzrr7jthLDqsIAg7JeG7Iq164uI64ukIikKICAgIGlmIChCdXN5KQogICAgICAgIHJldHVybiBXSFNlbmQoQ2xpZW50LCA1MDMsICLri6Trpbgg64uk7Jq066Gc65Oc6rCAIOynhO2WiSDspJHsnoXri4jri6QuIOyeoOyLnCDtm4Qg64uk7IucIOyLnOuPhO2VmOyEuOyalCIpCiAgICBpZiAhRmlsZUV4aXN0KGZvbGRlcikKICAgICAgICByZXR1cm4gV0hTZW5kKENsaWVudCwgNDAwLCAi7Y+0642U6rCAIOyhtOyerO2VmOyngCDslYrsirXri4jri6Q6ICIgLiBmb2xkZXIpCgogICAgbmFtZSA6PSAobmFtZVBhcmFtICE9ICIiKSA/IG5hbWVQYXJhbSA6IFVybFRvRmlsZU5hbWUoZmlsZVVybCkKICAgIGRlc3QgOj0gVW5pcXVlRGVzdFBhdGgoZm9sZGVyLCBuYW1lKQoKICAgIG9rIDo9IERvd25sb2FkV2l0aE9wdGlvbmFsUHJvZ3Jlc3MoZmlsZVVybCwgZGVzdCwgc2l6ZVBhcmFtLCAi64uk7Jq066Gc65OcIikKICAgIGlmICFvawogICAgICAgIHJldHVybiBXSFNlbmQoQ2xpZW50LCA1MDIsICLri6TsmrTroZzrk5wg7Iuk7YyoIikKCiAgICBXSFNlbmQoQ2xpZW50LCAyMDAsICJPSyIpCn0KCjsgPT09PT09PT09PT09PT09PT09PT09IGZvbGRlclxuYW1l7J20IOydtOuvuCDsnojsnLzrqbQgIuydtOumhCAoMikuZXh0IuyymOufvCDrsojtmLjrpbwg67aZ7JesIOyViCDqsrnsuZjqsowgPT09PT09PT09PT09PT09PT09PT09ClVuaXF1ZURlc3RQYXRoKGZvbGRlciwgbmFtZSkgewogICAgZGVzdCA6PSBmb2xkZXIgLiAiXCIgLiBuYW1lCiAgICBpZiAhRmlsZUV4aXN0KGRlc3QpCiAgICAgICAgcmV0dXJuIGRlc3QKCiAgICBkb3RQb3MgOj0gSW5TdHIobmFtZSwgIi4iLCBmYWxzZSwgLTEpICA7IOuniOyngOuniSAiLiIKICAgIGlmIGRvdFBvcyB7CiAgICAgICAgYmFzZSA6PSBTdWJTdHIobmFtZSwgMSwgZG90UG9zIC0gMSkKICAgICAgICBleHQgOj0gU3ViU3RyKG5hbWUsIGRvdFBvcykKICAgIH0gZWxzZSB7CiAgICAgICAgYmFzZSA6PSBuYW1lCiAgICAgICAgZXh0IDo9ICIiCiAgICB9CiAgICBuIDo9IDIKICAgIExvb3AgewogICAgICAgIGNhbmRpZGF0ZSA6PSBmb2xkZXIgLiAiXCIgLiBiYXNlIC4gIiAoIiAuIG4gLiAiKSIgLiBleHQKICAgICAgICBpZiAhRmlsZUV4aXN0KGNhbmRpZGF0ZSkKICAgICAgICAgICAgcmV0dXJuIGNhbmRpZGF0ZQogICAgICAgIG4gKz0gMQogICAgfQp9Cgo7ID09PT09PT09PT09PT09PT09PT09PSB0ZW1wIO2MjOydvOuqhSDstqnrj4wg67Cp7KeAICjqsJnsnYAg7J2066aEIO2MjOydvOydhCDsl6zrn6wg67KIL+yXrOufrCDtj7TrjZTsl5DshJwg7Je07Ja064+EIOyViCDqsrnsuagpID09PT09PT09PT09PT09PT09PT09PQpVbmlxdWVUZW1wUGF0aChmaWxlVXJsKSB7CiAgICBnbG9iYWwgVW5pcXVlQ291bnRlcgogICAgbmFtZSA6PSBVcmxUb0ZpbGVOYW1lKGZpbGVVcmwpCiAgICBVbmlxdWVDb3VudGVyICs9IDEKICAgIHJldHVybiBBX1RlbXAgLiAiXHJpXyIgLiBBX1RpY2tDb3VudCAuICJfIiAuIFVuaXF1ZUNvdW50ZXIgLiAiXyIgLiBuYW1lCn0KCjsgPT09PT09PT09PT09PT09PT09PT09IOyLpO2Wie2VtOuRlCB0ZW1wIO2MjOydvCDsoJXrpqw6IFBJROqwgCDrjZQg7J207IOBIOyXhuycvOuptCDtjIzsnbwg7IKt7KCcID09PT09PT09PT09PT09PT09PT09PQo7IOuqqeuhnShSdW5uaW5nUHJvY3Mp7JeQIO2VmOuCmOudvOuPhCDsnojripQg64+Z7JWI66eMIOydtCDtg4DsnbTrqLjqsIAg64+M66m07IScKFByb2NDaGVja0ludGVydmFsTXMg7KO86riwLAo7IOq4sOuzuCAyMDBtcyA9IOyCrOyLpOyDgSDsponrsJwpIOqzhOyGjSDqsoDsgqztlZzri6QuIOuqqeuhneydtCDruYTrqbQg7Iqk7Iqk66GcIO2DgOydtOuouOulvCDqurzshJwg7Imw64ukLgo7IO2UhOuhnOyEuOyKpOqwgCDrgZ3rgpwg6rG4IO2ZleyduO2VmOuptCDqt7gg7KaJ7IucIOyCreygnOulvCDsi5zrj4TtlZjqs6AsIOyCreygnCDshLHqs7Ug7Jes67aA6rmM7KeAIO2ZleyduO2VnOuLpAo7ICjsgq3soJwg66qF66C5IO2bhCDsgq3soJwg6rKA7IKsKSAtIO2MjOydvOydtCDslYTsp4Eg7J6g6rKo7J6I64qUIOqyveyasOulvCDrjIDruYTtlbQg7LWc64yACjsgUHJvY0RlbGV0ZU1heFJldHJpZXPtmozquYzsp4Ag7J6s7Iuc64+E7ZWY6rOgLCDqt7jrnpjrj4Qg7JWIIOuQmOuptCDtj6zquLDtlZjqs6Ag66qp66Gd7JeQ7ISc66eMIOu6gOuLpC4KOwo7IOyVhOuemCDrkZAg6rCcKENoZWNrUnVubmluZ1Byb2NzLCBEb3dubG9hZFByb2dyZXNzVGljaynripQg7ZWo7IiYKE5hbWUoKXsgfSnqsIAg7JWE64uI6528Cjsg66CI7J2067iUIOq4sOuwmCDshJzruIzro6jti7TsnbTrnbzshJwsIOy1nOyDgeychCjsnpDrj5kg7Iuk7ZaJIOq1rOyXrSnsmYAg66eI7LCs6rCA7KeA66GcIOyymOydjOu2gO2EsAo7IOyghOyXrSDsiqTsvZTtlITrpbwg6re464yA66GcIOyTtOuLpCAtIO2VqOyImCDslYjsl5DshJzrp4wg7ZWE7JqU7ZWcICJnbG9iYWwiIOyEoOyWuOydtCDtlYTsmpQg7JeG64ukLgpDaGVja1J1bm5pbmdQcm9jczoKICAgIHJlbWFpbmluZyA6PSBbXQogICAgZm9yIGluZGV4LCBlbnRyeSBpbiBSdW5uaW5nUHJvY3MgewogICAgICAgIFByb2Nlc3MsIEV4aXN0LCAlIGVudHJ5LnBpZAogICAgICAgIGlmIChFcnJvckxldmVsID0gMCkgewogICAgICAgICAgICBEZWxldGVGaWxlV2l0aFJldHJpZXMoZW50cnkucGF0aCwgUHJvY0RlbGV0ZU1heFJldHJpZXMpCiAgICAgICAgfSBlbHNlIHsKICAgICAgICAgICAgcmVtYWluaW5nLlB1c2goZW50cnkpCiAgICAgICAgfQogICAgfQogICAgUnVubmluZ1Byb2NzIDo9IHJlbWFpbmluZwogICAgaWYgKFJ1bm5pbmdQcm9jcy5MZW5ndGgoKSA9IDApCiAgICAgICAgU2V0VGltZXIsIENoZWNrUnVubmluZ1Byb2NzLCBPZmYKcmV0dXJuCgo7ID09PT09PT09PT09PT09PT09PT09PSDsgq3soJwg66qF66C5IC0+IOyCreygnCDtmZXsnbgsIOy1nOuMgCBtYXhSZXRyaWVz7ZqM6rmM7KeAIOyerOyLnOuPhCA9PT09PT09PT09PT09PT09PT09PT0KRGVsZXRlRmlsZVdpdGhSZXRyaWVzKHBhdGgsIG1heFJldHJpZXMpIHsKICAgIGlmICFGaWxlRXhpc3QocGF0aCkKICAgICAgICByZXR1cm4gdHJ1ZQogICAgTG9vcCwgJSBtYXhSZXRyaWVzIHsKICAgICAgICBGaWxlRGVsZXRlLCAlIHBhdGgKICAgICAgICBpZiAhRmlsZUV4aXN0KHBhdGgpCiAgICAgICAgICAgIHJldHVybiB0cnVlCiAgICAgICAgU2xlZXAsIDUwCiAgICB9CiAgICByZXR1cm4gZmFsc2UKfQoKOyA9PT09PT09PT09PT09PT09PT09PT0gc2l6ZSDtjIzrnbzrr7jthLAg7Jqw7ISgIOyCrOyaqSwg7JeG7Jy866m0IEhFQUTroZwgQ29udGVudC1MZW5ndGgg7KGw7ZqMID09PT09PT09PT09PT09PT09PT09PQpSZXNvbHZlRmlsZVNpemUodXJsLCBzaXplUGFyYW0pIHsKICAgIHNpemUgOj0gc2l6ZVBhcmFtICsgMAogICAgaWYgKHNpemVQYXJhbSAhPSAiIiAmJiBzaXplID4gMCkKICAgICAgICByZXR1cm4gc2l6ZQogICAgcmV0dXJuIEhlYWRDb250ZW50TGVuZ3RoKHVybCkKfQpIZWFkQ29udGVudExlbmd0aCh1cmwpIHsKICAgIHNpemUgOj0gMAogICAgdHJ5IHsKICAgICAgICBDb21PYmpFcnJvcigwKQogICAgICAgIHJlcSA6PSBDb21PYmpDcmVhdGUoIldpbkh0dHAuV2luSHR0cFJlcXVlc3QuNS4xIikKICAgICAgICByZXEuT3BlbigiSEVBRCIsIHVybCkKICAgICAgICByZXEuU2VuZCgpCiAgICAgICAgc2l6ZSA6PSByZXEuR2V0UmVzcG9uc2VIZWFkZXIoIkNvbnRlbnQtTGVuZ3RoIikgKyAwCiAgICB9IGNhdGNoIGUgewogICAgICAgIHNpemUgOj0gMAogICAgfQogICAgcmV0dXJuIHNpemUKfQoKOyA9PT09PT09PT09PT09PT09PT09PT0g7J6E6rOE6rCSIOuEmOycvOuptCDsp4TtlonrpaAg7ZGc7IucIOuLpOyatOuhnOuTnCwg7JWE64uI66m0IOq3uOuDpSDri6TsmrTroZzrk5wgPT09PT09PT09PT09PT09PT09PT09CkRvd25sb2FkV2l0aE9wdGlvbmFsUHJvZ3Jlc3ModXJsLCBkZXN0LCBzaXplUGFyYW0sIHZlcmIpIHsKICAgIGdsb2JhbCBDdXN0b21Eb3dubG9hZFRocmVzaG9sZEJ5dGVzLCBCdXN5CiAgICBzaXplIDo9IFJlc29sdmVGaWxlU2l6ZSh1cmwsIHNpemVQYXJhbSkKCiAgICBCdXN5IDo9IHRydWUKICAgIGlmIChzaXplID4gQ3VzdG9tRG93bmxvYWRUaHJlc2hvbGRCeXRlcykgewogICAgICAgIERvd25sb2FkRmlsZVdpdGhQcm9ncmVzcyh1cmwsIGRlc3QsIHZlcmIsIHNpemUpCiAgICB9IGVsc2UgewogICAgICAgIFVybERvd25sb2FkVG9GaWxlLCAldXJsJSwgJWRlc3QlCiAgICB9CiAgICBCdXN5IDo9IGZhbHNlCiAgICByZXR1cm4gRmlsZUV4aXN0KGRlc3QpID8gdHJ1ZSA6IGZhbHNlCn0KCjsgPT09PT09PT09PT09PT09PT09PT09IOynhO2WieuloCDtkZzsi5wg64uk7Jq066Gc642UICjsgqzsmqnsnpDqsIAg7KSAIERvd25sb2FkRmlsZSgpIOyYiOyLnCDquLDrsJgpID09PT09PT09PT09PT09PT09PT09PQpEb3dubG9hZEZpbGVXaXRoUHJvZ3Jlc3ModXJsLCBkZXN0LCB2ZXJiLCBmaW5hbFNpemUpIHsKICAgIGdsb2JhbCBETF9TYXZlRmlsZUFzLCBETF9GaW5hbFNpemUsIERMX0xhc3RTaXplLCBETF9MYXN0VGljawogICAgRExfU2F2ZUZpbGVBcyA6PSBkZXN0CiAgICBETF9GaW5hbFNpemUgOj0gZmluYWxTaXplCiAgICBETF9MYXN0U2l6ZSA6PSAwCiAgICBETF9MYXN0VGljayA6PSBBX1RpY2tDb3VudAogICAgUHJvZ3Jlc3MsIEg4MCwsICUgdmVyYiAiIOykkS4uLiIsIOuhnOy7rCDtl6ztjbwg64uk7Jq066Gc65OcCiAgICBTZXRUaW1lciwgRG93bmxvYWRQcm9ncmVzc1RpY2ssIDIwMAogICAgVXJsRG93bmxvYWRUb0ZpbGUsICV1cmwlLCAlZGVzdCUKICAgIFNldFRpbWVyLCBEb3dubG9hZFByb2dyZXNzVGljaywgT2ZmCiAgICBQcm9ncmVzcywgT2ZmCn0KRG93bmxvYWRQcm9ncmVzc1RpY2s6CiAgICBpZiAhRmlsZUV4aXN0KERMX1NhdmVGaWxlQXMpCiAgICAgICAgcmV0dXJuCiAgICBjdXIgOj0gMAogICAgZiA6PSBGaWxlT3BlbihETF9TYXZlRmlsZUFzLCAiciIpCiAgICBpZiBJc09iamVjdChmKSB7CiAgICAgICAgY3VyIDo9IGYuTGVuZ3RoCiAgICAgICAgZi5DbG9zZSgpCiAgICB9CiAgICBub3dUaWNrIDo9IEFfVGlja0NvdW50CiAgICBlbGFwc2VkIDo9IG5vd1RpY2sgLSBETF9MYXN0VGljawogICAgc3BlZWQgOj0gZWxhcHNlZCA+IDAgPyBSb3VuZCgoY3VyIC0gRExfTGFzdFNpemUpIC8gMTAyNCAvIChlbGFwc2VkIC8gMTAwMCkpIDogMAogICAgRExfTGFzdFNpemUgOj0gY3VyCiAgICBETF9MYXN0VGljayA6PSBub3dUaWNrCiAgICBwZXJjZW50IDo9IERMX0ZpbmFsU2l6ZSA+IDAgPyBSb3VuZChjdXIgLyBETF9GaW5hbFNpemUgKiAxMDApIDogMAogICAgaWYgKHBlcmNlbnQgPiAxMDApCiAgICAgICAgcGVyY2VudCA6PSAxMDAKICAgIFByb2dyZXNzLCAlcGVyY2VudCUsLCAlICJb7IaN64+EOiAiIHNwZWVkICIgS2Ivc10gWyIgcGVyY2VudCAiJV0iLCDroZzsu6wg7Zes7Y28IOuLpOyatOuhnOuTnApyZXR1cm4KCjsgPT09PT09PT09PT09PT09PT09PT09IFVSTOydmCDrp4jsp4Drp4kg6rK966GcIOyhsOqwgeydhCDtjIzsnbzrqoXsnLzroZwg7IKs7JqpID09PT09PT09PT09PT09PT09PT09PQpVcmxUb0ZpbGVOYW1lKHUpIHsKICAgIGlmIChwIDo9IEluU3RyKHUsICIjIikpCiAgICAgICAgdSA6PSBTdWJTdHIodSwgMSwgcCAtIDEpCiAgICBpZiAocCA6PSBJblN0cih1LCAiPyIpKQogICAgICAgIHUgOj0gU3ViU3RyKHUsIDEsIHAgLSAxKQogICAgcGFydHMgOj0gU3RyU3BsaXQodSwgIi8iKQogICAgbmFtZSA6PSBwYXJ0cy5MZW5ndGgoKSA/IHBhcnRzW3BhcnRzLkxlbmd0aCgpXSA6ICIiCiAgICByZXR1cm4gbmFtZSA9ICIiID8gImRvd25sb2FkIiA6IG5hbWUKfQoKOyA9PT09PT09PT09PT09PT09PT09PT0g7Y287IS87Yq4IOyduOy9lOuUqSDrlJTsvZTrk5wgKFVURi04IOuwlOydtO2KuCDqt7jrjIDroZwg66qo7JWE7IScIO2VnCDrsojsl5Ag67OA7ZmYKSA9PT09PT09PT09PT09PT09PT09PT0KVXJsRGVjb2RlKHN0cikgewogICAgbGVuIDo9IFN0ckxlbihzdHIpCiAgICBpZiAobGVuID0gMCkKICAgICAgICByZXR1cm4gIiIKICAgIFZhclNldENhcGFjaXR5KGJ1ZiwgbGVuLCAwKQogICAgbiA6PSAwCiAgICBwb3MgOj0gMQogICAgd2hpbGUgKHBvcyA8PSBsZW4pIHsKICAgICAgICBjIDo9IFN1YlN0cihzdHIsIHBvcywgMSkKICAgICAgICBpZiAoYyA9ICIlIiAmJiBwb3MgKyAyIDw9IGxlbikgewogICAgICAgICAgICBOdW1QdXQoIjB4IiAuIFN1YlN0cihzdHIsIHBvcyArIDEsIDIpLCBidWYsIG4sICJVQ2hhciIpCiAgICAgICAgICAgIG4gKz0gMQogICAgICAgICAgICBwb3MgKz0gMwogICAgICAgIH0gZWxzZSB7CiAgICAgICAgICAgIE51bVB1dChBc2MoYyksIGJ1ZiwgbiwgIlVDaGFyIikKICAgICAgICAgICAgbiArPSAxCiAgICAgICAgICAgIHBvcyArPSAxCiAgICAgICAgfQogICAgfQogICAgcmV0dXJuIG4gPyBTdHJHZXQoJmJ1ZiwgbiwgIlVURi04IikgOiAiIgp9Cgo7ID09PT09PT09PT09PT09PT09PT09PSDsnZHri7Ug7KCE7IahIChDT1JTIO2XpOuNlCDtj6ztlagpID09PT09PT09PT09PT09PT09PT09PQpXSFNlbmQoQ2xpZW50LCBzdGF0dXMsIHRleHQpIHsKICAgIHN0YXR1c1RleHQgOj0gKHN0YXR1cyA9IDIwMCkgPyAiT0siIDogKHN0YXR1cyA9IDQwMCkgPyAiQmFkIFJlcXVlc3QiIDogKHN0YXR1cyA9IDQwNCkgPyAiTm90IEZvdW5kIiA6IChzdGF0dXMgPSA1MDIpID8gIkJhZCBHYXRld2F5IiA6IChzdGF0dXMgPSA1MDMpID8gIlNlcnZpY2UgVW5hdmFpbGFibGUiIDogIkVycm9yIgogICAgVmFyU2V0Q2FwYWNpdHkoYm9keUJ1ZiwgU3RyUHV0KHRleHQsICJVVEYtOCIpLCAwKSwgYm9keUxlbiA6PSBTdHJQdXQodGV4dCwgJmJvZHlCdWYsICJVVEYtOCIpIC0gMQogICAgaGVhZGVyIDo9ICJIVFRQLzEuMSAiIC4gc3RhdHVzIC4gIiAiIC4gc3RhdHVzVGV4dCAuICJgcmBuIgogICAgICAgIC4gIkFjY2Vzcy1Db250cm9sLUFsbG93LU9yaWdpbjogKmByYG4iCiAgICAgICAgLiAiQWNjZXNzLUNvbnRyb2wtQWxsb3ctTWV0aG9kczogR0VULCBPUFRJT05TYHJgbiIKICAgICAgICAuICJDb250ZW50LVR5cGU6IHRleHQvcGxhaW47IGNoYXJzZXQ9dXRmLThgcmBuIgogICAgICAgIC4gIkNvbnRlbnQtTGVuZ3RoOiAiIC4gYm9keUxlbiAuICJgcmBuIgogICAgICAgIC4gIkNvbm5lY3Rpb246IGNsb3NlYHJgbmByYG4iCiAgICBoZWFkZXJMZW4gOj0gU3RyUHV0KGhlYWRlciwgIlVURi04IikgLSAxLCB0b3RhbCA6PSBoZWFkZXJMZW4gKyBib2R5TGVuCgogICAgVmFyU2V0Q2FwYWNpdHkocmVzcEJ1ZiwgdG90YWwsIDApLCBTdHJQdXQoaGVhZGVyLCAmcmVzcEJ1ZiwgIlVURi04IikKICAgIGlmIChib2R5TGVuID4gMCkKICAgICAgICBEbGxDYWxsKCJSdGxNb3ZlTWVtb3J5IiwgIlB0ciIsICZyZXNwQnVmICsgaGVhZGVyTGVuLCAiUHRyIiwgJmJvZHlCdWYsICJQdHIiLCBib2R5TGVuKQoKICAgIHNlbnRUb3RhbCA6PSAwCiAgICB3aGlsZSAoc2VudFRvdGFsIDwgdG90YWwpIHsKICAgICAgICBzZW50IDo9IERsbENhbGwoIldzMl8zMlxzZW5kIiwgIlB0ciIsIENsaWVudCwgIlB0ciIsICZyZXNwQnVmICsgc2VudFRvdGFsLCAiSW50IiwgdG90YWwgLSBzZW50VG90YWwsICJJbnQiLCAwKQogICAgICAgIGlmIChzZW50IDw9IDApCiAgICAgICAgICAgIGJyZWFrCiAgICAgICAgc2VudFRvdGFsICs9IHNlbnQKICAgIH0KfQoKOyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09Cjsg7Y+0642UIOyEoO2DnSDrjIDtmZTsg4HsnpAgKOuLpOykkSDri6TsmrTroZzrk5zsmqkpLiBPUyDrsoTsoITsl5Ag65Sw6528IFhQIOydtOyghOydgCBGaWxlU2VsZWN0Rm9sZGVyLCBWaXN0YSDsnbTtm4TripQKOyBDb21tb24gSXRlbSBEaWFsb2coSUZpbGVEaWFsb2cp66W8IOyTtOuLpC4g7IKs7Jqp7J6Q6rCAIOygnOqzte2VnCDsmIjsi5wg7ZWo7IiY66W8IOq3uOuMgOuhnCDsgqzsmqkuCjsgUGFyYW1ldGVyOgo7ICAgICBTdGFydGluZ0ZvbGRlciAtICB0aGUgZnVsbCBwYXRoIG9mIGEgZm9sZGVyIHdoaWNoIHdpbGwgYmUgcHJlc2VsZWN0ZWQuCjsgICAgIFByb21wdCAgICAgICAgIC0gIGEgdGV4dCB1c2VkIGFzIHdpbmRvdyB0aXRsZSAoQ29tbW9uIEl0ZW0gRGlhbG9nKSBvciBhcyB0ZXh0IGRpc3BsYXllZCB3aXRoaW5nIHRoZSBkaWFsb2cuCjsgICAgIC0tLS0tLS0tLS0tLS0tLS0gIENvbW1vbiBJdGVtIERpYWxvZyBvbmx5Ogo7ICAgICBPd25lckh3bmQgICAgICAtICBIV05EIG9mIHRoZSBHdWkgd2hpY2ggb3ducyB0aGUgZGlhbG9nLiBJZiB5b3UgcGFzcyBhIHZhbGlkIEhXTkQgdGhlIGRpYWxvZyB3aWxsIGJlY29tZSBtb2RhbC4KOyAgICAgQnRuTGFiZWwgICAgICAgLSAgYSB0ZXh0IHRvIGJlIHVzZWQgYXMgY2FwdGlvbiBmb3IgdGhlIGFwcGx5IGJ1dHRvbi4KOyAgUmV0dXJuIHZhbHVlczoKOyAgICAgT24gc3VjY2VzcyB0aGUgZnVuY3Rpb24gcmV0dXJucyB0aGUgZnVsbCBwYXRoIG9mIHNlbGVjdGVkIGZvbGRlcjsgb3RoZXJ3aXNlIGl0IHJldHVybnMgYW4gZW1wdHkgc3RyaW5nLgo7ID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KU2VsZWN0Rm9sZGVyRXgoU3RhcnRpbmdGb2xkZXIgOj0gIiIsIFByb21wdCA6PSAiIiwgT3duZXJId25kIDo9IDAsIE9rQnRuTGFiZWwgOj0gIiIpIHsKICAgU3RhdGljIE9zVmVyc2lvbiA6PSBEbGxDYWxsKCJHZXRWZXJzaW9uIiwgIlVDaGFyIikKICAgICAgICAsIElJRF9JU2hlbGxJdGVtIDo9IDAKICAgICAgICAsIEluaXRJSUQgOj0gVmFyU2V0Q2FwYWNpdHkoSUlEX0lTaGVsbEl0ZW0sIDE2LCAwKQogICAgICAgICAgICAgICAgICAmIERsbENhbGwoIk9sZTMyLmRsbFxJSURGcm9tU3RyaW5nIiwgIldTdHIiLCAiezQzODI2ZDFlLWU3MTgtNDJlZS1iYzU1LWExZTI2MWMzN2JmZX0iLCAiUHRyIiwgJklJRF9JU2hlbGxJdGVtKQogICAgICAgICwgU2hvdyA6PSBBX1B0clNpemUgKiAzCiAgICAgICAgLCBTZXRPcHRpb25zIDo9IEFfUHRyU2l6ZSAqIDkKICAgICAgICAsIFNldEZvbGRlciA6PSBBX1B0clNpemUgKiAxMgogICAgICAgICwgU2V0VGl0bGUgOj0gQV9QdHJTaXplICogMTcKICAgICAgICAsIFNldE9rQnV0dG9uTGFiZWwgOj0gQV9QdHJTaXplICogMTgKICAgICAgICAsIEdldFJlc3VsdCA6PSBBX1B0clNpemUgKiAyMAogICBTZWxlY3RlZEZvbGRlciA6PSAiIgogICBJZiAoT3NWZXJzaW9uIDwgNikgeyA7IElGaWxlRGlhbG9nIHJlcXVpcmVzIFdpbiBWaXN0YSssIHNvIHJldmVydCB0byBGaWxlU2VsZWN0Rm9sZGVyCiAgICAgIEZpbGVTZWxlY3RGb2xkZXIsIFNlbGVjdGVkRm9sZGVyLCAqJVN0YXJ0aW5nRm9sZGVyJSwgMywgJVByb21wdCUKICAgICAgUmV0dXJuIFNlbGVjdGVkRm9sZGVyCiAgIH0KICAgT3duZXJId25kIDo9IERsbENhbGwoIklzV2luZG93IiwgIlB0ciIsIE93bmVySHduZCwgIlVJbnQiKSA/IE93bmVySHduZCA6IDAKICAgSWYgIShGaWxlRGlhbG9nIDo9IENvbU9iakNyZWF0ZSgie0RDMUM1QTlDLUU4OEEtNGRkZS1BNUExLTYwRjgyQTIwQUVGN30iLCAiezQyZjg1MTM2LWRiN2UtNDM5Yy04NWYxLWU0MDc1ZDEzNWZjOH0iKSkKICAgICAgUmV0dXJuICIiCiAgIFZUQkwgOj0gTnVtR2V0KEZpbGVEaWFsb2cgKyAwLCAiVVB0ciIpCiAgIDsgRk9TX0NSRUFURVBST01QVCB8IEZPU19OT0NIQU5HRURJUiB8IEZPU19QSUNLRk9MREVSUwogICBEbGxDYWxsKE51bUdldChWVEJMICsgU2V0T3B0aW9ucywgIlVQdHIiKSwgIlB0ciIsIEZpbGVEaWFsb2csICJVSW50IiwgMHgwMDAwMjAyOCwgIlVJbnQiKQogICBJZiAoU3RhcnRpbmdGb2xkZXIgPD4gIiIpCiAgICAgIElmICFEbGxDYWxsKCJTaGVsbDMyLmRsbFxTSENyZWF0ZUl0ZW1Gcm9tUGFyc2luZ05hbWUiLCAiV1N0ciIsIFN0YXJ0aW5nRm9sZGVyLCAiUHRyIiwgMCwgIlB0ciIsICZJSURfSVNoZWxsSXRlbSwgIlB0clAiLCBGb2xkZXJJdGVtKQogICAgICAgICBEbGxDYWxsKE51bUdldChWVEJMICsgU2V0Rm9sZGVyLCAiVVB0ciIpLCAiUHRyIiwgRmlsZURpYWxvZywgIlB0ciIsIEZvbGRlckl0ZW0sICJVSW50IikKICAgSWYgKFByb21wdCA8PiAiIikKICAgICAgRGxsQ2FsbChOdW1HZXQoVlRCTCArIFNldFRpdGxlLCAiVVB0ciIpLCAiUHRyIiwgRmlsZURpYWxvZywgIldTdHIiLCBQcm9tcHQsICJVSW50IikKICAgSWYgKE9rQnRuTGFiZWwgPD4gIiIpCiAgICAgIERsbENhbGwoTnVtR2V0KFZUQkwgKyBTZXRPa0J1dHRvbkxhYmVsLCAiVVB0ciIpLCAiUHRyIiwgRmlsZURpYWxvZywgIldTdHIiLCBPa0J0bkxhYmVsLCAiVUludCIpCiAgIElmICFEbGxDYWxsKE51bUdldChWVEJMICsgU2hvdywgIlVQdHIiKSwgIlB0ciIsIEZpbGVEaWFsb2csICJQdHIiLCBPd25lckh3bmQsICJVSW50IikgewogICAgICBJZiAhRGxsQ2FsbChOdW1HZXQoVlRCTCArIEdldFJlc3VsdCwgIlVQdHIiKSwgIlB0ciIsIEZpbGVEaWFsb2csICJQdHJQIiwgU2hlbGxJdGVtLCAiVUludCIpIHsKICAgICAgICAgR2V0RGlzcGxheU5hbWUgOj0gTnVtR2V0KE51bUdldChTaGVsbEl0ZW0gKyAwLCAiVVB0ciIpLCBBX1B0clNpemUgKiA1LCAiVVB0ciIpCiAgICAgICAgIElmICFEbGxDYWxsKEdldERpc3BsYXlOYW1lLCAiUHRyIiwgU2hlbGxJdGVtLCAiVUludCIsIDB4ODAwMjgwMDAsICJQdHJQIiwgU3RyUHRyKSA7IFNJR0ROX0RFU0tUT1BBQlNPTFVURVBBUlNJTkcKICAgICAgICAgICAgU2VsZWN0ZWRGb2xkZXIgOj0gU3RyR2V0KFN0clB0ciwgIlVURi0xNiIpLCBEbGxDYWxsKCJPbGUzMi5kbGxcQ29UYXNrTWVtRnJlZSIsICJQdHIiLCBTdHJQdHIpCiAgICAgICAgIE9ialJlbGVhc2UoU2hlbGxJdGVtKQogICB9ICB9CiAgIElmIChGb2xkZXJJdGVtKQogICAgICBPYmpSZWxlYXNlKEZvbGRlckl0ZW0pCiAgIE9ialJlbGVhc2UoRmlsZURpYWxvZykKICAgUmV0dXJuIFNlbGVjdGVkRm9sZGVyCn0KCjsgPT09PT09PT09PT09PT09PT09PT09IOyiheujjCDsspjrpqwgPT09PT09PT09PT09PT09PT09PT09CldIQ2xlYW51cCgpIHsKICAgIGdsb2JhbCBXSFNvY2sKICAgIERsbENhbGwoIldzMl8zMlxjbG9zZXNvY2tldCIsICJQdHIiLCBXSFNvY2spLCBEbGxDYWxsKCJXczJfMzJcV1NBQ2xlYW51cCIpCn0K"; // localserver.ahk 원본 그대로(UTF-8 BOM 포함)를 base64로 담아둔 것
-const INDEXER_AHK_B64 = "77u/OyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KOyBHaXRIdWIgUGFnZXMg7J24642x7IScCjsKOyDsnbQg7Iqk7YGs66a97Yq4KGluZGV4ZXIuYWhrKeqwgCDsnojripQg7Y+0642UID0g66as7Y+sIOujqO2KuC4KOyDro6jtirjrtoDthLAg66qo65OgIO2VmOychCDtj7TrjZTquYzsp4Ag7J6s6reA7KCB7Jy866GcIOuPjOuptOyEnCwKOyAi7Y+0642U66eI64ukIiDqt7gg7Y+0642UIOuwlOuhnCDslYjsl5Ag7J6I64qUIO2PtOuNlC/tjIzsnbwg66qp66Gd7J2EIOuLtOydgAo7IHBhZ2VzLmpzb27snYQg66eM65Og64ukLiAo7ZWY7JyEIO2PtOuNlCDslYjquYzsp4Ag66+466asIOuLpCDri7Tsp4Ag7JWK7J2MKQo7CjsgaW5kZXguaHRtbOydgCDtj7TrjZTrpbwg7Je0IOuVjOuniOuLpCDqt7gg7Y+0642U7J2YIHBhZ2VzLmpzb27snYQKOyDqvKzrpqzsl5Ag6rys66as66W8IOusvOupsCDstpTqsIDroZwg7J297Ja065Ok7J2064qUIOuwqeyLneycvOuhnCDrj5nsnpHtlZzri6QuCjsKOyAtLS0tLS0tLS0tLS0tLS0tLS0g7IOJ7J24IOygnOyZuCDqt5zsuZkgLS0tLS0tLS0tLS0tLS0tLS0tCjsgW+ujqO2KuOyXkOyEnOunjCDsoJzsmbhdCjsgICAuZ2l0IO2PtOuNlCwgaW5kZXhlci5haGso67O47J24KSwgaW5kZXguaHRtbCwgc3RhcnQuanNvbiwgdHJheS5qc29uLCBsb2NhbHNlcnZlci5haGsKOyAgIChsb2NhbHNlcnZlci5haGvsmYAgaW5kZXhlci5haGvripQgaW5kZXguaHRtbOyXkCBibG9i7Jy866GcIOuCtOyepeuQmOyWtCAi6rCA7IOBIO2MjOydvCLroZwg66Oo7Yq47JeQCjsgICDtla3sg4Eg7ZGc7Iuc65CY66+A66GcLCDsi6TsoJwg66as7Y+s7JeQIOynhOynnCDsgqzrs7jsnbQg7J6I7Ja064+EIOykkeuztSDtkZzsi5zrkJjsp4Ag7JWK6rKMIOyDieyduOyXkOyEnCDruoDri6QpCjsgW+uqqOuToCDtj7TrjZQo66Oo7Yq4K+uqqOuToCDtlZjsnIQp7JeQ7IScIOygnOyZuF0KOyAgIHBhZ2VzLmpzb24sIOydtOumhOyXkCAiX05JSF8i6rCAIO2PrO2VqOuQnCDtj7TrjZQv7YyM7J28ICjrjIDshozrrLjsnpAg66y06rSAKQo7IC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCjsgPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CiNOb0VudgojU2luZ2xlSW5zdGFuY2UsIEZvcmNlClNldFdvcmtpbmdEaXIsICVBX1NjcmlwdERpciUKU2V0QmF0Y2hMaW5lcywgLTEKCmdsb2JhbCBSb290RGlyIDo9IEFfU2NyaXB0RGlyCmdsb2JhbCBEaXJDb3VudCA6PSAwCgo7IOujqO2KuOyXkOyEnOunjCDsoJzsmbjtlaAg7J2066aEClJvb3RPbmx5RXhjbHVkZSA6PSBbIi5naXQiLCAiaW5kZXhlci5haGsiLCAiaW5kZXguaHRtbCIsICJzdGFydC5qc29uIiwgInRyYXkuanNvbiIsICJsb2NhbHNlcnZlci5haGsiXQo7IOuqqOuToCDsnITsuZjsl5DshJwg7J2066aE7J20IOygle2Zle2eiCDsnbzsuZjtlZjrqbQg7KCc7Jm4Ckdsb2JhbEV4YWN0RXhjbHVkZSA6PSBbInBhZ2VzLmpzb24iXQoKSW5kZXhEaXIoUm9vdERpciwgdHJ1ZSkKClRyYXlUaXAsIOyDieyduCDsmYTro4wsICUgRGlyQ291bnQgLiAi6rCcIO2PtOuNlOulvCDsg4nsnbjtlZjsl6wgcGFnZXMuanNvbuydhCDsg53shLHtlojsirXri4jri6QuIiwgMwpFeGl0QXBwCgo7IC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQo7IGRpciDtj7TrjZQg7ZWY64KY66W8IOyDieyduChwYWdlcy5qc29uIOyDneyEsSntlZjqs6AsIO2VmOychCDtj7TrjZTroZwg7J6s6reA7ZWc64ukLgo7IGlzUm9vdCA9IHRydWUg7J2066m0IOujqO2KuCDsoITsmqkg7JiI7Jm4IOq3nOy5meuPhCDtlajqu5gg7KCB7Jqp7ZWc64ukLgo7IC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQpJbmRleERpcihkaXIsIGlzUm9vdCkgewogICAgZ2xvYmFsIERpckNvdW50CiAgICBmb2xkZXJzIDo9IFtdCiAgICBmaWxlcyA6PSBbXQoKICAgIExvb3AsIEZpbGVzLCAlZGlyJVwqLCBECiAgICB7CiAgICAgICAgaWYgU2hvdWxkRXhjbHVkZShBX0xvb3BGaWxlTmFtZSwgaXNSb290KQogICAgICAgICAgICBjb250aW51ZQogICAgICAgIGZvbGRlcnMuUHVzaChBX0xvb3BGaWxlTmFtZSkKICAgIH0KICAgIExvb3AsIEZpbGVzLCAlZGlyJVwqLCBGCiAgICB7CiAgICAgICAgaWYgU2hvdWxkRXhjbHVkZShBX0xvb3BGaWxlTmFtZSwgaXNSb290KQogICAgICAgICAgICBjb250aW51ZQogICAgICAgIDsg7Ju57ZuFKGxvY2Fsc2VydmVyLmFoaynsnbQg64uk7Jq066Gc65OcIOyghOyXkCBIRUFEIOyalOyyrSDsl4bsnbTrj4Qg7YyM7J28IO2BrOq4sOulvCDslYwg7IiYIOyeiOuPhOuhnSDqsJnsnbQg64Ko6ri064ukLgogICAgICAgIGZpbGVzLlB1c2goe25hbWU6IEFfTG9vcEZpbGVOYW1lLCBzaXplOiBBX0xvb3BGaWxlU2l6ZX0pCiAgICB9CgogICAgU29ydE5hbWVzS28oZm9sZGVycykKICAgIFNvcnRGaWxlc0tvKGZpbGVzKQoKICAgIFdyaXRlUGFnZXNKc29uKGRpciwgZm9sZGVycywgZmlsZXMpCiAgICBEaXJDb3VudCsrCgogICAgOyDtj7TrjZQg66i87KCAIOychCwg7YyM7J287J2AIOyVhOuemCAtPiBwYWdlcy5qc29u7JeQ64+EIOq3uCDsiJzshJzroZwg7KCA7J6l65CoLgogICAgOyDtlZjsnIQg7Y+0642U65Ok66GcIOyerOq3gCAo7J2065WM67aA7YSw64qUIGlzUm9vdCA9IGZhbHNlKQogICAgZm9yIGluZGV4LCBuYW1lIGluIGZvbGRlcnMKICAgICAgICBJbmRleERpcihkaXIgLiAiXCIgLiBuYW1lLCBmYWxzZSkKfQoKOyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KOyDsoJzsmbgg7Jes67aAIO2MkOyglQo7ICAtIOydtOumhOyXkCAiX05JSF8i6rCAIO2PrO2VqOuQmOuptCjrjIDshozrrLjsnpAg66y06rSAKSDslrTrlJTshJzrk6Ag7KCc7Jm4CjsgIC0gInBhZ2VzLmpzb24i7J2AIOyWtOuUlOyEnOuToCDsoJzsmbgKOyAgLSDro6jtirjsl5DshJzripQgLmdpdCAvIGluZGV4ZXIuYWhrIC8gaW5kZXguaHRtbCAvIHN0YXJ0Lmpzb24gLyB0cmF5Lmpzb24g64+EIOy2lOqwgOuhnCDsoJzsmbgKOyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KU2hvdWxkRXhjbHVkZShuYW1lLCBpc1Jvb3QpIHsKICAgIGdsb2JhbCBSb290T25seUV4Y2x1ZGUsIEdsb2JhbEV4YWN0RXhjbHVkZQoKICAgIGlmIEluU3RyKG5hbWUsICJfTklIXyIpCiAgICAgICAgcmV0dXJuIHRydWUKCiAgICBmb3IgaW5kZXgsIGV4IGluIEdsb2JhbEV4YWN0RXhjbHVkZQogICAgICAgIGlmIChuYW1lID0gZXgpCiAgICAgICAgICAgIHJldHVybiB0cnVlCgogICAgaWYgKGlzUm9vdCkgewogICAgICAgIGZvciBpbmRleCwgZXggaW4gUm9vdE9ubHlFeGNsdWRlCiAgICAgICAgICAgIGlmIChuYW1lID0gZXgpCiAgICAgICAgICAgICAgICByZXR1cm4gdHJ1ZQogICAgfQogICAgcmV0dXJuIGZhbHNlCn0KCjsgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCjsg7J2066aEIOuwsOyXtCDquLDrs7gg7KCV66CsICjstZzsooUg7KCV66CsL+2VnOq4gCDsoJXroKzsnYAgaW5kZXguaHRtbOyXkOyEnCDri6Tsi5wg7LKY66as7ZWoKQo7IC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQpTb3J0TmFtZXNLbyhCeVJlZiBhcnIpIHsKICAgIGlmIChhcnIuTGVuZ3RoKCkgPSAwKQogICAgICAgIHJldHVybgogICAgbGlzdCA6PSAiIgogICAgZm9yIGluZGV4LCB2IGluIGFycgogICAgICAgIGxpc3QgLj0gdiAuICJgbiIKICAgIGxpc3QgOj0gUlRyaW0obGlzdCwgImBuIikKICAgIFNvcnQsIGxpc3QKICAgIGFyciA6PSBTdHJTcGxpdChsaXN0LCAiYG4iKQp9Cgo7IC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQo7IGZpbGVzIOuwsOyXtOydgCB7bmFtZSwgc2l6ZX0g6rCd7LK065287IScIFNvcnROYW1lc0tv66W8IOq3uOuMgOuhnCDrqrsg7JO064ukLgo7ICLsnbTrpoRgdO2BrOq4sGBuIiDtmJXtg5zsnZgg7KSE66GcIOunjOuTpOyWtCDsnbTrpoQg6riw7KSA7Jy866Gc66eMIOygleugrO2VnCDri6TsnYwo7YOtIOuSpOydmCDtgazquLDripQKOyDshJzroZwg64uk66W4IOydtOumhOydhCDqsIDsp4Qg7KSE65Ok7J2YIOygleugrCDsiJzshJzsl5Ag7JiB7Zal7J2EIOyjvOyngCDslYrripTri6QpIOuLpOyLnCDqsJ3ssrTroZwg65CY64+M66aw64ukLgo7IC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQpTb3J0RmlsZXNLbyhCeVJlZiBhcnIpIHsKICAgIGlmIChhcnIuTGVuZ3RoKCkgPSAwKQogICAgICAgIHJldHVybgogICAgbGlzdCA6PSAiIgogICAgZm9yIGluZGV4LCBmIGluIGFycgogICAgICAgIGxpc3QgLj0gZi5uYW1lIC4gImB0IiAuIGYuc2l6ZSAuICJgbiIKICAgIGxpc3QgOj0gUlRyaW0obGlzdCwgImBuIikKICAgIFNvcnQsIGxpc3QKICAgIGxpbmVzIDo9IFN0clNwbGl0KGxpc3QsICJgbiIpCiAgICBvdXQgOj0gW10KICAgIGZvciBpbmRleCwgbGluZSBpbiBsaW5lcyB7CiAgICAgICAgcGFydHMgOj0gU3RyU3BsaXQobGluZSwgImB0IikKICAgICAgICBvdXQuUHVzaCh7bmFtZTogcGFydHNbMV0sIHNpemU6IHBhcnRzWzJdICsgMH0pCiAgICB9CiAgICBhcnIgOj0gb3V0Cn0KCjsgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCjsg7Y+0642UIO2VmOuCmOydmCBwYWdlcy5qc29uIOyekeyEsSAtPiB7ImZvbGRlcnMiOlsuLi5dLCAiZmlsZXMiOlt7Im5hbWUiOi4uLiwic2l6ZSI6Li4ufSwgLi4uXX0KOyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KV3JpdGVQYWdlc0pzb24oZGlyLCBmb2xkZXJzLCBmaWxlcykgewogICAganNvbiA6PSAie2BuICAiImZvbGRlcnMiIjogIiAuIEJ1aWxkSnNvbkFycmF5KGZvbGRlcnMpIC4gIixgbiAgIiJmaWxlcyIiOiAiIC4gQnVpbGRGaWxlc0pzb25BcnJheShmaWxlcykgLiAiYG59YG4iCgogICAgb3V0RmlsZSA6PSBkaXIgLiAiXHBhZ2VzLmpzb24iCiAgICBpZiBGaWxlRXhpc3Qob3V0RmlsZSkKICAgICAgICBGaWxlRGVsZXRlLCAlb3V0RmlsZSUKICAgIEZpbGVBcHBlbmQsICVqc29uJSwgJW91dEZpbGUlLCBVVEYtOC1SQVcKfQoKQnVpbGRKc29uQXJyYXkoYXJyKSB7CiAgICBpZiAoYXJyLkxlbmd0aCgpID0gMCkKICAgICAgICByZXR1cm4gIltdIgogICAgb3V0IDo9ICJbIgogICAgZmlyc3QgOj0gdHJ1ZQogICAgZm9yIGluZGV4LCBuYW1lIGluIGFyciB7CiAgICAgICAgb3V0IC49IChmaXJzdCA/ICIiIDogIiwiKSAuICJgbiAgICAiIiIgLiBKc29uRXNjYXBlKG5hbWUpIC4gIiIiIgogICAgICAgIGZpcnN0IDo9IGZhbHNlCiAgICB9CiAgICBvdXQgLj0gImBuICBdIgogICAgcmV0dXJuIG91dAp9CgpCdWlsZEZpbGVzSnNvbkFycmF5KGFycikgewogICAgaWYgKGFyci5MZW5ndGgoKSA9IDApCiAgICAgICAgcmV0dXJuICJbXSIKICAgIG91dCA6PSAiWyIKICAgIGZpcnN0IDo9IHRydWUKICAgIGZvciBpbmRleCwgZiBpbiBhcnIgewogICAgICAgIG91dCAuPSAoZmlyc3QgPyAiIiA6ICIsIikgLiAiYG4gICAgeyIibmFtZSIiOiAiIiIgLiBKc29uRXNjYXBlKGYubmFtZSkgLiAiIiIsICIic2l6ZSIiOiAiIC4gZi5zaXplIC4gIn0iCiAgICAgICAgZmlyc3QgOj0gZmFsc2UKICAgIH0KICAgIG91dCAuPSAiYG4gIF0iCiAgICByZXR1cm4gb3V0Cn0KCkpzb25Fc2NhcGUoc3RyKSB7CiAgICBzdHIgOj0gU3RyUmVwbGFjZShzdHIsICJcIiwgIlxcIikKICAgIHN0ciA6PSBTdHJSZXBsYWNlKHN0ciwgIiIiIiwgIlwiIiIpCiAgICByZXR1cm4gc3RyCn0K";
+const INDEXER_AHK_B64 = "77u/OyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KOyBHaXRIdWIgUGFnZXMg7J24642x7IScCjsKOyDsnbQg7Iqk7YGs66a97Yq4KGluZGV4ZXIuYWhrKeqwgCDsnojripQg7Y+0642UID0g66as7Y+sIOujqO2KuC4KOyDro6jtirjrtoDthLAg66qo65OgIO2VmOychCDtj7TrjZTquYzsp4Ag7J6s6reA7KCB7Jy866GcIOuPjOuptOyEnCwKOyAi7Y+0642U66eI64ukIiDqt7gg7Y+0642UIOuwlOuhnCDslYjsl5Ag7J6I64qUIO2PtOuNlC/tjIzsnbwg66qp66Gd7J2EIOuLtOydgAo7IHBhZ2VzLmpzb27snYQg66eM65Og64ukLiAo7ZWY7JyEIO2PtOuNlCDslYjquYzsp4Ag66+466asIOuLpCDri7Tsp4Ag7JWK7J2MKQo7CjsgaW5kZXguaHRtbOydgCDtj7TrjZTrpbwg7Je0IOuVjOuniOuLpCDqt7gg7Y+0642U7J2YIHBhZ2VzLmpzb27snYQKOyDqvKzrpqzsl5Ag6rys66as66W8IOusvOupsCDstpTqsIDroZwg7J297Ja065Ok7J2064qUIOuwqeyLneycvOuhnCDrj5nsnpHtlZzri6QuCjsKOyAtLS0tLS0tLS0tLS0tLS0tLS0g7IOJ7J24IOygnOyZuCDqt5zsuZkgLS0tLS0tLS0tLS0tLS0tLS0tCjsgW+ujqO2KuOyXkOyEnOunjCDsoJzsmbhdCjsgICAuZ2l0IO2PtOuNlCwgaW5kZXhlci5haGso67O47J24KSwgaW5kZXguaHRtbCwgc3RhcnQuanNvbiwgdHJheS5qc29uLCBsb2NhbHNlcnZlci5haGsKOyAgIChsb2NhbHNlcnZlci5haGvsmYAgaW5kZXhlci5haGvripQgaW5kZXguaHRtbOyXkCBibG9i7Jy866GcIOuCtOyepeuQmOyWtCAi6rCA7IOBIO2MjOydvCLroZwg66Oo7Yq47JeQCjsgICDtla3sg4Eg7ZGc7Iuc65CY66+A66GcLCDsi6TsoJwg66as7Y+s7JeQIOynhOynnCDsgqzrs7jsnbQg7J6I7Ja064+EIOykkeuztSDtkZzsi5zrkJjsp4Ag7JWK6rKMIOyDieyduOyXkOyEnCDruoDri6QpCjsgW+uqqOuToCDtj7TrjZQo66Oo7Yq4K+uqqOuToCDtlZjsnIQp7JeQ7IScIOygnOyZuF0KOyAgIHBhZ2VzLmpzb24sIOydtOumhOyXkCAiX05JSF8i6rCAIO2PrO2VqOuQnCDtj7TrjZQv7YyM7J28ICjrjIDshozrrLjsnpAg66y06rSAKQo7IC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCjsgLS0tLS0tLS0tLS0tLS0tLS0tIOuwlO2Dle2ZlOuptCDtjrjsnZgg7IKs67O4IC0tLS0tLS0tLS0tLS0tLS0tLQo7IOyDieyduOydtCDrgZ3rgpjrqbQgaW5kZXhlci5haGso67O47J24KeyZgCBsb2NhbHNlcnZlci5haGvrpbwg67CU7YOV7ZmU66m07JeQ64+EIOuzteyCrO2VtOuRlOuLpCAtIOumrO2PrCDtj7TrjZQKOyDquYrsiJntlZwg6rOz6rmM7KeAIOunpOuyiCDssL7slYTqsIDsp4Ag7JWK6rOgIOuwlO2Dle2ZlOuptOyXkOyEnCDrsJTroZwg64uk7IucIOyDieyduO2VmOqxsOuCmCDroZzsu6wg7Zes7Y2866W8IOy8pCDsiJgg7J6I6rKMIO2VmOq4sAo7IOychO2VqOydtOuLpC4gbG9jYWxzZXJ2ZXIuYWhr64qUIOumrO2PrOuniOuLpCDqtazrtoTrkJjqs6Ag7Jqp64+E64+EIO2VnOuIiOyXkCDrs7TsnbTrj4TroZ0gInvrpqztj6wg7J2066aEfSBNYW5hZ2VyLmFoayIKOyDroZwg7J2066aE7J2EIOuwlOq/lOyEnCDrkZTri6QuIOydtOqxtCDsiJzsiJjtnogg67CU7YOV7ZmU66m07JeQIOuGk+uKlCAi7IKs67O4IuydmCDsnbTrpoTsnbwg67+Q7J206rOgLCDrpqztj6wg7JWI7J2YIOybkOuzuAo7IO2MjOydvOuqhShsb2NhbHNlcnZlci5haGsp7J2AIOq3uOuMgOuhnOydtOuvgOuhnCDsnIQgUm9vdE9ubHlFeGNsdWRlIOuTsSDsg4nsnbgg7KCc7Jm4IOq3nOy5meydgCDshpDrjIgg7ZWE7JqU6rCAIOyXhuuLpC4KOyDrkZgg64ukIO2PieuylO2VnCBGaWxlQ29weeuhnCDrs7XsgqztlZjrr4DroZwo6rOg7KCVL+yeoOq4iCDsl4bsnYwpIOyLpOygnCDrsJTtg5XtmZTrqbQg7JWE7J207L2Y7LKY65+8IOuniOyasOyKpOuhnCDsnpDsnKDroa3qsowKOyDsmK7quLgg7IiYIOyeiOuLpC4g7Iuk7ZaJ7ZWgIOuVjOuniOuLpCDstZzsi6Ag67KE7KCE7Jy866GcIOuNruyWtOyNqOyEnCDrpqztj6zqsIAg7JeF642w7J207Yq464+864+EIOuSpOyymOyngOyngCDslYrqsowg7ZWc64ukLgo7IC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCjsgPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CiNOb0VudgojU2luZ2xlSW5zdGFuY2UsIEZvcmNlClNldFdvcmtpbmdEaXIsICVBX1NjcmlwdERpciUKU2V0QmF0Y2hMaW5lcywgLTEKCmdsb2JhbCBSb290RGlyIDo9IEFfU2NyaXB0RGlyCmdsb2JhbCBEaXJDb3VudCA6PSAwCgpTcGxpdFBhdGgsIFJvb3REaXIsIFJlcG9OYW1lCgo7IOujqO2KuOyXkOyEnOunjCDsoJzsmbjtlaAg7J2066aEClJvb3RPbmx5RXhjbHVkZSA6PSBbIi5naXQiLCAiaW5kZXhlci5haGsiLCAiaW5kZXguaHRtbCIsICJzdGFydC5qc29uIiwgInRyYXkuanNvbiIsICJsb2NhbHNlcnZlci5haGsiXQo7IOuqqOuToCDsnITsuZjsl5DshJwg7J2066aE7J20IOygle2Zle2eiCDsnbzsuZjtlZjrqbQg7KCc7Jm4Ckdsb2JhbEV4YWN0RXhjbHVkZSA6PSBbInBhZ2VzLmpzb24iXQoKSW5kZXhEaXIoUm9vdERpciwgdHJ1ZSkKQ29weUhlbHBlcnNUb0Rlc2t0b3AoUmVwb05hbWUpCgpUcmF5VGlwLCDsg4nsnbgg7JmE66OMLCAlIERpckNvdW50IC4gIuqwnCDtj7TrjZTrpbwg7IOJ7J247ZWY7JesIHBhZ2VzLmpzb27snYQg7IOd7ISx7ZaI7Iq164uI64ukLiIsIDMKRXhpdEFwcAoKOyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KOyBpbmRleGVyLmFoayjrs7jsnbgp7JmAIGxvY2Fsc2VydmVyLmFoa+ulvCDrsJTtg5XtmZTrqbTsl5Ag7Y647J2Y7Jqp7Jy866GcIOuzteyCrO2VnOuLpC4gbG9jYWxzZXJ2ZXIuYWhr64qUCjsgInvrpqztj6wg7J2066aEfSBNYW5hZ2VyLmFoayLroZwg7J2066aE7J2EIOuwlOq/lOyEnCDrkZTri6QuIOumrO2PrCDro6jtirjsl5Ag7ZW064u5IO2MjOydvOydtCDsi6TsoJzroZwg7J6I7J2EIOuVjOunjAo7IOuzteyCrO2VmOqzoCjsl4bsnLzrqbQg7KGw7Jqp7Z6IIOqxtOuEiOucgCksIOuzteyCrCDsi6TtjKgo6raM7ZWcIOuTsSnrj4Qg7IOJ7J24IOyekOyytOulvCDrp4nsp4Ag7JWK64+E66GdIOyhsOyaqe2eiCDrrLTsi5ztlZzri6QuCjsgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCkNvcHlIZWxwZXJzVG9EZXNrdG9wKHJlcG9OYW1lKSB7CiAgICBnbG9iYWwgUm9vdERpcgoKICAgIHNlbGZTcmMgOj0gUm9vdERpciAuICJcaW5kZXhlci5haGsiCiAgICBpZiBGaWxlRXhpc3Qoc2VsZlNyYykgewogICAgICAgIHNlbGZEZXN0IDo9IEFfRGVza3RvcCAuICJcaW5kZXhlci5haGsiCiAgICAgICAgRmlsZUNvcHksICVzZWxmU3JjJSwgJXNlbGZEZXN0JSwgMQogICAgfQoKICAgIGhlbHBlclNyYyA6PSBSb290RGlyIC4gIlxsb2NhbHNlcnZlci5haGsiCiAgICBpZiBGaWxlRXhpc3QoaGVscGVyU3JjKSB7CiAgICAgICAgaGVscGVyRGVzdCA6PSBBX0Rlc2t0b3AgLiAiXCIgLiByZXBvTmFtZSAuICIgTWFuYWdlci5haGsiCiAgICAgICAgRmlsZUNvcHksICVoZWxwZXJTcmMlLCAlaGVscGVyRGVzdCUsIDEKICAgIH0KfQoKOyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KOyBkaXIg7Y+0642UIO2VmOuCmOulvCDsg4nsnbgocGFnZXMuanNvbiDsg53shLEp7ZWY6rOgLCDtlZjsnIQg7Y+0642U66GcIOyerOq3gO2VnOuLpC4KOyBpc1Jvb3QgPSB0cnVlIOydtOuptCDro6jtirgg7KCE7JqpIOyYiOyZuCDqt5zsuZnrj4Qg7ZWo6ruYIOyggeyaqe2VnOuLpC4KOyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KSW5kZXhEaXIoZGlyLCBpc1Jvb3QpIHsKICAgIGdsb2JhbCBEaXJDb3VudAogICAgZm9sZGVycyA6PSBbXQogICAgZmlsZXMgOj0gW10KCiAgICBMb29wLCBGaWxlcywgJWRpciVcKiwgRAogICAgewogICAgICAgIGlmIFNob3VsZEV4Y2x1ZGUoQV9Mb29wRmlsZU5hbWUsIGlzUm9vdCkKICAgICAgICAgICAgY29udGludWUKICAgICAgICBmb2xkZXJzLlB1c2goQV9Mb29wRmlsZU5hbWUpCiAgICB9CiAgICBMb29wLCBGaWxlcywgJWRpciVcKiwgRgogICAgewogICAgICAgIGlmIFNob3VsZEV4Y2x1ZGUoQV9Mb29wRmlsZU5hbWUsIGlzUm9vdCkKICAgICAgICAgICAgY29udGludWUKICAgICAgICA7IOybue2bhShsb2NhbHNlcnZlci5haGsp7J20IOuLpOyatOuhnOuTnCDsoITsl5AgSEVBRCDsmpTssq0g7JeG7J2064+EIO2MjOydvCDtgazquLDrpbwg7JWMIOyImCDsnojrj4TroZ0g6rCZ7J20IOuCqOq4tOuLpC4KICAgICAgICBmaWxlcy5QdXNoKHtuYW1lOiBBX0xvb3BGaWxlTmFtZSwgc2l6ZTogQV9Mb29wRmlsZVNpemV9KQogICAgfQoKICAgIFNvcnROYW1lc0tvKGZvbGRlcnMpCiAgICBTb3J0RmlsZXNLbyhmaWxlcykKCiAgICBXcml0ZVBhZ2VzSnNvbihkaXIsIGZvbGRlcnMsIGZpbGVzKQogICAgRGlyQ291bnQrKwoKICAgIDsg7Y+0642UIOuovOyggCDsnIQsIO2MjOydvOydgCDslYTrnpggLT4gcGFnZXMuanNvbuyXkOuPhCDqt7gg7Iic7ISc66GcIOyggOyepeuQqC4KICAgIDsg7ZWY7JyEIO2PtOuNlOuTpOuhnCDsnqzqt4AgKOydtOuVjOu2gO2EsOuKlCBpc1Jvb3QgPSBmYWxzZSkKICAgIGZvciBpbmRleCwgbmFtZSBpbiBmb2xkZXJzCiAgICAgICAgSW5kZXhEaXIoZGlyIC4gIlwiIC4gbmFtZSwgZmFsc2UpCn0KCjsgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCjsg7KCc7Jm4IOyXrOu2gCDtjJDsoJUKOyAgLSDsnbTrpoTsl5AgIl9OSUhfIuqwgCDtj6ztlajrkJjrqbQo64yA7IaM66y47J6QIOustOq0gCkg7Ja065SU7ISc65OgIOygnOyZuAo7ICAtICJwYWdlcy5qc29uIuydgCDslrTrlJTshJzrk6Ag7KCc7Jm4CjsgIC0g66Oo7Yq47JeQ7ISc64qUIC5naXQgLyBpbmRleGVyLmFoayAvIGluZGV4Lmh0bWwgLyBzdGFydC5qc29uIC8gdHJheS5qc29uIOuPhCDstpTqsIDroZwg7KCc7Jm4CjsgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tClNob3VsZEV4Y2x1ZGUobmFtZSwgaXNSb290KSB7CiAgICBnbG9iYWwgUm9vdE9ubHlFeGNsdWRlLCBHbG9iYWxFeGFjdEV4Y2x1ZGUKCiAgICBpZiBJblN0cihuYW1lLCAiX05JSF8iKQogICAgICAgIHJldHVybiB0cnVlCgogICAgZm9yIGluZGV4LCBleCBpbiBHbG9iYWxFeGFjdEV4Y2x1ZGUKICAgICAgICBpZiAobmFtZSA9IGV4KQogICAgICAgICAgICByZXR1cm4gdHJ1ZQoKICAgIGlmIChpc1Jvb3QpIHsKICAgICAgICBmb3IgaW5kZXgsIGV4IGluIFJvb3RPbmx5RXhjbHVkZQogICAgICAgICAgICBpZiAobmFtZSA9IGV4KQogICAgICAgICAgICAgICAgcmV0dXJuIHRydWUKICAgIH0KICAgIHJldHVybiBmYWxzZQp9Cgo7IC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQo7IOydtOumhCDrsLDsl7Qg6riw67O4IOygleugrCAo7LWc7KKFIOygleugrC/tlZzquIAg7KCV66Cs7J2AIGluZGV4Lmh0bWzsl5DshJwg64uk7IucIOyymOumrO2VqCkKOyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KU29ydE5hbWVzS28oQnlSZWYgYXJyKSB7CiAgICBpZiAoYXJyLkxlbmd0aCgpID0gMCkKICAgICAgICByZXR1cm4KICAgIGxpc3QgOj0gIiIKICAgIGZvciBpbmRleCwgdiBpbiBhcnIKICAgICAgICBsaXN0IC49IHYgLiAiYG4iCiAgICBsaXN0IDo9IFJUcmltKGxpc3QsICJgbiIpCiAgICBTb3J0LCBsaXN0CiAgICBhcnIgOj0gU3RyU3BsaXQobGlzdCwgImBuIikKfQoKOyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KOyBmaWxlcyDrsLDsl7TsnYAge25hbWUsIHNpemV9IOqwneyytOudvOyEnCBTb3J0TmFtZXNLb+ulvCDqt7jrjIDroZwg66q7IOyTtOuLpC4KOyAi7J2066aEYHTtgazquLBgbiIg7ZiV7YOc7J2YIOykhOuhnCDrp4zrk6TslrQg7J2066aEIOq4sOykgOycvOuhnOunjCDsoJXroKztlZwg64uk7J2MKO2DrSDrkqTsnZgg7YGs6riw64qUCjsg7ISc66GcIOuLpOuluCDsnbTrpoTsnYQg6rCA7KeEIOykhOuTpOydmCDsoJXroKwg7Iic7ISc7JeQIOyYge2WpeydhCDso7zsp4Ag7JWK64qU64ukKSDri6Tsi5wg6rCd7LK066GcIOuQmOuPjOumsOuLpC4KOyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KU29ydEZpbGVzS28oQnlSZWYgYXJyKSB7CiAgICBpZiAoYXJyLkxlbmd0aCgpID0gMCkKICAgICAgICByZXR1cm4KICAgIGxpc3QgOj0gIiIKICAgIGZvciBpbmRleCwgZiBpbiBhcnIKICAgICAgICBsaXN0IC49IGYubmFtZSAuICJgdCIgLiBmLnNpemUgLiAiYG4iCiAgICBsaXN0IDo9IFJUcmltKGxpc3QsICJgbiIpCiAgICBTb3J0LCBsaXN0CiAgICBsaW5lcyA6PSBTdHJTcGxpdChsaXN0LCAiYG4iKQogICAgb3V0IDo9IFtdCiAgICBmb3IgaW5kZXgsIGxpbmUgaW4gbGluZXMgewogICAgICAgIHBhcnRzIDo9IFN0clNwbGl0KGxpbmUsICJgdCIpCiAgICAgICAgb3V0LlB1c2goe25hbWU6IHBhcnRzWzFdLCBzaXplOiBwYXJ0c1syXSArIDB9KQogICAgfQogICAgYXJyIDo9IG91dAp9Cgo7IC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQo7IO2PtOuNlCDtlZjrgpjsnZggcGFnZXMuanNvbiDsnpHshLEgLT4geyJmb2xkZXJzIjpbLi4uXSwgImZpbGVzIjpbeyJuYW1lIjouLi4sInNpemUiOi4uLn0sIC4uLl19CjsgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCldyaXRlUGFnZXNKc29uKGRpciwgZm9sZGVycywgZmlsZXMpIHsKICAgIGpzb24gOj0gIntgbiAgIiJmb2xkZXJzIiI6ICIgLiBCdWlsZEpzb25BcnJheShmb2xkZXJzKSAuICIsYG4gICIiZmlsZXMiIjogIiAuIEJ1aWxkRmlsZXNKc29uQXJyYXkoZmlsZXMpIC4gImBufWBuIgoKICAgIG91dEZpbGUgOj0gZGlyIC4gIlxwYWdlcy5qc29uIgogICAgaWYgRmlsZUV4aXN0KG91dEZpbGUpCiAgICAgICAgRmlsZURlbGV0ZSwgJW91dEZpbGUlCiAgICBGaWxlQXBwZW5kLCAlanNvbiUsICVvdXRGaWxlJSwgVVRGLTgtUkFXCn0KCkJ1aWxkSnNvbkFycmF5KGFycikgewogICAgaWYgKGFyci5MZW5ndGgoKSA9IDApCiAgICAgICAgcmV0dXJuICJbXSIKICAgIG91dCA6PSAiWyIKICAgIGZpcnN0IDo9IHRydWUKICAgIGZvciBpbmRleCwgbmFtZSBpbiBhcnIgewogICAgICAgIG91dCAuPSAoZmlyc3QgPyAiIiA6ICIsIikgLiAiYG4gICAgIiIiIC4gSnNvbkVzY2FwZShuYW1lKSAuICIiIiIKICAgICAgICBmaXJzdCA6PSBmYWxzZQogICAgfQogICAgb3V0IC49ICJgbiAgXSIKICAgIHJldHVybiBvdXQKfQoKQnVpbGRGaWxlc0pzb25BcnJheShhcnIpIHsKICAgIGlmIChhcnIuTGVuZ3RoKCkgPSAwKQogICAgICAgIHJldHVybiAiW10iCiAgICBvdXQgOj0gIlsiCiAgICBmaXJzdCA6PSB0cnVlCiAgICBmb3IgaW5kZXgsIGYgaW4gYXJyIHsKICAgICAgICBvdXQgLj0gKGZpcnN0ID8gIiIgOiAiLCIpIC4gImBuICAgIHsiIm5hbWUiIjogIiIiIC4gSnNvbkVzY2FwZShmLm5hbWUpIC4gIiIiLCAiInNpemUiIjogIiAuIGYuc2l6ZSAuICJ9IgogICAgICAgIGZpcnN0IDo9IGZhbHNlCiAgICB9CiAgICBvdXQgLj0gImBuICBdIgogICAgcmV0dXJuIG91dAp9CgpKc29uRXNjYXBlKHN0cikgewogICAgc3RyIDo9IFN0clJlcGxhY2Uoc3RyLCAiXCIsICJcXCIpCiAgICBzdHIgOj0gU3RyUmVwbGFjZShzdHIsICIiIiIsICJcIiIiKQogICAgcmV0dXJuIHN0cgp9Cg==";
 /* ============ 루트에 항상 표시되는 "가상 파일" (localserver.ahk, indexer.ahk) ============
    실제 리포에 같은 이름의 진짜 파일이 있어도, 이 목록에 있는 이름이면 항상 index.html에
    내장된 blob 버전으로만 연결한다(로컬 헬퍼나 GitHub를 거치지 않음 - "브라우저 버전"만 취급).
@@ -1265,7 +1373,28 @@ function loadExpandedFromStorage() {
 }
 function persistExpanded() {
   try { localStorage.setItem(expandedStorageKey(), JSON.stringify([...expanded])); } catch (e) {}
-  updateHashFragment();
+  // 탐색창이 닫혀있을 땐 주소창에 경로/트리 상태를 쓰지 않는다(탐색창을 닫으면 주소창 플래그먼트가
+  // 사라지도록 설계됨 - closeNavPane() 참고). 대신 위의 로컬 스토리지 기억은 열림 상태와 무관하게
+  // 항상 이뤄지므로, 새로고침해도 마지막 위치/펼침 상태는 그대로 복원된다.
+  if (isNavPaneOpen()) updateHashFragment();
+}
+function isNavPaneOpen() { return !!(els.navPane && els.navPane.classList.contains("open")); }
+function clearHashFragment() {
+  try { window.history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+}
+function openNavPane() {
+  els.navPane.classList.add("open");
+  updateHashFragment(); // 열자마자 지금 위치/펼침 상태를 주소창에 반영한다
+}
+function closeNavPane() {
+  els.navPane.classList.remove("open");
+  clearHashFragment(); // 탐색창을 닫으면 주소창 플래그먼트도 함께 사라진다(설계대로)
+}
+/* 좁은 화면(오버레이 방식)에서 트리의 폴더를 클릭해 이동하면, 실제 모바일 탐색기 앱처럼 그 자리에서
+   탐색창을 자동으로 접어 내용을 바로 보여준다. 넓은 화면(항상 옆에 두고 쓰는 형태)에서는 폴더를
+   클릭할 때마다 탐색창이 접히면 오히려 불편하므로 이 자동 닫힘을 적용하지 않는다. */
+function closeNavPaneIfNarrow() {
+  if (window.matchMedia("(max-width: 720px)").matches) closeNavPane();
 }
 async function resolveInitialPath(pathArr) {
   let p = (pathArr || []).slice();
@@ -1279,7 +1408,10 @@ async function resolveInitialPath(pathArr) {
 async function revealPath(pathArr) {
   for (let i = 0; i < pathArr.length; i++) {
     const prefix = pathArr.slice(0, i + 1);
-    expanded.add(prefix.join("/"));
+    // 조상까지만 펼침 상태로 추가한다 - 마지막 항목(=지금 막 들어간 폴더 "본인")은 펼치지 않는다.
+    // 실제 윈도우 탐색기와 동일하게, 폴더로 들어가는 것(선택+이동)과 트리에서 그 폴더 자체를
+    // 펼치는 것(화살표를 눌러 그 하위를 보는 것)은 서로 다른 동작이다.
+    if (i < pathArr.length - 1) expanded.add(prefix.join("/"));
     try { await loadDir(prefix); } catch (e) { break; }
   }
   persistExpanded();
@@ -1293,6 +1425,8 @@ async function navigate(path, record = true) {
   currentPath = path;
   selected = null;
   multiSelected.clear();
+  treeFileHighlightKey = null; // 폴더로 이동하면 트리의 파란 선택 박스는 하나만 있어야 하므로 파일 강조는 해제
+  treeFocusKey = null; // 선택이 새로 확정됐으니, 다음 방향키는 이 새 위치부터 다시 포커스를 잡는다
   els.searchInput.value = "";
   if (record) {
     history = history.slice(0, historyIndex + 1);
@@ -1406,9 +1540,9 @@ els.navPane.tabIndex = 0;
 function renderNavPane() {
   els.navPane.innerHTML = "";
   const rootRow = document.createElement("div");
-  rootRow.className = "nav-root" + (currentPath.length === 0 ? " selected" : "");
+  rootRow.className = "nav-root" + (!treeFileHighlightKey && currentPath.length === 0 ? " selected" : "") + (treeFocusKey === "" ? " kbd-focus" : "");
   rootRow.innerHTML = `${folderIcon(16, true)}<span>${escapeHtml(repoName || "루트")}</span>`;
-  rootRow.onclick = () => { els.navPane.focus(); navigate([]); els.navPane.classList.remove("open"); };
+  rootRow.onclick = () => { els.navPane.focus(); navigate([]); closeNavPaneIfNarrow(); };
   rootRow.ondblclick = () => navigate([]);
   els.navPane.appendChild(rootRow);
 
@@ -1418,6 +1552,7 @@ function renderNavPane() {
 /* 트리에서 "파일" 행을 클릭해 선택(파란 포커스)한다 - 폴더처럼 내용창으로 진입하진 않는다. */
 function selectTreeFile(it) {
   treeFileHighlightKey = it.path.join("/");
+  treeFocusKey = null; // 선택이 새로 확정됐으니, 다음 방향키는 이 새 위치부터 다시 포커스를 잡는다
   renderNavPane();
 }
 function buildTreeDom(entry, pathArr) {
@@ -1431,7 +1566,7 @@ function buildTreeDom(entry, pathArr) {
     const cached = dirCache.get(key);
 
     const row = document.createElement("div");
-    row.className = "tree-row" + (currentPath.join("/") === key ? " selected" : "");
+    row.className = "tree-row" + (!treeFileHighlightKey && currentPath.join("/") === key ? " selected" : "") + (treeFocusKey === key ? " kbd-focus" : "");
     row.style.paddingLeft = (6 + pathArr.length * 16) + "px";
 
     const arrow = document.createElement("span");
@@ -1457,7 +1592,7 @@ function buildTreeDom(entry, pathArr) {
     const label = document.createElement("span");
     label.textContent = name;
     row.appendChild(label);
-    row.onclick = () => { els.navPane.focus(); navigate(childPath); els.navPane.classList.remove("open"); };
+    row.onclick = () => { els.navPane.focus(); navigate(childPath); closeNavPaneIfNarrow(); };
     row.ondblclick = () => navigate(childPath);
     wrap.appendChild(row);
 
@@ -1482,7 +1617,7 @@ function buildTreeDom(entry, pathArr) {
     const it = { name: f.name, size: f.size, path: childPath, type: isHtml(f.name) ? "html" : "file", virtual: f.virtual };
 
     const row = document.createElement("div");
-    row.className = "tree-row tree-file-row" + (treeFileHighlightKey === key ? " selected" : "");
+    row.className = "tree-row tree-file-row" + (treeFileHighlightKey === key ? " selected" : "") + (treeFocusKey === key ? " kbd-focus" : "");
     row.dataset.fileKey = key;
     row.style.paddingLeft = (6 + pathArr.length * 16) + "px";
 
@@ -1506,69 +1641,116 @@ function buildTreeDom(entry, pathArr) {
 
   return wrap;
 }
-/* 현재 화면에 보이는(펼쳐진 상태 기준) 트리 행들을 위에서 아래 순서로 나열 (루트는 []) */
+/* 현재 화면에 보이는(펼쳐진 상태 기준) 트리 행들을 위에서 아래 순서로 나열한다(루트는 pathArr:[]).
+   폴더뿐 아니라 파일도 포함한다(방향키로 폴더만 되고 파일은 마우스로만 선택되던 것을 통일) -
+   buildTreeDom과 완전히 같은 순서(각 폴더 다음 그 하위, 그 다음 그 폴더 레벨의 파일들)로 만든다. */
 function flattenVisibleTree() {
-  const list = [[]];
-  function walk(folderNames, pathArr) {
+  const list = [{ key: "", type: "folder", pathArr: [] }];
+  function walk(entry, pathArr) {
+    const folderNames = (entry && entry.folders) || [];
+    const files = (entry && entry.files) || [];
     folderNames.forEach(name => {
       const childPath = [...pathArr, name];
-      list.push(childPath);
       const key = childPath.join("/");
+      list.push({ key, type: "folder", pathArr: childPath });
       if (expanded.has(key)) {
         const cached = dirCache.get(key);
-        if (cached) walk(cached.folders, childPath);
+        if (cached) walk(cached, childPath);
       }
+    });
+    files.forEach(f => {
+      const childPath = [...pathArr, f.name];
+      const key = childPath.join("/");
+      const it = { name: f.name, size: f.size, path: childPath, type: isHtml(f.name) ? "html" : "file", virtual: f.virtual };
+      list.push({ key, type: "file", pathArr: childPath, item: it });
     });
   }
   const rootEntry = dirCache.get("");
-  if (rootEntry) walk(rootEntry.folders, []);
+  if (rootEntry) walk(withVirtualFiles([], rootEntry), []);
   return list;
 }
-/* 왼쪽 트리 방향키 내비게이션: 상하=이동, 좌=펼쳐져 있으면 접기·아니면 상위로, 우=접혀있으면
-   펼치기·이미 펼쳐져 있으면 바로 아래(첫 하위 폴더)로 이동. 클릭으로 포커스를 옮긴 뒤 사용. */
+/* 트리에서 "지금 선택된 것"의 키 - 파일이 강조돼 있으면 그 파일, 아니면 현재 폴더(currentPath).
+   선택 박스는 항상 하나뿐이므로 이 값 하나로 트리 전체의 파란 강조 위치가 정해진다. */
+function getTreeSelectionKey() {
+  return treeFileHighlightKey !== null ? treeFileHighlightKey : currentPath.join("/");
+}
+/* flattenVisibleTree()가 만든 항목 하나를 "선택"한다 - 폴더면 그 폴더로 이동(내용창도 갱신),
+   파일이면 내용창은 그대로 두고 트리에서만 파란 포커스를 옮긴다. */
+function selectTreeEntry(entry) {
+  if (entry.type === "file") selectTreeFile(entry.item);
+  else navigate(entry.pathArr);
+}
+/* 왼쪽 트리 방향키 내비게이션 - 실제 윈도우 탐색기와 동일하게, 방향키는 "포커스"(점선 테두리)만
+   옮길 뿐 그 자체로 선택/이동을 확정하지 않는다. 포커스가 있는 항목을 실제로 선택(파란 박스로
+   확정 - 폴더면 그 폴더로 이동, 파일이면 트리에서 강조)하려면 엔터를 눌러야 한다.
+   상하=포커스 이동(폴더·파일 구분 없이 보이는 순서대로), 좌=펼쳐져 있으면 접기·아니면 그 상위
+   항목으로 포커스 이동(파일이면 그 파일이 든 폴더로), 우=접혀있으면 펼치기(포커스는 그대로)·이미
+   펼쳐져 있으면 바로 아래(첫 하위 항목)로 포커스 이동(파일이면 펼칠 게 없으므로 무시). */
 els.navPane.addEventListener("keydown", async (e) => {
+  if (e.key === "Enter") {
+    const list = flattenVisibleTree();
+    const key = (treeFocusKey !== null && list.some(en => en.key === treeFocusKey)) ? treeFocusKey : getTreeSelectionKey();
+    const entry = list.find(en => en.key === key);
+    if (entry) {
+      e.preventDefault();
+      selectTreeEntry(entry); // 폴더면 navigate(), 파일이면 selectTreeFile() - 둘 다 내부에서 treeFocusKey를 비운다
+    }
+    return;
+  }
   if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) return;
   e.preventDefault();
   const list = flattenVisibleTree();
-  const curKey = currentPath.join("/");
-  let idx = list.findIndex(p => p.join("/") === curKey);
+  // 포커스가 아직 없거나(방향키를 처음 누름) 이전 포커스가 지금은 화면에 없으면(트리가 접힘 등),
+  // 지금 "선택"돼 있는 위치부터 포커스를 새로 시작한다.
+  if (treeFocusKey === null || !list.some(en => en.key === treeFocusKey)) treeFocusKey = getTreeSelectionKey();
+  let idx = list.findIndex(en => en.key === treeFocusKey);
   if (idx === -1) idx = 0;
+  const cur = list[idx];
 
   if (e.key === "ArrowUp") {
-    if (idx > 0) navigate(list[idx - 1]);
+    if (idx > 0) { treeFocusKey = list[idx - 1].key; renderNavPane(); }
     return;
   }
   if (e.key === "ArrowDown") {
-    if (idx < list.length - 1) navigate(list[idx + 1]);
+    if (idx < list.length - 1) { treeFocusKey = list[idx + 1].key; renderNavPane(); }
     return;
   }
   if (e.key === "ArrowLeft") {
-    // 실시간 reveal로 인해 방금 들어간 폴더 자체도 "펼침" 상태로 표시될 수 있는데, 하위 폴더가
-    // 아예 없으면 접어봤자 화면상 아무 변화가 없다 - 그런 경우엔 접기 대신 바로 상위로 이동한다.
-    const curEntry = curKey ? dirCache.get(curKey) : null;
-    const curHasSubfolders = !!(curEntry && curEntry.folders && curEntry.folders.length > 0);
-    if (curKey && expanded.has(curKey) && curHasSubfolders) {
-      expanded.delete(curKey);
+    if (cur.type === "file") {
+      // 파일은 펼칠 하위 항목이 없으니 왼쪽 화살표는 포커스를 그 파일이 들어있는 폴더로 옮긴다
+      treeFocusKey = cur.pathArr.slice(0, -1).join("/");
+      renderNavPane();
+      return;
+    }
+    const curEntryData = cur.key ? dirCache.get(cur.key) : null;
+    const curHasSubfolders = !!(curEntryData && curEntryData.folders && curEntryData.folders.length > 0);
+    if (cur.key && expanded.has(cur.key) && curHasSubfolders) {
+      expanded.delete(cur.key);
       persistExpanded();
       renderNavPane();
-    } else if (currentPath.length > 0) {
-      navigate(currentPath.slice(0, -1));
+    } else if (cur.pathArr.length > 0) {
+      treeFocusKey = cur.pathArr.slice(0, -1).join("/");
+      renderNavPane();
     }
     return;
   }
   if (e.key === "ArrowRight") {
-    if (currentPath.length === 0) {
-      if (list.length > 1) navigate(list[1]);
+    if (cur.type === "file") return; // 파일은 펼칠 하위 항목이 없음
+    if (cur.pathArr.length === 0) {
+      // 루트는 항상 펼쳐진 상태로 취급(하위 항목이 이미 보임) - 바로 다음 항목으로 포커스만 이동
+      if (list.length > 1) { treeFocusKey = list[1].key; renderNavPane(); }
       return;
     }
-    if (!expanded.has(curKey)) {
-      expanded.add(curKey);
+    if (!expanded.has(cur.key)) {
+      expanded.add(cur.key);
       persistExpanded();
       renderNavPane();
-      try { await loadDir(currentPath); } catch (err) { /* 무시 */ }
+      try { await loadDir(cur.pathArr); } catch (err) { /* 무시 */ }
       renderNavPane();
-    } else if (idx < list.length - 1) {
-      navigate(list[idx + 1]);
+    } else {
+      const newList = flattenVisibleTree();
+      const newIdx = newList.findIndex(en => en.key === cur.key);
+      if (newIdx !== -1 && newIdx < newList.length - 1) { treeFocusKey = newList[newIdx + 1].key; renderNavPane(); }
     }
     return;
   }
@@ -2045,8 +2227,38 @@ if (els.weatherWidget) els.weatherWidget.onclick = showWeatherDetail;
 loadWeather();
 setInterval(loadWeather, 15 * 60 * 1000); // 15분마다 갱신
 
+/* ============ 배터리(트레이, 날씨 왼쪽) ============
+   navigator.getBattery()는 Battery Status API - 노트북처럼 배터리가 있는 기기의 브라우저에서만
+   값을 준다. 지원하지 않는 브라우저(사파리 등)나 권한이 없는 환경에서는 조용히 숨긴다(에러 없이). */
+function renderBatteryWidget(level, charging) {
+  if (!els.batteryWidget) return;
+  if (level == null) { els.batteryWidget.style.display = "none"; els.batteryWidget.innerHTML = ""; return; }
+  const pct = Math.round(level * 100);
+  const icon = charging ? "🔌" : (pct <= 20 ? "🪫" : "🔋");
+  els.batteryWidget.style.display = "flex";
+  els.batteryWidget.title = `배터리 ${pct}%${charging ? " (충전 중)" : ""}`;
+  els.batteryWidget.innerHTML = `<span class="bicon">${icon}</span><span>${pct}%</span>`;
+}
+async function loadBattery() {
+  if (!navigator.getBattery) { renderBatteryWidget(null); return; }
+  try {
+    const battery = await navigator.getBattery();
+    const update = () => renderBatteryWidget(battery.level, battery.charging);
+    update();
+    battery.addEventListener("levelchange", update);
+    battery.addEventListener("chargingchange", update);
+  } catch (e) {
+    renderBatteryWidget(null);
+  }
+}
+loadBattery();
+
 /* ============ 메인 ============ */
 async function main() {
+  // 탐색창 초기 상태: 페이지를 열었을 때 주소창에 플래그먼트(#...)가 이미 있었으면(공유된 링크로
+  // 들어온 경우 등) 펼쳐진 채로 시작하고, 없으면 꺼진 채로 시작한다. 아래에서 navigate() 등을
+  // 호출하며 해시를 다시 쓰기 전에 "로드 시점에 해시가 있었는지"를 먼저 기억해둬야 한다.
+  const hadHashOnLoad = !!location.hash && location.hash !== "#";
   const { owner, repo } = getOwnerRepo();
   repoName = repo || "Repo Index";
   document.title = repoName;
@@ -2068,6 +2280,11 @@ async function main() {
   // 가지들은 여기서 한 번에 미리 읽어와야 트리가 "불러오는 중..."에 계속 머물지 않는다.
   await Promise.all([...expanded].map(key => loadDir(key.split("/").filter(Boolean)).catch(() => {})));
 
+  // 위에서 정한 대로 탐색창의 초기 열림/닫힘 상태를 적용한다(클래스만 직접 토글 - 아직 이 시점엔
+  // openNavPane()이 하는 "해시에 반영" 동작까지는 필요 없다, 해시는 이미 그대로 있으므로).
+  if (hadHashOnLoad) els.navPane.classList.add("open");
+  else els.navPane.classList.remove("open");
+
   renderNavPane();
   renderBreadcrumb();
 
@@ -2077,6 +2294,8 @@ async function main() {
   initHelperPortAndCollapseDuplicates();
 
   window.addEventListener("hashchange", () => {
+    const hasHash = !!location.hash && location.hash !== "#";
+    if (hasHash && !isNavPaneOpen()) els.navPane.classList.add("open"); // 링크/뒤로가기로 플래그먼트가 생기면 탐색창도 함께 켠다
     const p = hashToPath(location.hash) || [];
     if (p.join("/") !== currentPath.join("/")) {
       // 해시가 바뀌어서(뒤로/앞으로 가기 등) 새 경로로 점프하는 것 - navigate()가 트리도 실시간으로 드러낸다.

@@ -17,6 +17,15 @@
 ; [모든 폴더(루트+모든 하위)에서 제외]
 ;   pages.json, 이름에 "_NIH_"가 포함된 폴더/파일 (대소문자 무관)
 ; -----------------------------------------------------
+; ------------------ 바탕화면 편의 사본 ------------------
+; 색인이 끝나면 indexer.ahk(본인)와 localserver.ahk를 바탕화면에도 복사해둔다 - 리포 폴더
+; 깊숙한 곳까지 매번 찾아가지 않고 바탕화면에서 바로 다시 색인하거나 로컬 헬퍼를 켤 수 있게 하기
+; 위함이다. localserver.ahk는 리포마다 구분되고 용도도 한눈에 보이도록 "{리포 이름} Manager.ahk"
+; 로 이름을 바꿔서 둔다. 이건 순수히 바탕화면에 놓는 "사본"의 이름일 뿐이고, 리포 안의 원본
+; 파일명(localserver.ahk)은 그대로이므로 위 RootOnlyExclude 등 색인 제외 규칙은 손댈 필요가 없다.
+; 둘 다 평범한 FileCopy로 복사하므로(고정/잠금 없음) 실제 바탕화면 아이콘처럼 마우스로 자유롭게
+; 옮길 수 있다. 실행할 때마다 최신 버전으로 덮어써서 리포가 업데이트돼도 뒤처지지 않게 한다.
+; -----------------------------------------------------
 ; ============================================================
 #NoEnv
 #SingleInstance, Force
@@ -26,15 +35,39 @@ SetBatchLines, -1
 global RootDir := A_ScriptDir
 global DirCount := 0
 
+SplitPath, RootDir, RepoName
+
 ; 루트에서만 제외할 이름
 RootOnlyExclude := [".git", "indexer.ahk", "index.html", "start.json", "tray.json", "localserver.ahk"]
 ; 모든 위치에서 이름이 정확히 일치하면 제외
 GlobalExactExclude := ["pages.json"]
 
 IndexDir(RootDir, true)
+CopyHelpersToDesktop(RepoName)
 
 TrayTip, 색인 완료, % DirCount . "개 폴더를 색인하여 pages.json을 생성했습니다.", 3
 ExitApp
+
+; ------------------------------------------------------------
+; indexer.ahk(본인)와 localserver.ahk를 바탕화면에 편의용으로 복사한다. localserver.ahk는
+; "{리포 이름} Manager.ahk"로 이름을 바꿔서 둔다. 리포 루트에 해당 파일이 실제로 있을 때만
+; 복사하고(없으면 조용히 건너뜀), 복사 실패(권한 등)도 색인 자체를 막지 않도록 조용히 무시한다.
+; ------------------------------------------------------------
+CopyHelpersToDesktop(repoName) {
+    global RootDir
+
+    selfSrc := RootDir . "\indexer.ahk"
+    if FileExist(selfSrc) {
+        selfDest := A_Desktop . "\indexer.ahk"
+        FileCopy, %selfSrc%, %selfDest%, 1
+    }
+
+    helperSrc := RootDir . "\localserver.ahk"
+    if FileExist(helperSrc) {
+        helperDest := A_Desktop . "\" . repoName . " Manager.ahk"
+        FileCopy, %helperSrc%, %helperDest%, 1
+    }
+}
 
 ; ------------------------------------------------------------
 ; dir 폴더 하나를 색인(pages.json 생성)하고, 하위 폴더로 재귀한다.
