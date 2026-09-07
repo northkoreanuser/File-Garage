@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Repo Index</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dexie/3.2.4/dexie.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
@@ -263,7 +264,7 @@
     background: rgba(255,255,255,.92); backdrop-filter: blur(20px);
     border: 1px solid rgba(255,255,255,.6); border-radius: 10px;
     box-shadow: 0 14px 44px rgba(0,0,0,.35);
-    padding: 14px; display: none; z-index: 20;
+    padding: 14px; display: none; z-index: 2010;
   }
   .start-menu.open { display: block; }
   .start-menu-user { display: flex; align-items: center; gap: 12px; }
@@ -299,30 +300,35 @@
     background: rgba(255,255,255,.96); backdrop-filter: blur(20px);
     border: 1px solid rgba(0,0,0,.08); border-radius: 8px;
     box-shadow: 0 12px 34px rgba(0,0,0,.3);
-    padding: 6px; z-index: 25; display: none;
+    padding: 6px; z-index: 2015; display: none;
   }
   .start-submenu.open { display: block; }
 
   /* ---------- 환경설정 창 ---------- */
   .settings-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,.25);
-    display: none; align-items: center; justify-content: center; z-index: 50;
+    display: none; align-items: center; justify-content: center; z-index: 2020;
   }
   .settings-overlay.open { display: flex; }
   .settings-panel {
     width: 380px; max-width: calc(100vw - 32px);
+    max-height: calc(100vh - 48px);
     background: rgba(250,250,250,.98); backdrop-filter: blur(20px);
     border: 1px solid rgba(0,0,0,.08); border-radius: 10px;
     box-shadow: 0 20px 60px rgba(0,0,0,.4);
     overflow: hidden;
+    display: flex; flex-direction: column;
   }
   .settings-titlebar {
+    flex: 0 0 auto;
     display: flex; align-items: center; justify-content: space-between;
     padding: 12px 14px; border-bottom: 1px solid #e5e5e5; font-size: 13.5px; font-weight: 600; color: #222;
   }
   .settings-close { border: none; background: transparent; font-size: 14px; color: #555; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
   .settings-close:hover { background: #e9e9e9; }
-  .settings-body { padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+  /* 항목이 늘어나 화면보다 길어지면(작은 창/뷰포트) 본문만 스크롤되고 위쪽 닫기 버튼은 항상 보인다 -
+     안 그러면 패널 전체가 화면 중앙정렬되면서 위로 넘쳐 닫기 버튼이 화면 밖으로 밀려날 수 있다. */
+  .settings-body { padding: 14px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
   .settings-row { display: flex; flex-direction: column; gap: 4px; }
   .settings-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #222; cursor: pointer; }
   .settings-check input { width: 15px; height: 15px; }
@@ -344,7 +350,7 @@
     background: rgba(255,255,255,.97); backdrop-filter: blur(16px);
     border: 1px solid rgba(0,0,0,.08); border-radius: 8px;
     box-shadow: 0 10px 30px rgba(0,0,0,.28);
-    padding: 4px; z-index: 40;
+    padding: 4px; z-index: 2030; /* 가상 탐색기 창(.df-window, z-index 100+)보다 항상 위에 떠야 함 */
   }
   .ctx-item { padding: 7px 10px; font-size: 12.5px; color: #222; border-radius: 5px; cursor: pointer; }
   .ctx-item:hover { background: rgba(0,0,0,.06); }
@@ -365,13 +371,80 @@
     display: flex; align-items: flex-start; gap: 8px;
     opacity: 0; pointer-events: none; transform: translateY(6px);
     transition: opacity .15s ease, transform .15s ease;
-    z-index: 30;
+    z-index: 2040; /* 가상 탐색기 창(.df-window, z-index 100+)보다 항상 위에 떠야 함 */
   }
   .toast.show { opacity: 1; pointer-events: auto; transform: translateY(0); }
   .toast.warn { background: rgba(150,100,20,.92); }
   .toast-msg { flex: 1; white-space: pre-line; word-break: break-word; }
   .toast-close { background: transparent; border: none; color: #fff; opacity: .7; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }
   .toast-close:hover { opacity: 1; }
+
+  /* ============ 바탕화면 가상 파일시스템(dexie) - 아이콘 / 다중 탐색기 창 / 내장 에디터 ============ */
+  .desktop { position: relative; }
+  /* pointer-events:none이 핵심 - 아이콘이 없는 빈 공간은 클릭이 그대로 통과해서 메인 창(#win)이
+     눌리고, 아이콘 자기 자신에게만 다시 pointer-events:auto로 켜서 아이콘만 클릭 가능하게 한다.
+     (안 그러면 이 레이어가 z-index로 인해 메인 창 위를 통째로 덮어 클릭을 다 가로채 버린다.) */
+  .df-icon-layer { position: absolute; inset: 0; bottom: 48px; z-index: 1; pointer-events: none; }
+  .df-icon {
+    position: absolute; width: 84px; padding: 8px 4px; border-radius: 6px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    cursor: default; user-select: none; pointer-events: auto;
+  }
+  .df-icon:hover { background: rgba(255,255,255,.12); }
+  .df-icon.selected { background: rgba(255,255,255,.22); }
+  .df-icon .df-icon-glyph { pointer-events: none; }
+  .df-icon .df-icon-label {
+    pointer-events: none; font-size: 12px; color: #fff; text-align: center;
+    text-shadow: 0 1px 3px rgba(0,0,0,.65); word-break: break-word; line-height: 1.25; max-width: 100%;
+  }
+  .df-icon .df-icon-shortcut-badge {
+    position: absolute; left: 22px; top: 22px; font-size: 12px;
+    text-shadow: 0 1px 2px rgba(0,0,0,.6);
+  }
+  /* 드래그 중인 항목을 폴더 위로 끌고 왔을 때(=여기에 놓으면 그 폴더 안으로 이동) 강조 표시 */
+  .df-icon.df-drop-target { background: rgba(120,180,255,.35); outline: 1px dashed #bfe0ff; }
+  .grid-item.df-drop-target { background: #eaf4ff; border-color: #4da3ff; outline: 1px dashed #4da3ff; }
+  /* 가상 탐색기 창(다중 인스턴스) - 기존 .window와 같은 모양을 쓰되, 항상 position:fixed로
+     화면 위에 독립적으로 떠 있는다(메인 창의 desktop flex 중앙정렬 대상이 아님). */
+  .df-window { position: fixed; z-index: 100; }
+  .df-window .content-pane { position: relative; }
+  /* 에디터 뷰(창 안에서 파일 그리드 대신 화면 전환) */
+  .df-editor { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--df-bg, #14161b); color: var(--df-text, #d7dae0); }
+  .df-editor[data-theme="light"] { --df-bg: #f7f7f8; --df-panel: #ffffff; --df-panel2: #eef0f3; --df-border: #dde1e7; --df-text: #20242b; --df-muted: #6a7180; --df-accent: #7c5cf0; --df-accent2: #6247c4; --df-code: #f1f2f5; --df-code-text: #2a2e37; --df-inline-code-bg: #e6e8ed; --df-quote: #7c5cf0; --df-quote-text: #4a4f5a; --df-quote-bg: #00000006; --df-heading: #14161b; --df-hover-bg: #00000009; }
+  .df-editor:not([data-theme="light"]) { --df-bg: #14161b; --df-panel: #181b21; --df-panel2: #1d2129; --df-border: #2b3039; --df-text: #d7dae0; --df-muted: #858c99; --df-accent: #8b7cf6; --df-accent2: #a89dff; --df-code: #0d0f13; --df-code-text: #d5d9e1; --df-inline-code-bg: #242832; --df-quote: #858cff; --df-quote-text: #aeb3be; --df-quote-bg: #ffffff03; --df-heading: #f0f1f4; --df-hover-bg: #ffffff08; }
+  .df-editor { background: var(--df-bg); color: var(--df-text); }
+  .df-editor-top { height: 42px; flex: 0 0 42px; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: var(--df-panel); border-bottom: 1px solid var(--df-border); }
+  .df-editor-top .df-e-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+  .df-editor-top .df-e-readonly { font-size: 11px; color: var(--df-muted); border: 1px solid var(--df-border); border-radius: 4px; padding: 1px 6px; }
+  .df-editor-top .df-spacer { flex: 1; }
+  .df-editor-top button { border: 1px solid var(--df-border); background: transparent; color: var(--df-muted); height: 28px; padding: 0 8px; border-radius: 6px; cursor: pointer; font: inherit; font-size: 12.5px; }
+  .df-editor-top button:hover { background: var(--df-hover-bg); color: var(--df-text); }
+  .df-editor-body { flex: 1; min-height: 0; display: flex; }
+  .df-editor.textmode .df-e-preview { display: none !important; }
+  .df-editor:not(.textmode) .df-e-editor { border-right: 1px solid var(--df-border); }
+  .df-e-editor, .df-e-preview { min-width: 0; flex: 1; overflow: auto; position: relative; }
+  .df-editor.viewer .df-e-editor { display: none; }
+  .df-e-editor textarea { width: 100%; height: 100%; box-sizing: border-box; resize: none; border: 0; outline: 0; background: transparent; color: var(--df-text); font: 14px/1.7 "SFMono-Regular",Consolas,"Liberation Mono",monospace; padding: 18px 22px; }
+  .df-e-preview-inner { max-width: 860px; margin: auto; padding: 28px 34px 60px; font-size: 15px; line-height: 1.75; }
+  .df-e-preview-inner h1,.df-e-preview-inner h2,.df-e-preview-inner h3,.df-e-preview-inner h4,.df-e-preview-inner h5,.df-e-preview-inner h6{ line-height: 1.25; color: var(--df-heading); margin: 1.4em 0 .5em; }
+  .df-e-preview-inner h1{font-size:1.9em}.df-e-preview-inner h2{font-size:1.5em}.df-e-preview-inner h3{font-size:1.2em}
+  .df-e-preview-inner p{margin:.7em 0}.df-e-preview-inner a{color:var(--df-accent2)}
+  .df-e-preview-inner blockquote{border-left:3px solid var(--df-quote);margin:1em 0;padding:.15em 1em;color:var(--df-quote-text);background:var(--df-quote-bg)}
+  .df-e-preview-inner code{font:.9em "SFMono-Regular",Consolas,monospace;background:var(--df-inline-code-bg);color:var(--df-text);border-radius:5px;padding:.15em .38em}
+  .df-e-preview-inner pre{background:var(--df-code);border:1px solid var(--df-border);border-radius:9px;padding:14px;overflow:auto}
+  .df-e-preview-inner pre code{background:transparent;padding:0;color:var(--df-code-text)}
+  .df-e-preview-inner ul,.df-e-preview-inner ol{padding-left:1.6em}
+  .df-e-preview-inner table{border-collapse:collapse;width:100%;margin:1em 0}
+  .df-e-preview-inner th,.df-e-preview-inner td{border:1px solid var(--df-border);padding:7px 9px;text-align:left}
+  .df-e-preview-inner th{background:var(--df-panel2)}
+  .df-e-preview-inner hr{border:0;border-top:1px solid var(--df-border);margin:1.8em 0}
+  .df-e-preview-inner img{max-width:100%;border-radius:8px}
+  .df-e-codewrap{position:relative}
+  .df-e-code-copy{position:absolute;top:8px;right:8px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:1px solid var(--df-border);background:var(--df-panel);color:var(--df-muted);border-radius:6px;cursor:pointer;opacity:0;transition:opacity .12s;font-size:12px}
+  .df-e-codewrap:hover .df-e-code-copy{opacity:1}
+  .df-e-code-copy.copied{opacity:1;color:var(--df-accent)}
+  .df-e-html-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
+  .df-editor-status { height: 24px; flex: 0 0 24px; border-top: 1px solid var(--df-border); background: var(--df-panel); color: var(--df-muted); display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 0 10px; font-size: 10.5px; font-family: "SFMono-Regular",Consolas,monospace; }
 
   @media (max-width: 720px) {
     .desktop { padding: 8px 8px 64px; }
@@ -391,6 +464,7 @@
 <body>
 
 <div class="desktop">
+  <div class="df-icon-layer" id="dfIconLayer"></div>
   <div class="window" id="win">
     <div class="rz rz-n"></div><div class="rz rz-s"></div><div class="rz rz-e"></div><div class="rz rz-w"></div>
     <div class="rz rz-ne"></div><div class="rz rz-nw"></div><div class="rz rz-se"></div><div class="rz rz-sw"></div>
@@ -455,7 +529,7 @@
     <div class="settings-body">
       <div class="settings-row">
         <label class="settings-check"><input type="checkbox" id="setGithubLinks"> GitHub 바로가기 표시</label>
-        <div class="settings-hint">우클릭 메뉴에 "Pages에서 보기 / 저장소에서 보기 / GitHub에서 다운로드"를 추가로 표시합니다.</div>
+        <div class="settings-hint">우클릭 메뉴에 "브라우저에서 보기 / 저장소에서 보기 / 브라우저에서 다운로드"를 추가로 표시합니다.</div>
       </div>
       <div class="settings-divider"></div>
       <div class="settings-row">
@@ -480,6 +554,16 @@
       <div class="settings-row">
         <label class="settings-check"><input type="checkbox" id="setAeroEnabled"> 에어로(반투명 블러 효과) 사용</label>
         <div class="settings-hint">작업표시줄/시작 메뉴/설정 창/우클릭 메뉴의 반투명 유리 효과를 켜고 끕니다.</div>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-row">
+        <span class="settings-label">트레이 빠른 실행 아이콘 개수 (1~25)</span>
+        <input type="number" class="settings-select" id="setTrayIconCount" min="1" max="25" step="1">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">바탕화면 폴더 창 동시 열기 개수 (1~20)</span>
+        <input type="number" class="settings-select" id="setDfsMaxWindows" min="1" max="20" step="1">
+        <div class="settings-hint">진짜 탐색기(리포 브라우저)는 항상 하나뿐이고, 바탕화면에 만든 가상 폴더만 이 개수까지 동시에 창으로 열 수 있습니다.</div>
       </div>
       <div class="settings-divider"></div>
       <div class="settings-row">
@@ -590,7 +674,7 @@ async function viewOnPages(it) {
 // (raw.githubusercontent.com은 텍스트/이미지를 그냥 열어버리기 때문에, 링크 이동만으로는 다운로드가 안 됨)
 async function downloadFromGithub(it) {
   const url = await githubRawUrl(it);
-  showToast(`GitHub에서 다운로드 중: ${it.name}`);
+  showToast(`브라우저에서 다운로드 중: ${it.name}`);
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error(String(res.status));
@@ -632,7 +716,6 @@ function filterNames(names, pathArr) {
 
 /* ============ 상태 ============ */
 let repoName = "";
-const MAX_TRAY_ICONS = 9; // 트레이 아이콘 최대 개수 -- 늘리고 싶으면 이 숫자만 바꾸면 됨
 const dirCache = new Map();     // pathKey -> {folders:[...], files:[...]}
 let currentPath = [];           // 내용창(오른쪽)에 열려있는 폴더
 let selected = null;            // {path, name, type}
@@ -653,10 +736,11 @@ let openSubmenuEls = [];
 const els = {};
 ["winTitle","btnMin","btnMax","btnClose","btnNavToggle","btnBack","btnForward","btnUp",
  "btnRefresh","breadcrumb","searchInput","navPane","contentPane","statusText","repoLink",
- "win","taskbarApp","clock","batteryWidget","weatherWidget","titlebar","startBtn","startMenu","startAvatar","startUserName",
+ "win","taskbarApp","clock","batteryWidget","weatherWidget","titlebar","startBtn","startMenu","startAvatar","startUserName","dfIconLayer",
  "startUserLink","startApps","trayIcons","toast","settingsMenuRow","settingsOverlay",
  "settingsCloseBtn","setGithubLinks","setDoubleClick","setKillHelperBtn",
- "setSearchScope","setSearchRelative","setPreloadAllBtn","setAeroEnabled"
+ "setSearchScope","setSearchRelative","setPreloadAllBtn","setAeroEnabled",
+ "setTrayIconCount","setDfsMaxWindows"
 ].forEach(id => els[id] = document.getElementById(id));
 
 /* ============ 창 조작 (최소화/최대화/닫기) ============
@@ -839,7 +923,10 @@ const DEFAULT_SETTINGS = {
   doubleClickAction: "open", // "open" | "download"
   searchScope: "subtree",    // "subtree"(현재 폴더의 하위만) | "all"(전체 저장소)
   searchRelativePath: true,  // 검색 결과 위치를 현재 폴더 기준 상대 경로로 표시할지
-  aeroEnabled: true          // 반투명 블러("에어로") 효과 - 기본 활성화
+  aeroEnabled: true,         // 반투명 블러("에어로") 효과 - 기본 활성화
+  trayIconCount: 25,         // 트레이 빠른 실행 아이콘 최대 개수 (최소 1, 최대 25)
+  dfsMaxWindows: 10,         // 바탕화면 가상 폴더를 동시에 몇 개 창으로 열 수 있는지 (최대 20) - "진짜" 탐색기(#win)는 항상 1개뿐이라 여기 포함 안 됨
+  dfEditorTheme: "dark"      // 내장 에디터(옵시디언 스타일) 테마
 };
 function settingsKey() { return `idx:${repoName}:settings`; }
 function loadSettings() {
@@ -852,6 +939,9 @@ function loadSettings() {
   if (s.searchScope !== "all") s.searchScope = "subtree";
   s.searchRelativePath = s.searchRelativePath !== false;
   s.aeroEnabled = s.aeroEnabled !== false;
+  s.trayIconCount = Math.max(1, Math.min(25, Number(s.trayIconCount) || DEFAULT_SETTINGS.trayIconCount));
+  s.dfsMaxWindows = Math.max(1, Math.min(20, Number(s.dfsMaxWindows) || DEFAULT_SETTINGS.dfsMaxWindows));
+  if (s.dfEditorTheme !== "light") s.dfEditorTheme = "dark";
   return s;
 }
 function applyAeroToDocument() {
@@ -868,6 +958,8 @@ function applySettingsToPanel() {
   els.setSearchScope.value = settings.searchScope;
   els.setSearchRelative.checked = settings.searchRelativePath;
   if (els.setAeroEnabled) els.setAeroEnabled.checked = settings.aeroEnabled;
+  if (els.setTrayIconCount) els.setTrayIconCount.value = settings.trayIconCount;
+  if (els.setDfsMaxWindows) els.setDfsMaxWindows.value = settings.dfsMaxWindows;
 }
 function applySearchPlaceholder() {
   els.searchInput.placeholder = settings.searchScope === "all" ? "전체 검색" : "현재 폴더 검색";
@@ -901,6 +993,21 @@ function setupSettingsPanel() {
       settings.aeroEnabled = els.setAeroEnabled.checked;
       saveSettings();
       applyAeroToDocument();
+    };
+  }
+  if (els.setTrayIconCount) {
+    els.setTrayIconCount.onchange = () => {
+      settings.trayIconCount = Math.max(1, Math.min(25, Number(els.setTrayIconCount.value) || DEFAULT_SETTINGS.trayIconCount));
+      els.setTrayIconCount.value = settings.trayIconCount;
+      saveSettings();
+      if (lastTrayItems) renderTrayIcons(lastTrayItems);
+    };
+  }
+  if (els.setDfsMaxWindows) {
+    els.setDfsMaxWindows.onchange = () => {
+      settings.dfsMaxWindows = Math.max(1, Math.min(20, Number(els.setDfsMaxWindows.value) || DEFAULT_SETTINGS.dfsMaxWindows));
+      els.setDfsMaxWindows.value = settings.dfsMaxWindows;
+      saveSettings();
     };
   }
   els.setPreloadAllBtn.onclick = async () => {
@@ -1045,9 +1152,12 @@ function renderAppList(items, container) {
     container.appendChild(row);
   });
 }
+let lastTrayItems = null;
 function renderTrayIcons(items) {
+  lastTrayItems = items;
   els.trayIcons.innerHTML = "";
-  items.slice(0, MAX_TRAY_ICONS).forEach(item => {
+  const maxIcons = (settings && settings.trayIconCount) || DEFAULT_SETTINGS.trayIconCount;
+  items.slice(0, maxIcons).forEach(item => {
     const btn = makeAppIcon(item, "tray-icon");
     btn.title = item.name || "";
     btn.onclick = () => activateExternalItem(item);
@@ -1284,10 +1394,12 @@ function buildFileMenuItems(it) {
   // 굳이 "로컬 프로그램으로"라고 설명을 덧붙이지 않는다.
   items.push({ label: "열기", action: () => localHelperOpen(it) });
   items.push({ label: "다운로드", action: () => localHelperDownload(it) });
+  // 실제 저장소 파일은 이 페이지가 직접 쓸 수 없으므로 항상 읽기 전용으로만 내장 에디터에서 연다.
+  items.push({ label: "에디터로 열기", action: () => dfsOpenReadonlyRepoFile(it) });
   if (settings.githubLinksEnabled) {
-    items.push({ label: "Pages에서 보기", action: () => viewOnPages(it) });
+    items.push({ label: "브라우저에서 보기", action: () => viewOnPages(it) });
     items.push({ label: "저장소에서 보기", action: () => openInRepo(it) });
-    items.push({ label: "GitHub에서 다운로드", action: () => downloadFromGithub(it) });
+    items.push({ label: "브라우저에서 다운로드", action: () => downloadFromGithub(it) });
   }
   return items;
 }
@@ -2317,6 +2429,1020 @@ async function main() {
   }
   const resolved = await resolveInitialPath(initialPath || []);
   await navigate(resolved);
+
+  // 바탕화면 가상 파일시스템(dexie) 아이콘 렌더링 - 진짜 탐색기 창(#win)과는 완전히 독립적이다.
+  dfsRenderDesktop().catch(e => console.error("바탕화면 로드 오류:", e));
+}
+
+/* ============================================================================
+   바탕화면 가상 파일시스템(desktop virtual filesystem) - dexie(IndexedDB)에 저장
+   ============================================================================
+   - .desktop 배경에 아이콘으로 폴더/파일이 놓인다. 더블클릭하면 폴더는 새 탐색기 창으로,
+     파일은 그 창 안에서 화면 전환으로(옵시디언 스타일) 내장 에디터가 뜬다.
+   - "진짜" 탐색기(GitHub 리포 브라우저, #win)는 하나만 존재하지만, 이 가상 폴더들은
+     설정에서 정한 개수까지 동시에 여러 창으로 열 수 있다(실제 윈도우 탐색기와 동일 - #win 자체는
+     중복 실행 불가능하고 이 가상 폴더 창들만 여러 개 가능).
+   - 업로드받은 옵시디언 스타일 마크다운/HTML 에디터의 핵심 기능(마크다운 렌더링, HTML 샌드박스
+     미리보기, 코드블록 복사, 굵게/기울임/링크 단축키, 단어수 상태줄, M/H/T 모드, 테마)을 그대로
+     가져와 쓰되, 주소창(#) 압축저장/공유 기능만은 뺐다 - 이 페이지가 이미 #을 경로/트리 상태
+     저장용으로 쓰고 있어서 중복 구현이 불가능하기 때문(사용자 요청사항).
+================================================================================= */
+
+const DFS_DESKTOP_ROOT = "desktop";
+let dfsDb = null;
+
+function dfsInitDb() {
+  // dexie.min.js는 외부 CDN에서 불러오므로, 네트워크 차단/오프라인 등으로 못 불러왔을 수도 있다.
+  // 그런 경우에도 "진짜" 저장소 탐색기(메인 기능)는 전혀 영향받지 않고 정상 동작해야 하므로,
+  // 바탕화면 가상 파일시스템 기능만 조용히 비활성화한다(dfsDb=null → 각 함수가 방어적으로 처리).
+  if (typeof Dexie === "undefined") {
+    console.warn("Dexie를 불러오지 못해 바탕화면 가상 파일시스템 기능을 사용할 수 없습니다.");
+    dfsDb = null;
+    return;
+  }
+  try {
+    const { repo } = getOwnerRepo();
+    const label = repo || "default";
+    dfsDb = new Dexie(`idx-desktopfs-${label}`);
+    dfsDb.version(1).stores({ nodes: "++id, parentId, name" });
+  } catch (e) {
+    console.warn("바탕화면 가상 파일시스템 초기화 실패:", e);
+    dfsDb = null;
+  }
+}
+
+/* ---------------- 이름 규칙: 윈도우 금지 문자/예약어 + 충돌 시 번호 붙이기 ---------------- */
+const DFS_RESERVED_NAMES = new Set([
+  "CON", "PRN", "AUX", "NUL",
+  "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+  "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+]);
+function dfsValidateName(raw) {
+  const name = (raw || "").trim();
+  if (!name) return "이름을 입력하세요.";
+  if (/[\\/:*?"<>|]/.test(name)) return '\\ / : * ? " < > | 문자는 이름에 쓸 수 없습니다.';
+  if (/[ .]$/.test(name)) return "이름 끝에 공백이나 마침표를 쓸 수 없습니다.";
+  const base = name.includes(".") ? name.slice(0, name.lastIndexOf(".")) : name;
+  if (DFS_RESERVED_NAMES.has(name.toUpperCase()) || DFS_RESERVED_NAMES.has(base.toUpperCase())) {
+    return `"${name}"은(는) 시스템에서 예약된 이름이라 쓸 수 없습니다.`;
+  }
+  return null;
+}
+function dfsSplitExt(name) {
+  const dot = name.lastIndexOf(".");
+  const hasExt = dot > 0 && dot < name.length - 1;
+  return hasExt ? { base: name.slice(0, dot), ext: name.slice(dot) } : { base: name, ext: "" };
+}
+async function dfsUniqueName(parentId, desiredName) {
+  const siblings = await dfsDb.nodes.where("parentId").equals(parentId).toArray();
+  const taken = new Set(siblings.map(s => s.name.toLowerCase()));
+  if (!taken.has(desiredName.toLowerCase())) return desiredName;
+  const { base, ext } = dfsSplitExt(desiredName);
+  let n = 2;
+  while (true) {
+    const candidate = `${base} (${n})${ext}`;
+    if (!taken.has(candidate.toLowerCase())) return candidate;
+    n++;
+  }
+}
+function dfsSuffixedName(name, suffix) {
+  const { base, ext } = dfsSplitExt(name);
+  return `${base} - ${suffix}${ext}`;
+}
+
+/* ---------------- CRUD ---------------- */
+async function dfsChildren(parentId) {
+  const rows = await dfsDb.nodes.where("parentId").equals(parentId).toArray();
+  rows.sort((a, b) => {
+    if (a.type !== b.type) return a.type === "folder" ? -1 : (b.type === "folder" ? 1 : 0);
+    return a.name.localeCompare(b.name, "ko");
+  });
+  return rows;
+}
+async function dfsNextIconPos(parentId) {
+  // 이미 있는 아이콘 개수를 보고 격자 형태로 다음 좌표를 대충 잡아준다(겹쳐서 쌓이는 것 방지).
+  const siblings = await dfsDb.nodes.where("parentId").equals(parentId).toArray();
+  const col = siblings.length % 6, row = Math.floor(siblings.length / 6);
+  return { x: 24 + col * 96, y: 24 + row * 100 };
+}
+async function dfsCreateFolder(parentId) {
+  const name = await dfsUniqueName(parentId, "새 폴더");
+  const now = Date.now();
+  const pos = await dfsNextIconPos(parentId);
+  const id = await dfsDb.nodes.add({ parentId, type: "folder", name, x: pos.x, y: pos.y, createdAt: now, updatedAt: now });
+  return dfsDb.nodes.get(id);
+}
+const DFS_FILE_DEFAULTS = {
+  txt: { label: "새 텍스트 문서.txt", fileType: "txt" },
+  md: { label: "새 Markdown 문서.md", fileType: "md" },
+  html: { label: "새 HTML 문서.html", fileType: "html" }
+};
+async function dfsCreateFile(parentId, kind) {
+  const d = DFS_FILE_DEFAULTS[kind] || DFS_FILE_DEFAULTS.txt;
+  const name = await dfsUniqueName(parentId, d.label);
+  const now = Date.now();
+  const pos = await dfsNextIconPos(parentId);
+  const id = await dfsDb.nodes.add({ parentId, type: "file", name, content: "", fileType: d.fileType, x: pos.x, y: pos.y, createdAt: now, updatedAt: now });
+  return dfsDb.nodes.get(id);
+}
+async function dfsDeepCopyChildren(fromId, toId) {
+  const kids = await dfsDb.nodes.where("parentId").equals(fromId).toArray();
+  for (const kid of kids) {
+    const now = Date.now();
+    const copy = { parentId: toId, type: kid.type, name: kid.name, createdAt: now, updatedAt: now };
+    if (kid.type === "file") { copy.content = kid.content; copy.fileType = kid.fileType; }
+    if (kid.type === "shortcut") copy.targetId = kid.targetId;
+    const newId = await dfsDb.nodes.add(copy);
+    if (kid.type === "folder") await dfsDeepCopyChildren(kid.id, newId);
+  }
+}
+async function dfsCopyInto(node, parentId, desiredName) {
+  const name = await dfsUniqueName(parentId, desiredName || node.name);
+  const now = Date.now();
+  const pos = await dfsNextIconPos(parentId);
+  const copy = { parentId, type: node.type, name, x: pos.x, y: pos.y, createdAt: now, updatedAt: now };
+  if (node.type === "file") { copy.content = node.content; copy.fileType = node.fileType; }
+  if (node.type === "shortcut") copy.targetId = node.targetId;
+  const id = await dfsDb.nodes.add(copy);
+  if (node.type === "folder") await dfsDeepCopyChildren(node.id, id);
+  return dfsDb.nodes.get(id);
+}
+async function dfsDuplicate(node) {
+  return dfsCopyInto(node, node.parentId, dfsSuffixedName(node.name, "복사본"));
+}
+async function dfsCreateShortcut(node) {
+  const name = await dfsUniqueName(node.parentId, dfsSuffixedName(node.name, "바로가기"));
+  const now = Date.now();
+  const pos = await dfsNextIconPos(node.parentId);
+  const id = await dfsDb.nodes.add({ parentId: node.parentId, type: "shortcut", name, targetId: node.id, x: pos.x, y: pos.y, createdAt: now, updatedAt: now });
+  return dfsDb.nodes.get(id);
+}
+async function dfsRename(node, newNameRaw) {
+  const err = dfsValidateName(newNameRaw);
+  if (err) { showToast(err, { kind: "warn" }); return false; }
+  const newName = newNameRaw.trim();
+  const siblings = await dfsDb.nodes.where("parentId").equals(node.parentId).toArray();
+  const clash = siblings.some(s => s.id !== node.id && s.name.toLowerCase() === newName.toLowerCase());
+  if (clash) { showToast(`"${newName}" 이름이 이미 있습니다.`, { kind: "warn" }); return false; }
+  await dfsDb.nodes.update(node.id, { name: newName, updatedAt: Date.now() });
+  return true;
+}
+async function dfsDeleteDeep(id) {
+  const kids = await dfsDb.nodes.where("parentId").equals(id).toArray();
+  for (const kid of kids) await dfsDeleteDeep(kid.id);
+  await dfsDb.nodes.delete(id);
+}
+async function dfsDelete(node) {
+  if (node.type === "folder") await dfsDeleteDeep(node.id);
+  else await dfsDb.nodes.delete(node.id);
+  dfsCloseWindowsShowing(node.id);
+}
+async function dfsIsDescendant(maybeAncestorId, folderId) {
+  let p = folderId;
+  while (p !== DFS_DESKTOP_ROOT && p != null) {
+    if (p === maybeAncestorId) return true;
+    const parentNode = await dfsDb.nodes.get(p);
+    if (!parentNode) break;
+    p = parentNode.parentId;
+  }
+  return false;
+}
+async function dfsMove(node, newParentId) {
+  if (node.id === newParentId) return false;
+  if (node.type === "folder" && await dfsIsDescendant(node.id, newParentId)) {
+    showToast("폴더를 자기 자신의 하위로 옮길 수 없습니다.", { kind: "warn" });
+    return false;
+  }
+  if (node.parentId === newParentId) return true;
+  const newName = await dfsUniqueName(newParentId, node.name);
+  await dfsDb.nodes.update(node.id, { parentId: newParentId, name: newName, updatedAt: Date.now() });
+  return true;
+}
+
+/* ---------------- 클립보드(복사/잘라내기/붙여넣기) - 앱 전체에서 하나만 공유 ---------------- */
+let dfsClipboard = null; // { id, mode: "copy" | "cut" }
+async function dfsPasteInto(parentId) {
+  if (!dfsClipboard) return;
+  const node = await dfsDb.nodes.get(dfsClipboard.id);
+  if (!node) { dfsClipboard = null; return; }
+  if (dfsClipboard.mode === "copy") {
+    await dfsCopyInto(node, parentId);
+  } else {
+    const ok = await dfsMove(node, parentId);
+    if (ok) dfsClipboard = null; else return;
+  }
+  await dfsBroadcastChange();
+}
+
+/* ---------------- 변경 후 화면 갱신: 데스크탑 + 열려있는 모든 가상 탐색기 창 ---------------- */
+async function dfsBroadcastChange() {
+  await dfsRenderDesktop();
+  for (const w of dfsOpenWindows.slice()) {
+    try { await w.refresh(); } catch (e) { /* 창이 그 사이 닫혔을 수 있음 - 무시 */ }
+  }
+}
+function dfsCloseWindowsShowing(nodeId) {
+  // 삭제된 폴더(또는 그 조상)를 보고 있던 창은 자동으로 닫는다(실제 탐색기도 보던 폴더가
+  // 사라지면 더는 보여줄 게 없어 오류 대신 창을 닫는 편이 자연스럽다).
+  dfsOpenWindows.slice().forEach(async w => {
+    if (w.folderId === nodeId || await dfsIsDescendant(nodeId, w.folderId)) w.close();
+  });
+}
+
+/* ---------------- 아이콘 그리기 ---------------- */
+function dfsIconGlyphFor(node, size) {
+  let inner;
+  if (node.type === "folder") inner = folderIcon(size, false);
+  else if (node.type === "shortcut") inner = fileIcon(size);
+  else inner = node.fileType === "html" ? htmlFileIcon(size) : fileIcon(size);
+  const badge = node.type === "shortcut" ? '<span class="df-icon-shortcut-badge">↪</span>' : "";
+  return `<span style="position:relative;display:inline-block;">${inner}${badge}</span>`;
+}
+
+/* ---------------- 데스크탑 아이콘 ---------------- */
+let dfsSelectedIconId = null;
+async function dfsRenderDesktop() {
+  if (!dfsDb) return;
+  const items = await dfsChildren(DFS_DESKTOP_ROOT);
+  els.dfIconLayer.innerHTML = "";
+  items.forEach(node => {
+    const icon = document.createElement("div");
+    icon.className = "df-icon" + (dfsSelectedIconId === node.id ? " selected" : "");
+    icon.style.left = (node.x ?? 24) + "px";
+    icon.style.top = (node.y ?? 24) + "px";
+    icon.dataset.id = String(node.id);
+    icon.innerHTML = `<div class="df-icon-glyph">${dfsIconGlyphFor(node, 40)}</div><div class="df-icon-label">${escapeHtml(node.name)}</div>`;
+    icon.addEventListener("click", (e) => { e.stopPropagation(); dfsSelectedIconId = node.id; dfsRenderDesktop(); });
+    icon.addEventListener("dblclick", () => dfsActivate(node));
+    icon.addEventListener("contextmenu", (e) => {
+      e.preventDefault(); e.stopPropagation();
+      dfsSelectedIconId = node.id; dfsRenderDesktop();
+      showContextMenu(e.clientX, e.clientY, dfsBuildIconMenuItems(node));
+    });
+    dfsSetupIconDrag(icon, node);
+    els.dfIconLayer.appendChild(icon);
+  });
+}
+document.addEventListener("click", () => {
+  if (dfsSelectedIconId !== null) { dfsSelectedIconId = null; dfsRenderDesktop(); }
+});
+document.querySelector(".desktop").addEventListener("contextmenu", (e) => {
+  if (e.target.closest(".df-icon") || e.target.closest(".window")) return;
+  e.preventDefault();
+  if (!dfsDb) return; // dexie를 못 불러왔으면 바탕화면 기능 자체를 조용히 비활성화
+  showContextMenu(e.clientX, e.clientY, dfsBuildEmptyAreaMenuItems(DFS_DESKTOP_ROOT, () => dfsBroadcastChange()));
+});
+
+function dfsSetupIconDrag(iconEl, node) {
+  let dragging = false, moved = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;
+  iconEl.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    dragging = true; moved = false;
+    startX = e.clientX; startY = e.clientY;
+    origLeft = parseFloat(iconEl.style.left) || 0;
+    origTop = parseFloat(iconEl.style.top) || 0;
+    e.stopPropagation();
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - startX, dy = e.clientY - startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
+    if (!moved) return;
+    iconEl.style.left = Math.max(0, origLeft + dx) + "px";
+    iconEl.style.top = Math.max(0, origTop + dy) + "px";
+    iconEl.style.zIndex = 5;
+    els.dfIconLayer.querySelectorAll(".df-icon").forEach(el => el.classList.remove("df-drop-target"));
+    const under = dfsElementUnder(e.clientX, e.clientY, iconEl);
+    if (under && under.dataset.id) document.querySelector(`.df-icon[data-id="${under.dataset.id}"]`)?.classList.add("df-drop-target");
+  });
+  window.addEventListener("mouseup", async (e) => {
+    if (!dragging) return;
+    dragging = false;
+    els.dfIconLayer.querySelectorAll(".df-icon").forEach(el => el.classList.remove("df-drop-target"));
+    iconEl.style.zIndex = "";
+    if (!moved) return;
+    const under = dfsElementUnder(e.clientX, e.clientY, iconEl);
+    if (under && under.dataset.id) {
+      const targetId = Number(under.dataset.id);
+      const target = await dfsDb.nodes.get(targetId);
+      if (target && target.type === "folder" && target.id !== node.id) {
+        const ok = await dfsMove(node, target.id);
+        if (ok) showToast(`"${node.name}"을(를) "${target.name}" 폴더로 옮겼습니다.`);
+        await dfsBroadcastChange();
+        return;
+      }
+    }
+    const x = Math.max(0, parseFloat(iconEl.style.left) || 0), y = Math.max(0, parseFloat(iconEl.style.top) || 0);
+    await dfsDb.nodes.update(node.id, { x, y });
+  });
+}
+function dfsElementUnder(clientX, clientY, excludeEl) {
+  const stack = document.elementsFromPoint(clientX, clientY);
+  for (const el of stack) {
+    const iconEl = el.closest(".df-icon, .grid-item");
+    if (iconEl && iconEl !== excludeEl) return iconEl;
+  }
+  return null;
+}
+
+/* ---------------- 우클릭 메뉴 빌더 (데스크탑 아이콘 / 창 안 그리드 아이템 공용) ---------------- */
+function dfsBuildIconMenuItems(node, opts = {}) {
+  const refresh = opts.refresh || dfsBroadcastChange;
+  const items = [];
+  if (node.type === "folder") {
+    items.push({ label: "열기", action: () => dfsActivate(node) });
+  } else if (node.type === "shortcut") {
+    items.push({ label: "열기", action: () => dfsActivate(node) });
+  } else {
+    items.push({ label: "에디터로 열기", action: () => dfsActivate(node) });
+    items.push({ label: "다운로드", action: () => dfsDownloadVirtualFile(node) });
+  }
+  items.push({ label: "이름 변경", action: () => dfsPromptRename(node, refresh) });
+  items.push({ label: "복사", action: () => { dfsClipboard = { id: node.id, mode: "copy" }; showToast(`"${node.name}"을(를) 복사했습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`); } });
+  items.push({ label: "잘라내기", action: () => { dfsClipboard = { id: node.id, mode: "cut" }; showToast(`"${node.name}"을(를) 잘라냈습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`); } });
+  if (node.type !== "shortcut") {
+    items.push({ label: "바로가기 만들기", action: async () => { await dfsCreateShortcut(node); await refresh(); } });
+  }
+  items.push({ label: "삭제", action: async () => {
+    if (!window.confirm(`"${node.name}"을(를) 삭제할까요?${node.type === "folder" ? " (안에 있는 것도 모두 삭제됩니다)" : ""}`)) return;
+    await dfsDelete(node);
+    await refresh();
+  } });
+  return items;
+}
+function dfsBuildEmptyAreaMenuItems(parentId, refresh) {
+  const items = [
+    { label: "새 폴더", action: async () => { await dfsCreateFolder(parentId); await refresh(); } },
+    { label: "새 텍스트 문서", action: async () => { await dfsCreateFile(parentId, "txt"); await refresh(); } },
+    { label: "새 Markdown 문서", action: async () => { await dfsCreateFile(parentId, "md"); await refresh(); } },
+    { label: "새 HTML 문서", action: async () => { await dfsCreateFile(parentId, "html"); await refresh(); } },
+  ];
+  if (dfsClipboard) items.push({ label: "붙여넣기", action: async () => { await dfsPasteInto(parentId); await refresh(); } });
+  items.push({ label: "새로고침", action: () => refresh() });
+  return items;
+}
+function dfsPromptRename(node, refresh) {
+  const next = window.prompt("새 이름", node.name);
+  if (next == null) return;
+  dfsRename(node, next).then(ok => { if (ok) refresh(); });
+}
+async function dfsDownloadVirtualFile(node) {
+  const blob = new Blob([node.content || ""], { type: "text/plain;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = node.name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ---------------- 활성화(더블클릭) ---------------- */
+async function dfsActivate(node) {
+  if (node.type === "folder") { dfsOpenExplorerWindow(node.id); return; }
+  if (node.type === "shortcut") {
+    const target = await dfsDb.nodes.get(node.targetId);
+    if (!target) { showToast("바로가기 대상을 찾을 수 없습니다(삭제된 항목).", { kind: "warn" }); return; }
+    return dfsActivate(target);
+  }
+  dfsOpenExplorerWindow(node.parentId, { openFile: node });
+}
+
+/* ============================================================================
+   가상 탐색기 창 (다중 인스턴스) - "진짜" 탐색기(#win)와 달리 여러 개 동시에 열 수 있다.
+================================================================================= */
+let dfsOpenWindows = [];
+let dfsWindowSeq = 0;
+let dfsTopZ = 200;
+function dfsMaxWindows() { return (settings && settings.dfsMaxWindows) || DEFAULT_SETTINGS.dfsMaxWindows; }
+
+async function dfsBuildPath(folderId) {
+  // desktop root부터 folderId까지 [{id,name}, ...] (desktop 자체는 포함 안 함, folderId===DESKTOP_ROOT면 빈 배열)
+  const chain = [];
+  let cur = folderId;
+  while (cur !== DFS_DESKTOP_ROOT && cur != null) {
+    const node = await dfsDb.nodes.get(cur);
+    if (!node) break;
+    chain.unshift({ id: node.id, name: node.name });
+    cur = node.parentId;
+  }
+  return chain;
+}
+
+async function dfsOpenExplorerWindow(folderId, opts = {}) {
+  if (dfsOpenWindows.length >= dfsMaxWindows()) {
+    showToast(`탐색기 창은 최대 ${dfsMaxWindows()}개까지 동시에 열 수 있습니다. 환경설정에서 늘릴 수 있어요.`, { kind: "warn" });
+    return;
+  }
+  const winId = ++dfsWindowSeq;
+  const el = document.createElement("div");
+  el.className = "window df-window";
+  el.style.width = "760px";
+  el.style.height = "520px";
+  el.style.left = (60 + (winId % 6) * 28) + "px";
+  el.style.top = (60 + (winId % 6) * 24) + "px";
+  el.innerHTML = `
+    <div class="rz rz-n"></div><div class="rz rz-s"></div><div class="rz rz-e"></div><div class="rz rz-w"></div>
+    <div class="rz rz-ne"></div><div class="rz rz-nw"></div><div class="rz rz-se"></div><div class="rz rz-sw"></div>
+    <div class="titlebar df-titlebar">
+      <div class="tb-icon df-tb-icon">📁</div>
+      <div class="tb-title df-tb-title">바탕화면</div>
+      <div class="tb-controls">
+        <button class="tb-btn df-btn-max" title="최대화">&#x25A1;</button>
+        <button class="tb-btn tb-close df-btn-close" title="닫기">&#x2715;</button>
+      </div>
+    </div>
+    <div class="toolbar">
+      <button class="tool-btn df-btn-up" title="위로">&#8593;</button>
+      <button class="tool-btn df-btn-refresh" title="새로고침">&#8635;</button>
+      <div class="address-bar df-breadcrumb"></div>
+    </div>
+    <div class="body-area">
+      <div class="content-pane df-content"></div>
+    </div>
+    <div class="status-bar">
+      <span class="df-status-text"></span>
+      <span></span>
+    </div>`;
+  document.querySelector(".desktop").appendChild(el);
+
+  const state = { winId, el, folderId, editorNode: null, editorReadonly: false };
+
+  function bringToFront() { el.style.zIndex = ++dfsTopZ; }
+  el.addEventListener("mousedown", bringToFront, true);
+  bringToFront();
+
+  dfsMakeDraggable(el, el.querySelector(".df-titlebar"));
+  dfsMakeResizable(el);
+
+  el.querySelector(".df-btn-close").onclick = () => instance.close();
+  el.querySelector(".df-btn-max").onclick = () => {
+    el.classList.toggle("maximized");
+    el.querySelector(".df-btn-max").innerHTML = el.classList.contains("maximized") ? "&#x2752;" : "&#x25A1;";
+  };
+  el.querySelector(".df-btn-up").onclick = async () => {
+    if (state.editorNode) { state.editorNode = null; await instance.refresh(); return; }
+    if (state.folderId === DFS_DESKTOP_ROOT) return;
+    const node = await dfsDb.nodes.get(state.folderId);
+    state.folderId = (node && node.parentId != null) ? node.parentId : DFS_DESKTOP_ROOT;
+    await instance.refresh();
+  };
+  el.querySelector(".df-btn-refresh").onclick = () => instance.refresh();
+
+  async function renderBreadcrumb() {
+    const bar = el.querySelector(".df-breadcrumb");
+    bar.innerHTML = "";
+    const rootCrumb = document.createElement("span");
+    rootCrumb.className = "crumb";
+    rootCrumb.textContent = "바탕화면";
+    rootCrumb.onclick = async () => { state.editorNode = null; state.folderId = DFS_DESKTOP_ROOT; await instance.refresh(); };
+    bar.appendChild(rootCrumb);
+    const chain = await dfsBuildPath(state.folderId);
+    chain.forEach(seg => {
+      const sep = document.createElement("span");
+      sep.className = "crumb-sep";
+      sep.textContent = " › ";
+      bar.appendChild(sep);
+      const c = document.createElement("span");
+      c.className = "crumb";
+      c.textContent = seg.name;
+      c.onclick = async () => { state.editorNode = null; state.folderId = seg.id; await instance.refresh(); };
+      bar.appendChild(c);
+    });
+    if (state.editorNode) {
+      const sep = document.createElement("span");
+      sep.className = "crumb-sep";
+      sep.textContent = " › ";
+      bar.appendChild(sep);
+      const c = document.createElement("span");
+      c.className = "crumb";
+      c.textContent = state.editorNode.name;
+      bar.appendChild(c);
+    }
+  }
+
+  async function renderGrid() {
+    const content = el.querySelector(".df-content");
+    content.innerHTML = "";
+    const items = await dfsChildren(state.folderId);
+    el.querySelector(".df-status-text").textContent = `${items.length}개 항목`;
+    if (!items.length) {
+      content.innerHTML = '<div class="empty-msg">비어있는 폴더입니다.</div>';
+    } else {
+      const grid = document.createElement("div");
+      grid.className = "grid";
+      items.forEach(node => {
+        const cell = document.createElement("div");
+        cell.className = "grid-item";
+        cell.draggable = true;
+        cell.dataset.id = String(node.id);
+        cell.innerHTML = `<div class="icon">${dfsIconGlyphFor(node, 40)}</div><div class="label">${escapeHtml(node.name)}</div>`;
+        cell.addEventListener("click", (e) => {
+          e.stopPropagation();
+          grid.querySelectorAll(".grid-item.selected").forEach(x => x.classList.remove("selected"));
+          cell.classList.add("selected");
+        });
+        cell.addEventListener("dblclick", async () => {
+          if (node.type === "folder") { state.folderId = node.id; await instance.refresh(); return; }
+          if (node.type === "shortcut") {
+            const target = await dfsDb.nodes.get(node.targetId);
+            if (!target) { showToast("바로가기 대상을 찾을 수 없습니다(삭제된 항목).", { kind: "warn" }); return; }
+            if (target.type === "folder") { state.folderId = target.id; await instance.refresh(); return; }
+            state.editorNode = target; await instance.refresh(); return;
+          }
+          state.editorNode = node; await instance.refresh();
+        });
+        cell.addEventListener("contextmenu", (e) => {
+          e.preventDefault(); e.stopPropagation();
+          showContextMenu(e.clientX, e.clientY, dfsBuildIconMenuItems(node, { refresh: () => instance.refresh() }));
+        });
+        cell.addEventListener("dragstart", (e) => { e.dataTransfer.setData("text/plain", String(node.id)); });
+        if (node.type === "folder") {
+          cell.addEventListener("dragover", (e) => { e.preventDefault(); cell.classList.add("df-drop-target"); });
+          cell.addEventListener("dragleave", () => cell.classList.remove("df-drop-target"));
+          cell.addEventListener("drop", async (e) => {
+            e.preventDefault();
+            cell.classList.remove("df-drop-target");
+            const srcId = Number(e.dataTransfer.getData("text/plain"));
+            if (!srcId || srcId === node.id) return;
+            const src = await dfsDb.nodes.get(srcId);
+            if (!src) return;
+            const ok = await dfsMove(src, node.id);
+            if (ok) showToast(`"${src.name}"을(를) "${node.name}" 폴더로 옮겼습니다.`);
+            await dfsBroadcastChange();
+          });
+        }
+        grid.appendChild(cell);
+      });
+      content.appendChild(grid);
+    }
+    content.oncontextmenu = (e) => {
+      if (e.target.closest(".grid-item")) return;
+      e.preventDefault();
+      showContextMenu(e.clientX, e.clientY, dfsBuildEmptyAreaMenuItems(state.folderId, () => instance.refresh()));
+    };
+  }
+
+  const instance = {
+    winId, el,
+    get folderId() { return state.folderId; },
+    close() {
+      el.remove();
+      dfsOpenWindows = dfsOpenWindows.filter(w => w.winId !== winId);
+    },
+    async refresh() {
+      el.querySelector(".df-tb-title").textContent = state.editorNode ? state.editorNode.name : (state.folderId === DFS_DESKTOP_ROOT ? "바탕화면" : (await dfsDb.nodes.get(state.folderId))?.name || "바탕화면");
+      await renderBreadcrumb();
+      if (state.editorNode) {
+        const fresh = await dfsDb.nodes.get(state.editorNode.id);
+        if (!fresh) { state.editorNode = null; await instance.refresh(); return; }
+        state.editorNode = fresh;
+        dfsRenderEditorInto(el.querySelector(".df-content"), fresh, { readonly: false, onSaved: () => {} });
+        el.querySelector(".df-content").oncontextmenu = null;
+      } else {
+        await renderGrid();
+      }
+    }
+  };
+  dfsOpenWindows.push(instance);
+  await instance.refresh();
+  if (opts.openFile) { state.editorNode = opts.openFile; await instance.refresh(); }
+  return instance;
+}
+
+/* ---------------- 창 드래그/리사이즈 (메인 창의 로직과 같은 방식, 여러 인스턴스용으로 일반화) ---------------- */
+function dfsMakeDraggable(winEl, handleEl) {
+  let dragging = false, startX = 0, startY = 0, winStartLeft = 0, winStartTop = 0;
+  handleEl.addEventListener("mousedown", (e) => {
+    if (winEl.classList.contains("maximized")) return;
+    if (e.target.closest(".tb-btn")) return;
+    dragging = true;
+    const rect = winEl.getBoundingClientRect();
+    winStartLeft = rect.left; winStartTop = rect.top;
+    winEl.style.left = winStartLeft + "px";
+    winEl.style.top = winStartTop + "px";
+    startX = e.clientX; startY = e.clientY;
+    e.preventDefault();
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - startX, dy = e.clientY - startY;
+    const rect = winEl.getBoundingClientRect();
+    const minVisible = 80;
+    let newLeft = winStartLeft + dx, newTop = winStartTop + dy;
+    newLeft = Math.max(-(rect.width - minVisible), Math.min(newLeft, window.innerWidth - minVisible));
+    const TASKBAR_H = 48, TITLEBAR_H = 40;
+    newTop = Math.max(0, Math.min(newTop, window.innerHeight - TASKBAR_H - TITLEBAR_H));
+    winEl.style.left = newLeft + "px";
+    winEl.style.top = newTop + "px";
+  });
+  window.addEventListener("mouseup", () => { dragging = false; });
+}
+function dfsMakeResizable(winEl) {
+  const MIN_W = 420, MIN_H = 280;
+  const TASKBAR_H = 48;
+  [["rz-n", "n"], ["rz-s", "s"], ["rz-e", "e"], ["rz-w", "w"], ["rz-ne", "ne"], ["rz-nw", "nw"], ["rz-se", "se"], ["rz-sw", "sw"]].forEach(([cls, dir]) => {
+    const handle = winEl.querySelector("." + cls);
+    if (!handle) return;
+    handle.addEventListener("mousedown", (e) => {
+      if (winEl.classList.contains("maximized")) return;
+      e.preventDefault(); e.stopPropagation();
+      const rect = winEl.getBoundingClientRect();
+      const startX = e.clientX, startY = e.clientY;
+      const startW = rect.width, startH = rect.height, startLeft = rect.left, startTop = rect.top;
+      winEl.classList.add("resizing");
+      winEl.style.left = startLeft + "px";
+      winEl.style.top = startTop + "px";
+      const maxW = window.innerWidth, maxH = window.innerHeight - TASKBAR_H;
+      function onMove(ev) {
+        const dx = ev.clientX - startX, dy = ev.clientY - startY;
+        let newW = startW, newH = startH, newLeft = startLeft, newTop = startTop;
+        if (dir.includes("e")) newW = Math.max(MIN_W, Math.min(startW + dx, maxW));
+        if (dir.includes("s")) newH = Math.max(MIN_H, Math.min(startH + dy, maxH));
+        if (dir.includes("w")) { newW = Math.max(MIN_W, Math.min(startW - dx, maxW)); newLeft = startLeft + (startW - newW); }
+        if (dir.includes("n")) { newH = Math.max(MIN_H, Math.min(startH - dy, maxH)); newTop = startTop + (startH - newH); }
+        winEl.style.width = newW + "px"; winEl.style.height = newH + "px";
+        winEl.style.left = newLeft + "px"; winEl.style.top = newTop + "px";
+      }
+      function onUp() {
+        winEl.classList.remove("resizing");
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+      }
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    });
+  });
+}
+
+dfsInitDb();
+
+/* ============================================================================
+   내장 에디터 (옵시디언 스타일 마크다운/HTML/텍스트 에디터)
+   ----------------------------------------------------------------------------
+   업로드받은 원본 에디터의 markdown()/inline()/isFenceOpen() 파서, HTML 샌드박스
+   미리보기, 코드블록 복사, 굵게/기울임/링크 단축키, 상태줄(글자수 등), M/H/T 렌더
+   모드 순환, 뷰어/에디터 토글, 테마를 그대로 옮겨왔다. 단, 주소창(#) 압축 저장/공유
+   엔진만은 빼고 그 자리를 대신해 dexie 자동저장(가상 파일)으로 대체했다 - 이 페이지가
+   이미 #을 경로/트리 상태 저장용으로 쓰고 있어서 중복 구현이 불가능하기 때문(사용자 지시).
+================================================================================= */
+function dfEsc(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function dfInline(s) {
+  s = dfEsc(s);
+  s = s.replace(/!\[([^\]]*)\]\(([^ )]+)(?:\s+"([^"]*)")?\)/g, (_, a, u, t) => `<img src="${u}" alt="${a}"${t ? ` title="${t}"` : ""}>`);
+  s = s.replace(/\[([^\]]+)\]\(([^ )]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  s = s.replace(/(`{1,3})([\s\S]*?)\1(?!`)/g, (_, fence, content) => {
+    let c = content;
+    if (fence.length > 1 && /^ /.test(c) && / $/.test(c) && c.trim() !== "") c = c.slice(1, -1);
+    return `<code>${c}</code>`;
+  });
+  s = s.replace(/\*\*\*([\s\S]+?)\*\*\*/g, (_, t) => `<strong><em>${t}</em></strong>`);
+  s = s.replace(/___([\s\S]+?)___/g, (_, t) => `<strong><em>${t}</em></strong>`);
+  s = s.replace(/\*\*([\s\S]+?)\*\*/g, (_, inner) => `<strong>${inner.replace(/\*([^*]+)\*/g, "<em>$1</em>")}</strong>`);
+  s = s.replace(/__([\s\S]+?)__/g, (_, inner) => `<strong>${inner.replace(/_([^_]+)_/g, "<em>$1</em>")}</strong>`);
+  s = s.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "<em>$1</em>");
+  s = s.replace(/(?<!_)_([^_]+)_(?!_)/g, "<em>$1</em>");
+  s = s.replace(/~~([^~]+)~~/g, "<del>$1</del>");
+  return s;
+}
+function dfIsFenceOpen(l) {
+  if (!/^```/.test(l)) return false;
+  return !l.slice(3).includes("```");
+}
+function dfMarkdown(src) {
+  const lines = src.replace(/\r\n?/g, "\n").split("\n"), out = [];
+  let i = 0, inCode = false, codeLang = "", code = [];
+  function pushCodeBlock() {
+    let lang = codeLang, content = code;
+    if (content.length === 0 && lang) { content = [lang]; lang = ""; }
+    out.push(`<div class="df-e-codewrap"><button type="button" class="df-e-code-copy" title="코드 복사">[C]</button><pre><code class="language-${dfEsc(lang)}">${dfEsc(content.join("\n"))}</code></pre></div>`);
+    inCode = false; codeLang = ""; code = [];
+  }
+  while (i < lines.length) {
+    let l = lines[i];
+    if (!inCode && dfIsFenceOpen(l)) { inCode = true; codeLang = l.replace(/^```/, "").trim(); code = []; i++; continue; }
+    if (inCode && /^```\s*$/.test(l)) { pushCodeBlock(); i++; continue; }
+    if (inCode && /```\s*$/.test(l)) { code.push(l.replace(/```\s*$/, "")); pushCodeBlock(); i++; continue; }
+    if (inCode) { code.push(l); i++; continue; }
+    if (/^ {0,3}#{1,6}\s+/.test(l)) {
+      const m = l.match(/^ {0,3}(#{1,6})\s+(.*)$/), n = m[1].length;
+      out.push(`<h${n}>${dfInline(m[2].replace(/\s+#+\s*$/, ""))}</h${n}>`); i++; continue;
+    }
+    if (/^---+$/.test(l.trim())) {
+      let end = -1;
+      for (let j = i + 1; j < lines.length; j++) {
+        if (lines[j].trim() === "") break;
+        if (/^---+$/.test(lines[j].trim())) { end = j; break; }
+      }
+      if (end > i + 1) {
+        const rows = lines.slice(i + 1, end).map(x => {
+          const m = x.match(/^\s*([^:]+):\s*(.*)$/);
+          return m ? `<tr><th>${dfEsc(m[1].trim())}</th><td>${dfEsc(m[2].trim())}</td></tr>` : `<tr><td colspan="2">${dfEsc(x)}</td></tr>`;
+        }).join("");
+        out.push(`<table class="frontmatter">${rows}</table>`);
+        i = end + 1; continue;
+      }
+      out.push("<hr>"); i++; continue;
+    }
+    if (/^\*\*\*+$/.test(l.trim())) { out.push("<hr>"); i++; continue; }
+    if (/^>\s?/.test(l)) {
+      const q = []; while (i < lines.length && /^>\s?/.test(lines[i])) { q.push(lines[i].replace(/^>\s?/, "")); i++; }
+      out.push(`<blockquote>${q.map(x => `<p>${dfInline(x)}</p>`).join("")}</blockquote>`); continue;
+    }
+    if (/^\s*[-*+]\s+/.test(l)) {
+      const items = []; while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i])) {
+        let x = lines[i].replace(/^\s*[-*+]\s+/, "");
+        const task = x.match(/^\[([ xX])\]\s+(.*)$/);
+        items.push(task ? `<li class="task"><input type="checkbox" ${task[1].toLowerCase() === "x" ? "checked" : ""} disabled>${dfInline(task[2])}</li>` : `<li>${dfInline(x)}</li>`); i++;
+      }
+      out.push(`<ul>${items.join("")}</ul>`); continue;
+    }
+    if (/^\s*\d+\.\s+/.test(l)) {
+      const items = []; while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) { items.push(`<li>${dfInline(lines[i].replace(/^\s*\d+\.\s+/, ""))}</li>`); i++; }
+      out.push(`<ol>${items.join("")}</ol>`); continue;
+    }
+    if (l.trim() === "") { i++; continue; }
+    if (l.includes("|") && i + 1 < lines.length && /^\s*\|?[\s:-]+(\|[\s:-]+)+\|?\s*$/.test(lines[i + 1])) {
+      const split = x => x.trim().replace(/^\||\|$/g, "").split("|").map(v => v.trim());
+      const heads = split(l); i += 2; const rows = [];
+      while (i < lines.length && lines[i].includes("|") && lines[i].trim() !== "") { rows.push(split(lines[i])); i++; }
+      out.push(`<table><thead><tr>${heads.map(x => `<th>${dfInline(x)}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${heads.map((_, k) => `<td>${dfInline(r[k] ?? "")}</td>`).join("")}</tr>`).join("")}</tbody></table>`); continue;
+    }
+    const para = [l]; i++; while (i < lines.length && lines[i].trim() !== "" && !/^(#{1,6})\s|^>|^\s*[-*+]\s|^\s*\d+\.\s/.test(lines[i]) && !/^---+$|^\*\*\*+$/.test(lines[i].trim()) && !dfIsFenceOpen(lines[i])) { para.push(lines[i]); i++; }
+    out.push(`<p>${para.map(dfInline).join("<br>")}</p>`);
+  }
+  if (inCode) pushCodeBlock();
+  return out.join("");
+}
+
+function dfDetectFileType(name) {
+  if (/\.md$/i.test(name)) return "md";
+  if (/\.html?$/i.test(name)) return "html";
+  return "txt";
+}
+function dfInitialRenderMode(fileType) {
+  return fileType === "md" ? "markdown" : fileType === "html" ? "html" : "text";
+}
+function dfFallbackCopy(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.style.cssText = "position:fixed;opacity:0;left:-9999px;top:-9999px";
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand("copy"); } catch (e) {}
+  document.body.removeChild(ta);
+}
+function dfCopyText(text, onDone) {
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(onDone).catch(() => { dfFallbackCopy(text); onDone(); });
+  } else { dfFallbackCopy(text); onDone(); }
+}
+
+// 실제 리포 파일이 텍스트인지 이진 파일인지 판별: NUL 바이트가 있거나 출력 불가능한
+// 문자 비율이 너무 높으면 "텍스트 아님"으로 본다 (JS fetch로 내려받은 내용을 검사).
+function dfLooksLikeText(sampleText) {
+  const len = sampleText.length;
+  if (len === 0) return true;
+  let weird = 0;
+  for (let i = 0; i < len; i++) {
+    const c = sampleText.charCodeAt(i);
+    if (c === 0) return false; // NUL 바이트가 하나라도 있으면 이진 파일로 확정
+    if (c === 9 || c === 10 || c === 13) continue; // 탭/개행/캐리지리턴은 정상
+    if (c < 32 || c === 127) weird++;
+  }
+  return (weird / len) < 0.02;
+}
+
+/* ---------------- 렌더 모드 순환(M/H/T) + 뷰어/에디터 토글 + 상태줄 등 전체 에디터 뷰 ---------------- */
+function dfsRenderEditorInto(container, node, opts = {}) {
+  const readonly = !!opts.readonly;
+  const fileType = node.fileType || dfDetectFileType(node.name);
+  const RENDER_MODES = ["markdown", "html", "text"];
+  const RENDER_LABELS = { markdown: "M", html: "H", text: "T" };
+  const RENDER_TITLES = { markdown: "HTML 뷰어로 전환", html: "텍스트 모드로 전환", text: "Markdown 뷰어로 전환" };
+  let renderMode = dfInitialRenderMode(fileType);
+  let viewerMode = false;
+  let saveTimer = null;
+
+  container.innerHTML = "";
+  const wrap = document.createElement("div");
+  wrap.className = "df-editor";
+  wrap.dataset.theme = (settings && settings.dfEditorTheme) || "dark";
+  wrap.innerHTML = `
+    <div class="df-editor-top">
+      <button class="df-e-mode" title="렌더 모드 전환">${RENDER_LABELS[renderMode]}</button>
+      <button class="df-e-toggle" title="에디터/뷰어 전환">O</button>
+      <span class="df-e-name">${escapeHtml(node.name)}</span>
+      ${readonly ? '<span class="df-e-readonly">읽기 전용</span>' : ""}
+      <span class="df-spacer"></span>
+      <button class="df-e-theme" title="테마 전환">T</button>
+      <button class="df-e-copyall" title="전체 복사">[C]</button>
+      ${!readonly ? '<button class="df-e-save" title="지금 저장">저장</button>' : ""}
+      <button class="df-e-download" title="다운로드">받기</button>
+      <button class="df-e-opentab" title="새 탭에서 열기">새 탭</button>
+    </div>
+    <div class="df-editor-body">
+      <div class="df-e-editor"><textarea spellcheck="false" ${readonly ? "readonly" : ""}></textarea></div>
+      <div class="df-e-preview"><div class="df-e-preview-inner"></div></div>
+      <iframe class="df-e-html-frame" sandbox="" referrerpolicy="no-referrer" title="HTML 미리보기(샌드박스)" style="display:none;"></iframe>
+    </div>
+    <div class="df-editor-status">
+      <span class="df-e-chars"></span><span class="df-e-words"></span><span class="df-e-pos"></span>
+    </div>`;
+  container.appendChild(wrap);
+
+  const ta = wrap.querySelector(".df-e-editor textarea");
+  const previewInner = wrap.querySelector(".df-e-preview-inner");
+  const previewPane = wrap.querySelector(".df-e-preview");
+  const htmlFrame = wrap.querySelector(".df-e-html-frame");
+  const modeBtn = wrap.querySelector(".df-e-mode");
+  const toggleBtn = wrap.querySelector(".df-e-toggle");
+  const themeBtn = wrap.querySelector(".df-e-theme");
+  const copyAllBtn = wrap.querySelector(".df-e-copyall");
+  const saveBtn = wrap.querySelector(".df-e-save");
+  const downloadBtn = wrap.querySelector(".df-e-download");
+  const openTabBtn = wrap.querySelector(".df-e-opentab");
+
+  ta.value = node.content || "";
+
+  function applyRenderMode() {
+    wrap.classList.toggle("textmode", renderMode === "text");
+    modeBtn.textContent = RENDER_LABELS[renderMode];
+    modeBtn.title = RENDER_TITLES[renderMode];
+    toggleBtn.style.visibility = renderMode === "text" ? "hidden" : "visible";
+    openTabBtn.style.display = renderMode === "html" ? "" : "none";
+  }
+  function applyViewerMode() {
+    wrap.classList.toggle("viewer", viewerMode);
+    toggleBtn.textContent = viewerMode ? "편집" : "뷰어";
+    toggleBtn.title = viewerMode ? "편집 모드로 전환" : "뷰어 모드로 전환";
+  }
+  function updateStatus() {
+    const v = ta.value, p = ta.selectionStart, before = v.slice(0, p);
+    const line = before.split("\n").length, col = p - (before.lastIndexOf("\n") + 1);
+    wrap.querySelector(".df-e-chars").textContent = `${v.length}자`;
+    wrap.querySelector(".df-e-words").textContent = `${(v.trim().match(/\S+/g) || []).length}단어`;
+    wrap.querySelector(".df-e-pos").textContent = `${line}행 ${col + 1}열`;
+  }
+  function renderContent() {
+    if (renderMode === "html") {
+      previewPane.style.display = "none";
+      htmlFrame.style.display = "";
+      htmlFrame.srcdoc = ta.value;
+    } else {
+      htmlFrame.style.display = "none";
+      htmlFrame.srcdoc = "";
+      previewPane.style.display = "";
+      previewInner.innerHTML = dfMarkdown(ta.value);
+    }
+    updateStatus();
+  }
+  function scheduleAutosave() {
+    if (readonly || !opts.onSaved) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(doSave, 500);
+  }
+  async function doSave() {
+    if (readonly) return;
+    await dfsDb.nodes.update(node.id, { content: ta.value, updatedAt: Date.now() });
+    if (opts.onSaved) opts.onSaved();
+  }
+
+  applyRenderMode();
+  applyViewerMode();
+  renderContent();
+
+  modeBtn.onclick = () => { renderMode = RENDER_MODES[(RENDER_MODES.indexOf(renderMode) + 1) % RENDER_MODES.length]; applyRenderMode(); renderContent(); };
+  toggleBtn.onclick = () => { viewerMode = !viewerMode; applyViewerMode(); };
+  themeBtn.onclick = () => {
+    wrap.dataset.theme = wrap.dataset.theme === "light" ? "dark" : "light";
+    if (settings) { settings.dfEditorTheme = wrap.dataset.theme; saveSettings(); }
+  };
+  copyAllBtn.onclick = () => dfCopyText(ta.value, () => { copyAllBtn.classList.add("copied"); const old = copyAllBtn.textContent; copyAllBtn.textContent = "OK"; setTimeout(() => { copyAllBtn.classList.remove("copied"); copyAllBtn.textContent = old; }, 900); });
+  if (saveBtn) saveBtn.onclick = () => { clearTimeout(saveTimer); doSave(); showToast(`"${node.name}" 저장했습니다.`); };
+  downloadBtn.onclick = () => {
+    const blob = new Blob([ta.value], { type: "text/plain;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = node.name; a.click();
+    URL.revokeObjectURL(a.href);
+  };
+  openTabBtn.onclick = () => {
+    const win = window.open("about:blank", "_blank");
+    if (!win) { showToast("팝업이 차단되었습니다.", { kind: "warn" }); return; }
+    win.opener = null;
+    win.document.open(); win.document.write(ta.value); win.document.close();
+  };
+  openTabBtn.style.display = renderMode === "html" ? "" : "none";
+
+  previewInner.addEventListener("click", (e) => {
+    const btn = e.target.closest(".df-e-code-copy");
+    if (!btn) return;
+    const code = btn.parentElement.querySelector("pre code");
+    if (!code) return;
+    dfCopyText(code.textContent, () => { btn.classList.add("copied"); const old = btn.textContent; btn.textContent = "OK"; setTimeout(() => { btn.classList.remove("copied"); btn.textContent = old; }, 900); });
+  });
+
+  if (!readonly) {
+    ta.addEventListener("input", () => { renderContent(); scheduleAutosave(); });
+    ta.addEventListener("click", updateStatus);
+    ta.addEventListener("keyup", updateStatus);
+    ta.addEventListener("keydown", (e) => {
+      if (e.ctrlKey && ["b", "i", "k"].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+        const k = e.key.toLowerCase();
+        if (k === "k") {
+          const a = ta.selectionStart, b = ta.selectionEnd, sel = ta.value.slice(a, b);
+          const fullLink = sel.match(/^\[([^\]]*)\]\(([^)]+)\)$/);
+          const labelUrl = sel.match(/^([\s\S]*\S)[ \t]+((?:https?:\/\/|www\.)\S+)$/i);
+          const bareUrl = sel.match(/^(https?:\/\/\S+|www\.\S+)$/i);
+          let replacement;
+          if (fullLink) replacement = `${fullLink[1]} ${fullLink[2]}`;
+          else if (bareUrl) replacement = `[HyperLink](${sel})`;
+          else if (labelUrl) replacement = `[${labelUrl[1]}](${labelUrl[2]})`;
+          else if (sel) replacement = `[${sel}](https://example.com)`;
+          else replacement = `[HyperLink](https://example.com)`;
+          ta.setRangeText(replacement, a, b, "select");
+        } else {
+          dfToggleEmphasis(ta, k === "b" ? 2 : 1);
+        }
+        renderContent(); scheduleAutosave(); return;
+      }
+      if (e.key === "Tab") { e.preventDefault(); ta.setRangeText("  ", ta.selectionStart, ta.selectionEnd, "end"); }
+    });
+  }
+  updateStatus();
+}
+function dfStarRunBefore(v, idx) { let n = 0, i = idx - 1; while (i >= 0 && v[i] === "*") { n++; i--; } return n; }
+function dfStarRunAfter(v, idx) { let n = 0, i = idx; while (i < v.length && v[i] === "*") { n++; i++; } return n; }
+function dfToggleEmphasis(ta, bit) {
+  const v = ta.value;
+  const a = ta.selectionStart, b = ta.selectionEnd;
+  let coreStart = a; while (coreStart < b && v[coreStart] === "*") coreStart++;
+  let coreEnd = b; while (coreEnd > coreStart && v[coreEnd - 1] === "*") coreEnd--;
+  const core = v.slice(coreStart, coreEnd) || "text";
+  const left = dfStarRunBefore(v, coreStart), right = dfStarRunAfter(v, coreEnd);
+  const current = Math.min(left, right);
+  const next = current ^ bit;
+  const rangeStart = coreStart - left, rangeEnd = coreEnd + right;
+  const stars = "*".repeat(next);
+  ta.setRangeText(stars + core + stars, rangeStart, rangeEnd, "select");
+  ta.selectionStart = rangeStart + next;
+  ta.selectionEnd = rangeStart + next + core.length;
+}
+
+/* ---------------- 실제 GitHub 리포 파일을 "에디터로 열기"(읽기 전용) ---------------- */
+async function dfsOpenReadonlyRepoFile(it) {
+  showToast(`"${it.name}" 여는 중...`);
+  let text;
+  try {
+    const url = await githubRawUrl(it);
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error(String(res.status));
+    text = await res.text();
+  } catch (e) {
+    showToast(`파일을 불러오지 못했습니다: ${e.message}`, { kind: "warn" });
+    return;
+  }
+  if (!dfLooksLikeText(text.slice(0, 8000))) {
+    showToast("이진(텍스트가 아닌) 파일로 보여 에디터로 열 수 없습니다.", { kind: "warn" });
+    return;
+  }
+  dfsOpenStandaloneEditorWindow({ name: it.name, fileType: dfDetectFileType(it.name), content: text }, { readonly: true });
+}
+
+// 실제 탐색기(가상 폴더가 아닌) 파일을 위한 단일 파일 읽기전용 창 - 폴더 탐색 없이 에디터 화면만 있다.
+let dfStandaloneWinSeq = 0;
+function dfsOpenStandaloneEditorWindow(fakeNode, opts) {
+  if (dfsOpenWindows.length >= dfsMaxWindows()) {
+    showToast(`탐색기 창은 최대 ${dfsMaxWindows()}개까지 동시에 열 수 있습니다. 환경설정에서 늘릴 수 있어요.`, { kind: "warn" });
+    return;
+  }
+  const winId = "ro-" + (++dfStandaloneWinSeq);
+  const el = document.createElement("div");
+  el.className = "window df-window";
+  el.style.width = "760px";
+  el.style.height = "520px";
+  el.style.left = (90 + (dfStandaloneWinSeq % 6) * 28) + "px";
+  el.style.top = (40 + (dfStandaloneWinSeq % 6) * 24) + "px";
+  el.innerHTML = `
+    <div class="rz rz-n"></div><div class="rz rz-s"></div><div class="rz rz-e"></div><div class="rz rz-w"></div>
+    <div class="rz rz-ne"></div><div class="rz rz-nw"></div><div class="rz rz-se"></div><div class="rz rz-sw"></div>
+    <div class="titlebar df-titlebar">
+      <div class="tb-icon df-tb-icon">📄</div>
+      <div class="tb-title df-tb-title">${escapeHtml(fakeNode.name)}</div>
+      <div class="tb-controls">
+        <button class="tb-btn df-btn-close" title="닫기">&#x2715;</button>
+      </div>
+    </div>
+    <div class="body-area"><div class="content-pane df-content"></div></div>`;
+  document.querySelector(".desktop").appendChild(el);
+  el.style.zIndex = ++dfsTopZ;
+  el.addEventListener("mousedown", () => { el.style.zIndex = ++dfsTopZ; }, true);
+  dfsMakeDraggable(el, el.querySelector(".df-titlebar"));
+  dfsMakeResizable(el);
+  const instance = { winId, el, folderId: null, close() { el.remove(); dfsOpenWindows = dfsOpenWindows.filter(w => w.winId !== winId); }, async refresh() {} };
+  el.querySelector(".df-btn-close").onclick = () => instance.close();
+  dfsOpenWindows.push(instance);
+  dfsRenderEditorInto(el.querySelector(".df-content"), fakeNode, opts);
+  return instance;
 }
 
 main();
