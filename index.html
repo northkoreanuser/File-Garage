@@ -237,6 +237,17 @@
   }
   .start-submenu.open { display: block; }
 
+  /* ---------- 우클릭 커스텀 메뉴 ---------- */
+  .ctx-menu {
+    position: fixed; min-width: 170px;
+    background: rgba(255,255,255,.97); backdrop-filter: blur(16px);
+    border: 1px solid rgba(0,0,0,.08); border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.28);
+    padding: 4px; z-index: 40;
+  }
+  .ctx-item { padding: 7px 10px; font-size: 12.5px; color: #222; border-radius: 5px; cursor: pointer; }
+  .ctx-item:hover { background: rgba(0,0,0,.06); }
+
   /* ---------- 토스트(알림) ---------- */
   .toast {
     position: fixed; right: 16px; bottom: 64px; max-width: 320px;
@@ -590,6 +601,121 @@ function showToast(message, opts = {}) {
   }
 }
 
+/* ============ 로컬 헬퍼(localserver.ahk) — 우클릭 "열기"/"다운로드" ============
+   HTTPS 페이지에서 http://127.0.0.1로 fetch하는 거라 처음 한 번은 브라우저의
+   로컬 네트워크 접근 권한 팝업이 뜬다 (그게 정상). 그래서 페이지 열자마자가
+   아니라 실제로 열기/다운로드를 누른 시점에만 확인한다.
+================================================================== */
+const LOCAL_HELPER_PORT_MIN = 8000; // localserver.ahk와 같은 범위. 고정 포트가 아니라 양쪽 다 이 범위를 스캔해서 맞춘다.
+const LOCAL_HELPER_PORT_MAX = 8020;
+// 8000~8020 사이에 이미 다른 무관한 프로그램이 떠있을 수 있으므로, 단순 "OK" 응답만으로는
+// 그게 우리 헬퍼인지 확신할 수 없다. localserver.ahk의 HELPER_SIGNATURE와 정확히 같은 문자열이어야만 인정한다.
+const HELPER_SIGNATURE = "AHK-REPO-INDEXER-LOCALHELPER-v1";
+let cachedHelperPort = null; // 한 번 찾으면 이 페이지가 살아있는 동안은 재사용
+
+function absoluteFileUrl(path) {
+  const base = location.origin + location.pathname.replace(/[^/]*$/, "");
+  return base + path.map(encodeURIComponent).join("/");
+}
+async function pingPort(port) {
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/ping`, { signal: AbortSignal.timeout(800) });
+    if (!res.ok) return false;
+    const text = await res.text();
+    return text.trim() === HELPER_SIGNATURE;
+  } catch (e) {
+    return false;
+  }
+}
+// 8000~8020을 동시에 스캔해서 가장 먼저 "OK"로 응답하는 포트를 찾는다 (전부 끝날 때까지 안 기다림)
+function scanForHelperPort() {
+  return new Promise((resolve) => {
+    let remaining = 0;
+    let settled = false;
+    for (let p = LOCAL_HELPER_PORT_MIN; p <= LOCAL_HELPER_PORT_MAX; p++) {
+      remaining++;
+      pingPort(p).then(ok => {
+        if (ok && !settled) { settled = true; resolve(p); }
+        remaining--;
+        if (remaining === 0 && !settled) resolve(null);
+      });
+    }
+  });
+}
+async function ensureHelperPort() {
+  if (cachedHelperPort !== null && (await pingPort(cachedHelperPort))) return cachedHelperPort;
+  cachedHelperPort = await scanForHelperPort();
+  return cachedHelperPort;
+}
+function localHelperUnavailableToast() {
+  showToast(`로컬 헬퍼(localserver.ahk)를 찾을 수 없습니다 (${LOCAL_HELPER_PORT_MIN}~${LOCAL_HELPER_PORT_MAX} 포트 스캔).\n실행 중인지, 방금 뜬 브라우저의 로컬 네트워크 권한 팝업을 허용했는지 확인하세요.`, { kind: "warn", sticky: true });
+}
+async function localHelperOpen(it) {
+  const port = await ensureHelperPort();
+  if (port === null) { localHelperUnavailableToast(); return; }
+  const url = absoluteFileUrl(it.path);
+  showToast(`여는 중: ${it.name}`);
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/open?url=${encodeURIComponent(url)}`);
+    if (!res.ok) throw new Error(String(res.status));
+    showToast(`열었습니다: ${it.name}`);
+  } catch (e) {
+    showToast(`여는 중 오류: ${e.message}`, { kind: "warn" });
+  }
+}
+async function localHelperDownload(it) {
+  const port = await ensureHelperPort();
+  if (port === null) { localHelperUnavailableToast(); return; }
+  const url = absoluteFileUrl(it.path);
+  showToast(`저장 위치를 선택하세요: ${it.name}`);
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/download?url=${encodeURIComponent(url)}`);
+    const text = await res.text();
+    if (!res.ok) throw new Error(String(res.status));
+    showToast(text.includes("CANCELLED") ? "다운로드가 취소되었습니다." : `다운로드 완료: ${it.name}`);
+  } catch (e) {
+    showToast(`다운로드 오류: ${e.message}`, { kind: "warn" });
+  }
+}
+
+/* ============ 우클릭 커스텀 메뉴 (브라우저 기본 메뉴는 막는다) ============ */
+let activeCtxMenu = null;
+function closeContextMenu() {
+  if (activeCtxMenu) { activeCtxMenu.remove(); activeCtxMenu = null; }
+}
+function showContextMenu(x, y, items) {
+  closeContextMenu();
+  if (!items.length) return;
+  const menu = document.createElement("div");
+  menu.className = "ctx-menu";
+  items.forEach(it => {
+    const row = document.createElement("div");
+    row.className = "ctx-item";
+    row.textContent = it.label;
+    row.onclick = (e) => { e.stopPropagation(); closeContextMenu(); it.action(); };
+    menu.appendChild(row);
+  });
+  document.body.appendChild(menu);
+  const w = menu.offsetWidth, h = menu.offsetHeight;
+  let left = x, top = y;
+  if (left + w > window.innerWidth) left = window.innerWidth - w - 4;
+  if (top + h > window.innerHeight) top = window.innerHeight - h - 4;
+  menu.style.left = Math.max(4, left) + "px";
+  menu.style.top = Math.max(4, top) + "px";
+  activeCtxMenu = menu;
+}
+function buildFileMenuItems(it) {
+  if (it.type === "folder") return [];
+  const items = [];
+  if (it.type === "html") items.push({ label: "새 탭에서 열기", action: () => activate(it.path, it.type) });
+  items.push({ label: "로컬 프로그램으로 열기", action: () => localHelperOpen(it) });
+  items.push({ label: "다운로드", action: () => localHelperDownload(it) });
+  return items;
+}
+document.addEventListener("contextmenu", (e) => { e.preventDefault(); });
+document.addEventListener("click", closeContextMenu);
+document.addEventListener("scroll", closeContextMenu, true);
+
 /* ============ 폴더 데이터 로드 (꼬리에 꼬리를 무는 방식 + 로컬 캐시) ============ */
 async function loadDir(pathArr) {
   const key = pathArr.join("/");
@@ -822,6 +948,13 @@ function buildGrid(items, opts) {
     cell.innerHTML = `<div class="icon">${icon}</div><div class="label">${escapeHtml(it.name)}</div>${subHtml}`;
     cell.onclick = () => { selected = { path: it.path, name: it.name, type: it.type }; paintContentPane(); updateStatus(); };
     cell.ondblclick = () => activate(it.path, it.type);
+    cell.oncontextmenu = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      selected = { path: it.path, name: it.name, type: it.type };
+      paintContentPane();
+      showContextMenu(e.clientX, e.clientY, buildFileMenuItems(it));
+    };
     grid.appendChild(cell);
   });
   return grid;
