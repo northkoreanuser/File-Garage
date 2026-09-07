@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Repo Index</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: "Segoe UI", "Malgun Gothic", "맑은 고딕", sans-serif;
+    background:
+      radial-gradient(1200px 800px at 15% 10%, #6db3f2 0%, transparent 55%),
+      radial-gradient(1400px 900px at 85% 90%, #1b4f9c 0%, transparent 60%),
+      linear-gradient(160deg, #2f7cd6 0%, #0e3a73 100%);
+    min-height: 100%;
+  }
+
+  .desktop {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 24px 72px;
+  }
+
+  /* ---------- 창(window) ---------- */
+  .window {
+    width: 960px;
+    max-width: 100%;
+    height: 640px;
+    max-height: 85vh;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 25px 70px rgba(0,0,0,.4);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: width .15s ease, height .15s ease, border-radius .15s ease;
+  }
+  .window.maximized {
+    width: 100vw;
+    height: calc(100vh - 48px);
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+  }
+  .window.minimized { height: 40px !important; }
+  .window.minimized .toolbar,
+  .window.minimized .body-area,
+  .window.minimized .status-bar { display: none; }
+  .window.closed { display: none; }
+
+  .titlebar {
+    flex: 0 0 40px;
+    background: #fff;
+    border-bottom: 1px solid #e5e5e5;
+    display: flex;
+    align-items: center;
+    padding-left: 10px;
+    user-select: none;
+  }
+  .tb-icon { font-size: 15px; margin-right: 8px; }
+  .tb-title { font-size: 13px; color: #333; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tb-controls { display: flex; height: 100%; }
+  .tb-btn { width: 46px; height: 100%; border: none; background: transparent; font-size: 12px; color: #333; cursor: pointer; }
+  .tb-btn:hover { background: #e9e9e9; }
+  .tb-close:hover { background: #e81123; color: #fff; }
+
+  /* ---------- 도구모음 / 주소표시줄 ---------- */
+  .toolbar {
+    flex: 0 0 44px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px;
+    background: #f6f6f6;
+    border-bottom: 1px solid #e1e1e1;
+  }
+  .tool-btn {
+    width: 30px; height: 30px;
+    border: 1px solid transparent;
+    background: transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #444;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .tool-btn:hover:not(:disabled) { background: #e9e9e9; border-color: #d5d5d5; }
+  .tool-btn:disabled { color: #c4c4c4; cursor: default; }
+  .nav-toggle { display: none; }
+  .address-bar {
+    flex: 1; height: 30px;
+    background: #fff; border: 1px solid #d5d5d5; border-radius: 4px;
+    display: flex; align-items: center; padding: 0 8px; gap: 3px;
+    font-size: 12.5px; color: #333;
+    overflow-x: auto; white-space: nowrap;
+  }
+  .address-bar::-webkit-scrollbar { display: none; }
+  .crumb { cursor: pointer; padding: 2px 5px; border-radius: 3px; }
+  .crumb:hover { background: #e9e9e9; }
+  .crumb-sep { color: #9a9a9a; }
+  .search-box { width: 180px; height: 30px; flex: 0 0 auto; }
+  .search-box input {
+    width: 100%; height: 100%; box-sizing: border-box;
+    border: 1px solid #d5d5d5; border-radius: 4px; padding: 0 10px;
+    font-size: 12.5px; outline: none;
+  }
+  .search-box input:focus { border-color: #0078d4; }
+
+  /* ---------- 본문 (탐색창 + 내용창) ---------- */
+  .body-area { flex: 1; display: flex; min-height: 0; position: relative; }
+
+  .nav-pane {
+    width: 220px; flex: 0 0 220px;
+    background: #f6f6f6;
+    border-right: 1px solid #e1e1e1;
+    overflow-y: auto;
+    padding: 6px 0;
+    font-size: 13px;
+  }
+  .nav-root {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 10px; margin: 0 4px 2px;
+    cursor: pointer; font-weight: 600; color: #333;
+    border-radius: 4px; border: 1px solid transparent;
+  }
+  .nav-root:hover { background: #ececec; }
+  .nav-root.selected { background: #cce8ff; border-color: #99d1ff; }
+  .tree-row {
+    display: flex; align-items: center; gap: 4px;
+    padding: 4px 6px; margin: 0 4px;
+    cursor: pointer; border-radius: 4px; color: #333;
+    white-space: nowrap; border: 1px solid transparent;
+  }
+  .tree-row:hover { background: #ececec; }
+  .tree-row.selected { background: #cce8ff; border-color: #99d1ff; }
+  .tree-row.tree-loading { color: #999; font-style: italic; cursor: default; }
+  .tree-row.tree-loading:hover { background: transparent; }
+  .tree-arrow { width: 14px; flex: 0 0 14px; text-align: center; color: #666; font-size: 10px; }
+  .tree-arrow.empty { visibility: hidden; }
+
+  .content-pane { flex: 1; overflow-y: auto; padding: 14px; background: #fff; }
+  .search-heading { font-size: 12.5px; color: #666; margin-bottom: 10px; }
+  .grid { display: flex; flex-wrap: wrap; gap: 4px; align-content: flex-start; }
+  .grid-item {
+    width: 96px; padding: 8px 4px; text-align: center;
+    border-radius: 4px; cursor: pointer; border: 1px solid transparent;
+  }
+  .grid-item.flat { width: 132px; }
+  .grid-item:hover { background: #f0f6fc; border-color: #e1e1e1; }
+  .grid-item.selected { background: #cce8ff; border-color: #99d1ff; }
+  .grid-item .icon { margin: 0 auto 6px; display: flex; justify-content: center; }
+  .grid-item .label { font-size: 12px; color: #222; word-break: break-word; line-height: 1.3; }
+  .grid-item .sub { font-size: 10.5px; color: #8a8a8a; margin-top: 3px; word-break: break-all; line-height: 1.25; }
+  .empty-msg, .status-msg { color: #888; font-size: 13px; padding: 18px 4px; }
+
+  .status-bar {
+    flex: 0 0 26px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 10px; background: #f0f0f0; border-top: 1px solid #e1e1e1;
+    font-size: 12px; color: #555;
+  }
+  .status-bar a { color: #666; text-decoration: none; }
+  .status-bar a:hover { text-decoration: underline; }
+
+  /* ---------- 작업 표시줄 / 시작 메뉴 ---------- */
+  .taskbar {
+    position: fixed; left: 0; right: 0; bottom: 0; height: 48px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    background: rgba(250,250,250,.8); backdrop-filter: blur(18px);
+    border-top: 1px solid rgba(255,255,255,.5);
+    z-index: 10;
+  }
+  .start-btn, .taskbar-app {
+    height: 38px; padding: 0 12px;
+    display: flex; align-items: center; gap: 6px;
+    border-radius: 6px; cursor: pointer; font-size: 13px; color: #222;
+  }
+  .start-btn { width: 38px; justify-content: center; padding: 0; font-size: 18px; color: #0078d4; }
+  .start-btn:hover, .taskbar-app:hover { background: rgba(0,0,0,.07); }
+  .taskbar-app.active { background: rgba(0,0,0,.09); border-bottom: 2px solid #0078d4; }
+  .clock { position: absolute; right: 14px; font-size: 12px; color: #222; text-align: center; line-height: 1.3; user-select: none; }
+
+  .start-menu {
+    position: fixed; left: 8px; bottom: 58px; width: 250px;
+    background: rgba(255,255,255,.92); backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,.6); border-radius: 10px;
+    box-shadow: 0 14px 44px rgba(0,0,0,.35);
+    padding: 14px; display: none; z-index: 20;
+  }
+  .start-menu.open { display: block; }
+  .start-menu-user { display: flex; align-items: center; gap: 12px; }
+  .avatar {
+    width: 44px; height: 44px; border-radius: 50%; flex: 0 0 44px;
+    background: #0078d4; color: #fff; font-size: 17px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+  }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .user-info { min-width: 0; }
+  .user-name { font-size: 14px; font-weight: 600; color: #222; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .user-caption { font-size: 11px; color: #888; margin-top: 1px; }
+  .user-link { font-size: 12px; color: #0078d4; text-decoration: none; display: inline-block; margin-top: 4px; }
+  .user-link:hover { text-decoration: underline; }
+
+  @media (max-width: 720px) {
+    .desktop { padding: 8px 8px 64px; }
+    .window { height: 90vh; max-height: none; }
+    .search-box { display: none; }
+    .nav-toggle { display: flex; }
+    .nav-pane {
+      position: absolute; z-index: 5; top: 0; bottom: 0; left: 0;
+      transform: translateX(-100%);
+      transition: transform .15s ease;
+      box-shadow: 2px 0 10px rgba(0,0,0,.15);
+    }
+    .nav-pane.open { transform: translateX(0); }
+  }
+</style>
+</head>
+<body>
+
+<div class="desktop">
+  <div class="window" id="win">
+    <div class="titlebar" id="titlebar">
+      <div class="tb-icon">📁</div>
+      <div class="tb-title" id="winTitle">Repo Index</div>
+      <div class="tb-controls">
+        <button class="tb-btn" id="btnMin" title="최소화">&#x2013;</button>
+        <button class="tb-btn" id="btnMax" title="최대화">&#x25A1;</button>
+        <button class="tb-btn tb-close" id="btnClose" title="닫기">&#x2715;</button>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <button class="tool-btn nav-toggle" id="btnNavToggle" title="탐색창">&#9776;</button>
+      <button class="tool-btn" id="btnBack" title="뒤로" disabled>&#8592;</button>
+      <button class="tool-btn" id="btnForward" title="앞으로" disabled>&#8594;</button>
+      <button class="tool-btn" id="btnUp" title="위로" disabled>&#8593;</button>
+      <button class="tool-btn" id="btnRefresh" title="새로고침">&#8635;</button>
+      <div class="address-bar" id="breadcrumb"></div>
+      <div class="search-box"><input id="searchInput" placeholder="전체 검색" /></div>
+    </div>
+
+    <div class="body-area">
+      <div class="nav-pane" id="navPane"></div>
+      <div class="content-pane" id="contentPane">
+        <div class="status-msg">불러오는 중...</div>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <span id="statusText"></span>
+      <span id="repoLink"></span>
+    </div>
+  </div>
+</div>
+
+<div class="start-menu" id="startMenu">
+  <div class="start-menu-user">
+    <div class="avatar" id="startAvatar">👤</div>
+    <div class="user-info">
+      <div class="user-name" id="startUserName">-</div>
+      <div class="user-caption">GitHub 계정</div>
+      <a class="user-link" id="startUserLink" target="_blank" rel="noopener noreferrer">GitHub 프로필 열기 ↗</a>
+    </div>
+  </div>
+</div>
+
+<div class="taskbar">
+  <div class="start-btn" id="startBtn" title="시작">&#8862;</div>
+  <div class="taskbar-app active" id="taskbarApp">📁 탐색기</div>
+  <div class="clock" id="clock"></div>
+</div>
+
+<script>
+/* ============ 아이콘 ============ */
+function folderIcon(size, blue) {
+  const top = blue ? "#63B3FF" : "#FFCA5F";
+  const bot = blue ? "#2E7BE0" : "#FFB13B";
+  return `<svg width="${size}" height="${size}" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3 8a2 2 0 0 1 2-2h6.17a2 2 0 0 1 1.41.59L14.83 9H27a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8z" fill="${top}"/>
+    <path d="M3 12h26v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V12z" fill="${bot}"/>
+  </svg>`;
+}
+function fileIcon(size) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+    <path d="M8 2h11l7 7v19a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#eef1f4" stroke="#c7ccd1" stroke-width="1"/>
+    <path d="M19 2v6a1 1 0 0 0 1 1h6" fill="none" stroke="#c7ccd1" stroke-width="1"/>
+  </svg>`;
+}
+function htmlFileIcon(size) {
+  const badge = Math.round(size * 0.5);
+  return `<span style="position:relative;display:inline-block;width:${size}px;height:${size}px;">
+    <svg width="${size}" height="${size}" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+      <path d="M8 2h11l7 7v19a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#eaf2fd" stroke="#8fb8ea" stroke-width="1"/>
+      <path d="M19 2v6a1 1 0 0 0 1 1h6" fill="none" stroke="#8fb8ea" stroke-width="1"/>
+    </svg>
+    <svg width="${badge}" height="${badge}" viewBox="0 0 16 16" style="position:absolute;right:-2px;bottom:-2px;">
+      <circle cx="8" cy="8" r="7" fill="#2b7de9" stroke="#fff" stroke-width="1.4"/>
+      <path d="M6 10L10 6M10 6H7M10 6V9" stroke="#fff" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </span>`;
+}
+
+/* ============ owner/repo 추출 (하드코딩 금지) ============ */
+function getOwnerRepo() {
+  const owner = location.hostname.split(".")[0] || "";
+  const repo = location.pathname.split("/").filter(Boolean)[0] || "";
+  return { owner, repo };
+}
+
+function isHtml(name) { return /\.html$/i.test(name); }
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* ============ 색인 제외 규칙 (indexer.ahk가 이미 거르지만, html도 자체적으로 한번 더 거른다) ============
+   - 이름에 "_NIH_"가 포함되면(대소문자 무관) 모든 위치에서 제외
+   - "pages.json"은 모든 위치에서 제외
+   - 루트에서는 .git / indexer.ahk / index.html 도 추가로 제외
+============================================================================================= */
+function filterNames(names, pathArr) {
+  const isRoot = pathArr.length === 0;
+  return names.filter(name => {
+    if (/_NIH_/i.test(name)) return false;
+    if (name === "pages.json") return false;
+    if (isRoot && (name === ".git" || name === "indexer.ahk" || name === "index.html")) return false;
+    return true;
+  });
+}
+
+/* ============ 상태 ============ */
+let repoName = "";
+const dirCache = new Map();     // pathKey -> {folders:[...], files:[...]}
+let currentPath = [];           // 내용창(오른쪽)에 열려있는 폴더
+let selected = null;            // {path, name, type}
+let expanded = new Set();       // 탐색창(왼쪽)에서 펼쳐진 폴더 pathKey
+let history = [];
+let historyIndex = -1;
+let currentItems = [];          // 현재 내용창에 그려진 항목들
+let currentOpts = {};
+let currentHeading = null;
+let fullIndexPromise = null;
+let statusFlashTimer = null;
+
+const els = {};
+["winTitle","btnMin","btnMax","btnClose","btnNavToggle","btnBack","btnForward","btnUp",
+ "btnRefresh","breadcrumb","searchInput","navPane","contentPane","statusText","repoLink",
+ "win","taskbarApp","clock","titlebar","startBtn","startMenu","startAvatar","startUserName",
+ "startUserLink"].forEach(id => els[id] = document.getElementById(id));
+
+/* ============ 창 조작 (최소화/최대화/닫기) ============ */
+els.btnMin.onclick = () => els.win.classList.toggle("minimized");
+function toggleMaximize() {
+  els.win.classList.toggle("maximized");
+  els.btnMax.innerHTML = els.win.classList.contains("maximized") ? "&#x2752;" : "&#x25A1;";
+}
+els.btnMax.onclick = toggleMaximize;
+els.titlebar.addEventListener("dblclick", toggleMaximize);
+els.btnClose.onclick = () => els.win.classList.add("closed");
+els.taskbarApp.onclick = () => { els.win.classList.remove("closed", "minimized"); };
+els.btnNavToggle.onclick = () => els.navPane.classList.toggle("open");
+
+/* ============ 시작 메뉴 ============ */
+function setupStartMenu(owner) {
+  const name = owner || "Guest";
+  els.startUserName.textContent = name;
+  els.startAvatar.innerHTML = "";
+  if (owner) {
+    els.startUserLink.href = `https://github.com/${owner}`;
+    els.startUserLink.style.display = "";
+    const img = document.createElement("img");
+    img.src = `https://github.com/${owner}.png?size=88`;
+    img.alt = "";
+    img.onerror = () => { els.startAvatar.innerHTML = ""; els.startAvatar.textContent = name.charAt(0).toUpperCase(); };
+    els.startAvatar.appendChild(img);
+  } else {
+    els.startUserLink.style.display = "none";
+    els.startAvatar.textContent = "?";
+  }
+  els.startBtn.onclick = (e) => { e.stopPropagation(); els.startMenu.classList.toggle("open"); };
+  els.startMenu.addEventListener("click", e => e.stopPropagation());
+  document.addEventListener("click", () => els.startMenu.classList.remove("open"));
+}
+
+/* ============ 폴더 데이터 로드 (꼬리에 꼬리를 무는 방식) ============ */
+async function loadDir(pathArr) {
+  const key = pathArr.join("/");
+  if (dirCache.has(key)) return dirCache.get(key);
+  const prefix = pathArr.map(encodeURIComponent).join("/");
+  const url = (prefix ? prefix + "/" : "") + "pages.json";
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`${url} 로드 실패: ${res.status}`);
+  const data = await res.json();
+  const folders = filterNames(Array.isArray(data.folders) ? data.folders : [], pathArr)
+    .sort((a, b) => a.localeCompare(b, "ko"));
+  const files = filterNames(Array.isArray(data.files) ? data.files : [], pathArr)
+    .sort((a, b) => a.localeCompare(b, "ko"));
+  const entry = { folders, files };
+  dirCache.set(key, entry);
+  return entry;
+}
+
+/* ============ 탐색 (뒤로/앞으로/위로/새로고침) ============ */
+async function navigate(path, record = true) {
+  currentPath = path;
+  selected = null;
+  els.searchInput.value = "";
+  if (record) {
+    history = history.slice(0, historyIndex + 1);
+    history.push(path);
+    historyIndex = history.length - 1;
+  }
+  path.forEach((_, i) => expanded.add(path.slice(0, i + 1).join("/")));
+  renderBreadcrumb();
+  await renderContentPane();
+  renderNavPane();
+}
+els.btnBack.onclick = () => { if (historyIndex > 0) { historyIndex--; navigate(history[historyIndex], false); } };
+els.btnForward.onclick = () => { if (historyIndex < history.length - 1) { historyIndex++; navigate(history[historyIndex], false); } };
+els.btnUp.onclick = () => { if (currentPath.length > 0) navigate(currentPath.slice(0, -1)); };
+els.btnRefresh.onclick = () => location.reload();
+
+/* 폴더 열기 / html 파일 열기 (뷰어는 아직 없음 -> html만 지원) */
+async function activate(path, type) {
+  if (type === "folder") {
+    els.searchInput.value = "";
+    await navigate(path);
+    return;
+  }
+  if (type === "html") {
+    const isIndex = path[path.length - 1].toLowerCase() === "index.html";
+    let url;
+    if (isIndex) {
+      const dirPath = path.slice(0, -1);
+      url = dirPath.length ? dirPath.map(encodeURIComponent).join("/") + "/" : "./";
+    } else {
+      url = path.map(encodeURIComponent).join("/");
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+    return;
+  }
+  flashStatus("이 파일 형식은 아직 열 수 없습니다.");
+}
+function flashStatus(msg) {
+  clearTimeout(statusFlashTimer);
+  els.statusText.textContent = msg;
+  statusFlashTimer = setTimeout(updateStatus, 1800);
+}
+
+/* ============ 탐색창(왼쪽) — 폴더만 표시, 펼칠 때마다 그 폴더의 pages.json을 읽음 ============ */
+function renderNavPane() {
+  els.navPane.innerHTML = "";
+  const rootRow = document.createElement("div");
+  rootRow.className = "nav-root" + (currentPath.length === 0 ? " selected" : "");
+  rootRow.innerHTML = `${folderIcon(16, true)}<span>${escapeHtml(repoName || "루트")}</span>`;
+  rootRow.onclick = () => { navigate([]); els.navPane.classList.remove("open"); };
+  els.navPane.appendChild(rootRow);
+
+  const rootEntry = dirCache.get("");
+  if (rootEntry) els.navPane.appendChild(buildTreeDom(rootEntry.folders, []));
+}
+function buildTreeDom(folderNames, pathArr) {
+  const wrap = document.createElement("div");
+  folderNames.forEach(name => {
+    const childPath = [...pathArr, name];
+    const key = childPath.join("/");
+    const isOpen = expanded.has(key);
+    const cached = dirCache.get(key);
+
+    const row = document.createElement("div");
+    row.className = "tree-row" + (currentPath.join("/") === key ? " selected" : "");
+    row.style.paddingLeft = (6 + pathArr.length * 16) + "px";
+
+    const arrow = document.createElement("span");
+    arrow.className = "tree-arrow";
+    arrow.textContent = isOpen ? "▾" : "▸";
+    arrow.onclick = async (e) => {
+      e.stopPropagation();
+      if (isOpen) {
+        expanded.delete(key);
+        renderNavPane();
+        return;
+      }
+      expanded.add(key);
+      renderNavPane();
+      try { await loadDir(childPath); } catch (err) { /* 접힌 상태로 둔다 */ }
+      renderNavPane();
+    };
+    row.appendChild(arrow);
+    row.insertAdjacentHTML("beforeend", folderIcon(15, false));
+    const label = document.createElement("span");
+    label.textContent = name;
+    row.appendChild(label);
+    row.onclick = () => { expanded.add(key); navigate(childPath); els.navPane.classList.remove("open"); };
+    wrap.appendChild(row);
+
+    if (isOpen) {
+      if (cached) {
+        wrap.appendChild(buildTreeDom(cached.folders, childPath));
+      } else {
+        const loading = document.createElement("div");
+        loading.className = "tree-row tree-loading";
+        loading.style.paddingLeft = (6 + (pathArr.length + 1) * 16) + "px";
+        loading.textContent = "불러오는 중...";
+        wrap.appendChild(loading);
+      }
+    }
+  });
+  return wrap;
+}
+
+/* ============ 내용창(오른쪽) ============ */
+async function renderContentPane() {
+  currentHeading = null;
+  els.contentPane.innerHTML = '<div class="status-msg">불러오는 중...</div>';
+  let entry;
+  try {
+    entry = await loadDir(currentPath);
+  } catch (err) {
+    currentItems = [];
+    els.contentPane.innerHTML = `<div class="empty-msg">폴더를 열지 못했습니다: ${escapeHtml(err.message)}</div>`;
+    updateStatus();
+    return;
+  }
+  currentItems = [
+    ...entry.folders.map(name => ({ name, path: [...currentPath, name], type: "folder" })),
+    ...entry.files.map(name => ({ name, path: [...currentPath, name], type: isHtml(name) ? "html" : "file" }))
+  ];
+  currentOpts = { emptyText: "이 폴더는 비어 있습니다." };
+  paintContentPane();
+  updateStatus();
+}
+
+function buildGrid(items, opts) {
+  if (items.length === 0) {
+    const div = document.createElement("div");
+    div.className = "empty-msg";
+    div.textContent = opts.emptyText || "이 폴더는 비어 있습니다.";
+    return div;
+  }
+  const grid = document.createElement("div");
+  grid.className = "grid";
+  items.forEach(it => {
+    const key = it.path.join("/");
+    const cell = document.createElement("div");
+    cell.className = "grid-item" + (opts.flat ? " flat" : "") + (selected && selected.path.join("/") === key ? " selected" : "");
+    const icon = it.type === "folder" ? folderIcon(32, false) : it.type === "html" ? htmlFileIcon(32) : fileIcon(32);
+    const subHtml = opts.flat ? `<div class="sub">${escapeHtml(it.path.slice(0, -1).join("/") || repoName)}</div>` : "";
+    cell.innerHTML = `<div class="icon">${icon}</div><div class="label">${escapeHtml(it.name)}</div>${subHtml}`;
+    cell.onclick = () => { selected = { path: it.path, name: it.name, type: it.type }; paintContentPane(); updateStatus(); };
+    cell.ondblclick = () => activate(it.path, it.type);
+    grid.appendChild(cell);
+  });
+  return grid;
+}
+function paintContentPane() {
+  els.contentPane.innerHTML = "";
+  if (currentHeading) {
+    const h = document.createElement("div");
+    h.className = "search-heading";
+    h.textContent = currentHeading;
+    els.contentPane.appendChild(h);
+  }
+  els.contentPane.appendChild(buildGrid(currentItems, currentOpts));
+}
+
+/* ============ 검색 — 모든 하위 pages.json을 끝까지 읽어서 전체에서 찾는다 ============ */
+function ensureFullIndex() {
+  if (!fullIndexPromise) fullIndexPromise = crawlAll([]);
+  return fullIndexPromise;
+}
+async function crawlAll(pathArr) {
+  const entry = await loadDir(pathArr);
+  let results = [];
+  entry.folders.forEach(name => results.push({ name, path: [...pathArr, name], type: "folder" }));
+  entry.files.forEach(name => results.push({ name, path: [...pathArr, name], type: isHtml(name) ? "html" : "file" }));
+  for (const name of entry.folders) {
+    const sub = await crawlAll([...pathArr, name]);
+    results = results.concat(sub);
+  }
+  return results;
+}
+let searchDebounce = null;
+els.searchInput.addEventListener("input", () => {
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(runSearch, 200);
+});
+async function runSearch() {
+  const raw = els.searchInput.value.trim();
+  const q = raw.toLowerCase();
+  if (!q) { await renderContentPane(); return; }
+  els.contentPane.innerHTML = '<div class="status-msg">검색 중... (전체 폴더를 읽는 중)</div>';
+  let all;
+  try {
+    all = await ensureFullIndex();
+  } catch (err) {
+    els.contentPane.innerHTML = `<div class="empty-msg">검색 중 오류: ${escapeHtml(err.message)}</div>`;
+    return;
+  }
+  if (els.searchInput.value.trim().toLowerCase() !== q) return; // 그 사이 검색어가 바뀌었으면 무시
+  const matches = all.filter(it => it.name.toLowerCase().includes(q));
+  currentItems = matches;
+  currentOpts = { flat: true, emptyText: "일치하는 항목이 없습니다." };
+  currentHeading = `"${raw}" 검색 결과 (${matches.length}개)`;
+  selected = null;
+  paintContentPane();
+  updateStatus();
+}
+
+/* ============ 주소표시줄(브레드크럼) ============ */
+function renderBreadcrumb() {
+  els.breadcrumb.innerHTML = "";
+  const rootCrumb = document.createElement("span");
+  rootCrumb.className = "crumb";
+  rootCrumb.textContent = repoName || "루트";
+  rootCrumb.onclick = () => navigate([]);
+  els.breadcrumb.appendChild(rootCrumb);
+
+  currentPath.forEach((name, i) => {
+    els.breadcrumb.insertAdjacentHTML("beforeend", `<span class="crumb-sep">›</span>`);
+    const c = document.createElement("span");
+    c.className = "crumb";
+    c.textContent = name;
+    const p = currentPath.slice(0, i + 1);
+    c.onclick = () => navigate(p);
+    els.breadcrumb.appendChild(c);
+  });
+}
+
+/* ============ 상태표시줄 / 툴바 상태 ============ */
+function updateStatus() {
+  let text = `${currentItems.length}개 항목`;
+  if (selected) text += `  |  선택됨: ${selected.name}`;
+  els.statusText.textContent = text;
+
+  els.btnBack.disabled = historyIndex <= 0;
+  els.btnForward.disabled = historyIndex >= history.length - 1;
+  els.btnUp.disabled = currentPath.length === 0;
+}
+
+/* ============ 시계 ============ */
+function updateClock() {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  const dateStr = now.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric", weekday: "short" });
+  els.clock.innerHTML = `${hh}:${mm}<br>${dateStr}`;
+}
+updateClock();
+setInterval(updateClock, 15000);
+
+/* ============ 메인 ============ */
+async function main() {
+  const { owner, repo } = getOwnerRepo();
+  repoName = repo || "Repo Index";
+  document.title = repoName;
+  els.winTitle.textContent = repoName;
+  if (owner && repo) {
+    els.repoLink.innerHTML = `<a href="https://github.com/${owner}/${repo}" target="_blank" rel="noopener noreferrer">${owner}/${repo}</a>`;
+  }
+  setupStartMenu(owner);
+  renderNavPane();
+  renderBreadcrumb();
+  navigate([]);
+}
+
+main();
+</script>
+
+</body>
+</html>

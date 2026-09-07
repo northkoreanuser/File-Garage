@@ -1,0 +1,19 @@
+{
+  "folders": [
+    "0. 의상 - 전체",
+    "1. 머리 - 모자",
+    "2-1. 상의 - 옷",
+    "2-2. 상의 - 브라",
+    "3-1. 하의 - 바지",
+    "3-2. 하의 - 신발",
+    "3-3. 하의 - 팬티",
+    "4. 손"
+  ],
+  "files": [
+    "favicon.ico",
+    "folders.json",
+    "index.html",
+    "previewer.ahk",
+    "WebView2Loader.dll"
+  ]
+}

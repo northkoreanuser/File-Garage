@@ -1,0 +1,15 @@
+{
+  "folders": [
+    "1. 의상 - 검은색 교복 1",
+    "2. 의상 - 검은색 교복 2",
+    "3. 의상 - 흰색 교복 1",
+    "4. 의상 - 흰색 교복 2"
+  ],
+  "files": [
+    "favicon.ico",
+    "folders.json",
+    "index.html",
+    "previewer.ahk",
+    "WebView2Loader.dll"
+  ]
+}
