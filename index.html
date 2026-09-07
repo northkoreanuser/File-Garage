@@ -1223,18 +1223,49 @@ async function loadDir(pathArr) {
 }
 
 /* ============ 경로 <-> 주소창 플래그먼트(#...) ============
-   그냥 경로만 담는다(예전처럼 단순하게) - 트리 펼침 상태까지 해시에 남기는 건 과했다.
-   대신, #경로나 로컬 스토리지에 기억된 경로로 복원될 때는 항상 트리에서 그 경로까지 조상을
-   펼쳐서 보여준다(reveal) - 폴더가 열려있으면 상식적으로 거기까지는 트리도 열려있어야 한다.
-   이 "펼침" 자체는 그때그때 계산만 할 뿐 별도로 저장하지 않는다(세션 동안만 유지). ============ */
+   형식: #<현재경로>|tree=<펼쳐진 트리 폴더 목록(콤마로 구분, 각각 encodeURIComponent)>
+   |tree= 부분이 없으면 예전처럼 경로만 있는 것으로 취급(하위호환). ============ */
 function pathToHash(pathArr) { return pathArr.map(encodeURIComponent).join("/"); }
-function hashToPath(hash) {
+function splitHash(hash) {
   const h = (hash || "").replace(/^#/, "");
-  if (!h) return null;
-  return h.split("/").filter(Boolean).map(s => { try { return decodeURIComponent(s); } catch (e) { return s; } });
+  const idx = h.indexOf("|tree=");
+  if (idx === -1) return { pathPart: h, treePart: "" };
+  return { pathPart: h.slice(0, idx), treePart: h.slice(idx + 6) };
+}
+function hashToPath(hash) {
+  const { pathPart } = splitHash(hash);
+  if (!pathPart) return null;
+  return pathPart.split("/").filter(Boolean).map(s => { try { return decodeURIComponent(s); } catch (e) { return s; } });
+}
+function hashToExpandedSet(hash) {
+  const { treePart } = splitHash(hash);
+  if (!treePart) return null;
+  const set = new Set();
+  treePart.split(",").filter(Boolean).forEach(enc => {
+    try { set.add(decodeURIComponent(enc)); } catch (e) { /* 무시 */ }
+  });
+  return set;
+}
+function encodeExpandedForHash() {
+  return [...expanded].map(encodeURIComponent).join(",");
 }
 function updateHashFragment() {
-  try { window.history.replaceState(null, "", "#" + pathToHash(currentPath)); } catch (e) {}
+  const pathPart = pathToHash(currentPath);
+  const treePart = encodeExpandedForHash();
+  const hash = treePart ? `${pathPart}|tree=${treePart}` : pathPart;
+  try { window.history.replaceState(null, "", "#" + hash); } catch (e) {}
+}
+function expandedStorageKey() { return `idx:${repoName}:expandedTree`; }
+function loadExpandedFromStorage() {
+  try {
+    const raw = localStorage.getItem(expandedStorageKey());
+    if (raw) { const arr = JSON.parse(raw); if (Array.isArray(arr)) return new Set(arr); }
+  } catch (e) { /* 무시 */ }
+  return new Set();
+}
+function persistExpanded() {
+  try { localStorage.setItem(expandedStorageKey(), JSON.stringify([...expanded])); } catch (e) {}
+  updateHashFragment();
 }
 async function resolveInitialPath(pathArr) {
   let p = (pathArr || []).slice();
@@ -1244,23 +1275,21 @@ async function resolveInitialPath(pathArr) {
   return [];
 }
 /* 경로를 트리에서 "드러낸다" - 조상 경로를 전부 펼침 상태로 추가하고, 각 단계의 폴더 목록을
-   실제로 읽어와서(caching) buildTreeDom이 "불러오는 중..."이 아니라 진짜 하위 폴더를 그릴 수 있게 한다.
-   (예: 페이지를 새로고침해서 깊은 경로로 바로 들어왔을 때, 검색 결과를 눌러서 이동했을 때,
-   #경로/로컬 스토리지로 경로가 복원됐을 때) */
+   실제로 읽어와서(caching) buildTreeDom이 "불러오는 중..."이 아니라 진짜 하위 폴더를 그릴 수 있게 한다. */
 async function revealPath(pathArr) {
   for (let i = 0; i < pathArr.length; i++) {
     const prefix = pathArr.slice(0, i + 1);
     expanded.add(prefix.join("/"));
     try { await loadDir(prefix); } catch (e) { break; }
   }
+  persistExpanded();
 }
 
 /* ============ 탐색 (뒤로/앞으로/위로/새로고침) ============
-   reveal=true 일 때만 조상 트리를 펼친다(=탐색창에 현재 위치가 보이게 "드러냄"). 일반적인
-   진입(더블클릭/트리 클릭/브레드크럼/뒤로앞으로)은 트리를 건드리지 않는다 - 실제 윈도우
-   탐색기도 폴더에 들어간다고 왼쪽 트리가 자동으로 펴지지는 않는다. 페이지 로드시 경로 복원이나
-   검색 결과로 점프하는 경우처럼 "어디서 왔는지" 트리 경로가 안 보이는 경우에만 드러낸다. ============ */
-async function navigate(path, record = true, reveal = false) {
+   실시간으로 트리가 현재 위치를 따라간다 - 더블클릭으로 더 깊은 폴더에 들어가면(바보\보바\비보처럼
+   계속 파고들면) 그 즉시 조상 폴더들이 트리에서 펼쳐지고 현재 폴더가 파란색으로 선택 표시된다.
+   (한 번 펼쳐진 가지는 다른 곳으로 이동해도 자동으로 접히지 않는다 - 실제 탐색기와 동일) ============ */
+async function navigate(path, record = true) {
   currentPath = path;
   selected = null;
   multiSelected.clear();
@@ -1270,8 +1299,7 @@ async function navigate(path, record = true, reveal = false) {
     history.push(path);
     historyIndex = history.length - 1;
   }
-  if (reveal) await revealPath(path);
-  updateHashFragment();
+  await revealPath(path);
   try { localStorage.setItem(lastPathKey(), JSON.stringify(path)); } catch (e) {}
   renderBreadcrumb();
   await renderContentPane();
@@ -1331,12 +1359,12 @@ async function activate(it) {
   // index.html에 내장된 blob 버전으로만 연결한다 (로컬 헬퍼/GitHub를 거치지 않음).
   if (it.virtual) { downloadVirtualFile(it.name); return; }
   const { path, type } = it;
-  // 검색 결과 화면(currentOpts.flat)에서 점프해 들어가는 경우엔 트리에서 어디로 왔는지 안 보이므로
-  // 조상 경로를 펼쳐서 드러낸다(reveal). 평소 폴더 안에서 더블클릭으로 들어가는 건 트리를 안 건드린다.
+  // 검색 결과 화면(currentOpts.flat)에서 점프해 들어가는 경우도 포함해서, navigate()가 실시간으로
+  // 트리를 그 경로까지 펼쳐서 드러낸다(reveal).
   const isSearchJump = currentOpts.flat === true;
   if (type === "folder") {
     els.searchInput.value = "";
-    await navigate(path, true, isSearchJump);
+    await navigate(path);
     return;
   }
   // 검색 결과에서 파일을 여는 경우 - 실제로 그 폴더로 들어가진 않지만, 트리에서 그 파일의
@@ -1414,10 +1442,12 @@ function buildTreeDom(entry, pathArr) {
       els.navPane.focus();
       if (isOpen) {
         expanded.delete(key);
+        persistExpanded();
         renderNavPane();
         return;
       }
       expanded.add(key);
+      persistExpanded();
       renderNavPane();
       try { await loadDir(childPath); } catch (err) { /* 접힌 상태로 둔다 */ }
       renderNavPane();
@@ -1513,8 +1543,13 @@ els.navPane.addEventListener("keydown", async (e) => {
     return;
   }
   if (e.key === "ArrowLeft") {
-    if (curKey && expanded.has(curKey)) {
+    // 실시간 reveal로 인해 방금 들어간 폴더 자체도 "펼침" 상태로 표시될 수 있는데, 하위 폴더가
+    // 아예 없으면 접어봤자 화면상 아무 변화가 없다 - 그런 경우엔 접기 대신 바로 상위로 이동한다.
+    const curEntry = curKey ? dirCache.get(curKey) : null;
+    const curHasSubfolders = !!(curEntry && curEntry.folders && curEntry.folders.length > 0);
+    if (curKey && expanded.has(curKey) && curHasSubfolders) {
       expanded.delete(curKey);
+      persistExpanded();
       renderNavPane();
     } else if (currentPath.length > 0) {
       navigate(currentPath.slice(0, -1));
@@ -1528,6 +1563,7 @@ els.navPane.addEventListener("keydown", async (e) => {
     }
     if (!expanded.has(curKey)) {
       expanded.add(curKey);
+      persistExpanded();
       renderNavPane();
       try { await loadDir(currentPath); } catch (err) { /* 무시 */ }
       renderNavPane();
@@ -2024,8 +2060,13 @@ async function main() {
   setupSettingsPanel();
   setupStartMenu(owner);
 
-  // 트리 펼침 상태는 저장하지 않고 매번 새로 계산한다 - 시작 경로가 정해지면 그 경로까지만 드러낸다(reveal).
-  expanded = new Set();
+  // 트리 펼침 상태 복원: 주소창(#...|tree=...)에 있으면 그걸 우선, 없으면 로컬 스토리지에 기억된 걸 사용
+  const hashExpanded = hashToExpandedSet(location.hash);
+  expanded = (hashExpanded && hashExpanded.size) ? hashExpanded : loadExpandedFromStorage();
+  // 복원된 펼침 상태에는 현재 경로의 조상이 아닌 가지(예: 이전에 수동으로 펼쳐뒀던 다른 폴더)도
+  // 있을 수 있다 - navigate()의 실시간 reveal은 "현재 경로"의 조상만 미리 읽어오므로, 그 외의
+  // 가지들은 여기서 한 번에 미리 읽어와야 트리가 "불러오는 중..."에 계속 머물지 않는다.
+  await Promise.all([...expanded].map(key => loadDir(key.split("/").filter(Boolean)).catch(() => {})));
 
   renderNavPane();
   renderBreadcrumb();
@@ -2038,8 +2079,8 @@ async function main() {
   window.addEventListener("hashchange", () => {
     const p = hashToPath(location.hash) || [];
     if (p.join("/") !== currentPath.join("/")) {
-      // 해시가 바뀌어서(뒤로/앞으로 가기 등) 새 경로로 점프하는 것 - 트리에서도 드러낸다(reveal).
-      resolveInitialPath(p).then(rp => navigate(rp, true, true));
+      // 해시가 바뀌어서(뒤로/앞으로 가기 등) 새 경로로 점프하는 것 - navigate()가 트리도 실시간으로 드러낸다.
+      resolveInitialPath(p).then(rp => navigate(rp));
     }
   });
 
@@ -2056,8 +2097,7 @@ async function main() {
     } catch (e) { /* 무시 */ }
   }
   const resolved = await resolveInitialPath(initialPath || []);
-  // 페이지를 처음 열 때 복원되는 경로는 트리에서 어디 있었는지 안 보이므로 드러낸다(reveal).
-  await navigate(resolved, true, true);
+  await navigate(resolved);
 }
 
 main();
