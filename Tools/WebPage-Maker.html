@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hash HTML Maker</title>
+<style>
+html,body{width:100%;height:100%;margin:0;background:#fff;font-family:system-ui,sans-serif}
+#editor{display:flex;flex-direction:column;width:100%;height:100%;box-sizing:border-box;padding:12px;gap:10px}
+#code{flex:1;width:100%;box-sizing:border-box;resize:none;border:1px solid #aaa;padding:12px;font:14px/1.5 Consolas,monospace;outline:none}
+.bottom-bar{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.progress-container{flex:1;display:flex;flex-direction:column;gap:4px;background:#f9f9f9;border:1px solid #ddd;padding:8px 12px;border-radius:4px}
+.progress-info{display:flex;justify-content:space-between;font-size:12px;color:#555;font-family:monospace}
+.progress-bar-bg{width:100%;height:6px;background:#e0e0e0;border-radius:3px;overflow:hidden}
+.progress-bar-fill{width:0%;height:100%;background:#0891b2;transition:width 0.1s linear}
+#apply{padding:12px 20px;border:1px solid #888;background:#f5f5f5;cursor:pointer;white-space:nowrap;font-weight:bold}
+#apply:hover{background:#e8e8e8}
+#apply:disabled{background:#ddd;color:#888;cursor:not-allowed}
+#status-bar{display:flex;justify-content:space-between;font-size:0.85rem;color:#444;padding:4px 2px;border-bottom:1px solid #ddd;margin-bottom:6px;font-family:monospace}
+#status-bar .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;background:#aaa}
+#status-bar .dot.synced{background:#0891b2}
+#status-bar .dot.pending{background:#b45309}
+#status-bar .dot.loading{background:#f7971e;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.result-log{font-family:monospace;font-size:11px;color:#555;max-height:150px;overflow-y:auto;border-top:1px solid #ddd;padding:8px;margin-top:6px;background:#f9f9f9;border-radius:4px}
+.result-log .best{color:#0891b2;font-weight:bold}
+.result-log .error{color:#b45309}
+.result-log .info{color:#666}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+</head>
+<body>
+<div id="editor">
+  <div id="status-bar">
+    <span><span id="statusDot" class="dot loading"></span><span id="statusLabel">엔진 초기화 중...</span></span>
+    <span id="sizeDisplay">0 B</span>
+  </div>
+  <textarea id="code" spellcheck="false" placeholder="여기에 HTML을 입력하세요."></textarea>
+  <div class="bottom-bar">
+    <div class="progress-container">
+      <div class="progress-info">
+        <span id="progressText">엔진 로딩 중...</span>
+        <span id="progressPercent">0%</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div id="progressBarFill" class="progress-bar-fill"></div>
+      </div>
+    </div>
+    <button id="apply" disabled>엔진 로딩 중...</button>
+  </div>
+  <div id="resultLog" class="result-log"></div>
+</div>
+
+<script>
+(async () => {
+    // ============================================================
+    // 1. UI 요소
+    // ============================================================
+    const progressText = document.getElementById("progressText");
+    const progressPercent = document.getElementById("progressPercent");
+    const progressBarFill = document.getElementById("progressBarFill");
+    const applyBtn = document.getElementById("apply");
+    const statusLabel = document.getElementById("statusLabel");
+    const statusDot = document.getElementById("statusDot");
+    const resultLog = document.getElementById("resultLog");
+    const code = document.getElementById("code");
+    const sizeDisplay = document.getElementById("sizeDisplay");
+
+    function updateProgress(percent, text) {
+        const p = Math.min(100, Math.max(0, percent));
+        progressBarFill.style.width = p + '%';
+        progressPercent.textContent = Math.round(p) + '%';
+        if (text) progressText.textContent = text;
+    }
+
+    function logResult(msg, type = '') {
+        resultLog.style.display = 'block';
+        const line = document.createElement('div');
+        line.textContent = msg;
+        if (type === 'best') line.className = 'best';
+        if (type === 'error') line.className = 'error';
+        if (type === 'info') line.className = 'info';
+        resultLog.appendChild(line);
+        resultLog.scrollTop = resultLog.scrollHeight;
+    }
+
+    function setStatus(text, state = 'idle') {
+        statusLabel.textContent = text;
+        statusDot.className = 'dot';
+        if (state === 'loading') statusDot.classList.add('loading');
+        else if (state === 'synced') statusDot.classList.add('synced');
+        else if (state === 'pending') statusDot.classList.add('pending');
+    }
+
+    // ============================================================
+    // 2. 엔진 로드 (Brotli WASM)
+    // ============================================================
+    let brotliWasm = null;
+    let wasmLoaded = false;
+
+    try {
+        const module = await import('https://cdn.jsdelivr.net/npm/brotli-wasm@3.0.1/+esm');
+        brotliWasm = await module.default;
+        wasmLoaded = true;
+        console.log('[Engine] Brotli WASM 로드 완료');
+        logResult('✅ Brotli WASM 로드 완료', 'info');
+    } catch (e) {
+        console.warn('[Engine] Brotli WASM 로드 실패:', e);
+        logResult('⚠️ Brotli WASM 로드 실패 (Pako fallback 사용)', 'error');
+    }
+
+    // ============================================================
+    // 3. 네이티브 Brotli 지원 여부 확인
+    // ============================================================
+    let nativeBrotli = false;
+    try {
+        new CompressionStream('brotli');
+        nativeBrotli = true;
+        console.log('[Engine] Native Brotli 지원');
+        logResult('✅ Native Brotli 지원 (CompressionStream)', 'info');
+    } catch (e) {
+        console.log('[Engine] Native Brotli 미지원');
+        logResult('⚠️ Native Brotli 미지원 (WASM 사용)', 'info');
+    }
+
+    // ============================================================
+    // 4. 압축/해제 유틸리티
+    // ============================================================
+    async function streamCompress(format, bytes) {
+        const cs = new CompressionStream(format);
+        const writer = cs.writable.getWriter();
+        writer.write(bytes);
+        writer.close();
+        return new Uint8Array(await new Response(cs.readable).arrayBuffer());
+    }
+
+    async function streamDecompress(format, bytes) {
+        const ds = new DecompressionStream(format);
+        const writer = ds.writable.getWriter();
+        writer.write(bytes);
+        writer.close();
+        return new Uint8Array(await new Response(ds.readable).arrayBuffer());
+    }
+
+    function toBase64Url(bytes) {
+        let binary = "";
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    }
+
+    function fromBase64Url(b64url) {
+        let base64 = b64url.replace(/-/g, "+").replace(/_/g, "/");
+        while (base64.length % 4) base64 += "=";
+        const binary = atob(base64);
+        return Uint8Array.from(binary, c => c.charCodeAt(0));
+    }
+
+    // ============================================================
+    // 5. 압축기 정의 (전수조사용)
+    // ============================================================
+    const COMPRESSORS = {};
+
+    // Native Brotli (가장 빠름, 우선)
+    if (nativeBrotli) {
+        COMPRESSORS['b'] = {
+            name: 'Native Brotli',
+            type: 'native',
+            compress: async (bytes) => await streamCompress('brotli', bytes),
+            decompress: async (bytes) => await streamDecompress('brotli', bytes)
+        };
+    }
+
+    // WASM Brotli (Native 없을 때 사용)
+    if (wasmLoaded) {
+        COMPRESSORS['w'] = {
+            name: 'WASM Brotli',
+            type: 'wasm',
+            compress: (bytes) => brotliWasm.compress(bytes, { quality: 11 }),
+            decompress: (bytes) => brotliWasm.decompress(bytes)
+        };
+    }
+
+    // Pako Deflate (최후의 보루)
+    if (typeof pako !== 'undefined') {
+        COMPRESSORS['p'] = {
+            name: 'Pako Deflate',
+            type: 'pako',
+            compress: (bytes) => pako.deflateRaw(bytes, { level: 9 }),
+            decompress: (bytes) => pako.inflateRaw(bytes)
+        };
+    }
+
+    // Gzip (CompressionStream 지원 시)
+    try {
+        new CompressionStream('gzip');
+        COMPRESSORS['g'] = {
+            name: 'Native Gzip',
+            type: 'native',
+            compress: async (bytes) => await streamCompress('gzip', bytes),
+            decompress: async (bytes) => await streamDecompress('gzip', bytes)
+        };
+    } catch (e) {}
+
+    // Deflate-raw (CompressionStream 지원 시)
+    try {
+        new CompressionStream('deflate-raw');
+        COMPRESSORS['d'] = {
+            name: 'Native Deflate-raw',
+            type: 'native',
+            compress: async (bytes) => await streamCompress('deflate-raw', bytes),
+            decompress: async (bytes) => await streamDecompress('deflate-raw', bytes)
+        };
+    } catch (e) {}
+
+    // ============================================================
+    // 6. UI 활성화
+    // ============================================================
+    applyBtn.disabled = false;
+    applyBtn.textContent = "전수조사 최적화 실행";
+    updateProgress(100, "준비 완료");
+    setStatus('대기 중', 'idle');
+
+    const originalHeadHTML = document.head.innerHTML;
+    const originalTitle = document.title;
+    let currentPageSource = null;
+    let menuVisible = false;
+    let savedFileName = '';
+
+    // ============================================================
+    // 7. 전수조사 엔진
+    // ============================================================
+    async function runBruteForce(text) {
+        resultLog.innerHTML = '';
+        resultLog.style.display = 'block';
+        logResult('🚀 전수조사 시작...', 'info');
+
+        updateProgress(5, "바이트 변환 중...");
+        await new Promise(r => setTimeout(r, 10));
+
+        const rawBytes = new TextEncoder().encode(text);
+        const compKeys = Object.keys(COMPRESSORS);
+        const results = [];
+        let total = compKeys.length;
+        let current = 0;
+
+        logResult(`📊 사용 가능한 압축기: ${total}개`, 'info');
+
+        if (total === 0) {
+            throw new Error("사용 가능한 압축 방식이 없습니다!");
+        }
+
+        for (const key of compKeys) {
+            current++;
+            const pct = 5 + (current / total) * 90;
+            const comp = COMPRESSORS[key];
+            updateProgress(pct, `전수조사 중: ${comp.name}`);
+            await new Promise(r => setTimeout(r, 0));
+
+            try {
+                let res = comp.compress(rawBytes);
+                if (res instanceof Promise) res = await res;
+                if (!res || res.length === 0) {
+                    logResult(`  ⚠️ ${comp.name}: 압축 결과 없음`, 'error');
+                    continue;
+                }
+
+                const encoded = toBase64Url(res);
+                const payload = key + encoded;
+
+                logResult(`  ${comp.name}: ${payload.length}자`, '');
+                results.push({
+                    name: comp.name,
+                    key: key,
+                    type: comp.type || 'unknown',
+                    payload: payload,
+                    length: payload.length
+                });
+
+            } catch (err) {
+                logResult(`  ❌ ${comp.name} 오류: ${err.message}`, 'error');
+            }
+        }
+
+        results.sort((a, b) => a.length - b.length);
+
+        if (results.length === 0) {
+            throw new Error("모든 압축 방식이 실패했습니다!");
+        }
+
+        const best = results[0];
+        updateProgress(100, `최적 압축 채택: [${best.name}] (${best.length}자)`);
+        logResult(`✅ 최종 선택: ${best.name} → ${best.length}자`, 'best');
+        logResult(`📊 전체 결과 (길이순):`, 'info');
+        for (const r of results) {
+            const isBest = r === best;
+            logResult(`  ${r.name}: ${r.length}자${isBest ? ' ⭐ BEST' : ''}`, isBest ? 'best' : '');
+        }
+
+        await new Promise(r => setTimeout(r, 300));
+        return best.payload;
+    }
+
+    // ============================================================
+    // 8. 디코딩 엔진
+    // ============================================================
+    async function decodePayload(encoded) {
+        if (encoded.length < 2) throw new Error("데이터가 너무 짧습니다.");
+
+        const key = encoded.charAt(0);
+        const payload = encoded.slice(1);
+
+        const comp = COMPRESSORS[key];
+        if (!comp) throw new Error(`알 수 없는 압축 키: ${key}`);
+
+        const decodedBytes = fromBase64Url(payload);
+        let decompressed = comp.decompress(decodedBytes);
+        if (decompressed instanceof Promise) decompressed = await decompressed;
+
+        return new TextDecoder().decode(decompressed);
+    }
+
+    // ============================================================
+    // 9. 유틸리티
+    // ============================================================
+    function copyText(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+        } else {
+            fallbackCopy(text);
+        }
+    }
+
+    function fallbackCopy(text) {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.cssText = "position:fixed;opacity:0;left:-9999px;top:-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand("copy"); } catch(e) {}
+        document.body.removeChild(ta);
+    }
+
+    function downloadFile(text, filename) {
+        const blob = new Blob([text], { type: "text/html" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    }
+
+    function timestampName() {
+        const d = new Date();
+        const p = n => String(n).padStart(2, "0");
+        return `page_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.html`;
+    }
+
+    function byteSize(str) { return new TextEncoder().encode(str).length; }
+
+    function formatBytes(n) {
+        if (n < 1024) return `${n} B`;
+        if (n < 1024 * 1024) return `${(n/1024).toFixed(1)} KB`;
+        return `${(n/(1024*1024)).toFixed(2)} MB`;
+    }
+
+    // ============================================================
+    // 10. 메뉴
+    // ============================================================
+    function mountMenu() {
+        const existing = document.getElementById("__launcher_menu__");
+        if (existing) existing.remove();
+
+        const menu = document.createElement("div");
+        menu.id = "__launcher_menu__";
+        menu.style.cssText = `
+            position:fixed; top:16px; right:16px; z-index:2147483647;
+            background:#222; color:#fff; border:1px solid #555; border-radius:8px;
+            padding:10px; font-family:system-ui,sans-serif; font-size:13px;
+            display:${menuVisible ? "flex" : "none"}; flex-direction:column; gap:6px;
+            box-shadow:0 4px 16px rgba(0,0,0,.4); min-width:160px;
+        `;
+
+        const title = document.createElement("div");
+        title.textContent = "발사대 메뉴 (Pause)";
+        title.style.cssText = "font-weight:bold; margin-bottom:4px; opacity:.8;";
+        menu.appendChild(title);
+
+        const resetBtn = document.createElement("button");
+        resetBtn.textContent = "초기화";
+        resetBtn.style.cssText = "padding:6px 10px; cursor:pointer;";
+        resetBtn.onclick = () => {
+            history.replaceState(null, "", location.href.split("#", 1)[0]);
+            menuVisible = false;
+            showEditor();
+        };
+        menu.appendChild(resetBtn);
+
+        const shareBtn = document.createElement("button");
+        shareBtn.textContent = "URL 복사";
+        shareBtn.style.cssText = "padding:6px 10px; cursor:pointer;";
+        shareBtn.onclick = () => {
+            copyText(location.href);
+            shareBtn.textContent = "복사됨!";
+            setTimeout(() => { shareBtn.textContent = "URL 복사"; }, 1000);
+        };
+        menu.appendChild(shareBtn);
+
+        const copyBtn = document.createElement("button");
+        copyBtn.textContent = "소스 복사";
+        copyBtn.style.cssText = "padding:6px 10px; cursor:pointer;";
+        copyBtn.onclick = () => {
+            const src = currentPageSource !== null ? currentPageSource : (document.getElementById("code")?.value ?? "");
+            copyText(src);
+            copyBtn.textContent = "복사됨!";
+            setTimeout(() => { copyBtn.textContent = "소스 복사"; }, 1000);
+        };
+        menu.appendChild(copyBtn);
+
+        const saveBtn = document.createElement("button");
+        saveBtn.textContent = "HTML 저장";
+        saveBtn.style.cssText = "padding:6px 10px; cursor:pointer;";
+        saveBtn.onclick = () => {
+            const src = currentPageSource !== null ? currentPageSource : (document.getElementById("code")?.value ?? "");
+            downloadFile(src, timestampName());
+            saveBtn.textContent = "저장됨!";
+            setTimeout(() => { saveBtn.textContent = "HTML 저장"; }, 1000);
+        };
+        menu.appendChild(saveBtn);
+
+        document.body.appendChild(menu);
+    }
+
+    // ============================================================
+    // 11. showEditor / renderPage
+    // ============================================================
+    function getHash() {
+        return location.hash.startsWith("#") ? location.hash.slice(1) : "";
+    }
+
+    function showEditor() {
+        document.head.innerHTML = originalHeadHTML;
+        document.title = originalTitle;
+        currentPageSource = null;
+        savedFileName = '';
+
+        document.body.innerHTML = `
+            <div id="editor">
+                <div id="status-bar">
+                    <span><span id="statusDot" class="dot"></span><span id="statusLabel">비어 있음</span></span>
+                    <span id="sizeDisplay">0 B</span>
+                </div>
+                <textarea id="code" spellcheck="false" placeholder="여기에 HTML을 입력하세요."></textarea>
+                <div class="bottom-bar">
+                    <div class="progress-container">
+                        <div class="progress-info">
+                            <span id="progressText">대기 중...</span>
+                            <span id="progressPercent">0%</span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div id="progressBarFill" class="progress-bar-fill"></div>
+                        </div>
+                    </div>
+                    <button id="apply">HTML 페이지 만들기</button>
+                </div>
+                <div id="resultLog" class="result-log"></div>
+            </div>
+        `;
+
+        const editorCode = document.getElementById("code");
+        const editorApply = document.getElementById("apply");
+
+        editorCode.value = `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>내 페이지</title>
+</head>
+<body>
+<h1>Hello!</h1>
+<p>이 HTML 전체가 URL의 # 뒤에 압축되어 저장됩니다.</p>
+</body>
+</html>`;
+
+        updateStatusUI('');
+
+        editorApply.onclick = async () => {
+            editorApply.disabled = true;
+            try {
+                const html = editorCode.value;
+                const encoded = await runBruteForce(html);
+                const cleanUrl = location.href.split("#", 1)[0];
+                history.replaceState(null, "", cleanUrl + "#" + encoded);
+                await renderPage(encoded);
+            } catch (err) {
+                alert("오류 발생: " + err.message);
+                logResult(`❌ 오류: ${err.message}`, 'error');
+            } finally {
+                editorApply.disabled = false;
+            }
+        };
+
+        mountMenu();
+    }
+
+    async function renderPage(encodedPayload) {
+        try {
+            if (!encodedPayload) throw new Error("데이터가 없습니다.");
+            const page = await decodePayload(encodedPayload);
+            savedFileName = 'page.html';
+            currentPageSource = page;
+
+            const newDoc = new DOMParser().parseFromString(page, "text/html");
+            document.head.innerHTML = "";
+            document.body.innerHTML = "";
+
+            for (const attr of newDoc.documentElement.attributes) {
+                document.documentElement.setAttribute(attr.name, attr.value);
+            }
+
+            document.head.innerHTML = newDoc.head.innerHTML;
+            document.body.innerHTML = newDoc.body.innerHTML;
+
+            document.querySelectorAll("script").forEach(oldScript => {
+                const newScript = document.createElement("script");
+                for (const attr of oldScript.attributes) newScript.setAttribute(attr.name, attr.value);
+                newScript.textContent = oldScript.textContent;
+                oldScript.replaceWith(newScript);
+            });
+
+            window.scrollTo(0, 0);
+            mountMenu();
+            updateStatusUI(page);
+            document.title = savedFileName;
+            setStatus(`연결됨 (${savedFileName})`, 'synced');
+        } catch (e) {
+            console.error("렌더링 오류:", e);
+            logResult(`❌ 디코딩 실패: ${e.message}`, 'error');
+            document.open();
+            document.write(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>오류</title></head><body><div style="padding:30px"><h1>디코딩 실패</h1><p>${e.message}</p></div></body></html>`);
+            document.close();
+        }
+    }
+
+    function updateStatusUI(content) {
+        const sizeDisp = document.getElementById("sizeDisplay");
+        if (!sizeDisp) return;
+
+        const len = content ? byteSize(content) : 0;
+        sizeDisp.textContent = formatBytes(len);
+
+        if (!content) {
+            setStatus('비어 있음', 'idle');
+        } else {
+            const hash = getHash();
+            if (hash) {
+                setStatus(`연결됨 (${savedFileName})`, 'synced');
+            } else {
+                setStatus('수정됨 — 저장 안 됨', 'pending');
+            }
+        }
+    }
+
+    // ============================================================
+    // 12. 키보드 이벤트
+    // ============================================================
+    document.addEventListener("keydown", (e) => {
+        if (e.code !== "Pause" || e.repeat) return;
+        e.preventDefault();
+        menuVisible = !menuVisible;
+        const menu = document.getElementById("__launcher_menu__");
+        if (menu) menu.style.display = menuVisible ? "flex" : "none";
+    });
+
+    // ============================================================
+    // 13. 초기화
+    // ============================================================
+    const initHash = getHash();
+    if (initHash) {
+        await renderPage(initHash);
+    } else {
+        showEditor();
+    }
+
+    window.addEventListener('hashchange', async () => {
+        const h = getHash();
+        if (h) await renderPage(h);
+        else showEditor();
+    });
+
+})();
+</script>
+</body>
+</html>

@@ -11,7 +11,9 @@
 ;
 ; ------------------ 색인 제외 규칙 ------------------
 ; [루트에서만 제외]
-;   .git 폴더, indexer.ahk(본인), index.html, start.json, tray.json
+;   .git 폴더, indexer.ahk(본인), index.html, start.json, tray.json, localserver.ahk
+;   (localserver.ahk와 indexer.ahk는 index.html에 blob으로 내장되어 "가상 파일"로 루트에
+;   항상 표시되므로, 실제 리포에 진짜 사본이 있어도 중복 표시되지 않게 색인에서 뺀다)
 ; [모든 폴더(루트+모든 하위)에서 제외]
 ;   pages.json, 이름에 "_NIH_"가 포함된 폴더/파일 (대소문자 무관)
 ; -----------------------------------------------------
@@ -25,7 +27,7 @@ global RootDir := A_ScriptDir
 global DirCount := 0
 
 ; 루트에서만 제외할 이름
-RootOnlyExclude := [".git", "indexer.ahk", "index.html", "start.json", "tray.json"]
+RootOnlyExclude := [".git", "indexer.ahk", "index.html", "start.json", "tray.json", "localserver.ahk"]
 ; 모든 위치에서 이름이 정확히 일치하면 제외
 GlobalExactExclude := ["pages.json"]
 

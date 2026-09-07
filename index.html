@@ -38,13 +38,22 @@
     flex-direction: column;
     transition: width .15s ease, height .15s ease, border-radius .15s ease;
   }
+  /* 최대화: desktop의 padding/flex-centering 계산에 얹히면(=일반 flex 항목으로 남아있으면) 위아래좌우로
+     여백이 생기고 심지어 뷰포트를 넘쳐서 스크롤바까지 생긴다(브라우저 티가 남). 대신 position:fixed로
+     아예 desktop 레이아웃에서 빠져나와 뷰포트 기준 top/left/right/bottom(작업표시줄 높이만 제외)으로
+     정확히 채운다 - 패딩/센터링 계산과 완전히 무관해져서 갭도 스크롤바도 생기지 않는다. */
   .window.maximized {
-    width: 100vw;
-    height: calc(100vh - 48px);
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 48px;
+    width: auto; height: auto;
+    margin: 0;
     max-width: none;
     max-height: none;
     border-radius: 0;
   }
+  /* 최대화가 아닌 상태에서 타이틀바를 드래그하면 처음 한 번 이 클래스가 붙으면서 현재 화면 위치를
+     고정 좌표(top/left)로 못박고, 그 뒤로는 그 좌표를 옮기며 이동한다(실제 창처럼). */
+  .window.positioned { position: fixed; margin: 0; }
   /* 최소화 = 닫기와 동일하게 창 자체가 사라짐. 다만 작업표시줄 아이콘은 (닫기와 달리) 활성 표시가 유지된다
      (JS의 taskbarApp active 클래스 처리 참고) - 실제 윈도우도 최소화하면 표시줄 아이콘이 안 꺼진다. */
   .window.minimized { display: none; }
@@ -173,7 +182,8 @@
   /* ---------- 작업 표시줄 / 시작 메뉴 / 트레이 ---------- */
   .taskbar {
     position: fixed; left: 0; right: 0; bottom: 0; height: 48px;
-    display: flex; align-items: center; justify-content: center; gap: 8px;
+    display: flex; align-items: center; justify-content: flex-start; gap: 8px;
+    padding-left: 8px;
     background: rgba(250,250,250,.8); backdrop-filter: blur(18px);
     border-top: 1px solid rgba(255,255,255,.5);
     z-index: 10;
@@ -186,7 +196,20 @@
   .start-btn { width: 38px; justify-content: center; padding: 0; font-size: 18px; color: #0078d4; }
   .start-btn:hover, .taskbar-app:hover { background: rgba(0,0,0,.07); }
   .taskbar-app.active { background: rgba(0,0,0,.09); border-bottom: 2px solid #0078d4; }
-  .clock { position: absolute; right: 14px; font-size: 12px; color: #222; text-align: center; line-height: 1.3; user-select: none; }
+  .tray-right { position: absolute; right: 14px; display: flex; align-items: center; gap: 10px; }
+  .clock { font-size: 12px; color: #222; text-align: center; line-height: 1.3; user-select: none; white-space: nowrap; }
+  .weather {
+    display: flex; align-items: center; gap: 5px; cursor: pointer;
+    font-size: 12px; color: #222; padding: 5px 8px; border-radius: 6px; user-select: none;
+  }
+  .weather:hover { background: rgba(0,0,0,.07); }
+  .weather .wicon { font-size: 16px; line-height: 1; }
+  .weather-big { display: flex; align-items: center; gap: 14px; }
+  .weather-big .wicon-big { font-size: 44px; line-height: 1; }
+  .weather-big .temp-big { font-size: 28px; font-weight: 600; color: #222; }
+  .weather-place { font-size: 12.5px; color: #888; margin-bottom: 4px; }
+  .weather-desc { font-size: 13px; color: #555; margin: 6px 0 4px; }
+  .weather-detail-row { font-size: 12.5px; color: #444; padding: 2px 0; }
 
   .tray-icons { display: flex; align-items: center; gap: 4px; }
   .tray-icon {
@@ -287,6 +310,13 @@
   }
   .ctx-item { padding: 7px 10px; font-size: 12.5px; color: #222; border-radius: 5px; cursor: pointer; }
   .ctx-item:hover { background: rgba(0,0,0,.06); }
+
+  /* ---------- 에어로(반투명 블러) 끄기 옵션 - 환경설정에서 토글, 기본 켜짐 ---------- */
+  body.no-aero .taskbar { background: #f5f5f5; backdrop-filter: none; }
+  body.no-aero .start-menu { background: #ffffff; backdrop-filter: none; }
+  body.no-aero .start-submenu { background: #ffffff; backdrop-filter: none; }
+  body.no-aero .settings-panel { background: #f7f7f7; backdrop-filter: none; }
+  body.no-aero .ctx-menu { background: #ffffff; backdrop-filter: none; }
 
   /* ---------- 토스트(알림) ---------- */
   .toast {
@@ -408,6 +438,11 @@
       </div>
       <div class="settings-divider"></div>
       <div class="settings-row">
+        <label class="settings-check"><input type="checkbox" id="setAeroEnabled"> 에어로(반투명 블러 효과) 사용</label>
+        <div class="settings-hint">작업표시줄/시작 메뉴/설정 창/우클릭 메뉴의 반투명 유리 효과를 켜고 끕니다.</div>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-row">
         <span class="settings-label">로컬 캐시</span>
         <button class="settings-button settings-button-neutral" id="setPreloadAllBtn">전체 폴더 미리 불러오기</button>
         <div class="settings-hint">저장소 전체를 지금 미리 순회해서 로컬 스토리지에 캐시해둡니다(폴더가 많으면 시간이 걸릴 수 있음).</div>
@@ -426,7 +461,10 @@
   <div class="start-btn" id="startBtn" title="시작">&#8862;</div>
   <div class="taskbar-app active" id="taskbarApp">📁 탐색기</div>
   <div class="tray-icons" id="trayIcons"></div>
-  <div class="clock" id="clock"></div>
+  <div class="tray-right">
+    <div class="weather" id="weatherWidget" title="날씨 자세히 보기" style="display:none;"></div>
+    <div class="clock" id="clock"></div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -559,6 +597,7 @@ let currentPath = [];           // 내용창(오른쪽)에 열려있는 폴더
 let selected = null;            // {path, name, type}
 let multiSelected = new Set();  // 드래그 다중 선택된 항목들의 path key (내용창)
 let expanded = new Set();       // 탐색창(왼쪽)에서 펼쳐진 폴더 pathKey
+let treeFileHighlightKey = null; // 탐색창(왼쪽)에서 파란 포커스로 강조 중인 "파일" 행의 pathKey (내용창 선택과는 별개)
 let history = [];               // 앱 자체 뒤로/앞으로 스택 (window.history와 다름, 이름 겹침 주의)
 let historyIndex = -1;
 let currentItems = [];          // 현재 내용창에 그려진 항목들
@@ -571,10 +610,10 @@ let openSubmenuEls = [];
 const els = {};
 ["winTitle","btnMin","btnMax","btnClose","btnNavToggle","btnBack","btnForward","btnUp",
  "btnRefresh","breadcrumb","searchInput","navPane","contentPane","statusText","repoLink",
- "win","taskbarApp","clock","titlebar","startBtn","startMenu","startAvatar","startUserName",
+ "win","taskbarApp","clock","weatherWidget","titlebar","startBtn","startMenu","startAvatar","startUserName",
  "startUserLink","startApps","trayIcons","toast","settingsMenuRow","settingsOverlay",
  "settingsCloseBtn","setGithubLinks","setDoubleClick","setKillHelperBtn",
- "setSearchScope","setSearchRelative","setPreloadAllBtn"
+ "setSearchScope","setSearchRelative","setPreloadAllBtn","setAeroEnabled"
 ].forEach(id => els[id] = document.getElementById(id));
 
 /* ============ 창 조작 (최소화/최대화/닫기) ============
@@ -584,12 +623,68 @@ const els = {};
      상태로 초기화된다(실제 윈도우 탐색기도 창을 닫았다 새로 열면 이전 상태를 기억하지 않는다).
 ================================================================== */
 els.btnMin.onclick = () => els.win.classList.add("minimized");
+// 드래그로 옮긴 위치(position:fixed의 left/top 인라인 스타일)는 최대화하면 잠깐 지워야
+// (.maximized 클래스의 top:0/left:0을 인라인 스타일이 덮어써버리면 꽉 채워지지 않음) 온전히 꽉 찬다.
+// 최대화를 풀면 그 위치를 되돌려서 이어서 옮긴 자리에 복귀한다(실제 창처럼).
+let lastDragPos = null; // { left, top } - 최대화 직전에 드래그로 옮겨져 있었으면 그 좌표를 기억
 function toggleMaximize() {
-  els.win.classList.toggle("maximized");
+  const willMaximize = !els.win.classList.contains("maximized");
+  if (willMaximize) {
+    if (els.win.classList.contains("positioned")) {
+      lastDragPos = { left: els.win.style.left, top: els.win.style.top };
+      els.win.style.left = "";
+      els.win.style.top = "";
+    }
+    els.win.classList.add("maximized");
+  } else {
+    els.win.classList.remove("maximized");
+    if (lastDragPos) {
+      els.win.style.left = lastDragPos.left;
+      els.win.style.top = lastDragPos.top;
+      lastDragPos = null;
+    }
+  }
   els.btnMax.innerHTML = els.win.classList.contains("maximized") ? "&#x2752;" : "&#x25A1;";
 }
 els.btnMax.onclick = toggleMaximize;
 els.titlebar.addEventListener("dblclick", toggleMaximize);
+
+/* ============ 창 이동(드래그) - 최대화 상태가 아닐 때만, 타이틀바를 눌러서 옮긴다 ============ */
+(function setupWindowDrag() {
+  let dragging = false, startX = 0, startY = 0, winStartLeft = 0, winStartTop = 0;
+  els.titlebar.addEventListener("mousedown", (e) => {
+    if (els.win.classList.contains("maximized")) return; // 최대화 상태에서는 이동하지 않음
+    if (e.target.closest(".tb-btn")) return; // 최소화/최대화/닫기 버튼 클릭은 드래그가 아님
+    dragging = true;
+    const rect = els.win.getBoundingClientRect();
+    if (!els.win.classList.contains("positioned")) {
+      // 처음 드래그하는 순간, 지금 화면에 보이는 위치를 그대로 고정 좌표로 바꿔서 이어서 움직이게 한다
+      // (그전까지는 desktop의 flex 중앙 정렬로 위치가 잡혀 있었음).
+      els.win.classList.add("positioned");
+    }
+    winStartLeft = rect.left;
+    winStartTop = rect.top;
+    els.win.style.left = winStartLeft + "px";
+    els.win.style.top = winStartTop + "px";
+    startX = e.clientX;
+    startY = e.clientY;
+    e.preventDefault();
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    const rect = els.win.getBoundingClientRect();
+    const minVisible = 80; // 화면 밖으로 완전히 사라지지 않게 최소한은 보이게 남겨둔다
+    let newLeft = winStartLeft + dx;
+    let newTop = winStartTop + dy;
+    newLeft = Math.max(-(rect.width - minVisible), Math.min(newLeft, window.innerWidth - minVisible));
+    newTop = Math.max(0, Math.min(newTop, window.innerHeight - 40));
+    els.win.style.left = newLeft + "px";
+    els.win.style.top = newTop + "px";
+  });
+  window.addEventListener("mouseup", () => { dragging = false; });
+})();
 els.btnClose.onclick = () => {
   els.win.classList.add("closed");
   els.taskbarApp.classList.remove("active");
@@ -600,7 +695,6 @@ els.taskbarApp.onclick = () => {
   els.taskbarApp.classList.add("active");
   if (wasClosed) {
     expanded.clear();
-    persistExpanded();
     navigate([]);
   }
 };
@@ -636,7 +730,8 @@ const DEFAULT_SETTINGS = {
   githubLinksEnabled: true,
   doubleClickAction: "open", // "open" | "download"
   searchScope: "subtree",    // "subtree"(현재 폴더의 하위만) | "all"(전체 저장소)
-  searchRelativePath: true   // 검색 결과 위치를 현재 폴더 기준 상대 경로로 표시할지
+  searchRelativePath: true,  // 검색 결과 위치를 현재 폴더 기준 상대 경로로 표시할지
+  aeroEnabled: true          // 반투명 블러("에어로") 효과 - 기본 활성화
 };
 function settingsKey() { return `idx:${repoName}:settings`; }
 function loadSettings() {
@@ -648,7 +743,11 @@ function loadSettings() {
   if (s.doubleClickAction !== "download") s.doubleClickAction = "open";
   if (s.searchScope !== "all") s.searchScope = "subtree";
   s.searchRelativePath = s.searchRelativePath !== false;
+  s.aeroEnabled = s.aeroEnabled !== false;
   return s;
+}
+function applyAeroToDocument() {
+  document.body.classList.toggle("no-aero", !settings.aeroEnabled);
 }
 function saveSettings() {
   try { localStorage.setItem(settingsKey(), JSON.stringify(settings)); } catch (e) {}
@@ -660,6 +759,7 @@ function applySettingsToPanel() {
   els.setDoubleClick.value = settings.doubleClickAction;
   els.setSearchScope.value = settings.searchScope;
   els.setSearchRelative.checked = settings.searchRelativePath;
+  if (els.setAeroEnabled) els.setAeroEnabled.checked = settings.aeroEnabled;
 }
 function applySearchPlaceholder() {
   els.searchInput.placeholder = settings.searchScope === "all" ? "전체 검색" : "현재 폴더 검색";
@@ -688,6 +788,13 @@ function setupSettingsPanel() {
     settings.searchRelativePath = els.setSearchRelative.checked;
     saveSettings();
   };
+  if (els.setAeroEnabled) {
+    els.setAeroEnabled.onchange = () => {
+      settings.aeroEnabled = els.setAeroEnabled.checked;
+      saveSettings();
+      applyAeroToDocument();
+    };
+  }
   els.setPreloadAllBtn.onclick = async () => {
     els.setPreloadAllBtn.disabled = true;
     try {
@@ -876,25 +983,68 @@ let cachedHelperPort = null; // 한 번 찾으면 이 페이지가 살아있는 
 // index.html에 내장해둔 localserver.ahk 원본을 즉시 blob으로 내려받게 해준다
 // ("자가 치유" - 사용자가 바로 실행만 하면 되도록).
 const LOCALSERVER_AHK_B64 = "77u/OyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KOyDroZzsu6wg7Zes7Y28IOyEnOuyhCAtIEF1dG9Ib3RrZXkgdjEKOwo7IGluZGV4Lmh0bWwoSFRUUFProZwg7Zi47Iqk7YyF65CcIEdpdEh1YiBQYWdlcynsl5DshJwg66Gc7Lus66GcIO2MjOydvOydhAo7ICLsl7TquLAiIC8gIuuLpOyatOuhnOuTnCIg7ZWgIOyImCDsnojqsowg7ZW07KO864qUIOuhnOy7rCDsm7ntm4Ug7ISc67KELgo7IC0gR0VUIC9waW5nICAgICAgICAgICAgICAtPiDsgrTslYTsnojripTsp4Ag7ZmV7J247JqpICjqs6DsnKAg7ISc66qFIOusuOyekOyXtCDsnZHri7UsIOyVhOuemCDssLjqs6ApCjsgLSBHRVQgL29wZW4/dXJsPS4uLiZzaXplPS4uLiAgICAgLT4g6re4IFVSTOydhCAldGVtcCXsl5Ag67Cb7JWE7IScIOuwlOuhnCDsi6Ttloko7Jew6rKwIO2UhOuhnOq3uOueqOycvOuhnCDsl7TquLApCjsgLSBHRVQgL2Rvd25sb2FkP3VybD0uLi4mc2l6ZT0uLi4gLT4g7KCA7J6lIOuMgO2ZlOyDgeyekOulvCDrnYTsm4zshJwg7IKs7Jqp7J6Q6rCAIOqzoOuluCDsnITsuZjsl5Ag64uk7Jq066Gc65OcCjsgICAoc2l6ZeuKlCDshKDtg53qsJIuIGluZGV4Lmh0bWzsnbQg7IOJ7J247JeQIOyggOyepeuQnCDtjIzsnbwg7YGs6riw66W8IOyVjOqzoCDsnojsnLzrqbQg6rCZ7J20IOuztOuCtOyjvOqzoCwKOyAgICDsl4bsnLzrqbQg7J20IOyEnOuyhOqwgCBIRUFEIOyalOyyreycvOuhnCDsp4HsoJEg7JWM7JWE64K464ukLikKOyAtIEdFVCAva2lsbCAgICAgICAgICAgICAgLT4g7J20IO2XrO2NvCDtlITroZzshLjsiqTrpbwg7KKF66OM7ZWc64ukICgjTm9UcmF5SWNvbuydtOudvCDtirjroIjsnbQg66mU64m066GcCjsgICDrqrsg64GE64uILCBpbmRleC5odG1sIO2ZmOqyveyEpOygleydmCAi7Ju57ZuFIOyiheujjCIg67KE7Yq87J20IOydtOqxuOuhnCDrgYjri6QpCjsgLSBHRVQgL3BpY2tmb2xkZXIgICAgICAgIC0+IO2PtOuNlCDshKDtg50g64yA7ZmU7IOB7J6Q66W8IO2VnCDrsogg652E7JuM7IScIOqzoOuluCDqsr3roZzrpbwg7J2R64u1ICjri6TspJEg64uk7Jq066Gc65Oc7JqpLgo7ICAg7Jes65+sIO2MjOydvOydhCDrsJvsnYQg65WM66eI64ukIOunpOuyiCDsoIDsnqUg64yA7ZmU7IOB7J6Q66W8IOudhOyasOuKlCDrjIDsi6AsIO2PtOuNlOulvCDrlLEg7ZWcIOuyiOunjCDqs6DrpbTqsowg7ZWc64ukKQo7IC0gR0VUIC9zYXZldG9mb2xkZXI/dXJsPS4uLiZzaXplPS4uLiZmb2xkZXI9Li4uJm5hbWU9Li4uIC0+IOuMgO2ZlOyDgeyekCDsl4bsnbQg67CU66GcIOq3uCDtj7TrjZTsl5Ag7KCA7J6lCjsgICAo7J2066aE7J20IOydtOuvuCDsnojsnLzrqbQgIiAoMiki7LKY65+8IOuSpOyXkCDrsojtmLjrpbwg67aZ7JesIOyViCDqsrnsuZjqsowg7ZWc64ukKQo7Cjsg7Y+s7Yq464qUIOqzoOygle2VmOyngCDslYrqs6AgODAwMH44MDIwIOyCrOydtOyXkOyEnCDruYTslrTsnojripQg6rG4IOuPmeyggeycvOuhnCDsnqHripTri6QuCjsgaW5kZXguaHRtbOuPhCDqsJnsnYAg67KU7JyE66W8IOyKpOy6lO2VtOyEnCDsnZHri7XtlZjripQg7Y+s7Yq466W8IOywvuyVhCDsk7Tri6QgKOyWkeyqvSDri6Qg64+Z7KCBKS4KOyDqt7gg67KU7JyE7JeQIOydtOuvuCDri6Trpbgg66y06rSA7ZWcIO2UhOuhnOq3uOueqOydtCDrlqDsnojsnYQg7IiY64+EIOyeiOycvOuvgOuhnCwgL3BpbmfsnYAg64uo7IicCjsgIk9LIuqwgCDslYTri4jrnbwg7J20IO2XrO2NvOunjOydmCDqs6DsnKAg7ISc66qFKEhFTFBFUl9TSUdOQVRVUkUp7J2EIOydkeuLte2VnOuLpCAtCjsgaW5kZXguaHRtbOydgCDsoJXtmZXtnogg6re4IOusuOyekOyXtOydtCDsmYDslbzrp4wgIuywvuyVmOuLpCLqs6Ag7YyQ64uo7ZWc64ukLgo7Cjsg7LC46rOgOiBIVFRQUyDtjpjsnbTsp4Dsl5DshJwgaHR0cDovLzEyNy4wLjAuMeuhnCDsmpTssq3tlZjripQg6rG0IO2BrOuhrOydmAo7ICJMb2NhbCBOZXR3b3JrIEFjY2VzcyIg7KCV7LGFIOuVjOusuOyXkCDsspjsnYwg7ZWcIOuyiOydgCDruIzrnbzsmrDsoIAg6raM7ZWcCjsg7Yyd7JeF7J20IOucrOuLpC4g6re46rG0IOygleyDgeydtOqzoCwg7IKs7Jqp7J6Q6rCAIO2XiOyaqeydhCDriIzrn6zslbwg64+Z7J6R7ZWc64ukLgo7ID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQojTm9FbnYKI1BlcnNpc3RlbnQKI1NpbmdsZUluc3RhbmNlLCBGb3JjZQojTm9UcmF5SWNvbgpTZXRCYXRjaExpbmVzLCAtMQoKUE9SVF9NSU4gOj0gODAwMApQT1JUX01BWCA6PSA4MDIwCjsgL3Bpbmcg7J2R64u17Jy866GcIOydtCDrrLjsnpDsl7TsnYQg64+M66Ck7KSA64ukLiDri6jsiJwgIk9LIuuKlCA4MDAwfjgwMjAg7IKs7J207JeQIOuWoOyeiOuKlAo7IOuLpOuluCDrrLTqtIDtlZwg7ZSE66Gc6re4656o7J20IOyasOyXsO2eiCDqsJnsnYAg7J2R64u17J2EIOykhCDsiJjrj4Qg7J6I7Ja07IScLCDsnbQg7Zes7Y2866eM7J2YCjsg6rOg7Jyg7ZWcIOyEnOuqheycvOuhnCDqtazrtoTtlZzri6QuIGluZGV4Lmh0bWzsnYAg7KCV7ZmV7Z6IIOydtCDrrLjsnpDsl7TsnYQg7ZmV7J247ZWc64ukLgpIRUxQRVJfU0lHTkFUVVJFIDo9ICJBSEstUkVQTy1JTkRFWEVSLUxPQ0FMSEVMUEVSLXYxIgoKOyDsl7TquLAv64uk7Jq066Gc65OcIO2MjOydvOydtCDsnbQg7YGs6riwKOuwlOydtO2KuCnrpbwg64SY7Jy866m0IOynhO2WieuloCDtkZzsi5wg64uk7Jq066Gc642U66W8IOyCrOyaqe2VnOuLpC4KOyDtlYTsmpTtlZjrqbQg7J20IOqwkuunjCDrsJTqvrjrqbQg65CoLgpDdXN0b21Eb3dubG9hZFRocmVzaG9sZEJ5dGVzIDo9IDUwICogMTAyNCAqIDEwMjQKCjsgUElEIOqwkOyLnCDso7zquLAobXMpLiDrqqnroZ3sl5Ag662U6rCAIOyeiOydhCDrlYzrp4wg7J20IOyjvOq4sOuhnCDqs4Tsho0g64+M66m07IScICLsponrsJwi7JeQIOqwgOq5neqyjCDtmZXsnbjtlZzri6QKOyAo66qp66Gd7J20IOu5hOuptCDtg4DsnbTrqLgg7J6Q7LK066W8IOq6vOyEnCDrhoDsp4Ag7JWK64qU64ukKS4g7ZWE7JqU7ZWY66m0IOydtCDqsJLrp4wg67CU6r6466m0IOuQqC4KUHJvY0NoZWNrSW50ZXJ2YWxNcyA6PSAyMDAKOyDtlITroZzshLjsiqTqsIAg64Gd64KcIOqxuCDtmZXsnbjtlZwg65KkIHRlbXAg7YyM7J28IOyCreygnOulvCDrqocg67KI6rmM7KeAIOyerOyLnOuPhO2VoOyngC4g7ZWE7JqU7ZWY66m0IOydtCDqsJLrp4wg67CU6r6466m0IOuQqC4KUHJvY0RlbGV0ZU1heFJldHJpZXMgOj0gMzAKClJ1bm5pbmdQcm9jcyA6PSBbXSAgIDsgW3twaWQsIHBhdGh9LCAuLi5dICLsl7TquLAi66GcIOyLpO2Wie2VtOyEnCB0ZW1w7JeQIOuCqOyVhOyeiOuKlCDtjIzsnbzrk6Qg7LaU7KCBClVuaXF1ZUNvdW50ZXIgOj0gMApCdXN5IDo9IGZhbHNlICAgICAgICAgOyDsp4TtlonrpaAg64uk7Jq066Gc65OcIOuPhOykkSDsnqzsp4TsnoUg67Cp7KeA7JqpICjqsJzsnbjsmqkg64uo7J28IOyEnOuyhOudvCDrj5nsi5wg64uk7Jq066Gc65Oc64qUIOunieuKlOuLpCkKCmJvdW5kVXJsIDo9IFN0YXJ0V2ViaG9va1NlcnZlcihQT1JUX01JTiwgUE9SVF9NQVgsIEFfU2NyaXB0RGlyIC4gIlx3ZWJob29rLmxvZyIpCmlmICFib3VuZFVybCB7CiAgICBNc2dCb3gsIDQwOTYsIOuhnOy7rCDtl6ztjbwsICVQT1JUX01JTiV+JVBPUlRfTUFYJSDsgqzsnbTsl5Ag7Je0IOyImCDsnojripQg7Y+s7Yq46rCAIOyXhuyKteuLiOuLpC4KICAgIEV4aXRBcHAKfQo7ICNOb1RyYXlJY29u7J206528IO2KuOugiOydtCDslYTsnbTsvZjsnYQg66eI7Jqw7Iqk66GcIOyasO2BtOumre2VtOyEnCDrgYwg7IiYIOyXhuuLpCAtIGluZGV4Lmh0bWwg7ZmY6rK97ISk7KCV7J2YCjsgIuybue2bhSDsooXro4wiIOuyhO2KvOydtCAva2lsbCDsmpTssq3snYQg67O064K07IScIOuBhOuKlCDqsowg7Jyg7J287ZWcIOygleyDgSDsooXro4wg67Cp67KV7J2064ukLgpyZXR1cm4KCjsgPT09PT09PT09PT09PT09PT09PT09IOyEnOuyhCDsi5zsnpEgKHBvcnRNaW5+cG9ydE1heCDsgqzsnbTsl5DshJwg67mIIO2PrO2KuCDtg5Dsg4kpID09PT09PT09PT09PT09PT09PT09PQpTdGFydFdlYmhvb2tTZXJ2ZXIocG9ydE1pbiwgcG9ydE1heCwgbG9nRmlsZSA6PSAid2ViaG9vay5sb2ciKSB7CiAgICBnbG9iYWwgV0hTb2NrLCBXSExvZywgV01fV0ggOj0gMHg1NTU1CiAgICBXSExvZyA6PSBsb2dGaWxlCiAgICBEbGxDYWxsKCJMb2FkTGlicmFyeSIsICJTdHIiLCAiV3MyXzMyLmRsbCIpCiAgICBWYXJTZXRDYXBhY2l0eSh3LCA0MDAsIDApLCBEbGxDYWxsKCJXczJfMzJcV1NBU3RhcnR1cCIsICJVU2hvcnQiLCAweDIwMiwgIlB0ciIsICZ3KQogICAgV0hTb2NrIDo9IERsbENhbGwoIldzMl8zMlxzb2NrZXQiLCAiSW50IiwgMiwgIkludCIsIDEsICJJbnQiLCA2LCAiUHRyIikKICAgIG92IDo9IDEsIERsbENhbGwoIldzMl8zMlxzZXRzb2Nrb3B0IiwgIlB0ciIsIFdIU29jaywgIkludCIsIDB4RkZGRiwgIkludCIsIDQsICJQdHIiLCAmb3YsICJJbnQiLCA0KQoKICAgIGJvdW5kIDo9IGZhbHNlCiAgICBwb3J0IDo9IHBvcnRNaW4KICAgIExvb3AsICUgKHBvcnRNYXggLSBwb3J0TWluICsgMSkgewogICAgICAgIFZhclNldENhcGFjaXR5KHNhLCAxNiwgMCksIE51bVB1dCgyLCBzYSwgMCwgIlVTaG9ydCIpLCBOdW1QdXQoRGxsQ2FsbCgiV3MyXzMyXGh0b25zIiwgIlVTaG9ydCIsIHBvcnQsICJVU2hvcnQiKSwgc2EsIDIsICJVU2hvcnQiKSwgTnVtUHV0KERsbENhbGwoIldzMl8zMlxpbmV0X2FkZHIiLCAiQVN0ciIsICIxMjcuMC4wLjEiLCAiVUludCIpLCBzYSwgNCwgIlVJbnQiKQogICAgICAgIGlmIChEbGxDYWxsKCJXczJfMzJcYmluZCIsICJQdHIiLCBXSFNvY2ssICJQdHIiLCAmc2EsICJJbnQiLCAxNikgIT0gLTEpIHsKICAgICAgICAgICAgYm91bmQgOj0gdHJ1ZQogICAgICAgICAgICBicmVhawogICAgICAgIH0KICAgICAgICBwb3J0KysKICAgIH0KICAgIGlmICFib3VuZAogICAgICAgIHJldHVybiBmYWxzZQoKICAgIERsbENhbGwoIldzMl8zMlxsaXN0ZW4iLCAiUHRyIiwgV0hTb2NrLCAiSW50IiwgNSkKICAgIERsbENhbGwoIldzMl8zMlxXU0FBc3luY1NlbGVjdCIsICJQdHIiLCBXSFNvY2ssICJQdHIiLCBBX1NjcmlwdEh3bmQsICJVSW50IiwgV01fV0gsICJJbnQiLCA4KQogICAgT25NZXNzYWdlKFdNX1dILCAiV0hTb2NrZXRFdmVudCIpLCBPbkV4aXQoIldIQ2xlYW51cCIpCiAgICByZXR1cm4gImh0dHA6Ly8xMjcuMC4wLjE6IiAuIHBvcnQKfQoKOyA9PT09PT09PT09PT09PT09PT09PT0g7IaM7LyTIOydtOuypO2KuCA9PT09PT09PT09PT09PT09PT09PT0KV0hTb2NrZXRFdmVudCh3UGFyYW0sIGxQYXJhbSkgewogICAgZ2xvYmFsIFdIU29jaywgV01fV0gKICAgIEV2ZW50IDo9IGxQYXJhbSAmIDB4RkZGRgoKICAgIGlmICh3UGFyYW0gPSBXSFNvY2sgJiYgRXZlbnQgPSA4KQogICAgICAgIENsaWVudCA6PSBEbGxDYWxsKCJXczJfMzJcYWNjZXB0IiwgIlB0ciIsIFdIU29jaywgIlB0ciIsIDAsICJQdHIiLCAwLCAiUHRyIiksIENsaWVudCAhPSAtMSAmJiBEbGxDYWxsKCJXczJfMzJcV1NBQXN5bmNTZWxlY3QiLCAiUHRyIiwgQ2xpZW50LCAiUHRyIiwgQV9TY3JpcHRId25kLCAiVUludCIsIFdNX1dILCAiSW50IiwgMHgyMSkKCiAgICBpZiAoRXZlbnQgPSAxKQogICAgICAgIFdISGFuZGxlUmVxdWVzdCh3UGFyYW0pLCBEbGxDYWxsKCJXczJfMzJcY2xvc2Vzb2NrZXQiLCAiUHRyIiwgd1BhcmFtKQoKICAgIGlmIChFdmVudCA9IDB4MjApCiAgICAgICAgRGxsQ2FsbCgiV3MyXzMyXGNsb3Nlc29ja2V0IiwgIlB0ciIsIHdQYXJhbSkKfQoKOyA9PT09PT09PT09PT09PT09PT09PT0g7JqU7LKtIOyymOumrCAo65287Jqw7YyFICsg66Gc6re4KSA9PT09PT09PT09PT09PT09PT09PT0KV0hIYW5kbGVSZXF1ZXN0KENsaWVudCkgewogICAgZ2xvYmFsIFdITG9nLCBIRUxQRVJfU0lHTkFUVVJFCiAgICBWYXJTZXRDYXBhY2l0eShidWYsIDgxOTIsIDApLCByZWNlaXZlZCA6PSBEbGxDYWxsKCJXczJfMzJccmVjdiIsICJQdHIiLCBDbGllbnQsICJQdHIiLCAmYnVmLCAiSW50IiwgODE5MiwgIkludCIsIDApCiAgICBpZiAocmVjZWl2ZWQgPD0gMCkKICAgICAgICByZXR1cm4KCiAgICByZXF1ZXN0IDo9IFN0ckdldCgmYnVmLCByZWNlaXZlZCwgIlVURi04IikKICAgIGlmICFSZWdFeE1hdGNoKHJlcXVlc3QsICJpbSleKFxTKylccysoXFMrKVxzK0hUVFAiLCBtKQogICAgICAgIHJldHVybiBXSFNlbmQoQ2xpZW50LCA0MDAsICJCYWQgUmVxdWVzdCIpCgogICAgbWV0aG9kIDo9IG0xLCByZXFQYXRoIDo9IG0yCgogICAgOyDqsr3roZzsmYAg7L+866as7Iqk7Yq466eBIOu2hOumrCAoL29wZW4/dXJsPS4uLiZzaXplPS4uLiAtPiByb3V0ZVBhdGg9L29wZW4sIHF1ZXJ5U3RyPXVybD0uLi4mc2l6ZT0uLi4pCiAgICBxUG9zIDo9IEluU3RyKHJlcVBhdGgsICI/IikKICAgIHJvdXRlUGF0aCA6PSBxUG9zID8gU3ViU3RyKHJlcVBhdGgsIDEsIHFQb3MgLSAxKSA6IHJlcVBhdGgKICAgIHF1ZXJ5U3RyIDo9IHFQb3MgPyBTdWJTdHIocmVxUGF0aCwgcVBvcyArIDEpIDogIiIKCiAgICBmaWxlVXJsIDo9ICIiCiAgICBpZiBSZWdFeE1hdGNoKHF1ZXJ5U3RyLCAiKD86XnwmKXVybD0oW14mXSopIiwgcW0pCiAgICAgICAgZmlsZVVybCA6PSBVcmxEZWNvZGUocW0xKQoKICAgIHNpemVQYXJhbSA6PSAiIgogICAgaWYgUmVnRXhNYXRjaChxdWVyeVN0ciwgIig/Ol58JilzaXplPShbXiZdKikiLCBzbSkKICAgICAgICBzaXplUGFyYW0gOj0gVXJsRGVjb2RlKHNtMSkKCiAgICBmb2xkZXJQYXJhbSA6PSAiIgogICAgaWYgUmVnRXhNYXRjaChxdWVyeVN0ciwgIig/Ol58Jilmb2xkZXI9KFteJl0qKSIsIGZtKQogICAgICAgIGZvbGRlclBhcmFtIDo9IFVybERlY29kZShmbTEpCgogICAgbmFtZVBhcmFtIDo9ICIiCiAgICBpZiBSZWdFeE1hdGNoKHF1ZXJ5U3RyLCAiKD86XnwmKW5hbWU9KFteJl0qKSIsIG5tKQogICAgICAgIG5hbWVQYXJhbSA6PSBVcmxEZWNvZGUobm0xKQoKICAgIEZvcm1hdFRpbWUsIHRzLCwgeXl5eS1NTS1kZCBISDptbTpzcwogICAgRmlsZUFwcGVuZCwgJSB0cyAuICIgICIgLiBtZXRob2QgLiAiICIgLiByZXFQYXRoIC4gImBuIiwgJVdITG9nJSwgVVRGLTgKCiAgICBpZiAobWV0aG9kID0gIk9QVElPTlMiKSB7CiAgICAgICAgV0hTZW5kKENsaWVudCwgMjAwLCAiIikKICAgICAgICByZXR1cm4KICAgIH0KCiAgICBpZiAocm91dGVQYXRoID0gIi9waW5nIikgewogICAgICAgIFdIU2VuZChDbGllbnQsIDIwMCwgSEVMUEVSX1NJR05BVFVSRSkKICAgIH0gZWxzZSBpZiAocm91dGVQYXRoID0gIi9vcGVuIikgewogICAgICAgIEhhbmRsZU9wZW4oQ2xpZW50LCBmaWxlVXJsLCBzaXplUGFyYW0pCiAgICB9IGVsc2UgaWYgKHJvdXRlUGF0aCA9ICIvZG93bmxvYWQiKSB7CiAgICAgICAgSGFuZGxlRG93bmxvYWQoQ2xpZW50LCBmaWxlVXJsLCBzaXplUGFyYW0pCiAgICB9IGVsc2UgaWYgKHJvdXRlUGF0aCA9ICIva2lsbCIpIHsKICAgICAgICBIYW5kbGVLaWxsKENsaWVudCkKICAgIH0gZWxzZSBpZiAocm91dGVQYXRoID0gIi9waWNrZm9sZGVyIikgewogICAgICAgIEhhbmRsZVBpY2tGb2xkZXIoQ2xpZW50KQogICAgfSBlbHNlIGlmIChyb3V0ZVBhdGggPSAiL3NhdmV0b2ZvbGRlciIpIHsKICAgICAgICBIYW5kbGVTYXZlVG9Gb2xkZXIoQ2xpZW50LCBmaWxlVXJsLCBzaXplUGFyYW0sIGZvbGRlclBhcmFtLCBuYW1lUGFyYW0pCiAgICB9IGVsc2UgewogICAgICAgIFdIU2VuZChDbGllbnQsIDQwNCwgIk5vdCBGb3VuZCIpCiAgICB9Cn0KCjsgPT09PT09PT09PT09PT09PT09PT09IOyiheujjDogI05vVHJheUljb27snbTrnbwg7Yq466CI7J20IOuplOuJtOuhnCDrqrsg64GE64uILCBpbmRleC5odG1sIO2ZmOqyveyEpOygleydmAo7ICLsm7ntm4Ug7KKF66OMIiDrsoTtirzsnbQg7J20IOudvOyasO2KuOuhnCDsnbQg7ZSE66Gc7IS47Iqk66W8IOuBiOuLpC4g7J2R64u17J2EIOuovOyggCDquajrgZftlZjqsowg67O064K06rOgIOyGjOy8k+ydhAo7IOuLq+ydgCDrkqQg7KKF66OM7ZW07JW8IOu4jOudvOyasOyggCDsqr3sl5DshJwgZmV0Y2jqsIAg7JeQ65+sIOyXhuydtCDsoJXsg4Eg7JmE66OM65Cc64ukLiA9PT09PT09PT09PT09PT09PT09PT0KSGFuZGxlS2lsbChDbGllbnQpIHsKICAgIFdIU2VuZChDbGllbnQsIDIwMCwgIkJZRSIpCiAgICBEbGxDYWxsKCJXczJfMzJcY2xvc2Vzb2NrZXQiLCAiUHRyIiwgQ2xpZW50KQogICAgRXhpdEFwcAp9Cgo7ID09PT09PT09PT09PT09PT09PT09PSDsl7TquLA6IOydtOumhCDslYgg6rK57LmY6rKMIHRlbXDsl5Ag67Cb7JWE7IScIOuwlOuhnCDsi6TtlokgKyBQSUQg7LaU7KCBID09PT09PT09PT09PT09PT09PT09PQpIYW5kbGVPcGVuKENsaWVudCwgZmlsZVVybCwgc2l6ZVBhcmFtKSB7CiAgICBnbG9iYWwgUnVubmluZ1Byb2NzLCBCdXN5LCBQcm9jQ2hlY2tJbnRlcnZhbE1zCiAgICBpZiAoZmlsZVVybCA9ICIiKQogICAgICAgIHJldHVybiBXSFNlbmQoQ2xpZW50LCA0MDAsICJ1cmwg7YyM652866+47YSw6rCAIOyXhuyKteuLiOuLpCIpCiAgICBpZiAoQnVzeSkKICAgICAgICByZXR1cm4gV0hTZW5kKENsaWVudCwgNTAzLCAi64uk66W4IOuLpOyatOuhnOuTnOqwgCDsp4Ttlokg7KSR7J6F64uI64ukLiDsnqDsi5wg7ZuEIOuLpOyLnCDsi5zrj4TtlZjshLjsmpQiKQoKICAgIGRlc3QgOj0gVW5pcXVlVGVtcFBhdGgoZmlsZVVybCkKICAgIG9rIDo9IERvd25sb2FkV2l0aE9wdGlvbmFsUHJvZ3Jlc3MoZmlsZVVybCwgZGVzdCwgc2l6ZVBhcmFtLCAi7Jes64qUIikKICAgIGlmICFvawogICAgICAgIHJldHVybiBXSFNlbmQoQ2xpZW50LCA1MDIsICLri6TsmrTroZzrk5wg7Iuk7YyoIikKCiAgICA7IFVzZUVycm9yTGV2ZWzsnYQg67CY65Oc7IucIOu2meyduOuLpDog7JeG7Jy866m0IOyXsOqysOuQnCDtlITroZzqt7jrnqjsnbQg7JeG64qUIOuTsSDsi6Ttlonsl5AKICAgIDsg7Iuk7Yyo7ZaI7J2EIOuVjCBBSEvqsIAg7J6Q7LK0IOyYpOulmCDrjIDtmZTsg4HsnpDrpbwg652E7Jqw66m07IScIOyKpO2BrOumve2KuCDsoITssrQoPeydtCDsm7ntm4Ug7ISc67KEKeqwgAogICAgOyDqt7gg7LC97J2EIOuLq+q4sCDsoITquYzsp4Ag66mI7Law67KE66aw64ukLiBVc2VFcnJvckxldmVs7J2EIOyTsOuptCDqt7jrn7Ag64yA7ZmU7IOB7J6QIOyXhuydtAogICAgOyBFcnJvckxldmVs66eMICJFUlJPUiLroZwg7ISk7KCV65CY6rOgIOyKpO2BrOumve2KuOuKlCDqs4Tsho0g7Iuk7ZaJ65Cc64ukLgogICAgcGlkIDo9IDAKICAgIFJ1biwgJWRlc3QlLCwgVXNlRXJyb3JMZXZlbCwgcGlkCiAgICBpZiAoRXJyb3JMZXZlbCA9ICJFUlJPUiIpIHsKICAgICAgICBpZiBGaWxlRXhpc3QoZGVzdCkKICAgICAgICAgICAgRmlsZURlbGV0ZSwgJWRlc3QlCiAgICAgICAgcmV0dXJuIFdIU2VuZChDbGllbnQsIDUwMiwgIuyXsOqysOuQnCDtlITroZzqt7jrnqjsnbQg7JeG7Ja0IOyXtCDsiJgg7JeG7Iq164uI64ukIikKICAgIH0KICAgIGlmIHBpZCB7CiAgICAgICAgUnVubmluZ1Byb2NzLlB1c2goe3BpZDogcGlkLCBwYXRoOiBkZXN0fSkKICAgICAgICA7IOqwkOyLnCDrqqnroZ3snbQg67Cp6riIIOu5hOyWtOyeiOuLpOqwgCDtlZjrgpjrnbzrj4Qg7IOd6rK87Jy866m0IO2DgOydtOuouOulvCDsvKDri6Qo7KaJ67CcIOqygOyCrCDsi5zsnpEpLgogICAgICAgIDsg7J2066+4IOuPjOqzoCDsnojsl4jsnLzrqbQgU2V0VGltZXLrpbwg64uk7IucIO2YuOy2nO2VtOuPhCDqt7jrg6Ug7KO86riw66eMIOqwseyLoOuQoCDrv5Ag66y47KCcIOyXhuuLpC4KICAgICAgICBTZXRUaW1lciwgQ2hlY2tSdW5uaW5nUHJvY3MsICUgUHJvY0NoZWNrSW50ZXJ2YWxNcwogICAgfQogICAgV0hTZW5kKENsaWVudCwgMjAwLCAiT0siKQp9Cgo7ID09PT09PT09PT09PT09PT09PT09PSDri6TsmrTroZzrk5w6IOyggOyepSDrjIDtmZTsg4HsnpAgLT4g7IKs7Jqp7J6Q6rCAIOqzoOuluCDsnITsuZjsl5Ag7KCA7J6lID09PT09PT09PT09PT09PT09PT09PQpIYW5kbGVEb3dubG9hZChDbGllbnQsIGZpbGVVcmwsIHNpemVQYXJhbSkgewogICAgZ2xvYmFsIEJ1c3kKICAgIGlmIChmaWxlVXJsID0gIiIpCiAgICAgICAgcmV0dXJuIFdIU2VuZChDbGllbnQsIDQwMCwgInVybCDtjIzrnbzrr7jthLDqsIAg7JeG7Iq164uI64ukIikKICAgIGlmIChCdXN5KQogICAgICAgIHJldHVybiBXSFNlbmQoQ2xpZW50LCA1MDMsICLri6Trpbgg64uk7Jq066Gc65Oc6rCAIOynhO2WiSDspJHsnoXri4jri6QuIOyeoOyLnCDtm4Qg64uk7IucIOyLnOuPhO2VmOyEuOyalCIpCgogICAgbmFtZSA6PSBVcmxUb0ZpbGVOYW1lKGZpbGVVcmwpCiAgICBzYXZlUGF0aCA6PSAiIgogICAgRmlsZVNlbGVjdEZpbGUsIHNhdmVQYXRoLCBTMTYsICVBX015RG9jdW1lbnRzJVwlbmFtZSUsIOuLpOyatOuhnOuTnCDsnITsuZgg7ISg7YOdLCDrqqjrk6Ag7YyM7J28ICgqLiopCiAgICBpZiAoc2F2ZVBhdGggPSAiIikKICAgICAgICByZXR1cm4gV0hTZW5kKENsaWVudCwgMjAwLCAiQ0FOQ0VMTEVEIikKCiAgICBvayA6PSBEb3dubG9hZFdpdGhPcHRpb25hbFByb2dyZXNzKGZpbGVVcmwsIHNhdmVQYXRoLCBzaXplUGFyYW0sICLri6TsmrTroZzrk5wiKQogICAgaWYgIW9rCiAgICAgICAgcmV0dXJuIFdIU2VuZChDbGllbnQsIDUwMiwgIuuLpOyatOuhnOuTnCDsi6TtjKgiKQoKICAgIFdIU2VuZChDbGllbnQsIDIwMCwgIk9LIikKfQoKOyA9PT09PT09PT09PT09PT09PT09PT0g64uk7KSRIOuLpOyatOuhnOuTnOyaqTog7Y+0642UIOyEoO2DnSDrjIDtmZTsg4HsnpDrpbwg7ZWcIOuyiOunjCDrnYTsm4AgPT09PT09PT09PT09PT09PT09PT09CkhhbmRsZVBpY2tGb2xkZXIoQ2xpZW50KSB7CiAgICBmb2xkZXIgOj0gU2VsZWN0Rm9sZGVyRXgoIiIsICLri6TsmrTroZzrk5wg67Cb7J2EIO2PtOuNlOulvCDshKDtg53tlZjshLjsmpQiKQogICAgaWYgKGZvbGRlciA9ICIiKQogICAgICAgIHJldHVybiBXSFNlbmQoQ2xpZW50LCAyMDAsICJDQU5DRUxMRUQiKQogICAgV0hTZW5kKENsaWVudCwgMjAwLCBmb2xkZXIpCn0KCjsgPT09PT09PT09PT09PT09PT09PT09IOuLpOykkSDri6TsmrTroZzrk5zsmqk6IOuMgO2ZlOyDgeyekCDsl4bsnbQg7KeA7KCV65CcIO2PtOuNlOyXkCDrsJTroZwg7KCA7J6lID09PT09PT09PT09PT09PT09PT09PQpIYW5kbGVTYXZlVG9Gb2xkZXIoQ2xpZW50LCBmaWxlVXJsLCBzaXplUGFyYW0sIGZvbGRlciwgbmFtZVBhcmFtKSB7CiAgICBnbG9iYWwgQnVzeQogICAgaWYgKGZpbGVVcmwgPSAiIiB8fCBmb2xkZXIgPSAiIikKICAgICAgICByZXR1cm4gV0hTZW5kKENsaWVudCwgNDAwLCAidXJsL2ZvbGRlciDtjIzrnbzrr7jthLDqsIAg7JeG7Iq164uI64ukIikKICAgIGlmIChCdXN5KQogICAgICAgIHJldHVybiBXSFNlbmQoQ2xpZW50LCA1MDMsICLri6Trpbgg64uk7Jq066Gc65Oc6rCAIOynhO2WiSDspJHsnoXri4jri6QuIOyeoOyLnCDtm4Qg64uk7IucIOyLnOuPhO2VmOyEuOyalCIpCiAgICBpZiAhRmlsZUV4aXN0KGZvbGRlcikKICAgICAgICByZXR1cm4gV0hTZW5kKENsaWVudCwgNDAwLCAi7Y+0642U6rCAIOyhtOyerO2VmOyngCDslYrsirXri4jri6Q6ICIgLiBmb2xkZXIpCgogICAgbmFtZSA6PSAobmFtZVBhcmFtICE9ICIiKSA/IG5hbWVQYXJhbSA6IFVybFRvRmlsZU5hbWUoZmlsZVVybCkKICAgIGRlc3QgOj0gVW5pcXVlRGVzdFBhdGgoZm9sZGVyLCBuYW1lKQoKICAgIG9rIDo9IERvd25sb2FkV2l0aE9wdGlvbmFsUHJvZ3Jlc3MoZmlsZVVybCwgZGVzdCwgc2l6ZVBhcmFtLCAi64uk7Jq066Gc65OcIikKICAgIGlmICFvawogICAgICAgIHJldHVybiBXSFNlbmQoQ2xpZW50LCA1MDIsICLri6TsmrTroZzrk5wg7Iuk7YyoIikKCiAgICBXSFNlbmQoQ2xpZW50LCAyMDAsICJPSyIpCn0KCjsgPT09PT09PT09PT09PT09PT09PT09IGZvbGRlclxuYW1l7J20IOydtOuvuCDsnojsnLzrqbQgIuydtOumhCAoMikuZXh0IuyymOufvCDrsojtmLjrpbwg67aZ7JesIOyViCDqsrnsuZjqsowgPT09PT09PT09PT09PT09PT09PT09ClVuaXF1ZURlc3RQYXRoKGZvbGRlciwgbmFtZSkgewogICAgZGVzdCA6PSBmb2xkZXIgLiAiXCIgLiBuYW1lCiAgICBpZiAhRmlsZUV4aXN0KGRlc3QpCiAgICAgICAgcmV0dXJuIGRlc3QKCiAgICBkb3RQb3MgOj0gSW5TdHIobmFtZSwgIi4iLCBmYWxzZSwgLTEpICA7IOuniOyngOuniSAiLiIKICAgIGlmIGRvdFBvcyB7CiAgICAgICAgYmFzZSA6PSBTdWJTdHIobmFtZSwgMSwgZG90UG9zIC0gMSkKICAgICAgICBleHQgOj0gU3ViU3RyKG5hbWUsIGRvdFBvcykKICAgIH0gZWxzZSB7CiAgICAgICAgYmFzZSA6PSBuYW1lCiAgICAgICAgZXh0IDo9ICIiCiAgICB9CiAgICBuIDo9IDIKICAgIExvb3AgewogICAgICAgIGNhbmRpZGF0ZSA6PSBmb2xkZXIgLiAiXCIgLiBiYXNlIC4gIiAoIiAuIG4gLiAiKSIgLiBleHQKICAgICAgICBpZiAhRmlsZUV4aXN0KGNhbmRpZGF0ZSkKICAgICAgICAgICAgcmV0dXJuIGNhbmRpZGF0ZQogICAgICAgIG4gKz0gMQogICAgfQp9Cgo7ID09PT09PT09PT09PT09PT09PT09PSB0ZW1wIO2MjOydvOuqhSDstqnrj4wg67Cp7KeAICjqsJnsnYAg7J2066aEIO2MjOydvOydhCDsl6zrn6wg67KIL+yXrOufrCDtj7TrjZTsl5DshJwg7Je07Ja064+EIOyViCDqsrnsuagpID09PT09PT09PT09PT09PT09PT09PQpVbmlxdWVUZW1wUGF0aChmaWxlVXJsKSB7CiAgICBnbG9iYWwgVW5pcXVlQ291bnRlcgogICAgbmFtZSA6PSBVcmxUb0ZpbGVOYW1lKGZpbGVVcmwpCiAgICBVbmlxdWVDb3VudGVyICs9IDEKICAgIHJldHVybiBBX1RlbXAgLiAiXHJpXyIgLiBBX1RpY2tDb3VudCAuICJfIiAuIFVuaXF1ZUNvdW50ZXIgLiAiXyIgLiBuYW1lCn0KCjsgPT09PT09PT09PT09PT09PT09PT09IOyLpO2Wie2VtOuRlCB0ZW1wIO2MjOydvCDsoJXrpqw6IFBJROqwgCDrjZQg7J207IOBIOyXhuycvOuptCDtjIzsnbwg7IKt7KCcID09PT09PT09PT09PT09PT09PT09PQo7IOuqqeuhnShSdW5uaW5nUHJvY3Mp7JeQIO2VmOuCmOudvOuPhCDsnojripQg64+Z7JWI66eMIOydtCDtg4DsnbTrqLjqsIAg64+M66m07IScKFByb2NDaGVja0ludGVydmFsTXMg7KO86riwLAo7IOq4sOuzuCAyMDBtcyA9IOyCrOyLpOyDgSDsponrsJwpIOqzhOyGjSDqsoDsgqztlZzri6QuIOuqqeuhneydtCDruYTrqbQg7Iqk7Iqk66GcIO2DgOydtOuouOulvCDqurzshJwg7Imw64ukLgo7IO2UhOuhnOyEuOyKpOqwgCDrgZ3rgpwg6rG4IO2ZleyduO2VmOuptCDqt7gg7KaJ7IucIOyCreygnOulvCDsi5zrj4TtlZjqs6AsIOyCreygnCDshLHqs7Ug7Jes67aA6rmM7KeAIO2ZleyduO2VnOuLpAo7ICjsgq3soJwg66qF66C5IO2bhCDsgq3soJwg6rKA7IKsKSAtIO2MjOydvOydtCDslYTsp4Eg7J6g6rKo7J6I64qUIOqyveyasOulvCDrjIDruYTtlbQg7LWc64yACjsgUHJvY0RlbGV0ZU1heFJldHJpZXPtmozquYzsp4Ag7J6s7Iuc64+E7ZWY6rOgLCDqt7jrnpjrj4Qg7JWIIOuQmOuptCDtj6zquLDtlZjqs6Ag66qp66Gd7JeQ7ISc66eMIOu6gOuLpC4KOwo7IOyVhOuemCDrkZAg6rCcKENoZWNrUnVubmluZ1Byb2NzLCBEb3dubG9hZFByb2dyZXNzVGljaynripQg7ZWo7IiYKE5hbWUoKXsgfSnqsIAg7JWE64uI6528Cjsg66CI7J2067iUIOq4sOuwmCDshJzruIzro6jti7TsnbTrnbzshJwsIOy1nOyDgeychCjsnpDrj5kg7Iuk7ZaJIOq1rOyXrSnsmYAg66eI7LCs6rCA7KeA66GcIOyymOydjOu2gO2EsAo7IOyghOyXrSDsiqTsvZTtlITrpbwg6re464yA66GcIOyTtOuLpCAtIO2VqOyImCDslYjsl5DshJzrp4wg7ZWE7JqU7ZWcICJnbG9iYWwiIOyEoOyWuOydtCDtlYTsmpQg7JeG64ukLgpDaGVja1J1bm5pbmdQcm9jczoKICAgIHJlbWFpbmluZyA6PSBbXQogICAgZm9yIGluZGV4LCBlbnRyeSBpbiBSdW5uaW5nUHJvY3MgewogICAgICAgIFByb2Nlc3MsIEV4aXN0LCAlIGVudHJ5LnBpZAogICAgICAgIGlmIChFcnJvckxldmVsID0gMCkgewogICAgICAgICAgICBEZWxldGVGaWxlV2l0aFJldHJpZXMoZW50cnkucGF0aCwgUHJvY0RlbGV0ZU1heFJldHJpZXMpCiAgICAgICAgfSBlbHNlIHsKICAgICAgICAgICAgcmVtYWluaW5nLlB1c2goZW50cnkpCiAgICAgICAgfQogICAgfQogICAgUnVubmluZ1Byb2NzIDo9IHJlbWFpbmluZwogICAgaWYgKFJ1bm5pbmdQcm9jcy5MZW5ndGgoKSA9IDApCiAgICAgICAgU2V0VGltZXIsIENoZWNrUnVubmluZ1Byb2NzLCBPZmYKcmV0dXJuCgo7ID09PT09PT09PT09PT09PT09PT09PSDsgq3soJwg66qF66C5IC0+IOyCreygnCDtmZXsnbgsIOy1nOuMgCBtYXhSZXRyaWVz7ZqM6rmM7KeAIOyerOyLnOuPhCA9PT09PT09PT09PT09PT09PT09PT0KRGVsZXRlRmlsZVdpdGhSZXRyaWVzKHBhdGgsIG1heFJldHJpZXMpIHsKICAgIGlmICFGaWxlRXhpc3QocGF0aCkKICAgICAgICByZXR1cm4gdHJ1ZQogICAgTG9vcCwgJSBtYXhSZXRyaWVzIHsKICAgICAgICBGaWxlRGVsZXRlLCAlIHBhdGgKICAgICAgICBpZiAhRmlsZUV4aXN0KHBhdGgpCiAgICAgICAgICAgIHJldHVybiB0cnVlCiAgICAgICAgU2xlZXAsIDUwCiAgICB9CiAgICByZXR1cm4gZmFsc2UKfQoKOyA9PT09PT09PT09PT09PT09PT09PT0gc2l6ZSDtjIzrnbzrr7jthLAg7Jqw7ISgIOyCrOyaqSwg7JeG7Jy866m0IEhFQUTroZwgQ29udGVudC1MZW5ndGgg7KGw7ZqMID09PT09PT09PT09PT09PT09PT09PQpSZXNvbHZlRmlsZVNpemUodXJsLCBzaXplUGFyYW0pIHsKICAgIHNpemUgOj0gc2l6ZVBhcmFtICsgMAogICAgaWYgKHNpemVQYXJhbSAhPSAiIiAmJiBzaXplID4gMCkKICAgICAgICByZXR1cm4gc2l6ZQogICAgcmV0dXJuIEhlYWRDb250ZW50TGVuZ3RoKHVybCkKfQpIZWFkQ29udGVudExlbmd0aCh1cmwpIHsKICAgIHNpemUgOj0gMAogICAgdHJ5IHsKICAgICAgICBDb21PYmpFcnJvcigwKQogICAgICAgIHJlcSA6PSBDb21PYmpDcmVhdGUoIldpbkh0dHAuV2luSHR0cFJlcXVlc3QuNS4xIikKICAgICAgICByZXEuT3BlbigiSEVBRCIsIHVybCkKICAgICAgICByZXEuU2VuZCgpCiAgICAgICAgc2l6ZSA6PSByZXEuR2V0UmVzcG9uc2VIZWFkZXIoIkNvbnRlbnQtTGVuZ3RoIikgKyAwCiAgICB9IGNhdGNoIGUgewogICAgICAgIHNpemUgOj0gMAogICAgfQogICAgcmV0dXJuIHNpemUKfQoKOyA9PT09PT09PT09PT09PT09PT09PT0g7J6E6rOE6rCSIOuEmOycvOuptCDsp4TtlonrpaAg7ZGc7IucIOuLpOyatOuhnOuTnCwg7JWE64uI66m0IOq3uOuDpSDri6TsmrTroZzrk5wgPT09PT09PT09PT09PT09PT09PT09CkRvd25sb2FkV2l0aE9wdGlvbmFsUHJvZ3Jlc3ModXJsLCBkZXN0LCBzaXplUGFyYW0sIHZlcmIpIHsKICAgIGdsb2JhbCBDdXN0b21Eb3dubG9hZFRocmVzaG9sZEJ5dGVzLCBCdXN5CiAgICBzaXplIDo9IFJlc29sdmVGaWxlU2l6ZSh1cmwsIHNpemVQYXJhbSkKCiAgICBCdXN5IDo9IHRydWUKICAgIGlmIChzaXplID4gQ3VzdG9tRG93bmxvYWRUaHJlc2hvbGRCeXRlcykgewogICAgICAgIERvd25sb2FkRmlsZVdpdGhQcm9ncmVzcyh1cmwsIGRlc3QsIHZlcmIsIHNpemUpCiAgICB9IGVsc2UgewogICAgICAgIFVybERvd25sb2FkVG9GaWxlLCAldXJsJSwgJWRlc3QlCiAgICB9CiAgICBCdXN5IDo9IGZhbHNlCiAgICByZXR1cm4gRmlsZUV4aXN0KGRlc3QpID8gdHJ1ZSA6IGZhbHNlCn0KCjsgPT09PT09PT09PT09PT09PT09PT09IOynhO2WieuloCDtkZzsi5wg64uk7Jq066Gc642UICjsgqzsmqnsnpDqsIAg7KSAIERvd25sb2FkRmlsZSgpIOyYiOyLnCDquLDrsJgpID09PT09PT09PT09PT09PT09PT09PQpEb3dubG9hZEZpbGVXaXRoUHJvZ3Jlc3ModXJsLCBkZXN0LCB2ZXJiLCBmaW5hbFNpemUpIHsKICAgIGdsb2JhbCBETF9TYXZlRmlsZUFzLCBETF9GaW5hbFNpemUsIERMX0xhc3RTaXplLCBETF9MYXN0VGljawogICAgRExfU2F2ZUZpbGVBcyA6PSBkZXN0CiAgICBETF9GaW5hbFNpemUgOj0gZmluYWxTaXplCiAgICBETF9MYXN0U2l6ZSA6PSAwCiAgICBETF9MYXN0VGljayA6PSBBX1RpY2tDb3VudAogICAgUHJvZ3Jlc3MsIEg4MCwsICUgdmVyYiAiIOykkS4uLiIsIOuhnOy7rCDtl6ztjbwg64uk7Jq066Gc65OcCiAgICBTZXRUaW1lciwgRG93bmxvYWRQcm9ncmVzc1RpY2ssIDIwMAogICAgVXJsRG93bmxvYWRUb0ZpbGUsICV1cmwlLCAlZGVzdCUKICAgIFNldFRpbWVyLCBEb3dubG9hZFByb2dyZXNzVGljaywgT2ZmCiAgICBQcm9ncmVzcywgT2ZmCn0KRG93bmxvYWRQcm9ncmVzc1RpY2s6CiAgICBpZiAhRmlsZUV4aXN0KERMX1NhdmVGaWxlQXMpCiAgICAgICAgcmV0dXJuCiAgICBjdXIgOj0gMAogICAgZiA6PSBGaWxlT3BlbihETF9TYXZlRmlsZUFzLCAiciIpCiAgICBpZiBJc09iamVjdChmKSB7CiAgICAgICAgY3VyIDo9IGYuTGVuZ3RoCiAgICAgICAgZi5DbG9zZSgpCiAgICB9CiAgICBub3dUaWNrIDo9IEFfVGlja0NvdW50CiAgICBlbGFwc2VkIDo9IG5vd1RpY2sgLSBETF9MYXN0VGljawogICAgc3BlZWQgOj0gZWxhcHNlZCA+IDAgPyBSb3VuZCgoY3VyIC0gRExfTGFzdFNpemUpIC8gMTAyNCAvIChlbGFwc2VkIC8gMTAwMCkpIDogMAogICAgRExfTGFzdFNpemUgOj0gY3VyCiAgICBETF9MYXN0VGljayA6PSBub3dUaWNrCiAgICBwZXJjZW50IDo9IERMX0ZpbmFsU2l6ZSA+IDAgPyBSb3VuZChjdXIgLyBETF9GaW5hbFNpemUgKiAxMDApIDogMAogICAgaWYgKHBlcmNlbnQgPiAxMDApCiAgICAgICAgcGVyY2VudCA6PSAxMDAKICAgIFByb2dyZXNzLCAlcGVyY2VudCUsLCAlICJb7IaN64+EOiAiIHNwZWVkICIgS2Ivc10gWyIgcGVyY2VudCAiJV0iLCDroZzsu6wg7Zes7Y28IOuLpOyatOuhnOuTnApyZXR1cm4KCjsgPT09PT09PT09PT09PT09PT09PT09IFVSTOydmCDrp4jsp4Drp4kg6rK966GcIOyhsOqwgeydhCDtjIzsnbzrqoXsnLzroZwg7IKs7JqpID09PT09PT09PT09PT09PT09PT09PQpVcmxUb0ZpbGVOYW1lKHUpIHsKICAgIGlmIChwIDo9IEluU3RyKHUsICIjIikpCiAgICAgICAgdSA6PSBTdWJTdHIodSwgMSwgcCAtIDEpCiAgICBpZiAocCA6PSBJblN0cih1LCAiPyIpKQogICAgICAgIHUgOj0gU3ViU3RyKHUsIDEsIHAgLSAxKQogICAgcGFydHMgOj0gU3RyU3BsaXQodSwgIi8iKQogICAgbmFtZSA6PSBwYXJ0cy5MZW5ndGgoKSA/IHBhcnRzW3BhcnRzLkxlbmd0aCgpXSA6ICIiCiAgICByZXR1cm4gbmFtZSA9ICIiID8gImRvd25sb2FkIiA6IG5hbWUKfQoKOyA9PT09PT09PT09PT09PT09PT09PT0g7Y287IS87Yq4IOyduOy9lOuUqSDrlJTsvZTrk5wgKFVURi04IOuwlOydtO2KuCDqt7jrjIDroZwg66qo7JWE7IScIO2VnCDrsojsl5Ag67OA7ZmYKSA9PT09PT09PT09PT09PT09PT09PT0KVXJsRGVjb2RlKHN0cikgewogICAgbGVuIDo9IFN0ckxlbihzdHIpCiAgICBpZiAobGVuID0gMCkKICAgICAgICByZXR1cm4gIiIKICAgIFZhclNldENhcGFjaXR5KGJ1ZiwgbGVuLCAwKQogICAgbiA6PSAwCiAgICBwb3MgOj0gMQogICAgd2hpbGUgKHBvcyA8PSBsZW4pIHsKICAgICAgICBjIDo9IFN1YlN0cihzdHIsIHBvcywgMSkKICAgICAgICBpZiAoYyA9ICIlIiAmJiBwb3MgKyAyIDw9IGxlbikgewogICAgICAgICAgICBOdW1QdXQoIjB4IiAuIFN1YlN0cihzdHIsIHBvcyArIDEsIDIpLCBidWYsIG4sICJVQ2hhciIpCiAgICAgICAgICAgIG4gKz0gMQogICAgICAgICAgICBwb3MgKz0gMwogICAgICAgIH0gZWxzZSB7CiAgICAgICAgICAgIE51bVB1dChBc2MoYyksIGJ1ZiwgbiwgIlVDaGFyIikKICAgICAgICAgICAgbiArPSAxCiAgICAgICAgICAgIHBvcyArPSAxCiAgICAgICAgfQogICAgfQogICAgcmV0dXJuIG4gPyBTdHJHZXQoJmJ1ZiwgbiwgIlVURi04IikgOiAiIgp9Cgo7ID09PT09PT09PT09PT09PT09PT09PSDsnZHri7Ug7KCE7IahIChDT1JTIO2XpOuNlCDtj6ztlagpID09PT09PT09PT09PT09PT09PT09PQpXSFNlbmQoQ2xpZW50LCBzdGF0dXMsIHRleHQpIHsKICAgIHN0YXR1c1RleHQgOj0gKHN0YXR1cyA9IDIwMCkgPyAiT0siIDogKHN0YXR1cyA9IDQwMCkgPyAiQmFkIFJlcXVlc3QiIDogKHN0YXR1cyA9IDQwNCkgPyAiTm90IEZvdW5kIiA6IChzdGF0dXMgPSA1MDIpID8gIkJhZCBHYXRld2F5IiA6IChzdGF0dXMgPSA1MDMpID8gIlNlcnZpY2UgVW5hdmFpbGFibGUiIDogIkVycm9yIgogICAgVmFyU2V0Q2FwYWNpdHkoYm9keUJ1ZiwgU3RyUHV0KHRleHQsICJVVEYtOCIpLCAwKSwgYm9keUxlbiA6PSBTdHJQdXQodGV4dCwgJmJvZHlCdWYsICJVVEYtOCIpIC0gMQogICAgaGVhZGVyIDo9ICJIVFRQLzEuMSAiIC4gc3RhdHVzIC4gIiAiIC4gc3RhdHVzVGV4dCAuICJgcmBuIgogICAgICAgIC4gIkFjY2Vzcy1Db250cm9sLUFsbG93LU9yaWdpbjogKmByYG4iCiAgICAgICAgLiAiQWNjZXNzLUNvbnRyb2wtQWxsb3ctTWV0aG9kczogR0VULCBPUFRJT05TYHJgbiIKICAgICAgICAuICJDb250ZW50LVR5cGU6IHRleHQvcGxhaW47IGNoYXJzZXQ9dXRmLThgcmBuIgogICAgICAgIC4gIkNvbnRlbnQtTGVuZ3RoOiAiIC4gYm9keUxlbiAuICJgcmBuIgogICAgICAgIC4gIkNvbm5lY3Rpb246IGNsb3NlYHJgbmByYG4iCiAgICBoZWFkZXJMZW4gOj0gU3RyUHV0KGhlYWRlciwgIlVURi04IikgLSAxLCB0b3RhbCA6PSBoZWFkZXJMZW4gKyBib2R5TGVuCgogICAgVmFyU2V0Q2FwYWNpdHkocmVzcEJ1ZiwgdG90YWwsIDApLCBTdHJQdXQoaGVhZGVyLCAmcmVzcEJ1ZiwgIlVURi04IikKICAgIGlmIChib2R5TGVuID4gMCkKICAgICAgICBEbGxDYWxsKCJSdGxNb3ZlTWVtb3J5IiwgIlB0ciIsICZyZXNwQnVmICsgaGVhZGVyTGVuLCAiUHRyIiwgJmJvZHlCdWYsICJQdHIiLCBib2R5TGVuKQoKICAgIHNlbnRUb3RhbCA6PSAwCiAgICB3aGlsZSAoc2VudFRvdGFsIDwgdG90YWwpIHsKICAgICAgICBzZW50IDo9IERsbENhbGwoIldzMl8zMlxzZW5kIiwgIlB0ciIsIENsaWVudCwgIlB0ciIsICZyZXNwQnVmICsgc2VudFRvdGFsLCAiSW50IiwgdG90YWwgLSBzZW50VG90YWwsICJJbnQiLCAwKQogICAgICAgIGlmIChzZW50IDw9IDApCiAgICAgICAgICAgIGJyZWFrCiAgICAgICAgc2VudFRvdGFsICs9IHNlbnQKICAgIH0KfQoKOyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09Cjsg7Y+0642UIOyEoO2DnSDrjIDtmZTsg4HsnpAgKOuLpOykkSDri6TsmrTroZzrk5zsmqkpLiBPUyDrsoTsoITsl5Ag65Sw6528IFhQIOydtOyghOydgCBGaWxlU2VsZWN0Rm9sZGVyLCBWaXN0YSDsnbTtm4TripQKOyBDb21tb24gSXRlbSBEaWFsb2coSUZpbGVEaWFsb2cp66W8IOyTtOuLpC4g7IKs7Jqp7J6Q6rCAIOygnOqzte2VnCDsmIjsi5wg7ZWo7IiY66W8IOq3uOuMgOuhnCDsgqzsmqkuCjsgUGFyYW1ldGVyOgo7ICAgICBTdGFydGluZ0ZvbGRlciAtICB0aGUgZnVsbCBwYXRoIG9mIGEgZm9sZGVyIHdoaWNoIHdpbGwgYmUgcHJlc2VsZWN0ZWQuCjsgICAgIFByb21wdCAgICAgICAgIC0gIGEgdGV4dCB1c2VkIGFzIHdpbmRvdyB0aXRsZSAoQ29tbW9uIEl0ZW0gRGlhbG9nKSBvciBhcyB0ZXh0IGRpc3BsYXllZCB3aXRoaW5nIHRoZSBkaWFsb2cuCjsgICAgIC0tLS0tLS0tLS0tLS0tLS0gIENvbW1vbiBJdGVtIERpYWxvZyBvbmx5Ogo7ICAgICBPd25lckh3bmQgICAgICAtICBIV05EIG9mIHRoZSBHdWkgd2hpY2ggb3ducyB0aGUgZGlhbG9nLiBJZiB5b3UgcGFzcyBhIHZhbGlkIEhXTkQgdGhlIGRpYWxvZyB3aWxsIGJlY29tZSBtb2RhbC4KOyAgICAgQnRuTGFiZWwgICAgICAgLSAgYSB0ZXh0IHRvIGJlIHVzZWQgYXMgY2FwdGlvbiBmb3IgdGhlIGFwcGx5IGJ1dHRvbi4KOyAgUmV0dXJuIHZhbHVlczoKOyAgICAgT24gc3VjY2VzcyB0aGUgZnVuY3Rpb24gcmV0dXJucyB0aGUgZnVsbCBwYXRoIG9mIHNlbGVjdGVkIGZvbGRlcjsgb3RoZXJ3aXNlIGl0IHJldHVybnMgYW4gZW1wdHkgc3RyaW5nLgo7ID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KU2VsZWN0Rm9sZGVyRXgoU3RhcnRpbmdGb2xkZXIgOj0gIiIsIFByb21wdCA6PSAiIiwgT3duZXJId25kIDo9IDAsIE9rQnRuTGFiZWwgOj0gIiIpIHsKICAgU3RhdGljIE9zVmVyc2lvbiA6PSBEbGxDYWxsKCJHZXRWZXJzaW9uIiwgIlVDaGFyIikKICAgICAgICAsIElJRF9JU2hlbGxJdGVtIDo9IDAKICAgICAgICAsIEluaXRJSUQgOj0gVmFyU2V0Q2FwYWNpdHkoSUlEX0lTaGVsbEl0ZW0sIDE2LCAwKQogICAgICAgICAgICAgICAgICAmIERsbENhbGwoIk9sZTMyLmRsbFxJSURGcm9tU3RyaW5nIiwgIldTdHIiLCAiezQzODI2ZDFlLWU3MTgtNDJlZS1iYzU1LWExZTI2MWMzN2JmZX0iLCAiUHRyIiwgJklJRF9JU2hlbGxJdGVtKQogICAgICAgICwgU2hvdyA6PSBBX1B0clNpemUgKiAzCiAgICAgICAgLCBTZXRPcHRpb25zIDo9IEFfUHRyU2l6ZSAqIDkKICAgICAgICAsIFNldEZvbGRlciA6PSBBX1B0clNpemUgKiAxMgogICAgICAgICwgU2V0VGl0bGUgOj0gQV9QdHJTaXplICogMTcKICAgICAgICAsIFNldE9rQnV0dG9uTGFiZWwgOj0gQV9QdHJTaXplICogMTgKICAgICAgICAsIEdldFJlc3VsdCA6PSBBX1B0clNpemUgKiAyMAogICBTZWxlY3RlZEZvbGRlciA6PSAiIgogICBJZiAoT3NWZXJzaW9uIDwgNikgeyA7IElGaWxlRGlhbG9nIHJlcXVpcmVzIFdpbiBWaXN0YSssIHNvIHJldmVydCB0byBGaWxlU2VsZWN0Rm9sZGVyCiAgICAgIEZpbGVTZWxlY3RGb2xkZXIsIFNlbGVjdGVkRm9sZGVyLCAqJVN0YXJ0aW5nRm9sZGVyJSwgMywgJVByb21wdCUKICAgICAgUmV0dXJuIFNlbGVjdGVkRm9sZGVyCiAgIH0KICAgT3duZXJId25kIDo9IERsbENhbGwoIklzV2luZG93IiwgIlB0ciIsIE93bmVySHduZCwgIlVJbnQiKSA/IE93bmVySHduZCA6IDAKICAgSWYgIShGaWxlRGlhbG9nIDo9IENvbU9iakNyZWF0ZSgie0RDMUM1QTlDLUU4OEEtNGRkZS1BNUExLTYwRjgyQTIwQUVGN30iLCAiezQyZjg1MTM2LWRiN2UtNDM5Yy04NWYxLWU0MDc1ZDEzNWZjOH0iKSkKICAgICAgUmV0dXJuICIiCiAgIFZUQkwgOj0gTnVtR2V0KEZpbGVEaWFsb2cgKyAwLCAiVVB0ciIpCiAgIDsgRk9TX0NSRUFURVBST01QVCB8IEZPU19OT0NIQU5HRURJUiB8IEZPU19QSUNLRk9MREVSUwogICBEbGxDYWxsKE51bUdldChWVEJMICsgU2V0T3B0aW9ucywgIlVQdHIiKSwgIlB0ciIsIEZpbGVEaWFsb2csICJVSW50IiwgMHgwMDAwMjAyOCwgIlVJbnQiKQogICBJZiAoU3RhcnRpbmdGb2xkZXIgPD4gIiIpCiAgICAgIElmICFEbGxDYWxsKCJTaGVsbDMyLmRsbFxTSENyZWF0ZUl0ZW1Gcm9tUGFyc2luZ05hbWUiLCAiV1N0ciIsIFN0YXJ0aW5nRm9sZGVyLCAiUHRyIiwgMCwgIlB0ciIsICZJSURfSVNoZWxsSXRlbSwgIlB0clAiLCBGb2xkZXJJdGVtKQogICAgICAgICBEbGxDYWxsKE51bUdldChWVEJMICsgU2V0Rm9sZGVyLCAiVVB0ciIpLCAiUHRyIiwgRmlsZURpYWxvZywgIlB0ciIsIEZvbGRlckl0ZW0sICJVSW50IikKICAgSWYgKFByb21wdCA8PiAiIikKICAgICAgRGxsQ2FsbChOdW1HZXQoVlRCTCArIFNldFRpdGxlLCAiVVB0ciIpLCAiUHRyIiwgRmlsZURpYWxvZywgIldTdHIiLCBQcm9tcHQsICJVSW50IikKICAgSWYgKE9rQnRuTGFiZWwgPD4gIiIpCiAgICAgIERsbENhbGwoTnVtR2V0KFZUQkwgKyBTZXRPa0J1dHRvbkxhYmVsLCAiVVB0ciIpLCAiUHRyIiwgRmlsZURpYWxvZywgIldTdHIiLCBPa0J0bkxhYmVsLCAiVUludCIpCiAgIElmICFEbGxDYWxsKE51bUdldChWVEJMICsgU2hvdywgIlVQdHIiKSwgIlB0ciIsIEZpbGVEaWFsb2csICJQdHIiLCBPd25lckh3bmQsICJVSW50IikgewogICAgICBJZiAhRGxsQ2FsbChOdW1HZXQoVlRCTCArIEdldFJlc3VsdCwgIlVQdHIiKSwgIlB0ciIsIEZpbGVEaWFsb2csICJQdHJQIiwgU2hlbGxJdGVtLCAiVUludCIpIHsKICAgICAgICAgR2V0RGlzcGxheU5hbWUgOj0gTnVtR2V0KE51bUdldChTaGVsbEl0ZW0gKyAwLCAiVVB0ciIpLCBBX1B0clNpemUgKiA1LCAiVVB0ciIpCiAgICAgICAgIElmICFEbGxDYWxsKEdldERpc3BsYXlOYW1lLCAiUHRyIiwgU2hlbGxJdGVtLCAiVUludCIsIDB4ODAwMjgwMDAsICJQdHJQIiwgU3RyUHRyKSA7IFNJR0ROX0RFU0tUT1BBQlNPTFVURVBBUlNJTkcKICAgICAgICAgICAgU2VsZWN0ZWRGb2xkZXIgOj0gU3RyR2V0KFN0clB0ciwgIlVURi0xNiIpLCBEbGxDYWxsKCJPbGUzMi5kbGxcQ29UYXNrTWVtRnJlZSIsICJQdHIiLCBTdHJQdHIpCiAgICAgICAgIE9ialJlbGVhc2UoU2hlbGxJdGVtKQogICB9ICB9CiAgIElmIChGb2xkZXJJdGVtKQogICAgICBPYmpSZWxlYXNlKEZvbGRlckl0ZW0pCiAgIE9ialJlbGVhc2UoRmlsZURpYWxvZykKICAgUmV0dXJuIFNlbGVjdGVkRm9sZGVyCn0KCjsgPT09PT09PT09PT09PT09PT09PT09IOyiheujjCDsspjrpqwgPT09PT09PT09PT09PT09PT09PT09CldIQ2xlYW51cCgpIHsKICAgIGdsb2JhbCBXSFNvY2sKICAgIERsbENhbGwoIldzMl8zMlxjbG9zZXNvY2tldCIsICJQdHIiLCBXSFNvY2spLCBEbGxDYWxsKCJXczJfMzJcV1NBQ2xlYW51cCIpCn0K"; // localserver.ahk 원본 그대로(UTF-8 BOM 포함)를 base64로 담아둔 것
-function downloadEmbeddedHelper() {
+const INDEXER_AHK_B64 = "77u/OyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KOyBHaXRIdWIgUGFnZXMg7J24642x7IScCjsKOyDsnbQg7Iqk7YGs66a97Yq4KGluZGV4ZXIuYWhrKeqwgCDsnojripQg7Y+0642UID0g66as7Y+sIOujqO2KuC4KOyDro6jtirjrtoDthLAg66qo65OgIO2VmOychCDtj7TrjZTquYzsp4Ag7J6s6reA7KCB7Jy866GcIOuPjOuptOyEnCwKOyAi7Y+0642U66eI64ukIiDqt7gg7Y+0642UIOuwlOuhnCDslYjsl5Ag7J6I64qUIO2PtOuNlC/tjIzsnbwg66qp66Gd7J2EIOuLtOydgAo7IHBhZ2VzLmpzb27snYQg66eM65Og64ukLiAo7ZWY7JyEIO2PtOuNlCDslYjquYzsp4Ag66+466asIOuLpCDri7Tsp4Ag7JWK7J2MKQo7CjsgaW5kZXguaHRtbOydgCDtj7TrjZTrpbwg7Je0IOuVjOuniOuLpCDqt7gg7Y+0642U7J2YIHBhZ2VzLmpzb27snYQKOyDqvKzrpqzsl5Ag6rys66as66W8IOusvOupsCDstpTqsIDroZwg7J297Ja065Ok7J2064qUIOuwqeyLneycvOuhnCDrj5nsnpHtlZzri6QuCjsKOyAtLS0tLS0tLS0tLS0tLS0tLS0g7IOJ7J24IOygnOyZuCDqt5zsuZkgLS0tLS0tLS0tLS0tLS0tLS0tCjsgW+ujqO2KuOyXkOyEnOunjCDsoJzsmbhdCjsgICAuZ2l0IO2PtOuNlCwgaW5kZXhlci5haGso67O47J24KSwgaW5kZXguaHRtbCwgc3RhcnQuanNvbiwgdHJheS5qc29uLCBsb2NhbHNlcnZlci5haGsKOyAgIChsb2NhbHNlcnZlci5haGvsmYAgaW5kZXhlci5haGvripQgaW5kZXguaHRtbOyXkCBibG9i7Jy866GcIOuCtOyepeuQmOyWtCAi6rCA7IOBIO2MjOydvCLroZwg66Oo7Yq47JeQCjsgICDtla3sg4Eg7ZGc7Iuc65CY66+A66GcLCDsi6TsoJwg66as7Y+s7JeQIOynhOynnCDsgqzrs7jsnbQg7J6I7Ja064+EIOykkeuztSDtkZzsi5zrkJjsp4Ag7JWK6rKMIOyDieyduOyXkOyEnCDruoDri6QpCjsgW+uqqOuToCDtj7TrjZQo66Oo7Yq4K+uqqOuToCDtlZjsnIQp7JeQ7IScIOygnOyZuF0KOyAgIHBhZ2VzLmpzb24sIOydtOumhOyXkCAiX05JSF8i6rCAIO2PrO2VqOuQnCDtj7TrjZQv7YyM7J28ICjrjIDshozrrLjsnpAg66y06rSAKQo7IC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCjsgPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CiNOb0VudgojU2luZ2xlSW5zdGFuY2UsIEZvcmNlClNldFdvcmtpbmdEaXIsICVBX1NjcmlwdERpciUKU2V0QmF0Y2hMaW5lcywgLTEKCmdsb2JhbCBSb290RGlyIDo9IEFfU2NyaXB0RGlyCmdsb2JhbCBEaXJDb3VudCA6PSAwCgo7IOujqO2KuOyXkOyEnOunjCDsoJzsmbjtlaAg7J2066aEClJvb3RPbmx5RXhjbHVkZSA6PSBbIi5naXQiLCAiaW5kZXhlci5haGsiLCAiaW5kZXguaHRtbCIsICJzdGFydC5qc29uIiwgInRyYXkuanNvbiIsICJsb2NhbHNlcnZlci5haGsiXQo7IOuqqOuToCDsnITsuZjsl5DshJwg7J2066aE7J20IOygle2Zle2eiCDsnbzsuZjtlZjrqbQg7KCc7Jm4Ckdsb2JhbEV4YWN0RXhjbHVkZSA6PSBbInBhZ2VzLmpzb24iXQoKSW5kZXhEaXIoUm9vdERpciwgdHJ1ZSkKClRyYXlUaXAsIOyDieyduCDsmYTro4wsICUgRGlyQ291bnQgLiAi6rCcIO2PtOuNlOulvCDsg4nsnbjtlZjsl6wgcGFnZXMuanNvbuydhCDsg53shLHtlojsirXri4jri6QuIiwgMwpFeGl0QXBwCgo7IC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQo7IGRpciDtj7TrjZQg7ZWY64KY66W8IOyDieyduChwYWdlcy5qc29uIOyDneyEsSntlZjqs6AsIO2VmOychCDtj7TrjZTroZwg7J6s6reA7ZWc64ukLgo7IGlzUm9vdCA9IHRydWUg7J2066m0IOujqO2KuCDsoITsmqkg7JiI7Jm4IOq3nOy5meuPhCDtlajqu5gg7KCB7Jqp7ZWc64ukLgo7IC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQpJbmRleERpcihkaXIsIGlzUm9vdCkgewogICAgZ2xvYmFsIERpckNvdW50CiAgICBmb2xkZXJzIDo9IFtdCiAgICBmaWxlcyA6PSBbXQoKICAgIExvb3AsIEZpbGVzLCAlZGlyJVwqLCBECiAgICB7CiAgICAgICAgaWYgU2hvdWxkRXhjbHVkZShBX0xvb3BGaWxlTmFtZSwgaXNSb290KQogICAgICAgICAgICBjb250aW51ZQogICAgICAgIGZvbGRlcnMuUHVzaChBX0xvb3BGaWxlTmFtZSkKICAgIH0KICAgIExvb3AsIEZpbGVzLCAlZGlyJVwqLCBGCiAgICB7CiAgICAgICAgaWYgU2hvdWxkRXhjbHVkZShBX0xvb3BGaWxlTmFtZSwgaXNSb290KQogICAgICAgICAgICBjb250aW51ZQogICAgICAgIDsg7Ju57ZuFKGxvY2Fsc2VydmVyLmFoaynsnbQg64uk7Jq066Gc65OcIOyghOyXkCBIRUFEIOyalOyyrSDsl4bsnbTrj4Qg7YyM7J28IO2BrOq4sOulvCDslYwg7IiYIOyeiOuPhOuhnSDqsJnsnbQg64Ko6ri064ukLgogICAgICAgIGZpbGVzLlB1c2goe25hbWU6IEFfTG9vcEZpbGVOYW1lLCBzaXplOiBBX0xvb3BGaWxlU2l6ZX0pCiAgICB9CgogICAgU29ydE5hbWVzS28oZm9sZGVycykKICAgIFNvcnRGaWxlc0tvKGZpbGVzKQoKICAgIFdyaXRlUGFnZXNKc29uKGRpciwgZm9sZGVycywgZmlsZXMpCiAgICBEaXJDb3VudCsrCgogICAgOyDtj7TrjZQg66i87KCAIOychCwg7YyM7J287J2AIOyVhOuemCAtPiBwYWdlcy5qc29u7JeQ64+EIOq3uCDsiJzshJzroZwg7KCA7J6l65CoLgogICAgOyDtlZjsnIQg7Y+0642U65Ok66GcIOyerOq3gCAo7J2065WM67aA7YSw64qUIGlzUm9vdCA9IGZhbHNlKQogICAgZm9yIGluZGV4LCBuYW1lIGluIGZvbGRlcnMKICAgICAgICBJbmRleERpcihkaXIgLiAiXCIgLiBuYW1lLCBmYWxzZSkKfQoKOyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KOyDsoJzsmbgg7Jes67aAIO2MkOyglQo7ICAtIOydtOumhOyXkCAiX05JSF8i6rCAIO2PrO2VqOuQmOuptCjrjIDshozrrLjsnpAg66y06rSAKSDslrTrlJTshJzrk6Ag7KCc7Jm4CjsgIC0gInBhZ2VzLmpzb24i7J2AIOyWtOuUlOyEnOuToCDsoJzsmbgKOyAgLSDro6jtirjsl5DshJzripQgLmdpdCAvIGluZGV4ZXIuYWhrIC8gaW5kZXguaHRtbCAvIHN0YXJ0Lmpzb24gLyB0cmF5Lmpzb24g64+EIOy2lOqwgOuhnCDsoJzsmbgKOyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KU2hvdWxkRXhjbHVkZShuYW1lLCBpc1Jvb3QpIHsKICAgIGdsb2JhbCBSb290T25seUV4Y2x1ZGUsIEdsb2JhbEV4YWN0RXhjbHVkZQoKICAgIGlmIEluU3RyKG5hbWUsICJfTklIXyIpCiAgICAgICAgcmV0dXJuIHRydWUKCiAgICBmb3IgaW5kZXgsIGV4IGluIEdsb2JhbEV4YWN0RXhjbHVkZQogICAgICAgIGlmIChuYW1lID0gZXgpCiAgICAgICAgICAgIHJldHVybiB0cnVlCgogICAgaWYgKGlzUm9vdCkgewogICAgICAgIGZvciBpbmRleCwgZXggaW4gUm9vdE9ubHlFeGNsdWRlCiAgICAgICAgICAgIGlmIChuYW1lID0gZXgpCiAgICAgICAgICAgICAgICByZXR1cm4gdHJ1ZQogICAgfQogICAgcmV0dXJuIGZhbHNlCn0KCjsgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCjsg7J2066aEIOuwsOyXtCDquLDrs7gg7KCV66CsICjstZzsooUg7KCV66CsL+2VnOq4gCDsoJXroKzsnYAgaW5kZXguaHRtbOyXkOyEnCDri6Tsi5wg7LKY66as7ZWoKQo7IC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQpTb3J0TmFtZXNLbyhCeVJlZiBhcnIpIHsKICAgIGlmIChhcnIuTGVuZ3RoKCkgPSAwKQogICAgICAgIHJldHVybgogICAgbGlzdCA6PSAiIgogICAgZm9yIGluZGV4LCB2IGluIGFycgogICAgICAgIGxpc3QgLj0gdiAuICJgbiIKICAgIGxpc3QgOj0gUlRyaW0obGlzdCwgImBuIikKICAgIFNvcnQsIGxpc3QKICAgIGFyciA6PSBTdHJTcGxpdChsaXN0LCAiYG4iKQp9Cgo7IC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQo7IGZpbGVzIOuwsOyXtOydgCB7bmFtZSwgc2l6ZX0g6rCd7LK065287IScIFNvcnROYW1lc0tv66W8IOq3uOuMgOuhnCDrqrsg7JO064ukLgo7ICLsnbTrpoRgdO2BrOq4sGBuIiDtmJXtg5zsnZgg7KSE66GcIOunjOuTpOyWtCDsnbTrpoQg6riw7KSA7Jy866Gc66eMIOygleugrO2VnCDri6TsnYwo7YOtIOuSpOydmCDtgazquLDripQKOyDshJzroZwg64uk66W4IOydtOumhOydhCDqsIDsp4Qg7KSE65Ok7J2YIOygleugrCDsiJzshJzsl5Ag7JiB7Zal7J2EIOyjvOyngCDslYrripTri6QpIOuLpOyLnCDqsJ3ssrTroZwg65CY64+M66aw64ukLgo7IC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQpTb3J0RmlsZXNLbyhCeVJlZiBhcnIpIHsKICAgIGlmIChhcnIuTGVuZ3RoKCkgPSAwKQogICAgICAgIHJldHVybgogICAgbGlzdCA6PSAiIgogICAgZm9yIGluZGV4LCBmIGluIGFycgogICAgICAgIGxpc3QgLj0gZi5uYW1lIC4gImB0IiAuIGYuc2l6ZSAuICJgbiIKICAgIGxpc3QgOj0gUlRyaW0obGlzdCwgImBuIikKICAgIFNvcnQsIGxpc3QKICAgIGxpbmVzIDo9IFN0clNwbGl0KGxpc3QsICJgbiIpCiAgICBvdXQgOj0gW10KICAgIGZvciBpbmRleCwgbGluZSBpbiBsaW5lcyB7CiAgICAgICAgcGFydHMgOj0gU3RyU3BsaXQobGluZSwgImB0IikKICAgICAgICBvdXQuUHVzaCh7bmFtZTogcGFydHNbMV0sIHNpemU6IHBhcnRzWzJdICsgMH0pCiAgICB9CiAgICBhcnIgOj0gb3V0Cn0KCjsgLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCjsg7Y+0642UIO2VmOuCmOydmCBwYWdlcy5qc29uIOyekeyEsSAtPiB7ImZvbGRlcnMiOlsuLi5dLCAiZmlsZXMiOlt7Im5hbWUiOi4uLiwic2l6ZSI6Li4ufSwgLi4uXX0KOyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KV3JpdGVQYWdlc0pzb24oZGlyLCBmb2xkZXJzLCBmaWxlcykgewogICAganNvbiA6PSAie2BuICAiImZvbGRlcnMiIjogIiAuIEJ1aWxkSnNvbkFycmF5KGZvbGRlcnMpIC4gIixgbiAgIiJmaWxlcyIiOiAiIC4gQnVpbGRGaWxlc0pzb25BcnJheShmaWxlcykgLiAiYG59YG4iCgogICAgb3V0RmlsZSA6PSBkaXIgLiAiXHBhZ2VzLmpzb24iCiAgICBpZiBGaWxlRXhpc3Qob3V0RmlsZSkKICAgICAgICBGaWxlRGVsZXRlLCAlb3V0RmlsZSUKICAgIEZpbGVBcHBlbmQsICVqc29uJSwgJW91dEZpbGUlLCBVVEYtOC1SQVcKfQoKQnVpbGRKc29uQXJyYXkoYXJyKSB7CiAgICBpZiAoYXJyLkxlbmd0aCgpID0gMCkKICAgICAgICByZXR1cm4gIltdIgogICAgb3V0IDo9ICJbIgogICAgZmlyc3QgOj0gdHJ1ZQogICAgZm9yIGluZGV4LCBuYW1lIGluIGFyciB7CiAgICAgICAgb3V0IC49IChmaXJzdCA/ICIiIDogIiwiKSAuICJgbiAgICAiIiIgLiBKc29uRXNjYXBlKG5hbWUpIC4gIiIiIgogICAgICAgIGZpcnN0IDo9IGZhbHNlCiAgICB9CiAgICBvdXQgLj0gImBuICBdIgogICAgcmV0dXJuIG91dAp9CgpCdWlsZEZpbGVzSnNvbkFycmF5KGFycikgewogICAgaWYgKGFyci5MZW5ndGgoKSA9IDApCiAgICAgICAgcmV0dXJuICJbXSIKICAgIG91dCA6PSAiWyIKICAgIGZpcnN0IDo9IHRydWUKICAgIGZvciBpbmRleCwgZiBpbiBhcnIgewogICAgICAgIG91dCAuPSAoZmlyc3QgPyAiIiA6ICIsIikgLiAiYG4gICAgeyIibmFtZSIiOiAiIiIgLiBKc29uRXNjYXBlKGYubmFtZSkgLiAiIiIsICIic2l6ZSIiOiAiIC4gZi5zaXplIC4gIn0iCiAgICAgICAgZmlyc3QgOj0gZmFsc2UKICAgIH0KICAgIG91dCAuPSAiYG4gIF0iCiAgICByZXR1cm4gb3V0Cn0KCkpzb25Fc2NhcGUoc3RyKSB7CiAgICBzdHIgOj0gU3RyUmVwbGFjZShzdHIsICJcIiwgIlxcIikKICAgIHN0ciA6PSBTdHJSZXBsYWNlKHN0ciwgIiIiIiwgIlwiIiIpCiAgICByZXR1cm4gc3RyCn0K";
+/* ============ 루트에 항상 표시되는 "가상 파일" (localserver.ahk, indexer.ahk) ============
+   실제 리포에 같은 이름의 진짜 파일이 있어도, 이 목록에 있는 이름이면 항상 index.html에
+   내장된 blob 버전으로만 연결한다(로컬 헬퍼나 GitHub를 거치지 않음 - "브라우저 버전"만 취급).
+   indexer.ahk도 루트 색인 시 이 이름들을 빼도록 이미 되어 있다(RootOnlyExclude). 검색에도
+   진짜 파일처럼 나오게 entry.files에 매번 병합해서 취급하되, dirCache/localStorage에는 절대
+   안 들어가게 한다(캐싱하지 않고 그때그때 계산만 함). ============ */
+const VIRTUAL_FILES = [
+  { name: "localserver.ahk", getB64: () => LOCALSERVER_AHK_B64 },
+  { name: "indexer.ahk", getB64: () => INDEXER_AHK_B64 },
+];
+function b64ByteLength(b64) {
+  if (!b64) return 0;
+  let len = b64.length, padding = 0;
+  if (b64.endsWith("==")) padding = 2; else if (b64.endsWith("=")) padding = 1;
+  return Math.floor((len * 3) / 4) - padding;
+}
+// pathArr가 루트([])일 때만 가상 파일을 진짜 entry.files와 합쳐서 새로 정렬한다.
+// 하위 폴더는 그대로 돌려준다. entry가 없으면(로드 실패 등) 그대로 넘긴다.
+function withVirtualFiles(pathArr, entry) {
+  if (!entry || pathArr.length !== 0) return entry;
+  const virtualEntries = VIRTUAL_FILES.map(v => ({ name: v.name, size: b64ByteLength(v.getB64()), virtual: true }));
+  const realFiles = (entry.files || []).filter(f => !VIRTUAL_FILES.some(v => v.name === f.name));
+  const files = [...realFiles, ...virtualEntries].sort((a, b) => a.name.localeCompare(b.name, "ko"));
+  return { folders: entry.folders, files };
+}
+function downloadVirtualBlob(name, b64) {
   try {
-    const binary = atob(LOCALSERVER_AHK_B64);
+    const binary = atob(b64);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     const blob = new Blob([bytes], { type: "application/octet-stream" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "localserver.ahk";
+    a.download = name;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   } catch (e) { /* 브라우저가 blob 다운로드를 막는 극단적인 경우엔 그냥 넘어간다 */ }
 }
+function downloadVirtualFile(name) {
+  const v = VIRTUAL_FILES.find(x => x.name === name);
+  if (v) downloadVirtualBlob(v.name, v.getB64());
+}
+function downloadEmbeddedHelper() { downloadVirtualFile("localserver.ahk"); }
+/* 웹훅(localserver.ahk)이 필요한데 없을 때: 예전엔 여기서 바로 강제로 다운로드를 걸었지만
+   사용자 입장에서 갑작스럽다. 대신 루트로 강제 이동시키지 않고, 루트 트리의 "localserver.ahk"
+   가상 파일 행에 파란 포커스를 옮기고 화면에 보이게 스크롤해서 자연스럽게 안내한다
+   (자동 다운로드보다 나이스한 방식) - 사용자가 직접 보고 눌러서 받게 한다. */
+function revealVirtualFile(name) {
+  treeFileHighlightKey = name;
+  renderNavPane();
+  requestAnimationFrame(() => {
+    const row = els.navPane.querySelector(`.tree-file-row[data-file-key="${CSS.escape(name)}"]`);
+    if (row) row.scrollIntoView({ block: "nearest" });
+  });
+}
 function offerHelperDownload(actionLabel) {
-  downloadEmbeddedHelper();
-  showToast(`로컬 헬퍼(localserver.ahk)를 찾지 못해 대신 다운로드했습니다.\n실행한 뒤 "${actionLabel}"를 다시 눌러주세요.`, { kind: "warn", sticky: true });
+  revealVirtualFile("localserver.ahk");
+  showToast(`로컬 헬퍼(localserver.ahk)를 찾지 못했습니다. 왼쪽 트리의 "localserver.ahk"를 받아 실행한 뒤 "${actionLabel}"를 다시 눌러주세요.`, { kind: "warn", sticky: true });
 }
 
 function absoluteFileUrl(path) {
@@ -1015,6 +1165,11 @@ function showContextMenu(x, y, items) {
 }
 function buildFileMenuItems(it) {
   if (it.type === "folder") return [];
+  if (it.virtual) {
+    // 가상 파일은 언제나 내장된 blob을 받는 것 하나만 제공한다 (열기/Pages/저장소/GitHub 없음 -
+    // 실제로 존재하는 서버 파일이 아니라 브라우저 안에 내장된 사본이기 때문).
+    return [{ label: "다운로드", action: () => downloadVirtualFile(it.name) }];
+  }
   const items = [];
   if (it.type === "html") items.push({ label: "새 탭에서 열기", action: () => activate(it) });
   // 열기/다운로드는 이 사이트에서는 항상 로컬 프로그램(webhook)을 통해서만 가능하므로
@@ -1068,49 +1223,18 @@ async function loadDir(pathArr) {
 }
 
 /* ============ 경로 <-> 주소창 플래그먼트(#...) ============
-   형식: #<현재경로>|tree=<펼쳐진 트리 폴더 목록(콤마로 구분, 각각 encodeURIComponent)>
-   |tree= 부분이 없으면 예전처럼 경로만 있는 것으로 취급(하위호환). ============ */
+   그냥 경로만 담는다(예전처럼 단순하게) - 트리 펼침 상태까지 해시에 남기는 건 과했다.
+   대신, #경로나 로컬 스토리지에 기억된 경로로 복원될 때는 항상 트리에서 그 경로까지 조상을
+   펼쳐서 보여준다(reveal) - 폴더가 열려있으면 상식적으로 거기까지는 트리도 열려있어야 한다.
+   이 "펼침" 자체는 그때그때 계산만 할 뿐 별도로 저장하지 않는다(세션 동안만 유지). ============ */
 function pathToHash(pathArr) { return pathArr.map(encodeURIComponent).join("/"); }
-function splitHash(hash) {
-  const h = (hash || "").replace(/^#/, "");
-  const idx = h.indexOf("|tree=");
-  if (idx === -1) return { pathPart: h, treePart: "" };
-  return { pathPart: h.slice(0, idx), treePart: h.slice(idx + 6) };
-}
 function hashToPath(hash) {
-  const { pathPart } = splitHash(hash);
-  if (!pathPart) return null;
-  return pathPart.split("/").filter(Boolean).map(s => { try { return decodeURIComponent(s); } catch (e) { return s; } });
-}
-function hashToExpandedSet(hash) {
-  const { treePart } = splitHash(hash);
-  if (!treePart) return null;
-  const set = new Set();
-  treePart.split(",").filter(Boolean).forEach(enc => {
-    try { set.add(decodeURIComponent(enc)); } catch (e) { /* 무시 */ }
-  });
-  return set;
-}
-function encodeExpandedForHash() {
-  return [...expanded].map(encodeURIComponent).join(",");
+  const h = (hash || "").replace(/^#/, "");
+  if (!h) return null;
+  return h.split("/").filter(Boolean).map(s => { try { return decodeURIComponent(s); } catch (e) { return s; } });
 }
 function updateHashFragment() {
-  const pathPart = pathToHash(currentPath);
-  const treePart = encodeExpandedForHash();
-  const hash = treePart ? `${pathPart}|tree=${treePart}` : pathPart;
-  try { window.history.replaceState(null, "", "#" + hash); } catch (e) {}
-}
-function expandedStorageKey() { return `idx:${repoName}:expandedTree`; }
-function loadExpandedFromStorage() {
-  try {
-    const raw = localStorage.getItem(expandedStorageKey());
-    if (raw) { const arr = JSON.parse(raw); if (Array.isArray(arr)) return new Set(arr); }
-  } catch (e) { /* 무시 */ }
-  return new Set();
-}
-function persistExpanded() {
-  try { localStorage.setItem(expandedStorageKey(), JSON.stringify([...expanded])); } catch (e) {}
-  updateHashFragment();
+  try { window.history.replaceState(null, "", "#" + pathToHash(currentPath)); } catch (e) {}
 }
 async function resolveInitialPath(pathArr) {
   let p = (pathArr || []).slice();
@@ -1121,14 +1245,14 @@ async function resolveInitialPath(pathArr) {
 }
 /* 경로를 트리에서 "드러낸다" - 조상 경로를 전부 펼침 상태로 추가하고, 각 단계의 폴더 목록을
    실제로 읽어와서(caching) buildTreeDom이 "불러오는 중..."이 아니라 진짜 하위 폴더를 그릴 수 있게 한다.
-   (예: 페이지를 새로고침해서 깊은 경로로 바로 들어왔을 때, 검색 결과를 눌러서 이동했을 때) */
+   (예: 페이지를 새로고침해서 깊은 경로로 바로 들어왔을 때, 검색 결과를 눌러서 이동했을 때,
+   #경로/로컬 스토리지로 경로가 복원됐을 때) */
 async function revealPath(pathArr) {
   for (let i = 0; i < pathArr.length; i++) {
     const prefix = pathArr.slice(0, i + 1);
     expanded.add(prefix.join("/"));
     try { await loadDir(prefix); } catch (e) { break; }
   }
-  persistExpanded();
 }
 
 /* ============ 탐색 (뒤로/앞으로/위로/새로고침) ============
@@ -1203,6 +1327,9 @@ function compareWithIndex(pathArr, ghNames) {
 
 /* 폴더 열기 / html 파일 열기(호스팅된 페이지) / 일반 파일은 환경설정의 더블클릭 동작을 따른다 */
 async function activate(it) {
+  // 가상 파일(localserver.ahk/indexer.ahk)은 실제 리포에 같은 이름의 파일이 있어도 항상
+  // index.html에 내장된 blob 버전으로만 연결한다 (로컬 헬퍼/GitHub를 거치지 않음).
+  if (it.virtual) { downloadVirtualFile(it.name); return; }
   const { path, type } = it;
   // 검색 결과 화면(currentOpts.flat)에서 점프해 들어가는 경우엔 트리에서 어디로 왔는지 안 보이므로
   // 조상 경로를 펼쳐서 드러낸다(reveal). 평소 폴더 안에서 더블클릭으로 들어가는 건 트리를 안 건드린다.
@@ -1258,10 +1385,17 @@ function renderNavPane() {
   els.navPane.appendChild(rootRow);
 
   const rootEntry = dirCache.get("");
-  if (rootEntry) els.navPane.appendChild(buildTreeDom(rootEntry.folders, []));
+  if (rootEntry) els.navPane.appendChild(buildTreeDom(withVirtualFiles([], rootEntry), []));
 }
-function buildTreeDom(folderNames, pathArr) {
+/* 트리에서 "파일" 행을 클릭해 선택(파란 포커스)한다 - 폴더처럼 내용창으로 진입하진 않는다. */
+function selectTreeFile(it) {
+  treeFileHighlightKey = it.path.join("/");
+  renderNavPane();
+}
+function buildTreeDom(entry, pathArr) {
   const wrap = document.createElement("div");
+  const folderNames = (entry && entry.folders) || [];
+  const files = (entry && entry.files) || [];
   folderNames.forEach(name => {
     const childPath = [...pathArr, name];
     const key = childPath.join("/");
@@ -1280,12 +1414,10 @@ function buildTreeDom(folderNames, pathArr) {
       els.navPane.focus();
       if (isOpen) {
         expanded.delete(key);
-        persistExpanded();
         renderNavPane();
         return;
       }
       expanded.add(key);
-      persistExpanded();
       renderNavPane();
       try { await loadDir(childPath); } catch (err) { /* 접힌 상태로 둔다 */ }
       renderNavPane();
@@ -1301,7 +1433,7 @@ function buildTreeDom(folderNames, pathArr) {
 
     if (isOpen) {
       if (cached) {
-        wrap.appendChild(buildTreeDom(cached.folders, childPath));
+        wrap.appendChild(buildTreeDom(cached, childPath));
       } else {
         const loading = document.createElement("div");
         loading.className = "tree-row tree-loading";
@@ -1311,6 +1443,37 @@ function buildTreeDom(folderNames, pathArr) {
       }
     }
   });
+
+  // 파일도 트리에 표시한다(실제 윈도우 탐색기처럼 폴더를 펼치면 그 안의 파일도 보인다).
+  // 파일은 하위로 펼쳐지지 않으므로 화살표 자리는 정렬만 맞추고 비워둔다.
+  files.forEach(f => {
+    const childPath = [...pathArr, f.name];
+    const key = childPath.join("/");
+    const it = { name: f.name, size: f.size, path: childPath, type: isHtml(f.name) ? "html" : "file", virtual: f.virtual };
+
+    const row = document.createElement("div");
+    row.className = "tree-row tree-file-row" + (treeFileHighlightKey === key ? " selected" : "");
+    row.dataset.fileKey = key;
+    row.style.paddingLeft = (6 + pathArr.length * 16) + "px";
+
+    const spacer = document.createElement("span");
+    spacer.className = "tree-arrow empty";
+    row.appendChild(spacer);
+    row.insertAdjacentHTML("beforeend", it.type === "html" ? htmlFileIcon(15) : fileIcon(15));
+    const label = document.createElement("span");
+    label.textContent = f.name;
+    row.appendChild(label);
+    row.onclick = () => { els.navPane.focus(); selectTreeFile(it); };
+    row.ondblclick = () => activate(it);
+    row.oncontextmenu = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      selectTreeFile(it);
+      showContextMenu(e.clientX, e.clientY, buildFileMenuItems(it));
+    };
+    wrap.appendChild(row);
+  });
+
   return wrap;
 }
 /* 현재 화면에 보이는(펼쳐진 상태 기준) 트리 행들을 위에서 아래 순서로 나열 (루트는 []) */
@@ -1352,7 +1515,6 @@ els.navPane.addEventListener("keydown", async (e) => {
   if (e.key === "ArrowLeft") {
     if (curKey && expanded.has(curKey)) {
       expanded.delete(curKey);
-      persistExpanded();
       renderNavPane();
     } else if (currentPath.length > 0) {
       navigate(currentPath.slice(0, -1));
@@ -1366,7 +1528,6 @@ els.navPane.addEventListener("keydown", async (e) => {
     }
     if (!expanded.has(curKey)) {
       expanded.add(curKey);
-      persistExpanded();
       renderNavPane();
       try { await loadDir(currentPath); } catch (err) { /* 무시 */ }
       renderNavPane();
@@ -1383,7 +1544,7 @@ async function renderContentPane() {
   els.contentPane.innerHTML = '<div class="status-msg">불러오는 중...</div>';
   let entry;
   try {
-    entry = await loadDir(currentPath);
+    entry = withVirtualFiles(currentPath, await loadDir(currentPath));
   } catch (err) {
     currentItems = [];
     els.contentPane.innerHTML = `<div class="empty-msg">폴더를 열지 못했습니다: ${escapeHtml(err.message)}</div>`;
@@ -1392,7 +1553,7 @@ async function renderContentPane() {
   }
   currentItems = [
     ...entry.folders.map(name => ({ name, path: [...currentPath, name], type: "folder" })),
-    ...entry.files.map(f => ({ name: f.name, size: f.size, path: [...currentPath, f.name], type: isHtml(f.name) ? "html" : "file" }))
+    ...entry.files.map(f => ({ name: f.name, size: f.size, path: [...currentPath, f.name], type: isHtml(f.name) ? "html" : "file", virtual: f.virtual }))
   ];
   currentOpts = { emptyText: "이 폴더는 비어 있습니다." };
   paintContentPane();
@@ -1575,12 +1736,14 @@ function itemsFromKeys(keys) {
 }
 function buildMultiFileMenuItems(keys) {
   const items = itemsFromKeys(keys);
-  const fileCount = items.filter(it => it.type !== "folder").length;
+  const fileCount = items.filter(it => it.type !== "folder" && !it.virtual).length;
   if (fileCount === 0) return [];
   return [{ label: `다운로드 (${fileCount}개)`, action: () => handleMultiDownload(items) }];
 }
 async function handleMultiDownload(items) {
-  const files = items.filter(it => it.type !== "folder");
+  // 가상 파일(localserver.ahk/indexer.ahk)은 로컬 헬퍼의 /savetofolder로 저장할 실제 서버 파일이
+  // 아니므로(내장된 blob) 폴더와 마찬가지로 다중 다운로드 대상에서 제외한다.
+  const files = items.filter(it => it.type !== "folder" && !it.virtual);
   const skippedFolders = items.length - files.length;
   if (files.length === 0) { showToast("다운로드할 파일이 없습니다(폴더는 제외됩니다).", { kind: "warn" }); return; }
 
@@ -1630,10 +1793,10 @@ function ensureIndexFor(rootPath) {
   return indexPromiseCache.get(key);
 }
 async function crawlAll(pathArr) {
-  const entry = await loadDir(pathArr);
+  const entry = withVirtualFiles(pathArr, await loadDir(pathArr));
   let results = [];
   entry.folders.forEach(name => results.push({ name, path: [...pathArr, name], type: "folder" }));
-  entry.files.forEach(f => results.push({ name: f.name, size: f.size, path: [...pathArr, f.name], type: isHtml(f.name) ? "html" : "file" }));
+  entry.files.forEach(f => results.push({ name: f.name, size: f.size, path: [...pathArr, f.name], type: isHtml(f.name) ? "html" : "file", virtual: f.virtual }));
   for (const name of entry.folders) {
     const sub = await crawlAll([...pathArr, name]);
     results = results.concat(sub);
@@ -1726,16 +1889,125 @@ function updateStatus() {
   els.btnUp.disabled = currentPath.length === 0;
 }
 
-/* ============ 시계 ============ */
+/* ============ 시계 (12시간제 + 오전/오후 + 초 표시) ============
+   예: "오후 11:55:28" / "2026-09-07 (월요일)" */
 function updateClock() {
   const now = new Date();
-  const hh = String(now.getHours()).padStart(2, "0");
+  const h24 = now.getHours();
+  const ampm = h24 < 12 ? "오전" : "오후";
+  let h12 = h24 % 12;
+  if (h12 === 0) h12 = 12;
   const mm = String(now.getMinutes()).padStart(2, "0");
-  const dateStr = now.toLocaleDateString("ko-KR", { month: "numeric", day: "numeric", weekday: "short" });
-  els.clock.innerHTML = `${hh}:${mm}<br>${dateStr}`;
+  const ss = String(now.getSeconds()).padStart(2, "0");
+  const yyyy = now.getFullYear();
+  const mo = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const weekday = now.toLocaleDateString("ko-KR", { weekday: "long" });
+  els.clock.innerHTML = `${ampm} ${h12}:${mm}:${ss}<br>${yyyy}-${mo}-${dd} (${weekday})`;
 }
 updateClock();
-setInterval(updateClock, 15000);
+setInterval(updateClock, 1000);
+
+/* ============ 날씨 (Open-Meteo, API 키 불필요) ============
+   브라우저 로케일로 국가를 추정해서(위치 권한 요청 없이) 그 나라 대표 도시 좌표로 조회한다.
+   시작 바 시계 옆에 아이콘+기온만 간단히 표시하고, 누르면 자세한 정보를 창으로 띄운다. */
+const COUNTRY_LATLON = {
+  KR: { name: "대한민국", city: "서울", lat: 37.5665, lon: 126.9780 },
+  US: { name: "미국", city: "뉴욕", lat: 40.7128, lon: -74.0060 },
+  JP: { name: "일본", city: "도쿄", lat: 35.6762, lon: 139.6503 },
+  CN: { name: "중국", city: "베이징", lat: 39.9042, lon: 116.4074 },
+  GB: { name: "영국", city: "런던", lat: 51.5074, lon: -0.1278 },
+  DE: { name: "독일", city: "베를린", lat: 52.5200, lon: 13.4050 },
+  FR: { name: "프랑스", city: "파리", lat: 48.8566, lon: 2.3522 },
+  CA: { name: "캐나다", city: "토론토", lat: 43.6532, lon: -79.3832 },
+  AU: { name: "호주", city: "시드니", lat: -33.8688, lon: 151.2093 },
+  IN: { name: "인도", city: "뉴델리", lat: 28.6139, lon: 77.2090 },
+};
+const WMO_WEATHER = {
+  0: { icon: "☀️", label: "맑음" }, 1: { icon: "🌤️", label: "대체로 맑음" },
+  2: { icon: "⛅", label: "부분적으로 흐림" }, 3: { icon: "☁️", label: "흐림" },
+  45: { icon: "🌫️", label: "안개" }, 48: { icon: "🌫️", label: "서리 안개" },
+  51: { icon: "🌦️", label: "약한 이슬비" }, 53: { icon: "🌦️", label: "이슬비" }, 55: { icon: "🌦️", label: "강한 이슬비" },
+  56: { icon: "🌧️", label: "약한 어는 이슬비" }, 57: { icon: "🌧️", label: "어는 이슬비" },
+  61: { icon: "🌧️", label: "약한 비" }, 63: { icon: "🌧️", label: "비" }, 65: { icon: "🌧️", label: "강한 비" },
+  66: { icon: "🌧️", label: "약한 어는 비" }, 67: { icon: "🌧️", label: "어는 비" },
+  71: { icon: "🌨️", label: "약한 눈" }, 73: { icon: "🌨️", label: "눈" }, 75: { icon: "🌨️", label: "강한 눈" }, 77: { icon: "🌨️", label: "싸락눈" },
+  80: { icon: "🌦️", label: "약한 소나기" }, 81: { icon: "🌦️", label: "소나기" }, 82: { icon: "🌧️", label: "강한 소나기" },
+  85: { icon: "🌨️", label: "약한 눈 소나기" }, 86: { icon: "🌨️", label: "강한 눈 소나기" },
+  95: { icon: "⛈️", label: "뇌우" }, 96: { icon: "⛈️", label: "우박을 동반한 뇌우" }, 99: { icon: "⛈️", label: "강한 우박을 동반한 뇌우" },
+};
+function weatherInfoFor(code) { return WMO_WEATHER[code] || { icon: "🌡️", label: "알 수 없음" }; }
+function guessLocationInfo() {
+  let region = null;
+  try {
+    region = new Intl.Locale(navigator.language).maximize().region;
+  } catch (e) { /* 무시 */ }
+  if (!region) {
+    const parts = (navigator.language || "").split("-");
+    region = parts.length > 1 ? parts[1].toUpperCase() : null;
+  }
+  return COUNTRY_LATLON[region] || COUNTRY_LATLON.KR;
+}
+let weatherData = null;
+let weatherLoc = null;
+function renderWeatherWidget() {
+  if (!els.weatherWidget) return;
+  if (!weatherData) { els.weatherWidget.style.display = "none"; els.weatherWidget.innerHTML = ""; return; }
+  const info = weatherInfoFor(weatherData.weather_code);
+  const temp = Math.round(weatherData.temperature_2m);
+  els.weatherWidget.style.display = "flex";
+  els.weatherWidget.innerHTML = `<span class="wicon">${info.icon}</span><span>${temp}°</span>`;
+}
+async function loadWeather() {
+  weatherLoc = guessLocationInfo();
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${weatherLoc.lat}&longitude=${weatherLoc.lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=auto`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(String(res.status));
+    const data = await res.json();
+    weatherData = data.current || null;
+  } catch (e) {
+    weatherData = null;
+  }
+  renderWeatherWidget();
+}
+function closeWeatherDetail() {
+  const overlay = document.getElementById("weatherOverlay");
+  if (overlay) overlay.remove();
+}
+function showWeatherDetail() {
+  if (!weatherData || !weatherLoc) return;
+  closeWeatherDetail();
+  const info = weatherInfoFor(weatherData.weather_code);
+  const overlay = document.createElement("div");
+  overlay.id = "weatherOverlay";
+  overlay.className = "settings-overlay open";
+  overlay.innerHTML = `
+    <div class="settings-panel" style="width:300px;">
+      <div class="settings-titlebar">
+        <span>날씨</span>
+        <button class="settings-close" id="weatherCloseBtn">닫기</button>
+      </div>
+      <div class="settings-body">
+        <div class="weather-place">${escapeHtml(weatherLoc.name)} · ${escapeHtml(weatherLoc.city)}</div>
+        <div class="weather-big">
+          <span class="wicon-big">${info.icon}</span>
+          <span class="temp-big">${Math.round(weatherData.temperature_2m)}°C</span>
+        </div>
+        <div class="weather-desc">${info.label}</div>
+        <div class="settings-divider"></div>
+        <div class="weather-detail-row">체감 온도: ${Math.round(weatherData.apparent_temperature)}°C</div>
+        <div class="weather-detail-row">습도: ${weatherData.relative_humidity_2m}%</div>
+        <div class="weather-detail-row">풍속: ${weatherData.wind_speed_10m} km/h</div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById("weatherCloseBtn").onclick = closeWeatherDetail;
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeWeatherDetail(); });
+}
+if (els.weatherWidget) els.weatherWidget.onclick = showWeatherDetail;
+loadWeather();
+setInterval(loadWeather, 15 * 60 * 1000); // 15분마다 갱신
 
 /* ============ 메인 ============ */
 async function main() {
@@ -1748,12 +2020,12 @@ async function main() {
   }
   settings = loadSettings();
   applySearchPlaceholder();
+  applyAeroToDocument();
   setupSettingsPanel();
   setupStartMenu(owner);
 
-  // 트리 펼침 상태 복원: 주소창(#...|tree=...)에 있으면 그걸 우선, 없으면 로컬 스토리지에 기억된 걸 사용
-  const hashExpanded = hashToExpandedSet(location.hash);
-  expanded = (hashExpanded && hashExpanded.size) ? hashExpanded : loadExpandedFromStorage();
+  // 트리 펼침 상태는 저장하지 않고 매번 새로 계산한다 - 시작 경로가 정해지면 그 경로까지만 드러낸다(reveal).
+  expanded = new Set();
 
   renderNavPane();
   renderBreadcrumb();
