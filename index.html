@@ -165,7 +165,7 @@
   .status-bar a { color: #666; text-decoration: none; }
   .status-bar a:hover { text-decoration: underline; }
 
-  /* ---------- 작업 표시줄 / 시작 메뉴 ---------- */
+  /* ---------- 작업 표시줄 / 시작 메뉴 / 트레이 ---------- */
   .taskbar {
     position: fixed; left: 0; right: 0; bottom: 0; height: 48px;
     display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -183,8 +183,17 @@
   .taskbar-app.active { background: rgba(0,0,0,.09); border-bottom: 2px solid #0078d4; }
   .clock { position: absolute; right: 14px; font-size: 12px; color: #222; text-align: center; line-height: 1.3; user-select: none; }
 
+  .tray-icons { display: flex; align-items: center; gap: 4px; }
+  .tray-icon {
+    width: 30px; height: 30px; border-radius: 6px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; background: rgba(0,0,0,.05); font-size: 12px; font-weight: 600; color: #555;
+  }
+  .tray-icon:hover { background: rgba(0,0,0,.1); }
+  .tray-icon img { width: 62%; height: 62%; object-fit: contain; }
+
   .start-menu {
-    position: fixed; left: 8px; bottom: 58px; width: 250px;
+    position: fixed; left: 8px; bottom: 58px; width: 260px;
     background: rgba(255,255,255,.92); backdrop-filter: blur(20px);
     border: 1px solid rgba(255,255,255,.6); border-radius: 10px;
     box-shadow: 0 14px 44px rgba(0,0,0,.35);
@@ -203,6 +212,47 @@
   .user-caption { font-size: 11px; color: #888; margin-top: 1px; }
   .user-link { font-size: 12px; color: #0078d4; text-decoration: none; display: inline-block; margin-top: 4px; }
   .user-link:hover { text-decoration: underline; }
+
+  .start-menu-divider { height: 1px; background: rgba(0,0,0,.08); margin: 12px 0; }
+  .start-apps { display: flex; flex-direction: column; gap: 1px; max-height: 260px; overflow-y: auto; }
+  .start-app-row {
+    display: flex; align-items: center; gap: 9px; padding: 7px 8px;
+    border-radius: 6px; cursor: pointer; font-size: 12.5px; color: #222;
+  }
+  .start-app-row:hover { background: rgba(0,0,0,.06); }
+  .start-app-icon {
+    width: 20px; height: 20px; flex: 0 0 20px; border-radius: 4px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    background: #e8e8e8; font-size: 11px; font-weight: 600; color: #555;
+  }
+  .start-app-icon img { width: 100%; height: 100%; object-fit: cover; }
+  .start-app-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .start-app-chevron { color: #999; font-size: 10px; }
+  .start-submenu {
+    position: fixed; min-width: 190px; max-width: 260px;
+    background: rgba(255,255,255,.96); backdrop-filter: blur(20px);
+    border: 1px solid rgba(0,0,0,.08); border-radius: 8px;
+    box-shadow: 0 12px 34px rgba(0,0,0,.3);
+    padding: 6px; z-index: 25; display: none;
+  }
+  .start-submenu.open { display: block; }
+
+  /* ---------- 토스트(알림) ---------- */
+  .toast {
+    position: fixed; right: 16px; bottom: 64px; max-width: 320px;
+    background: rgba(35,35,38,.94); color: #fff; border-radius: 8px;
+    padding: 10px 12px; font-size: 12.5px; line-height: 1.5;
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    display: flex; align-items: flex-start; gap: 8px;
+    opacity: 0; pointer-events: none; transform: translateY(6px);
+    transition: opacity .15s ease, transform .15s ease;
+    z-index: 30;
+  }
+  .toast.show { opacity: 1; pointer-events: auto; transform: translateY(0); }
+  .toast.warn { background: rgba(140,40,20,.95); }
+  .toast-msg { flex: 1; white-space: pre-line; word-break: break-word; }
+  .toast-close { background: transparent; border: none; color: #fff; opacity: .7; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }
+  .toast-close:hover { opacity: 1; }
 
   @media (max-width: 720px) {
     .desktop { padding: 8px 8px 64px; }
@@ -238,7 +288,7 @@
       <button class="tool-btn" id="btnBack" title="뒤로" disabled>&#8592;</button>
       <button class="tool-btn" id="btnForward" title="앞으로" disabled>&#8594;</button>
       <button class="tool-btn" id="btnUp" title="위로" disabled>&#8593;</button>
-      <button class="tool-btn" id="btnRefresh" title="새로고침">&#8635;</button>
+      <button class="tool-btn" id="btnRefresh" title="이 폴더 다시 읽기 + GitHub과 비교">&#8635;</button>
       <div class="address-bar" id="breadcrumb"></div>
       <div class="search-box"><input id="searchInput" placeholder="전체 검색" /></div>
     </div>
@@ -266,13 +316,18 @@
       <a class="user-link" id="startUserLink" target="_blank" rel="noopener noreferrer">GitHub 프로필 열기 ↗</a>
     </div>
   </div>
+  <div class="start-menu-divider"></div>
+  <div class="start-apps" id="startApps"></div>
 </div>
 
 <div class="taskbar">
   <div class="start-btn" id="startBtn" title="시작">&#8862;</div>
   <div class="taskbar-app active" id="taskbarApp">📁 탐색기</div>
+  <div class="tray-icons" id="trayIcons"></div>
   <div class="clock" id="clock"></div>
 </div>
+
+<div class="toast" id="toast"></div>
 
 <script>
 /* ============ 아이콘 ============ */
@@ -319,37 +374,41 @@ function escapeHtml(s) {
 /* ============ 색인 제외 규칙 (indexer.ahk가 이미 거르지만, html도 자체적으로 한번 더 거른다) ============
    - 이름에 "_NIH_"가 포함되면(대소문자 무관) 모든 위치에서 제외
    - "pages.json"은 모든 위치에서 제외
-   - 루트에서는 .git / indexer.ahk / index.html 도 추가로 제외
+   - 루트에서는 .git / indexer.ahk / index.html / start.json / tray.json 도 추가로 제외
 ============================================================================================= */
 function filterNames(names, pathArr) {
   const isRoot = pathArr.length === 0;
+  const rootOnly = new Set([".git", "indexer.ahk", "index.html", "start.json", "tray.json"]);
   return names.filter(name => {
     if (/_NIH_/i.test(name)) return false;
     if (name === "pages.json") return false;
-    if (isRoot && (name === ".git" || name === "indexer.ahk" || name === "index.html")) return false;
+    if (isRoot && rootOnly.has(name)) return false;
     return true;
   });
 }
 
 /* ============ 상태 ============ */
 let repoName = "";
+const MAX_TRAY_ICONS = 9; // 트레이 아이콘 최대 개수 -- 늘리고 싶으면 이 숫자만 바꾸면 됨
 const dirCache = new Map();     // pathKey -> {folders:[...], files:[...]}
 let currentPath = [];           // 내용창(오른쪽)에 열려있는 폴더
 let selected = null;            // {path, name, type}
 let expanded = new Set();       // 탐색창(왼쪽)에서 펼쳐진 폴더 pathKey
-let history = [];
+let history = [];               // 앱 자체 뒤로/앞으로 스택 (window.history와 다름, 이름 겹침 주의)
 let historyIndex = -1;
 let currentItems = [];          // 현재 내용창에 그려진 항목들
 let currentOpts = {};
 let currentHeading = null;
 let fullIndexPromise = null;
 let statusFlashTimer = null;
+let toastTimer = null;
+let openSubmenuEls = [];
 
 const els = {};
 ["winTitle","btnMin","btnMax","btnClose","btnNavToggle","btnBack","btnForward","btnUp",
  "btnRefresh","breadcrumb","searchInput","navPane","contentPane","statusText","repoLink",
  "win","taskbarApp","clock","titlebar","startBtn","startMenu","startAvatar","startUserName",
- "startUserLink"].forEach(id => els[id] = document.getElementById(id));
+ "startUserLink","startApps","trayIcons","toast"].forEach(id => els[id] = document.getElementById(id));
 
 /* ============ 창 조작 (최소화/최대화/닫기) ============ */
 els.btnMin.onclick = () => els.win.classList.toggle("minimized");
@@ -363,7 +422,27 @@ els.btnClose.onclick = () => els.win.classList.add("closed");
 els.taskbarApp.onclick = () => { els.win.classList.remove("closed", "minimized"); };
 els.btnNavToggle.onclick = () => els.navPane.classList.toggle("open");
 
-/* ============ 시작 메뉴 ============ */
+/* ============ 로컬 스토리지 (폴더 캐시 + 마지막 경로 기억) ============
+   - 폴더 하나를 읽을 때마다 로컬 스토리지에 계속 쌓인다 (무한 누적).
+   - 새로고침 버튼을 누르면 "그 폴더"만 캐시를 비우고 다시 읽는다.
+================================================================== */
+function cacheKey(pathArr) { return `idx:${repoName}:dir:${pathArr.join("/")}`; }
+function lastPathKey() { return `idx:${repoName}:lastpath`; }
+function readCache(pathArr) {
+  try {
+    const raw = localStorage.getItem(cacheKey(pathArr));
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function writeCache(pathArr, entry) {
+  try { localStorage.setItem(cacheKey(pathArr), JSON.stringify(entry)); } catch (e) { /* 용량 초과 등은 무시 */ }
+}
+function clearCache(pathArr) {
+  try { localStorage.removeItem(cacheKey(pathArr)); } catch (e) {}
+  dirCache.delete(pathArr.join("/"));
+}
+
+/* ============ 시작 메뉴 (GitHub 계정 카드) ============ */
 function setupStartMenu(owner) {
   const name = owner || "Guest";
   els.startUserName.textContent = name;
@@ -382,13 +461,143 @@ function setupStartMenu(owner) {
   }
   els.startBtn.onclick = (e) => { e.stopPropagation(); els.startMenu.classList.toggle("open"); };
   els.startMenu.addEventListener("click", e => e.stopPropagation());
-  document.addEventListener("click", () => els.startMenu.classList.remove("open"));
+  document.addEventListener("click", () => { els.startMenu.classList.remove("open"); closeAllSubmenus(); });
 }
 
-/* ============ 폴더 데이터 로드 (꼬리에 꼬리를 무는 방식) ============ */
+/* ============ start.json / tray.json ============ */
+async function loadJsonConfig(name) {
+  try {
+    const res = await fetch(name, { cache: "no-store" });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data.items) ? data.items : null;
+  } catch (e) {
+    return null; // 파일이 없거나 형식이 잘못돼도 조용히 무시 (선택 기능이므로)
+  }
+}
+function makeAppIcon(item, className) {
+  const wrap = document.createElement("div");
+  wrap.className = className;
+  if (item.icon) {
+    const img = document.createElement("img");
+    img.src = item.icon;
+    img.alt = "";
+    img.onerror = () => { wrap.innerHTML = ""; wrap.textContent = (item.name || "?").charAt(0).toUpperCase(); };
+    wrap.appendChild(img);
+  } else {
+    wrap.textContent = (item.name || "?").charAt(0).toUpperCase();
+  }
+  return wrap;
+}
+function activateExternalItem(item) {
+  if (!item || !item.url) return;
+  if (item.popup) {
+    const w = item.width || 900;
+    const h = item.height || 640;
+    const left = Math.round(((window.screen.width || 1280) - w) / 2);
+    const top = Math.round(((window.screen.height || 800) - h) / 2);
+    window.open(item.url, "_blank", `popup=yes,width=${w},height=${h},left=${left},top=${top}`);
+  } else {
+    window.open(item.url, item.newTab === false ? "_self" : "_blank", "noopener,noreferrer");
+  }
+}
+function closeAllSubmenus() {
+  openSubmenuEls.forEach(el => el.remove());
+  openSubmenuEls = [];
+}
+function positionFloating(el, anchorRect) {
+  document.body.appendChild(el);
+  el.classList.add("open");
+  const w = el.offsetWidth, h = el.offsetHeight;
+  let left = anchorRect.right + 4;
+  if (left + w > window.innerWidth) left = anchorRect.left - w - 4;
+  if (left < 4) left = 4;
+  let top = anchorRect.top;
+  if (top + h > window.innerHeight - 8) top = window.innerHeight - h - 8;
+  if (top < 4) top = 4;
+  el.style.left = left + "px";
+  el.style.top = top + "px";
+}
+function openSubmenuFor(row, items) {
+  // row를 포함하는(조상인) 서브메뉴는 유지하고, 나머지 가지만 정리한다
+  openSubmenuEls = openSubmenuEls.filter(el => {
+    if (el.contains(row)) return true;
+    el.remove();
+    return false;
+  });
+  const sub = document.createElement("div");
+  sub.className = "start-submenu";
+  renderAppList(items, sub);
+  sub.addEventListener("click", ev => ev.stopPropagation());
+  positionFloating(sub, row.getBoundingClientRect());
+  openSubmenuEls.push(sub);
+}
+function renderAppList(items, container) {
+  container.innerHTML = "";
+  items.forEach(item => {
+    const row = document.createElement("div");
+    row.className = "start-app-row";
+    row.appendChild(makeAppIcon(item, "start-app-icon"));
+    const nameEl = document.createElement("span");
+    nameEl.className = "start-app-name";
+    nameEl.textContent = item.name || "(이름 없음)";
+    row.appendChild(nameEl);
+
+    const hasChildren = Array.isArray(item.items) && item.items.length > 0;
+    if (hasChildren) {
+      const chev = document.createElement("span");
+      chev.className = "start-app-chevron";
+      chev.textContent = "▸";
+      row.appendChild(chev);
+      row.onclick = (e) => { e.stopPropagation(); openSubmenuFor(row, item.items); };
+    } else {
+      row.onclick = (e) => {
+        e.stopPropagation();
+        activateExternalItem(item);
+        closeAllSubmenus();
+        els.startMenu.classList.remove("open");
+      };
+    }
+    container.appendChild(row);
+  });
+}
+function renderTrayIcons(items) {
+  els.trayIcons.innerHTML = "";
+  items.slice(0, MAX_TRAY_ICONS).forEach(item => {
+    const btn = makeAppIcon(item, "tray-icon");
+    btn.title = item.name || "";
+    btn.onclick = () => activateExternalItem(item);
+    els.trayIcons.appendChild(btn);
+  });
+}
+
+/* ============ 토스트(알림) ============ */
+function showToast(message, opts = {}) {
+  clearTimeout(toastTimer);
+  els.toast.innerHTML = "";
+  const msgEl = document.createElement("div");
+  msgEl.className = "toast-msg";
+  msgEl.textContent = message;
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "toast-close";
+  closeBtn.textContent = "✕";
+  closeBtn.onclick = () => els.toast.classList.remove("show");
+  els.toast.appendChild(msgEl);
+  els.toast.appendChild(closeBtn);
+  els.toast.className = "toast show" + (opts.kind === "warn" ? " warn" : "");
+  if (!opts.sticky) {
+    toastTimer = setTimeout(() => els.toast.classList.remove("show"), 2500);
+  }
+}
+
+/* ============ 폴더 데이터 로드 (꼬리에 꼬리를 무는 방식 + 로컬 캐시) ============ */
 async function loadDir(pathArr) {
   const key = pathArr.join("/");
   if (dirCache.has(key)) return dirCache.get(key);
+
+  const cached = readCache(pathArr);
+  if (cached) { dirCache.set(key, cached); return cached; }
+
   const prefix = pathArr.map(encodeURIComponent).join("/");
   const url = (prefix ? prefix + "/" : "") + "pages.json";
   const res = await fetch(url, { cache: "no-store" });
@@ -400,7 +609,23 @@ async function loadDir(pathArr) {
     .sort((a, b) => a.localeCompare(b, "ko"));
   const entry = { folders, files };
   dirCache.set(key, entry);
+  writeCache(pathArr, entry);
   return entry;
+}
+
+/* ============ 경로 <-> 주소창 플래그먼트(#...) ============ */
+function pathToHash(pathArr) { return pathArr.map(encodeURIComponent).join("/"); }
+function hashToPath(hash) {
+  const h = (hash || "").replace(/^#/, "");
+  if (!h) return null;
+  return h.split("/").filter(Boolean).map(s => { try { return decodeURIComponent(s); } catch (e) { return s; } });
+}
+async function resolveInitialPath(pathArr) {
+  let p = (pathArr || []).slice();
+  while (p.length > 0) {
+    try { await loadDir(p); return p; } catch (e) { p = p.slice(0, -1); }
+  }
+  return [];
 }
 
 /* ============ 탐색 (뒤로/앞으로/위로/새로고침) ============ */
@@ -414,6 +639,8 @@ async function navigate(path, record = true) {
     historyIndex = history.length - 1;
   }
   path.forEach((_, i) => expanded.add(path.slice(0, i + 1).join("/")));
+  try { window.history.replaceState(null, "", "#" + pathToHash(path)); } catch (e) {}
+  try { localStorage.setItem(lastPathKey(), JSON.stringify(path)); } catch (e) {}
   renderBreadcrumb();
   await renderContentPane();
   renderNavPane();
@@ -421,7 +648,50 @@ async function navigate(path, record = true) {
 els.btnBack.onclick = () => { if (historyIndex > 0) { historyIndex--; navigate(history[historyIndex], false); } };
 els.btnForward.onclick = () => { if (historyIndex < history.length - 1) { historyIndex++; navigate(history[historyIndex], false); } };
 els.btnUp.onclick = () => { if (currentPath.length > 0) navigate(currentPath.slice(0, -1)); };
-els.btnRefresh.onclick = () => location.reload();
+
+/* 새로고침 버튼: 페이지 새로고침이 아니라 "이 폴더" 캐시만 비우고 다시 읽기 + GitHub API로 일치 여부 확인 */
+els.btnRefresh.onclick = async () => {
+  const path = currentPath;
+  clearCache(path);
+  const [, ghResult] = await Promise.allSettled([
+    renderContentPane(),
+    fetchGithubListing(path)
+  ]);
+  renderNavPane();
+  if (ghResult.status === "fulfilled") {
+    compareWithIndex(path, ghResult.value);
+  } else {
+    showToast("GitHub 확인 실패: " + ghResult.reason.message, { kind: "warn" });
+  }
+};
+
+async function fetchGithubListing(pathArr) {
+  const { owner, repo } = getOwnerRepo();
+  if (!owner || !repo) throw new Error("owner/repo를 알 수 없습니다.");
+  const apiPath = pathArr.map(encodeURIComponent).join("/");
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${apiPath}`;
+  const res = await fetch(url, { headers: { "Accept": "application/vnd.github+json" } });
+  if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+  const data = await res.json();
+  const names = Array.isArray(data) ? data.map(it => it.name) : [];
+  return filterNames(names, pathArr);
+}
+function compareWithIndex(pathArr, ghNames) {
+  const entry = dirCache.get(pathArr.join("/")) || { folders: [], files: [] };
+  const indexNames = [...entry.folders, ...entry.files];
+  const ghSet = new Set(ghNames);
+  const idxSet = new Set(indexNames);
+  const missing = ghNames.filter(n => !idxSet.has(n));   // GitHub엔 있는데 색인엔 없음
+  const stale = indexNames.filter(n => !ghSet.has(n));   // 색인엔 있는데 GitHub엔 없음
+  if (missing.length === 0 && stale.length === 0) {
+    showToast("GitHub과 일치합니다.");
+    return;
+  }
+  const lines = [];
+  if (missing.length) lines.push(`색인에 없는 항목(GitHub엔 있음): ${missing.join(", ")}`);
+  if (stale.length) lines.push(`색인에만 있는 항목(GitHub엔 없음): ${stale.join(", ")}`);
+  showToast(lines.join("\n"), { kind: "warn", sticky: true });
+}
 
 /* 폴더 열기 / html 파일 열기 (뷰어는 아직 없음 -> html만 지원) */
 async function activate(path, type) {
@@ -664,7 +934,28 @@ async function main() {
   setupStartMenu(owner);
   renderNavPane();
   renderBreadcrumb();
-  navigate([]);
+
+  window.addEventListener("hashchange", () => {
+    const p = hashToPath(location.hash) || [];
+    if (p.join("/") !== currentPath.join("/")) {
+      resolveInitialPath(p).then(rp => navigate(rp, true));
+    }
+  });
+
+  // start.json / tray.json은 있으면 반영, 없거나 잘못돼도 조용히 무시 (선택 기능)
+  loadJsonConfig("start.json").then(items => { if (items) renderAppList(items, els.startApps); });
+  loadJsonConfig("tray.json").then(items => { if (items) renderTrayIcons(items); });
+
+  // 시작 경로: 주소창 플래그먼트 우선, 없으면 로컬 스토리지에 기억된 경로 사용
+  let initialPath = hashToPath(location.hash);
+  if (!initialPath) {
+    try {
+      const remembered = JSON.parse(localStorage.getItem(lastPathKey()) || "null");
+      if (Array.isArray(remembered)) initialPath = remembered;
+    } catch (e) { /* 무시 */ }
+  }
+  const resolved = await resolveInitialPath(initialPath || []);
+  await navigate(resolved, true);
 }
 
 main();

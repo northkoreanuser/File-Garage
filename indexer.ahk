@@ -11,7 +11,7 @@
 ;
 ; ------------------ 색인 제외 규칙 ------------------
 ; [루트에서만 제외]
-;   .git 폴더, indexer.ahk(본인), index.html
+;   .git 폴더, indexer.ahk(본인), index.html, start.json, tray.json
 ; [모든 폴더(루트+모든 하위)에서 제외]
 ;   pages.json, 이름에 "_NIH_"가 포함된 폴더/파일 (대소문자 무관)
 ; -----------------------------------------------------
@@ -25,13 +25,13 @@ global RootDir := A_ScriptDir
 global DirCount := 0
 
 ; 루트에서만 제외할 이름
-RootOnlyExclude := [".git", "indexer.ahk", "index.html"]
+RootOnlyExclude := [".git", "indexer.ahk", "index.html", "start.json", "tray.json"]
 ; 모든 위치에서 이름이 정확히 일치하면 제외
 GlobalExactExclude := ["pages.json"]
 
 IndexDir(RootDir, true)
 
-MsgBox 4160,색인 완료,% DirCount . "개 폴더를 색인하였습니다."
+TrayTip, 색인 완료, % DirCount . "개 폴더를 색인하여 pages.json을 생성했습니다.", 3
 ExitApp
 
 ; ------------------------------------------------------------
@@ -72,7 +72,7 @@ IndexDir(dir, isRoot) {
 ; 제외 여부 판정
 ;  - 이름에 "_NIH_"가 포함되면(대소문자 무관) 어디서든 제외
 ;  - "pages.json"은 어디서든 제외
-;  - 루트에서는 .git / indexer.ahk / index.html 도 추가로 제외
+;  - 루트에서는 .git / indexer.ahk / index.html / start.json / tray.json 도 추가로 제외
 ; ------------------------------------------------------------
 ShouldExclude(name, isRoot) {
     global RootOnlyExclude, GlobalExactExclude
