@@ -2,7 +2,10 @@
   "folders": [
     "Code",
     "Games",
-    "Tools"
+    "Tools",
+    "새 폴더"
   ],
-  "files": []
+  "files": [
+    {"name": "README.md", "size": 99}
+  ]
 }
