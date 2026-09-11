@@ -5,10 +5,7 @@
     "Tools"
   ],
   "files": [
-    {"name": "pages2.json", "size": 145},
-    {"name": "README.md", "size": 99},
-    {"name": "start.json", "size": 2969},
-    {"name": "tray.json", "size": 2456},
-    {"name": "webhook.log", "size": 35}
+    {"name": ".nojekyll", "size": 0},
+    {"name": "README.md", "size": 99}
   ]
 }
