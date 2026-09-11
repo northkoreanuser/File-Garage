@@ -552,7 +552,7 @@ async function dfsActivate(node) {
     if (!target) { showToast("바로가기 대상을 찾을 수 없습니다(삭제된 항목).", { kind: "warn" }); return; }
     return dfsActivate(target);
   }
-  dfsOpenFileInNewTab(node, { readonly: false });
+  dfsOpenFileInNewTab(node);
 }
 
 /* ============================================================================

@@ -102,7 +102,7 @@ function buildTreeDom(entry, pathArr) {
   files.forEach(f => {
     const childPath = [...pathArr, f.name];
     const key = childPath.join("/");
-    const it = { name: f.name, size: f.size, path: childPath, type: isHtml(f.name) ? "html" : "file", dfsNode: f.dfsNode };
+    const it = { name: f.name, size: f.size, path: childPath, type: fileTypeFor(f.name), dfsNode: f.dfsNode };
 
     const row = document.createElement("div");
     row.className = "tree-row tree-file-row" + (treeFileHighlightKey === key ? " selected" : "") + (treeFocusKey === key ? " kbd-focus" : "");
@@ -149,7 +149,7 @@ function flattenVisibleTree() {
     files.forEach(f => {
       const childPath = [...pathArr, f.name];
       const key = childPath.join("/");
-      const it = { name: f.name, size: f.size, path: childPath, type: isHtml(f.name) ? "html" : "file", dfsNode: f.dfsNode };
+      const it = { name: f.name, size: f.size, path: childPath, type: fileTypeFor(f.name), dfsNode: f.dfsNode };
       list.push({ key, type: "file", pathArr: childPath, item: it });
     });
   }

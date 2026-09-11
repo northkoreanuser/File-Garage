@@ -13,7 +13,7 @@ async function renderContentPane() {
   }
   currentItems = [
     ...entry.folders.map(name => ({ name, path: [...currentPath, name], type: "folder", dfsFolderId: entry.folderNodes ? entry.folderNodes.get(name)?.id : undefined })),
-    ...entry.files.map(f => ({ name: f.name, size: f.size, path: [...currentPath, f.name], type: isHtml(f.name) ? "html" : "file", dfsNode: f.dfsNode }))
+    ...entry.files.map(f => ({ name: f.name, size: f.size, path: [...currentPath, f.name], type: fileTypeFor(f.name), dfsNode: f.dfsNode }))
   ];
   currentOpts = { emptyText: "이 폴더는 비어 있습니다." };
   paintContentPane();

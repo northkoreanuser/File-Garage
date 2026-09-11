@@ -1,5 +1,11 @@
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
+  /* 이 가짜 OS가 진짜 웹페이지라는 티가 나는 대표적인 방법이 "드래그로 화면 텍스트/UI를
+     긁어 선택"하는 것이다(사용자 지시 - 참조 코드처럼 우클릭/드래그 우회까지 막기). 페이지
+     전체를 선택 불가로 걸어두고, 실제로 타이핑/편집해야 하는 입력창(검색창, 이름변경 대화상자
+     입력란 등)에서만 다시 풀어준다. */
+  body { user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; }
+  input, textarea { user-select: text; -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text; cursor: text; }
   body {
     font-family: "Segoe UI", "Malgun Gothic", "맑은 고딕", sans-serif;
     background:
@@ -7,6 +13,7 @@
       radial-gradient(1400px 900px at 85% 90%, #1b4f9c 0%, transparent 60%),
       linear-gradient(160deg, #2f7cd6 0%, #0e3a73 100%);
     min-height: 100%;
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><polygon points="3,2 3,26 9,20.5 13.5,28.5 17.5,26.3 13.2,18.5 21,18.5" fill="black" stroke="black" stroke-width="1.5" stroke-linejoin="round"/><polygon points="5,6 5,21 9.2,17 13.5,24.7 15.3,23.7 11.2,16.2 17,16.2" fill="white"/></svg>') 3 2, auto;
   }
 
   .desktop {

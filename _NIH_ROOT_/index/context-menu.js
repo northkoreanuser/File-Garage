@@ -33,13 +33,14 @@ function buildFileMenuItems(it) {
   }
   if (it.dfsNode) return dfsDesktopFileMenuItems(it);
   const items = [];
-  if (it.type === "html") items.push({ label: "새 탭에서 열기", action: () => activate(it) });
+  if (it.type === "html") items.push({ label: "새 탭에서 열기", action: () => viewHtmlAsHostedPage(it) });
   // 열기/다운로드는 이 사이트에서는 항상 로컬 프로그램(webhook)을 통해서만 가능하므로
   // 굳이 "로컬 프로그램으로"라고 설명을 덧붙이지 않는다.
   items.push({ label: "열기", action: () => localHelperOpen(it) });
   items.push({ label: "다운로드", action: () => localHelperDownload(it) });
-  // 실제 저장소 파일은 이 페이지가 직접 쓸 수 없으므로 항상 읽기 전용으로만 내장 에디터에서 연다.
-  items.push({ label: "에디터로 열기", action: () => dfsOpenReadonlyRepoFile(it) });
+  // 실제 저장소 파일은 원본에는 쓸 수 없지만(GitHub에 직접 못 씀), 에디터 자체는 수정 가능하다 -
+  // 저장하면 이 가짜 OS의 바탕화면(가상 파일시스템)에 새 파일로 저장된다(사용자 지시).
+  items.push({ label: "에디터로 열기", action: () => dfsOpenRepoFileInEditor(it) });
   if (settings.githubLinksEnabled) {
     items.push({ label: "브라우저에서 보기", action: () => viewOnPages(it) });
     items.push({ label: "저장소에서 보기", action: () => openInRepo(it) });
@@ -116,12 +117,34 @@ function dfsDesktopFileMenuItems(it) {
     } }
   ];
 }
-// 기본 우클릭 메뉴가 우리 커스텀 메뉴와 같이 뜨는 걸 막기 위해 최대한 이중으로 막는다:
-// capture 단계(가장 먼저 실행) + bubble 단계 + document.oncontextmenu까지 전부 false 처리.
+/* ============ 브라우저 기본 우클릭 메뉴/드래그 선택 우회 방지 (강화판) ============
+   사용자 리포트: 예전 방식(contextmenu 이벤트만 막음)은 일부 우회 경로를 못 막았다 - 예를 들어
+   오른쪽 버튼으로 누른 채 드래그하다 페이지 밖(또는 다른 요소) 위에서 놓으면 일부 브라우저/OS
+   조합에서 contextmenu 이벤트 자체가 안 뜨고 곧장 다른 기본 동작(네이티브 텍스트 선택/드래그
+   등)으로 새는 경우가 있었다. 참조 코드처럼 두 겹으로 막는다:
+     1) contextmenu 이벤트는 여전히 각 요소(아이콘/트리 행/내용창 등)마다 다른 메뉴를 만들어야
+        하므로(참조 코드처럼 전역 메뉴 하나로 통일 못 함), 여기서는 stopImmediatePropagation을
+        쓰지 않고 preventDefault만 하는 최종 안전망으로 남겨둔다 - 각 요소의 개별 contextmenu
+        핸들러(버블 단계)는 그대로 자기 메뉴를 연다.
+     2) 오른쪽 버튼 mousedown 자체를 캡처 단계에서 기본 동작을 막아서, 브라우저가 "우클릭 드래그"로
+        뭔가를 시작할 계기 자체를 원천 차단한다(참조 코드의 핵심 아이디어) - 이렇게 하면 설령
+        contextmenu 이벤트가 새더라도 애초에 새어나갈 네이티브 동작이 없다.
+     3) 텍스트/아이콘을 네이티브로 드래그해서 끌어내는 것도(=이 페이지가 진짜 웹페이지라는 티가
+        나는 대표적인 우회 경로) input/textarea를 제외한 모든 곳에서 막는다.
+   CSS 쪽에서도 body 전체에 user-select:none을 걸고 입력창(input/textarea)에서만 다시 풀어주는
+   식으로 짝을 맞췄다(각 테마의 style.css 참고) - 드래그로 화면 텍스트가 긁히는 것 자체를
+   막아야 애초에 "드래그 선택 -> 우클릭 -> 복사" 같은 우회가 성립하지 않는다. ==================== */
 function blockNativeContextMenu(e) { e.preventDefault(); return false; }
-document.addEventListener("contextmenu", blockNativeContextMenu, true);
-document.addEventListener("contextmenu", blockNativeContextMenu, false);
+window.addEventListener("contextmenu", blockNativeContextMenu, { capture: true, passive: false });
 document.oncontextmenu = () => false;
+window.addEventListener("mousedown", (e) => {
+  if (e.button === 2) e.preventDefault();
+}, { capture: true, passive: false });
+document.addEventListener("dragstart", (e) => {
+  const tag = (e.target && e.target.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "textarea") return; // 입력창 안에서 텍스트를 드래그로 재배치하는 건 정상 동작이므로 예외
+  e.preventDefault();
+}, true);
 document.addEventListener("click", closeContextMenu);
 document.addEventListener("scroll", closeContextMenu, true);
 

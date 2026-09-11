@@ -11,7 +11,7 @@ async function crawlAll(pathArr) {
   const entry = await loadDir(pathArr);
   let results = [];
   entry.folders.forEach(name => results.push({ name, path: [...pathArr, name], type: "folder" }));
-  entry.files.forEach(f => results.push({ name: f.name, size: f.size, path: [...pathArr, f.name], type: isHtml(f.name) ? "html" : "file" }));
+  entry.files.forEach(f => results.push({ name: f.name, size: f.size, path: [...pathArr, f.name], type: fileTypeFor(f.name) }));
   for (const name of entry.folders) {
     const sub = await crawlAll([...pathArr, name]);
     results = results.concat(sub);

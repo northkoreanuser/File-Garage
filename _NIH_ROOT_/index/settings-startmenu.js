@@ -14,7 +14,10 @@ const DEFAULT_SETTINGS = {
   dfEditorTheme: "dark",     // 내장 에디터(옵시디언 스타일) 테마
   theme: "default"           // 창 스킨: "default" | "win98" (_NIH_ROOT_/ui/theme/<이름>/style.css)
 };
-const AVAILABLE_THEMES = new Set(["default", "win98"]);
+// "default"는 Windows 11 스타일(사용자 지시: "지금 기본"). 나머지는 각 버전의 폴더명(win2000,
+// winxp, winvista, win7, win8, win10, win98)과 그대로 짝지어 _NIH_ROOT_/ui/theme/<name>/style.css를
+// 가리킨다(themeStylesheetUrl).
+const AVAILABLE_THEMES = new Set(["default", "win98", "win2000", "winxp", "winvista", "win7", "win8", "win10"]);
 // _NIH_ROOT_ 아래 있으므로 색인/트리에는 절대 나타나지 않지만, GitHub Pages는 그대로 서빙하므로
 // index.html과 같은 origin의 상대 경로로 직접 불러온다(base64 내장 없이, 진짜 파일 그대로).
 function themeStylesheetUrl(name) {

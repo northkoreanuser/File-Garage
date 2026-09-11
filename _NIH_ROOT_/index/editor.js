@@ -160,7 +160,6 @@ const DF_EDITOR_PAGE_CSS = `
   .df-editor { background: var(--df-bg); color: var(--df-text); }
   .df-editor-top { height: 42px; flex: 0 0 42px; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: var(--df-panel); border-bottom: 1px solid var(--df-border); -webkit-app-region: drag; }
   .df-editor-top .df-e-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
-  .df-editor-top .df-e-readonly { font-size: 11px; color: var(--df-muted); border: 1px solid var(--df-border); border-radius: 4px; padding: 1px 6px; }
   .df-editor-top .df-spacer { flex: 1; }
   .df-editor-top button { border: 1px solid var(--df-border); background: transparent; color: var(--df-muted); height: 28px; padding: 0 8px; border-radius: 6px; cursor: pointer; font: inherit; font-size: 12.5px; }
   .df-editor-top button:hover { background: var(--df-hover-bg); color: var(--df-text); }
@@ -202,43 +201,43 @@ function dfEditorPageFnBundle() {
 }
 
 function dfsBuildEditorPageHtml(node, opts = {}) {
-  const readonly = !!opts.readonly;
   const fileType = node.fileType || dfDetectFileType(node.name);
   const nodeData = JSON.stringify({
     id: node.id ?? null,
     name: node.name,
     fileType,
-    content: node.content || "",
-    readonly
+    content: node.content || ""
   });
   const theme = (settings && settings.dfEditorTheme) || "dark";
+  // 실제 저장소 파일(원본에는 쓸 수 없음)도 이제 읽기 전용이 아니라 자유롭게 수정할 수 있다
+  // (사용자 지시: "어차피 저장 그 위치에 못하잖아" - 원본에 못 쓰는 건 어차피 마찬가지니 그냥
+  // 다른 곳에 저장하게 하면 된다). id가 없는(=바탕화면 가상 파일이 아니라 저장소에서 막 불러온)
+  // 상태에서 "저장"을 누르면 이 가짜 OS의 바탕화면에 새 파일로 만들어진다(doSave 참고).
   const bodyHtml = `
     <div class="df-editor" id="dfEditorRoot" data-theme="${theme}">
       <div class="df-editor-top">
         <button class="df-e-mode" title="렌더 모드 전환"></button>
         <button class="df-e-toggle" title="에디터/뷰어 전환">O</button>
         <span class="df-e-name"></span>
-        ${readonly ? '<span class="df-e-readonly">읽기 전용</span>' : ""}
         <span class="df-spacer"></span>
         <button class="df-e-theme" title="테마 전환">T</button>
         <button class="df-e-copyall" title="전체 복사">[C]</button>
-        ${!readonly ? '<button class="df-e-save" title="지금 저장(Ctrl+S)">저장</button>' : ""}
-        <button class="df-e-download" title="다운로드">받기</button>
+        <button class="df-e-save" title="지금 저장(Ctrl+S) - 이 가짜 PC의 바탕화면에 저장됩니다">저장</button>
+        <button class="df-e-download" title="다운로드 - 웹훅이 켜져 있으면 웹훅으로, 아니면 브라우저 다운로드로">다운로드</button>
       </div>
       <div class="df-editor-body">
-        <div class="df-e-editor"><textarea spellcheck="false" ${readonly ? "readonly" : ""}></textarea></div>
+        <div class="df-e-editor"><textarea spellcheck="false"></textarea></div>
         <div class="df-e-preview"><div class="df-e-preview-inner"></div></div>
         <iframe class="df-e-html-frame" sandbox="" referrerpolicy="no-referrer" title="HTML 미리보기(샌드박스)" style="display:none;"></iframe>
       </div>
       <div class="df-editor-status">
         <span class="df-e-chars"></span><span class="df-e-words"></span><span class="df-e-pos"></span>
-        ${!readonly ? '<span class="df-e-savestate"></span>' : ""}
+        <span class="df-e-savestate"></span>
       </div>
     </div>`;
   const runtime = `
 (function(){
   var NODE = ${nodeData};
-  var readonly = NODE.readonly;
   var RENDER_MODES = ["markdown", "html", "text"];
   var RENDER_LABELS = { markdown: "M", html: "H", text: "T" };
   var RENDER_TITLES = { markdown: "HTML 뷰어로 전환", html: "텍스트 모드로 전환", text: "Markdown 뷰어로 전환" };
@@ -295,17 +294,30 @@ function dfsBuildEditorPageHtml(node, opts = {}) {
     updateStatus();
   }
   function setSaveState(text) { if (saveStateEl) saveStateEl.textContent = text; }
+  // 저장: 이미 바탕화면(가상 파일시스템)에 있는 파일이면(NODE.id가 있음) 그 자리에 그대로
+  // 덮어쓴다. 저장소에서 막 불러온 파일이면(NODE.id가 없음 - 원본에는 애초에 쓸 수 없으므로)
+  // "저장"이 곧 바탕화면에 새 파일을 만드는 것이다 - 한 번 저장되고 나면 그 뒤로는 그 새
+  // 파일을 계속 덮어쓴다(NODE.id를 opener가 돌려준 새 id로 갱신해둔다).
   function doSave() {
-    if (readonly) return;
     if (!window.opener || window.opener.closed) { setSaveState("저장 안 됨(원본 창이 닫혔습니다)"); return; }
     try {
-      window.opener.dfsSaveNodeContent(NODE.id, ta.value);
-      dirty = false;
-      setSaveState("저장됨 " + new Date().toLocaleTimeString());
+      if (NODE.id == null) {
+        window.opener.dfsSaveNodeContentAsNew(NODE.name, NODE.fileType, ta.value).then(function(res) {
+          NODE.id = res.id;
+          NODE.name = res.name;
+          document.querySelector(".df-e-name").textContent = NODE.name;
+          document.title = NODE.name + " - 에디터";
+          dirty = false;
+          setSaveState("바탕화면에 저장됨 " + new Date().toLocaleTimeString());
+        }, function() { setSaveState("저장 실패"); });
+      } else {
+        window.opener.dfsSaveNodeContent(NODE.id, ta.value);
+        dirty = false;
+        setSaveState("저장됨 " + new Date().toLocaleTimeString());
+      }
     } catch (e) { setSaveState("저장 실패"); }
   }
   function scheduleAutosave() {
-    if (readonly) return;
     dirty = true;
     setSaveState("저장 중...");
     clearTimeout(saveTimer);
@@ -325,12 +337,59 @@ function dfsBuildEditorPageHtml(node, opts = {}) {
     }
   };
   copyAllBtn.onclick = function() { dfCopyText(ta.value, function() { copyAllBtn.classList.add("copied"); var old = copyAllBtn.textContent; copyAllBtn.textContent = "OK"; setTimeout(function() { copyAllBtn.classList.remove("copied"); copyAllBtn.textContent = old; }, 900); }); };
-  if (saveBtn) saveBtn.onclick = function() { clearTimeout(saveTimer); doSave(); };
-  downloadBtn.onclick = function() {
+  saveBtn.onclick = function() { clearTimeout(saveTimer); doSave(); };
+
+  // 다운로드: 이 에디터 탭은 opener(원래 페이지)가 닫혀도 계속 동작해야 하므로, 로컬 헬퍼
+  // (localserver.ahk) 감지도 opener를 거치지 않고 이 탭에서 직접 127.0.0.1을 두드려서 확인한다.
+  // 사용자 지시대로 단순하게: 웹훅이 켜져 있으면 웹훅으로 저장 대화상자를 띄우고, 아니면 그냥
+  // 브라우저 자체 blob 다운로드로 떨어진다(따로 "헬퍼 받으세요" 안내는 띄우지 않는다 - 안내가
+  // 필요한 경우는 열기/다운로드처럼 로컬 프로그램이 "꼭" 필요할 때뿐이고, 여기는 blob 다운로드로
+  // 항상 대체 가능하기 때문).
+  var HELPER_PORT_MIN = 8000, HELPER_PORT_MAX = 8020;
+  var HELPER_SIG = "AHK-REPO-INDEXER-LOCALHELPER-v1";
+  function pingHelperPort(port) {
+    return fetch("http://127.0.0.1:" + port + "/ping", { signal: AbortSignal.timeout(800) })
+      .then(function(res) { if (!res.ok) return null; return res.text().then(function(t) { return t.trim() === HELPER_SIG ? port : null; }); })
+      .catch(function() { return null; });
+  }
+  function findHelperPort() {
+    var ports = [];
+    for (var p = HELPER_PORT_MIN; p <= HELPER_PORT_MAX; p++) ports.push(p);
+    return Promise.all(ports.map(pingHelperPort)).then(function(results) {
+      var found = results.filter(function(p) { return p !== null; }).sort(function(a, b) { return a - b; });
+      return found.length ? found[0] : null;
+    });
+  }
+  function blobDownload() {
     var blob = new Blob([ta.value], { type: "text/plain;charset=utf-8" });
     var a = document.createElement("a");
     a.href = URL.createObjectURL(blob); a.download = NODE.name; a.click();
     URL.revokeObjectURL(a.href);
+    setSaveState("브라우저로 다운로드됨");
+  }
+  downloadBtn.onclick = function() {
+    if (downloadBtn.disabled) return;
+    downloadBtn.disabled = true;
+    var oldLabel = downloadBtn.textContent;
+    downloadBtn.textContent = "확인 중...";
+    findHelperPort().then(function(port) {
+      downloadBtn.disabled = false;
+      downloadBtn.textContent = oldLabel;
+      if (port === null) { blobDownload(); return; }
+      return fetch("http://127.0.0.1:" + port + "/savecontent?name=" + encodeURIComponent(NODE.name), {
+        method: "POST",
+        body: ta.value
+      }).then(function(res) {
+        return res.text().then(function(text) {
+          if (!res.ok) throw new Error(String(res.status));
+          setSaveState(text.indexOf("CANCELLED") !== -1 ? "다운로드가 취소되었습니다" : "웹훅으로 다운로드됨");
+        });
+      });
+    }).catch(function() {
+      downloadBtn.disabled = false;
+      downloadBtn.textContent = oldLabel;
+      blobDownload();
+    });
   };
 
   previewInner.addEventListener("click", function(e) {
@@ -341,38 +400,36 @@ function dfsBuildEditorPageHtml(node, opts = {}) {
     dfCopyText(code.textContent, function() { btn.classList.add("copied"); var old = btn.textContent; btn.textContent = "OK"; setTimeout(function() { btn.classList.remove("copied"); btn.textContent = old; }, 900); });
   });
 
-  if (!readonly) {
-    ta.addEventListener("input", function() { renderContent(); scheduleAutosave(); });
-    ta.addEventListener("click", updateStatus);
-    ta.addEventListener("keyup", updateStatus);
-    ta.addEventListener("keydown", function(e) {
-      if ((e.ctrlKey || e.metaKey) && ["b", "i", "k", "s"].indexOf(e.key.toLowerCase()) !== -1) {
-        var k = e.key.toLowerCase();
-        if (k === "s") { e.preventDefault(); clearTimeout(saveTimer); doSave(); return; }
-        e.preventDefault();
-        if (k === "k") {
-          var a = ta.selectionStart, b = ta.selectionEnd, sel = ta.value.slice(a, b);
-          var fullLink = sel.match(/^\\[([^\\]]*)\\]\\(([^)]+)\\)$/);
-          var labelUrl = sel.match(/^([\\s\\S]*\\S)[ \\t]+((?:https?:\\/\\/|www\\.)\\S+)$/i);
-          var bareUrl = sel.match(/^(https?:\\/\\/\\S+|www\\.\\S+)$/i);
-          var replacement;
-          if (fullLink) replacement = fullLink[1] + " " + fullLink[2];
-          else if (bareUrl) replacement = "[HyperLink](" + sel + ")";
-          else if (labelUrl) replacement = "[" + labelUrl[1] + "](" + labelUrl[2] + ")";
-          else if (sel) replacement = "[" + sel + "](https://example.com)";
-          else replacement = "[HyperLink](https://example.com)";
-          ta.setRangeText(replacement, a, b, "select");
-        } else {
-          dfToggleEmphasis(ta, k === "b" ? 2 : 1);
-        }
-        renderContent(); scheduleAutosave(); return;
+  ta.addEventListener("input", function() { renderContent(); scheduleAutosave(); });
+  ta.addEventListener("click", updateStatus);
+  ta.addEventListener("keyup", updateStatus);
+  ta.addEventListener("keydown", function(e) {
+    if ((e.ctrlKey || e.metaKey) && ["b", "i", "k", "s"].indexOf(e.key.toLowerCase()) !== -1) {
+      var k = e.key.toLowerCase();
+      if (k === "s") { e.preventDefault(); clearTimeout(saveTimer); doSave(); return; }
+      e.preventDefault();
+      if (k === "k") {
+        var a = ta.selectionStart, b = ta.selectionEnd, sel = ta.value.slice(a, b);
+        var fullLink = sel.match(/^\\[([^\\]]*)\\]\\(([^)]+)\\)$/);
+        var labelUrl = sel.match(/^([\\s\\S]*\\S)[ \\t]+((?:https?:\\/\\/|www\\.)\\S+)$/i);
+        var bareUrl = sel.match(/^(https?:\\/\\/\\S+|www\\.\\S+)$/i);
+        var replacement;
+        if (fullLink) replacement = fullLink[1] + " " + fullLink[2];
+        else if (bareUrl) replacement = "[HyperLink](" + sel + ")";
+        else if (labelUrl) replacement = "[" + labelUrl[1] + "](" + labelUrl[2] + ")";
+        else if (sel) replacement = "[" + sel + "](https://example.com)";
+        else replacement = "[HyperLink](https://example.com)";
+        ta.setRangeText(replacement, a, b, "select");
+      } else {
+        dfToggleEmphasis(ta, k === "b" ? 2 : 1);
       }
-      if (e.key === "Tab") { e.preventDefault(); ta.setRangeText("  ", ta.selectionStart, ta.selectionEnd, "end"); }
-    });
-    window.addEventListener("beforeunload", function(e) {
-      if (dirty) { e.preventDefault(); e.returnValue = ""; }
-    });
-  }
+      renderContent(); scheduleAutosave(); return;
+    }
+    if (e.key === "Tab") { e.preventDefault(); ta.setRangeText("  ", ta.selectionStart, ta.selectionEnd, "end"); }
+  });
+  window.addEventListener("beforeunload", function(e) {
+    if (dirty) { e.preventDefault(); e.returnValue = ""; }
+  });
   updateStatus();
 })();
 `;
@@ -412,6 +469,22 @@ async function dfsSaveNodeContent(id, content) {
   await dfsDb.nodes.update(id, { content, updatedAt: Date.now() });
   await dfsBroadcastChange();
 }
+// 실제 저장소에서 막 불러온 파일(아직 바탕화면에 없어서 id가 없음)을 에디터에서 처음 "저장"할
+// 때 호출된다 - 원본(GitHub)에는 쓸 수 없으므로, 이 가짜 OS의 바탕화면(가상 파일시스템)에
+// 새 파일로 만든다(사용자 지시). 이름이 겹치면 dfsUniqueName이 자동으로 구분해준다. 이후
+// 저장부터는 이 새 id로 dfsSaveNodeContent가 그 자리를 그대로 덮어쓴다.
+async function dfsSaveNodeContentAsNew(name, fileType, content) {
+  if (!dfsDb) throw new Error("바탕화면을 사용할 수 없습니다.");
+  const uniqueName = await dfsUniqueName(DFS_DESKTOP_ROOT, name);
+  const pos = await dfsNextIconPos(DFS_DESKTOP_ROOT);
+  const now = Date.now();
+  const id = await dfsDb.nodes.add({
+    parentId: DFS_DESKTOP_ROOT, type: "file", name: uniqueName, content: content || "",
+    fileType, x: pos.x, y: pos.y, createdAt: now, updatedAt: now
+  });
+  await dfsBroadcastChange();
+  return { id, name: uniqueName };
+}
 function dfsSetEditorTheme(theme) {
   if (!settings) return;
   settings.dfEditorTheme = theme === "light" ? "light" : "dark";
@@ -435,8 +508,11 @@ function dfToggleEmphasis(ta, bit) {
   ta.selectionEnd = rangeStart + next + core.length;
 }
 
-/* ---------------- 실제 GitHub 리포 파일을 "에디터로 열기"(읽기 전용, 새 탭) ---------------- */
-async function dfsOpenReadonlyRepoFile(it) {
+/* ---------------- 실제 GitHub 리포 파일을 "에디터로 열기"(새 탭, 수정 가능) ----------------
+   원본(GitHub)에는 이 페이지가 직접 쓸 수 없지만, 그렇다고 에디터 자체를 읽기 전용으로 만들
+   필요는 없다(사용자 지시) - 수정 후 저장하면 이 가짜 OS의 바탕화면에 새 파일로 저장된다
+   (dfsSaveNodeContentAsNew/dfsBuildEditorPageHtml의 doSave 참고). */
+async function dfsOpenRepoFileInEditor(it) {
   showToast(`"${it.name}" 여는 중...`);
   let text;
   try {
@@ -454,7 +530,7 @@ async function dfsOpenReadonlyRepoFile(it) {
     const proceed = await showConfirmDialog(`"${it.name}"은(는) 텍스트가 아닌 파일일 수 있습니다.\n그래도 에디터로 열까요? (내용이 깨져 보일 수 있습니다)`);
     if (!proceed) return;
   }
-  dfsOpenFileInNewTab({ name: it.name, fileType: dfDetectFileType(it.name), content: text }, { readonly: true });
+  dfsOpenFileInNewTab({ name: it.name, fileType: dfDetectFileType(it.name), content: text });
 }
 
 main();

@@ -97,6 +97,12 @@ async function downloadFromGithub(it) {
 }
 
 function isHtml(name) { return /\.html$/i.test(name); }
+function isMd(name) { return /\.md$/i.test(name); }
+// 내용창/트리/검색 결과가 항목의 종류(type)를 다 같은 규칙으로 정하도록 한 곳에 모아둔다 - html은
+// 기본적으로 "저장소에서 보기"(호스팅된 실제 페이지)가 아니라 다른 파일처럼 열기/다운로드 기본
+// 동작을 따르고(사용자 지시), md는 더블클릭 기본 동작이 내장 에디터로 열기가 되도록(활성화
+// 로직인 activate()에서 이 type 값으로 분기) 별도 종류로 구분해둔다.
+function fileTypeFor(name) { return isHtml(name) ? "html" : isMd(name) ? "md" : "file"; }
 function escapeHtml(s) {
   return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
@@ -120,13 +126,14 @@ function isDesktopPath(pathArr) { return pathArr.length > 0 && pathArr[0] === DE
         (사용자 지시로 단순화). 단, GitHub Pages가 이 폴더들을 실제로 서빙하려면 리포 루트에
         .nojekyll 빈 파일이 있어야 한다(Jekyll이 기본적으로 "_"로 시작하는 폴더를 빌드에서 빼버림).
    - "pages.json"은 모든 위치에서 제외
-   - 루트에서는 .git / index.html / 바탕화면 도 추가로 제외
+   - 루트에서는 .git / index.html / README.md / 바탕화면 도 추가로 제외
      ("바탕화면"은 트리에 별도 최상위 항목으로 추가되므로, 실제로 같은 이름의 저장소 폴더가 있어도
-     루트 목록에는 나타나지 않게 한다 - 이름 충돌 방지)
+     루트 목록에는 나타나지 않게 한다 - 이름 충돌 방지. README.md는 GitHub이 저장소 페이지에서
+     알아서 보여주는 설명용 파일이라 이 앱 자체 탐색기에는 중복으로 나타날 필요가 없다 - 사용자 지시)
 ============================================================================================= */
 function filterNames(names, pathArr) {
   const isRoot = pathArr.length === 0;
-  const rootOnly = new Set([".git", "index.html", DESKTOP_TREE_NAME]);
+  const rootOnly = new Set([".git", "index.html", "README.md", DESKTOP_TREE_NAME]);
   return names.filter(name => {
     if (/_NIH_/i.test(name)) return false;
     if (name === "pages.json") return false;

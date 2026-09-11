@@ -130,7 +130,12 @@ function compareWithIndex(pathArr, ghNames) {
   showToast(lines.join("\n"), { kind: "warn", sticky: true });
 }
 
-/* 폴더 열기 / html 파일 열기(호스팅된 페이지) / 일반 파일은 환경설정의 더블클릭 동작을 따른다 */
+/* 폴더 열기 / md는 항상 에디터로 / 그 외(html 포함)는 환경설정의 더블클릭 동작을 따른다.
+   예전엔 html만 특별 취급해서 항상 "호스팅된 페이지 보기"로 열었는데(설정 무시), 사용자
+   지시로 그 특별 취급을 없앴다 - html도 이제 그냥 다른 파일처럼 열기/다운로드 기본 동작을
+   따르고, 호스팅된 페이지로 보고 싶을 때는 우클릭 메뉴의 "새 탭에서 열기"(viewHtmlAsHostedPage)
+   를 쓰면 된다. 대신 md는(설명 문서라 바로 읽기 좋은 형태가 자연스러우므로) 더블클릭하면
+   항상 내장 에디터로 연다. */
 async function activate(it) {
   // 바탕화면(가상 파일시스템) 파일/바로가기는 진짜 저장소 파일이 아니므로 dfs 전용 활성화
   // 로직(에디터 새 탭으로 열기 / 바로가기 따라가기)을 그대로 재사용한다.
@@ -149,24 +154,30 @@ async function activate(it) {
   if (isSearchJump && path.length > 1) {
     revealPath(path.slice(0, -1)).then(renderNavPane);
   }
-  if (type === "html") {
-    const isIndex = path[path.length - 1].toLowerCase() === "index.html";
-    let url;
-    if (isIndex) {
-      const dirPath = path.slice(0, -1);
-      url = dirPath.length ? dirPath.map(encodeURIComponent).join("/") + "/" : "./";
-    } else {
-      url = path.map(encodeURIComponent).join("/");
-    }
-    window.open(url, "_blank", "noopener,noreferrer");
+  if (type === "md") {
+    dfsOpenRepoFileInEditor(it);
     return;
   }
-  // 일반 파일: 환경설정에서 고른 더블클릭 동작을 따른다 (기본값은 "열기")
+  // 일반 파일(html 포함): 환경설정에서 고른 더블클릭 동작을 따른다 (기본값은 "열기")
   if (settings.doubleClickAction === "download") {
     localHelperDownload(it);
   } else {
     localHelperOpen(it);
   }
+}
+// html을 "호스팅된 페이지"(실제 GitHub Pages에 배포된 라이브 페이지)로 새 탭에서 본다 - 더블클릭
+// 기본 동작에서는 빠지고(activate() 참고), 우클릭 메뉴 "새 탭에서 열기"에서만 쓰인다.
+function viewHtmlAsHostedPage(it) {
+  const path = it.path;
+  const isIndex = path[path.length - 1].toLowerCase() === "index.html";
+  let url;
+  if (isIndex) {
+    const dirPath = path.slice(0, -1);
+    url = dirPath.length ? dirPath.map(encodeURIComponent).join("/") + "/" : "./";
+  } else {
+    url = path.map(encodeURIComponent).join("/");
+  }
+  window.open(url, "_blank", "noopener,noreferrer");
 }
 function flashStatus(msg) {
   clearTimeout(statusFlashTimer);
