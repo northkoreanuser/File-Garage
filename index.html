@@ -407,6 +407,10 @@
      눌리고, 아이콘 자기 자신에게만 다시 pointer-events:auto로 켜서 아이콘만 클릭 가능하게 한다.
      (안 그러면 이 레이어가 z-index로 인해 메인 창 위를 통째로 덮어 클릭을 다 가로채 버린다.) */
   .df-icon-layer { position: absolute; inset: 0; bottom: 48px; z-index: 1; pointer-events: none; }
+  /* 진짜 탐색기 창은 항상 바탕화면 아이콘층(z-index:1)보다 위에 그려져야 한다(실제 윈도우도
+     탐색기 창이 바탕화면 아이콘을 가린다) - 안 그러면 창과 겹친 위치에 새로 만든 아이콘이
+     창을 뚫고 올라와 보이는 버그가 생긴다. */
+  #win { z-index: 2; }
   .df-icon {
     position: absolute; width: 84px; padding: 8px 4px; border-radius: 6px;
     display: flex; flex-direction: column; align-items: center; gap: 4px;
@@ -1235,7 +1239,14 @@ function showPromptDialog(message, defaultValue = "") {
       if (e.key === "Enter") { e.preventDefault(); cleanup(input.value); }
       else if (e.key === "Escape") { e.preventDefault(); cleanup(null); }
     });
-    requestAnimationFrame(() => { input.focus(); input.select(); });
+    requestAnimationFrame(() => {
+      input.focus();
+      // 실제 윈도우 탐색기의 이름 변경처럼, 확장자가 있으면 확장자는 빼고 파일명(기본 이름)
+      // 부분만 선택된 채로 시작한다(사용자 지시) - 폴더처럼 확장자가 없으면 전체를 선택한다.
+      const { base, ext } = dfsSplitExt(defaultValue);
+      if (ext) input.setSelectionRange(0, base.length);
+      else input.select();
+    });
   });
 }
 
@@ -1816,11 +1827,51 @@ document.addEventListener("keydown", (e) => {
     const isEditable = tag === "input" || tag === "textarea" || (e.target && e.target.isContentEditable);
     if (!isEditable) { e.preventDefault(); goBack(); }
   }
+  if (e.key === "F2") {
+    const tag = (e.target && e.target.tagName || "").toLowerCase();
+    const isEditable = tag === "input" || tag === "textarea" || (e.target && e.target.isContentEditable);
+    if (!isEditable) { e.preventDefault(); triggerF2Rename(); }
+  }
 }, true);
+/* F2 = 지금 선택된 항목 이름 변경(실제 윈도우 탐색기와 동일) - 내용창(오른쪽)에 단일 선택된
+   항목이 있으면 그걸, 아니면 트리(왼쪽)에서 강조된 파일이나 지금 선택된 폴더를 대상으로 한다.
+   메뉴를 직접 다시 만들지 않고 buildFileMenuItems()가 이미 만드는 "이름 변경" 항목의 동작을
+   그대로 재사용한다(실제 저장소 항목처럼 메뉴 자체가 없으면 아무 일도 일어나지 않는다). */
+function triggerF2Rename() {
+  const findRenameAction = (items) => { const found = items.find(it => it.label === "이름 변경"); return found ? found.action : null; };
+  const navFocused = document.activeElement === els.navPane;
+  if (!navFocused && selected && multiSelected.size <= 1) {
+    const it = currentItems.find(i => i.path.join("/") === selected.path.join("/"));
+    if (it) { const action = findRenameAction(buildFileMenuItems(it)); if (action) action(); }
+    return;
+  }
+  if (treeFileHighlightKey !== null) {
+    const entry = flattenVisibleTree().find(en => en.key === treeFileHighlightKey);
+    if (entry && entry.item) { const action = findRenameAction(buildFileMenuItems(entry.item)); if (action) action(); }
+    return;
+  }
+  if (currentPath.length > 0) {
+    const it = { name: currentPath[currentPath.length - 1], path: currentPath, type: "folder" };
+    const action = findRenameAction(buildFileMenuItems(it));
+    if (action) action();
+  }
+}
 
 /* 새로고침 버튼: 페이지 새로고침이 아니라 "이 폴더" 캐시만 비우고 다시 읽기 + GitHub API로 일치 여부 확인 */
 els.btnRefresh.onclick = async () => {
   const path = currentPath;
+  // 바탕화면(가상 파일시스템) 경로는 애초에 GitHub 저장소와 무관한 로컬(dexie) 데이터이므로,
+  // 실제 저장소용 "GitHub과 비교" 로직을 돌릴 이유가 없다 - 돌리면 owner/repo가 없거나
+  // 엉뚱한 API 호출을 시도해 오류만 난다. 캐시만 비우고 다시 그린다.
+  if (isDesktopPath(path)) {
+    for (const k of [...dirCache.keys()]) {
+      if (k === DESKTOP_TREE_NAME || k.startsWith(DESKTOP_TREE_NAME + "/")) dirCache.delete(k);
+    }
+    await revealPath(path).catch(() => {});
+    await renderContentPane();
+    renderNavPane();
+    return;
+  }
   clearCache(path);
   const [, ghResult] = await Promise.allSettled([
     renderContentPane(),
@@ -1986,6 +2037,13 @@ function buildTreeDom(entry, pathArr) {
     row.appendChild(label);
     row.onclick = () => { els.navPane.focus(); navigate(childPath); closeNavPaneIfNarrow(); };
     row.ondblclick = () => navigate(childPath);
+    row.oncontextmenu = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // 실제 저장소 폴더는 읽기 전용이라 buildFileMenuItems가 빈 메뉴([])를 돌려준다 - 바탕화면
+      // 폴더일 때만 새로 만들기/이름 변경/삭제 등 메뉴가 뜬다(트리에서도 우클릭 삭제 가능하게).
+      showContextMenu(e.clientX, e.clientY, buildFileMenuItems({ name, path: childPath, type: "folder" }));
+    };
     wrap.appendChild(row);
 
     if (isOpen) {
@@ -2061,13 +2119,14 @@ function flattenVisibleTree() {
   if (rootEntry) walk(withVirtualFiles([], rootEntry), []);
 
   // 바탕화면도 저장소 루트와 나란한 별도의 최상위 항목이므로, 방향키 탐색 목록에도 이어서 추가한다.
+  // 저장소 루트와 똑같이, 바탕화면 루트 "자신"의 바로 아래 자식들은 화살표로 펼치지 않아도 항상
+  // 보이므로(renderNavPane 참고 - buildTreeDom(dtEntry, ...)를 조건 없이 붙임) 여기서도
+  // expanded 여부와 무관하게 walk한다 - 안 그러면 F2/방향키 등이 실제 화면과 어긋난다.
   if (dfsDb) {
     const dtKey = DESKTOP_TREE_NAME;
     list.push({ key: dtKey, type: "folder", pathArr: [DESKTOP_TREE_NAME] });
-    if (expanded.has(dtKey)) {
-      const dtEntry = dirCache.get(dtKey);
-      if (dtEntry) walk(dtEntry, [DESKTOP_TREE_NAME]);
-    }
+    const dtEntry = dirCache.get(dtKey);
+    if (dtEntry) walk(dtEntry, [DESKTOP_TREE_NAME]);
   }
   return list;
 }
@@ -2138,9 +2197,11 @@ els.navPane.addEventListener("keydown", async (e) => {
   }
   if (e.key === "ArrowRight") {
     if (cur.type === "file") return; // 파일은 펼칠 하위 항목이 없음
-    if (cur.pathArr.length === 0) {
-      // 루트는 항상 펼쳐진 상태로 취급(하위 항목이 이미 보임) - 바로 다음 항목으로 포커스만 이동
-      if (list.length > 1) { treeFocusKey = list[1].key; renderNavPane(); }
+    if (cur.pathArr.length === 0 || cur.key === DESKTOP_TREE_NAME) {
+      // 저장소 루트와 바탕화면 루트는 둘 다 화살표 없이 항상 펼쳐진 상태로 취급한다(하위 항목이
+      // 이미 보임) - 바로 다음 항목으로 포커스만 이동
+      const idxNow = list.findIndex(en => en.key === cur.key);
+      if (idxNow !== -1 && idxNow < list.length - 1) { treeFocusKey = list[idxNow + 1].key; renderNavPane(); }
       return;
     }
     if (!expanded.has(cur.key)) {
@@ -3143,6 +3204,14 @@ document.querySelector(".desktop").addEventListener("drop", async (e) => {
 
 function dfsSetupIconDrag(iconEl, node) {
   let dragging = false, moved = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;
+  // 아이콘이 드래그로 화면 맨 아래 작업표시줄 밑을 뚫고 내려가거나 화면 오른쪽 밖으로 나가지
+  // 않도록, 아이콘층(.df-icon-layer, 이미 작업표시줄 높이만큼 bottom을 뺀 영역) 자기 자신의
+  // 크기 안으로만 좌표를 묶어둔다.
+  function clamp(left, top) {
+    const maxLeft = Math.max(0, els.dfIconLayer.clientWidth - iconEl.offsetWidth);
+    const maxTop = Math.max(0, els.dfIconLayer.clientHeight - iconEl.offsetHeight);
+    return { left: Math.max(0, Math.min(left, maxLeft)), top: Math.max(0, Math.min(top, maxTop)) };
+  }
   iconEl.addEventListener("mousedown", (e) => {
     if (e.button !== 0) return;
     dragging = true; moved = false;
@@ -3156,8 +3225,9 @@ function dfsSetupIconDrag(iconEl, node) {
     const dx = e.clientX - startX, dy = e.clientY - startY;
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
     if (!moved) return;
-    iconEl.style.left = Math.max(0, origLeft + dx) + "px";
-    iconEl.style.top = Math.max(0, origTop + dy) + "px";
+    const pos = clamp(origLeft + dx, origTop + dy);
+    iconEl.style.left = pos.left + "px";
+    iconEl.style.top = pos.top + "px";
     iconEl.style.zIndex = 5;
     els.dfIconLayer.querySelectorAll(".df-icon").forEach(el => el.classList.remove("df-drop-target"));
     const under = dfsElementUnder(e.clientX, e.clientY, iconEl);
@@ -3180,8 +3250,8 @@ function dfsSetupIconDrag(iconEl, node) {
         return;
       }
     }
-    const x = Math.max(0, parseFloat(iconEl.style.left) || 0), y = Math.max(0, parseFloat(iconEl.style.top) || 0);
-    await dfsDb.nodes.update(node.id, { x, y });
+    const pos = clamp(parseFloat(iconEl.style.left) || 0, parseFloat(iconEl.style.top) || 0);
+    await dfsDb.nodes.update(node.id, { x: pos.left, y: pos.top });
   });
 }
 function dfsElementUnder(clientX, clientY, excludeEl) {
