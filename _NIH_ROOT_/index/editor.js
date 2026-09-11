@@ -1,0 +1,460 @@
+/* ============================================================================
+   내장 에디터 (옵시디언 스타일 마크다운/HTML/텍스트 에디터)
+   ----------------------------------------------------------------------------
+   업로드받은 원본 에디터의 markdown()/inline()/isFenceOpen() 파서, HTML 샌드박스
+   미리보기, 코드블록 복사, 굵게/기울임/링크 단축키, 상태줄(글자수 등), M/H/T 렌더
+   모드 순환, 뷰어/에디터 토글, 테마를 그대로 옮겨왔다. 단, 주소창(#) 압축 저장/공유
+   엔진만은 빼고 그 자리를 대신해 dexie 자동저장(가상 파일)으로 대체했다 - 이 페이지가
+   이미 #을 경로/트리 상태 저장용으로 쓰고 있어서 중복 구현이 불가능하기 때문(사용자 지시).
+================================================================================= */
+function dfEsc(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function dfInline(s) {
+  s = dfEsc(s);
+  s = s.replace(/!\[([^\]]*)\]\(([^ )]+)(?:\s+"([^"]*)")?\)/g, (_, a, u, t) => `<img src="${u}" alt="${a}"${t ? ` title="${t}"` : ""}>`);
+  s = s.replace(/\[([^\]]+)\]\(([^ )]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  s = s.replace(/(`{1,3})([\s\S]*?)\1(?!`)/g, (_, fence, content) => {
+    let c = content;
+    if (fence.length > 1 && /^ /.test(c) && / $/.test(c) && c.trim() !== "") c = c.slice(1, -1);
+    return `<code>${c}</code>`;
+  });
+  s = s.replace(/\*\*\*([\s\S]+?)\*\*\*/g, (_, t) => `<strong><em>${t}</em></strong>`);
+  s = s.replace(/___([\s\S]+?)___/g, (_, t) => `<strong><em>${t}</em></strong>`);
+  s = s.replace(/\*\*([\s\S]+?)\*\*/g, (_, inner) => `<strong>${inner.replace(/\*([^*]+)\*/g, "<em>$1</em>")}</strong>`);
+  s = s.replace(/__([\s\S]+?)__/g, (_, inner) => `<strong>${inner.replace(/_([^_]+)_/g, "<em>$1</em>")}</strong>`);
+  s = s.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "<em>$1</em>");
+  s = s.replace(/(?<!_)_([^_]+)_(?!_)/g, "<em>$1</em>");
+  s = s.replace(/~~([^~]+)~~/g, "<del>$1</del>");
+  return s;
+}
+function dfIsFenceOpen(l) {
+  if (!/^```/.test(l)) return false;
+  return !l.slice(3).includes("```");
+}
+function dfMarkdown(src) {
+  const lines = src.replace(/\r\n?/g, "\n").split("\n"), out = [];
+  let i = 0, inCode = false, codeLang = "", code = [];
+  function pushCodeBlock() {
+    let lang = codeLang, content = code;
+    if (content.length === 0 && lang) { content = [lang]; lang = ""; }
+    out.push(`<div class="df-e-codewrap"><button type="button" class="df-e-code-copy" title="코드 복사">[C]</button><pre><code class="language-${dfEsc(lang)}">${dfEsc(content.join("\n"))}</code></pre></div>`);
+    inCode = false; codeLang = ""; code = [];
+  }
+  while (i < lines.length) {
+    let l = lines[i];
+    if (!inCode && dfIsFenceOpen(l)) { inCode = true; codeLang = l.replace(/^```/, "").trim(); code = []; i++; continue; }
+    if (inCode && /^```\s*$/.test(l)) { pushCodeBlock(); i++; continue; }
+    if (inCode && /```\s*$/.test(l)) { code.push(l.replace(/```\s*$/, "")); pushCodeBlock(); i++; continue; }
+    if (inCode) { code.push(l); i++; continue; }
+    if (/^ {0,3}#{1,6}\s+/.test(l)) {
+      const m = l.match(/^ {0,3}(#{1,6})\s+(.*)$/), n = m[1].length;
+      out.push(`<h${n}>${dfInline(m[2].replace(/\s+#+\s*$/, ""))}</h${n}>`); i++; continue;
+    }
+    if (/^---+$/.test(l.trim())) {
+      let end = -1;
+      for (let j = i + 1; j < lines.length; j++) {
+        if (lines[j].trim() === "") break;
+        if (/^---+$/.test(lines[j].trim())) { end = j; break; }
+      }
+      if (end > i + 1) {
+        const rows = lines.slice(i + 1, end).map(x => {
+          const m = x.match(/^\s*([^:]+):\s*(.*)$/);
+          return m ? `<tr><th>${dfEsc(m[1].trim())}</th><td>${dfEsc(m[2].trim())}</td></tr>` : `<tr><td colspan="2">${dfEsc(x)}</td></tr>`;
+        }).join("");
+        out.push(`<table class="frontmatter">${rows}</table>`);
+        i = end + 1; continue;
+      }
+      out.push("<hr>"); i++; continue;
+    }
+    if (/^\*\*\*+$/.test(l.trim())) { out.push("<hr>"); i++; continue; }
+    if (/^>\s?/.test(l)) {
+      const q = []; while (i < lines.length && /^>\s?/.test(lines[i])) { q.push(lines[i].replace(/^>\s?/, "")); i++; }
+      out.push(`<blockquote>${q.map(x => `<p>${dfInline(x)}</p>`).join("")}</blockquote>`); continue;
+    }
+    if (/^\s*[-*+]\s+/.test(l)) {
+      const items = []; while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i])) {
+        let x = lines[i].replace(/^\s*[-*+]\s+/, "");
+        const task = x.match(/^\[([ xX])\]\s+(.*)$/);
+        items.push(task ? `<li class="task"><input type="checkbox" ${task[1].toLowerCase() === "x" ? "checked" : ""} disabled>${dfInline(task[2])}</li>` : `<li>${dfInline(x)}</li>`); i++;
+      }
+      out.push(`<ul>${items.join("")}</ul>`); continue;
+    }
+    if (/^\s*\d+\.\s+/.test(l)) {
+      const items = []; while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) { items.push(`<li>${dfInline(lines[i].replace(/^\s*\d+\.\s+/, ""))}</li>`); i++; }
+      out.push(`<ol>${items.join("")}</ol>`); continue;
+    }
+    if (l.trim() === "") { i++; continue; }
+    if (l.includes("|") && i + 1 < lines.length && /^\s*\|?[\s:-]+(\|[\s:-]+)+\|?\s*$/.test(lines[i + 1])) {
+      const split = x => x.trim().replace(/^\||\|$/g, "").split("|").map(v => v.trim());
+      const heads = split(l); i += 2; const rows = [];
+      while (i < lines.length && lines[i].includes("|") && lines[i].trim() !== "") { rows.push(split(lines[i])); i++; }
+      out.push(`<table><thead><tr>${heads.map(x => `<th>${dfInline(x)}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${heads.map((_, k) => `<td>${dfInline(r[k] ?? "")}</td>`).join("")}</tr>`).join("")}</tbody></table>`); continue;
+    }
+    const para = [l]; i++; while (i < lines.length && lines[i].trim() !== "" && !/^(#{1,6})\s|^>|^\s*[-*+]\s|^\s*\d+\.\s/.test(lines[i]) && !/^---+$|^\*\*\*+$/.test(lines[i].trim()) && !dfIsFenceOpen(lines[i])) { para.push(lines[i]); i++; }
+    out.push(`<p>${para.map(dfInline).join("<br>")}</p>`);
+  }
+  if (inCode) pushCodeBlock();
+  return out.join("");
+}
+
+function dfDetectFileType(name) {
+  if (/\.md$/i.test(name)) return "md";
+  if (/\.html?$/i.test(name)) return "html";
+  return "txt";
+}
+function dfInitialRenderMode(fileType) {
+  return fileType === "md" ? "markdown" : fileType === "html" ? "html" : "text";
+}
+function dfFallbackCopy(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.style.cssText = "position:fixed;opacity:0;left:-9999px;top:-9999px";
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand("copy"); } catch (e) {}
+  document.body.removeChild(ta);
+}
+function dfCopyText(text, onDone) {
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(onDone).catch(() => { dfFallbackCopy(text); onDone(); });
+  } else { dfFallbackCopy(text); onDone(); }
+}
+
+// 실제 리포 파일이 텍스트인지 이진 파일인지 판별: 출력 불가능한 문자(NUL 포함) 비율이
+// 너무 높으면 "텍스트 아님"으로 본다 (JS fetch로 내려받은 내용을 검사). 예전엔 NUL 바이트가
+// 하나만 있어도 즉시 이진 파일로 확정해버려서, 끝에 우연히 널 패딩이 조금 남은 평범한 텍스트/ini
+// 파일(스톱워치.ini 등)까지 "텍스트 아님"으로 오판해 아예 열 수 없게 만드는 문제가 있었다.
+// 이제는 NUL도 다른 제어문자와 똑같이 비율로만 판단하고, 그래도 이진으로 의심되면(false 반환)
+// 호출부에서 무조건 막지 않고 사용자에게 강제로 열지 물어보게 해서 오탐이 있어도 막다른 골목이
+// 되지 않게 한다.
+function dfLooksLikeText(sampleText) {
+  const len = sampleText.length;
+  if (len === 0) return true;
+  let weird = 0;
+  for (let i = 0; i < len; i++) {
+    const c = sampleText.charCodeAt(i);
+    if (c === 9 || c === 10 || c === 13) continue; // 탭/개행/캐리지리턴은 정상
+    if (c === 0xFFFD) continue; // UTF-8이 아닌 인코딩(EUC-KR/CP949 등)으로 저장된 텍스트 파일의 대체문자는 이진 신호로 안 침
+    if (c < 32 || c === 127) weird++;
+  }
+  return (weird / len) < 0.05;
+}
+
+/* ---------------- 렌더 모드 순환(M/H/T) + 뷰어/에디터 토글 + 상태줄 등 전체 에디터 뷰 ---------------- */
+/* ============================================================================
+   에디터 = 독립된 새 탭 페이지
+   사용자 지시("에디터는 GUI 내부가 아니라 새 탭으로 열어" / "에디터용 gui를 따로 만들어")에 따라
+   더 이상 탐색기 창 내부에서 에디터로 "변신"하지 않는다. 파일을 열면 about:blank로 새 탭을 띄우고
+   그 탭 안에 완전히 독립된 HTML 문서를 write한다. window.opener는 일부러 null로 만들지 않는다 -
+   우리가 직접 만든(신뢰하는) 스크립트가 opener.dfsSaveNodeContent(...)를 호출해 원래 페이지의
+   IndexedDB에 저장을 반영해야 하기 때문이다(원격 raw HTML을 그대로 띄우는 미리보기와는 다르다).
+   이렇게 하면 "HTML 모드로 바꾸면 되돌릴 수 없는" 버그(iframe이 탐색기 창 툴바를 덮어버리던
+   position:relative 누락 문제)도 자연히 사라진다 - 에디터가 이제 자기 자신만의 완전한 페이지이므로
+   다른 창 UI와 레이아웃을 공유하지 않는다. ---------------------------------------------------- */
+const DF_EDITOR_PAGE_CSS = `
+  html, body { margin: 0; height: 100%; }
+  * { box-sizing: border-box; }
+  body { font: 13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+  .df-editor { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--df-bg, #14161b); color: var(--df-text, #d7dae0); }
+  .df-editor[data-theme="light"] { --df-bg: #f7f7f8; --df-panel: #ffffff; --df-panel2: #eef0f3; --df-border: #dde1e7; --df-text: #20242b; --df-muted: #6a7180; --df-accent: #7c5cf0; --df-accent2: #6247c4; --df-code: #f1f2f5; --df-code-text: #2a2e37; --df-inline-code-bg: #e6e8ed; --df-quote: #7c5cf0; --df-quote-text: #4a4f5a; --df-quote-bg: #00000006; --df-heading: #14161b; --df-hover-bg: #00000009; }
+  .df-editor:not([data-theme="light"]) { --df-bg: #14161b; --df-panel: #181b21; --df-panel2: #1d2129; --df-border: #2b3039; --df-text: #d7dae0; --df-muted: #858c99; --df-accent: #8b7cf6; --df-accent2: #a89dff; --df-code: #0d0f13; --df-code-text: #d5d9e1; --df-inline-code-bg: #242832; --df-quote: #858cff; --df-quote-text: #aeb3be; --df-quote-bg: #ffffff03; --df-heading: #f0f1f4; --df-hover-bg: #ffffff08; }
+  .df-editor { background: var(--df-bg); color: var(--df-text); }
+  .df-editor-top { height: 42px; flex: 0 0 42px; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: var(--df-panel); border-bottom: 1px solid var(--df-border); -webkit-app-region: drag; }
+  .df-editor-top .df-e-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+  .df-editor-top .df-e-readonly { font-size: 11px; color: var(--df-muted); border: 1px solid var(--df-border); border-radius: 4px; padding: 1px 6px; }
+  .df-editor-top .df-spacer { flex: 1; }
+  .df-editor-top button { border: 1px solid var(--df-border); background: transparent; color: var(--df-muted); height: 28px; padding: 0 8px; border-radius: 6px; cursor: pointer; font: inherit; font-size: 12.5px; }
+  .df-editor-top button:hover { background: var(--df-hover-bg); color: var(--df-text); }
+  .df-editor-body { flex: 1; min-height: 0; display: flex; position: relative; }
+  .df-editor.textmode .df-e-preview { display: none !important; }
+  .df-editor:not(.textmode) .df-e-editor { border-right: 1px solid var(--df-border); }
+  .df-e-editor, .df-e-preview { min-width: 0; flex: 1; overflow: auto; position: relative; }
+  .df-editor.viewer .df-e-editor { display: none; }
+  .df-e-editor textarea { width: 100%; height: 100%; box-sizing: border-box; resize: none; border: 0; outline: 0; background: transparent; color: var(--df-text); font: 14px/1.7 "SFMono-Regular",Consolas,"Liberation Mono",monospace; padding: 18px 22px; }
+  .df-e-preview-inner { max-width: 860px; margin: auto; padding: 28px 34px 60px; font-size: 15px; line-height: 1.75; }
+  .df-e-preview-inner h1,.df-e-preview-inner h2,.df-e-preview-inner h3,.df-e-preview-inner h4,.df-e-preview-inner h5,.df-e-preview-inner h6{ line-height: 1.25; color: var(--df-heading); margin: 1.4em 0 .5em; }
+  .df-e-preview-inner h1{font-size:1.9em}.df-e-preview-inner h2{font-size:1.5em}.df-e-preview-inner h3{font-size:1.2em}
+  .df-e-preview-inner p{margin:.7em 0}.df-e-preview-inner a{color:var(--df-accent2)}
+  .df-e-preview-inner blockquote{border-left:3px solid var(--df-quote);margin:1em 0;padding:.15em 1em;color:var(--df-quote-text);background:var(--df-quote-bg)}
+  .df-e-preview-inner code{font:.9em "SFMono-Regular",Consolas,monospace;background:var(--df-inline-code-bg);color:var(--df-text);border-radius:5px;padding:.15em .38em}
+  .df-e-preview-inner pre{background:var(--df-code);border:1px solid var(--df-border);border-radius:9px;padding:14px;overflow:auto}
+  .df-e-preview-inner pre code{background:transparent;padding:0;color:var(--df-code-text)}
+  .df-e-preview-inner ul,.df-e-preview-inner ol{padding-left:1.6em}
+  .df-e-preview-inner table{border-collapse:collapse;width:100%;margin:1em 0}
+  .df-e-preview-inner th,.df-e-preview-inner td{border:1px solid var(--df-border);padding:7px 9px;text-align:left}
+  .df-e-preview-inner th{background:var(--df-panel2)}
+  .df-e-preview-inner hr{border:0;border-top:1px solid var(--df-border);margin:1.8em 0}
+  .df-e-preview-inner img{max-width:100%;border-radius:8px}
+  .df-e-codewrap{position:relative}
+  .df-e-code-copy{position:absolute;top:8px;right:8px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:1px solid var(--df-border);background:var(--df-panel);color:var(--df-muted);border-radius:6px;cursor:pointer;opacity:0;transition:opacity .12s;font-size:12px}
+  .df-e-codewrap:hover .df-e-code-copy{opacity:1}
+  .df-e-code-copy.copied{opacity:1;color:var(--df-accent)}
+  .df-e-html-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
+  .df-editor-status { height: 24px; flex: 0 0 24px; border-top: 1px solid var(--df-border); background: var(--df-panel); color: var(--df-muted); display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 0 10px; font-size: 10.5px; font-family: "SFMono-Regular",Consolas,monospace; }
+`;
+
+// dfsBuildEditorPageHtml/dfsOpenFileInNewTab이 새 탭 안에 넣을 순수 함수들을 function.toString()으로
+// 그대로 번들링한다 - 이미 이 페이지에 정의된 파서/헬퍼 로직을 새 탭용으로 다시 베껴 적어서 서로
+// 어긋나게 만들지 않기 위함이다.
+function dfEditorPageFnBundle() {
+  return [escapeHtml, dfEsc, dfInline, dfIsFenceOpen, dfMarkdown, dfDetectFileType, dfInitialRenderMode,
+          dfFallbackCopy, dfCopyText, dfStarRunBefore, dfStarRunAfter, dfToggleEmphasis]
+    .map(fn => fn.toString()).join("\n");
+}
+
+function dfsBuildEditorPageHtml(node, opts = {}) {
+  const readonly = !!opts.readonly;
+  const fileType = node.fileType || dfDetectFileType(node.name);
+  const nodeData = JSON.stringify({
+    id: node.id ?? null,
+    name: node.name,
+    fileType,
+    content: node.content || "",
+    readonly
+  });
+  const theme = (settings && settings.dfEditorTheme) || "dark";
+  const bodyHtml = `
+    <div class="df-editor" id="dfEditorRoot" data-theme="${theme}">
+      <div class="df-editor-top">
+        <button class="df-e-mode" title="렌더 모드 전환"></button>
+        <button class="df-e-toggle" title="에디터/뷰어 전환">O</button>
+        <span class="df-e-name"></span>
+        ${readonly ? '<span class="df-e-readonly">읽기 전용</span>' : ""}
+        <span class="df-spacer"></span>
+        <button class="df-e-theme" title="테마 전환">T</button>
+        <button class="df-e-copyall" title="전체 복사">[C]</button>
+        ${!readonly ? '<button class="df-e-save" title="지금 저장(Ctrl+S)">저장</button>' : ""}
+        <button class="df-e-download" title="다운로드">받기</button>
+      </div>
+      <div class="df-editor-body">
+        <div class="df-e-editor"><textarea spellcheck="false" ${readonly ? "readonly" : ""}></textarea></div>
+        <div class="df-e-preview"><div class="df-e-preview-inner"></div></div>
+        <iframe class="df-e-html-frame" sandbox="" referrerpolicy="no-referrer" title="HTML 미리보기(샌드박스)" style="display:none;"></iframe>
+      </div>
+      <div class="df-editor-status">
+        <span class="df-e-chars"></span><span class="df-e-words"></span><span class="df-e-pos"></span>
+        ${!readonly ? '<span class="df-e-savestate"></span>' : ""}
+      </div>
+    </div>`;
+  const runtime = `
+(function(){
+  var NODE = ${nodeData};
+  var readonly = NODE.readonly;
+  var RENDER_MODES = ["markdown", "html", "text"];
+  var RENDER_LABELS = { markdown: "M", html: "H", text: "T" };
+  var RENDER_TITLES = { markdown: "HTML 뷰어로 전환", html: "텍스트 모드로 전환", text: "Markdown 뷰어로 전환" };
+  var renderMode = dfInitialRenderMode(NODE.fileType);
+  var viewerMode = false;
+  var saveTimer = null;
+  var dirty = false;
+
+  document.title = NODE.name + " - 에디터";
+  var wrap = document.getElementById("dfEditorRoot");
+  document.querySelector(".df-e-name").textContent = NODE.name;
+  var ta = document.querySelector(".df-e-editor textarea");
+  var previewInner = document.querySelector(".df-e-preview-inner");
+  var previewPane = document.querySelector(".df-e-preview");
+  var htmlFrame = document.querySelector(".df-e-html-frame");
+  var modeBtn = document.querySelector(".df-e-mode");
+  var toggleBtn = document.querySelector(".df-e-toggle");
+  var themeBtn = document.querySelector(".df-e-theme");
+  var copyAllBtn = document.querySelector(".df-e-copyall");
+  var saveBtn = document.querySelector(".df-e-save");
+  var downloadBtn = document.querySelector(".df-e-download");
+  var saveStateEl = document.querySelector(".df-e-savestate");
+  ta.value = NODE.content;
+
+  function applyRenderMode() {
+    wrap.classList.toggle("textmode", renderMode === "text");
+    modeBtn.textContent = RENDER_LABELS[renderMode];
+    modeBtn.title = RENDER_TITLES[renderMode];
+    toggleBtn.style.visibility = renderMode === "text" ? "hidden" : "visible";
+  }
+  function applyViewerMode() {
+    wrap.classList.toggle("viewer", viewerMode);
+    toggleBtn.textContent = viewerMode ? "편집" : "뷰어";
+    toggleBtn.title = viewerMode ? "편집 모드로 전환" : "뷰어 모드로 전환";
+  }
+  function updateStatus() {
+    var v = ta.value, p = ta.selectionStart, before = v.slice(0, p);
+    var line = before.split("\\n").length, col = p - (before.lastIndexOf("\\n") + 1);
+    document.querySelector(".df-e-chars").textContent = v.length + "자";
+    document.querySelector(".df-e-words").textContent = (v.trim().match(/\\S+/g) || []).length + "단어";
+    document.querySelector(".df-e-pos").textContent = line + "행 " + (col + 1) + "열";
+  }
+  function renderContent() {
+    if (renderMode === "html") {
+      previewPane.style.display = "none";
+      htmlFrame.style.display = "";
+      htmlFrame.srcdoc = ta.value;
+    } else {
+      htmlFrame.style.display = "none";
+      htmlFrame.srcdoc = "";
+      previewPane.style.display = "";
+      previewInner.innerHTML = dfMarkdown(ta.value);
+    }
+    updateStatus();
+  }
+  function setSaveState(text) { if (saveStateEl) saveStateEl.textContent = text; }
+  function doSave() {
+    if (readonly) return;
+    if (!window.opener || window.opener.closed) { setSaveState("저장 안 됨(원본 창이 닫혔습니다)"); return; }
+    try {
+      window.opener.dfsSaveNodeContent(NODE.id, ta.value);
+      dirty = false;
+      setSaveState("저장됨 " + new Date().toLocaleTimeString());
+    } catch (e) { setSaveState("저장 실패"); }
+  }
+  function scheduleAutosave() {
+    if (readonly) return;
+    dirty = true;
+    setSaveState("저장 중...");
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(doSave, 500);
+  }
+
+  applyRenderMode();
+  applyViewerMode();
+  renderContent();
+
+  modeBtn.onclick = function() { renderMode = RENDER_MODES[(RENDER_MODES.indexOf(renderMode) + 1) % RENDER_MODES.length]; applyRenderMode(); renderContent(); };
+  toggleBtn.onclick = function() { viewerMode = !viewerMode; applyViewerMode(); };
+  themeBtn.onclick = function() {
+    wrap.dataset.theme = wrap.dataset.theme === "light" ? "dark" : "light";
+    if (window.opener && !window.opener.closed && window.opener.dfsSetEditorTheme) {
+      try { window.opener.dfsSetEditorTheme(wrap.dataset.theme); } catch (e) {}
+    }
+  };
+  copyAllBtn.onclick = function() { dfCopyText(ta.value, function() { copyAllBtn.classList.add("copied"); var old = copyAllBtn.textContent; copyAllBtn.textContent = "OK"; setTimeout(function() { copyAllBtn.classList.remove("copied"); copyAllBtn.textContent = old; }, 900); }); };
+  if (saveBtn) saveBtn.onclick = function() { clearTimeout(saveTimer); doSave(); };
+  downloadBtn.onclick = function() {
+    var blob = new Blob([ta.value], { type: "text/plain;charset=utf-8" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = NODE.name; a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  previewInner.addEventListener("click", function(e) {
+    var btn = e.target.closest(".df-e-code-copy");
+    if (!btn) return;
+    var code = btn.parentElement.querySelector("pre code");
+    if (!code) return;
+    dfCopyText(code.textContent, function() { btn.classList.add("copied"); var old = btn.textContent; btn.textContent = "OK"; setTimeout(function() { btn.classList.remove("copied"); btn.textContent = old; }, 900); });
+  });
+
+  if (!readonly) {
+    ta.addEventListener("input", function() { renderContent(); scheduleAutosave(); });
+    ta.addEventListener("click", updateStatus);
+    ta.addEventListener("keyup", updateStatus);
+    ta.addEventListener("keydown", function(e) {
+      if ((e.ctrlKey || e.metaKey) && ["b", "i", "k", "s"].indexOf(e.key.toLowerCase()) !== -1) {
+        var k = e.key.toLowerCase();
+        if (k === "s") { e.preventDefault(); clearTimeout(saveTimer); doSave(); return; }
+        e.preventDefault();
+        if (k === "k") {
+          var a = ta.selectionStart, b = ta.selectionEnd, sel = ta.value.slice(a, b);
+          var fullLink = sel.match(/^\\[([^\\]]*)\\]\\(([^)]+)\\)$/);
+          var labelUrl = sel.match(/^([\\s\\S]*\\S)[ \\t]+((?:https?:\\/\\/|www\\.)\\S+)$/i);
+          var bareUrl = sel.match(/^(https?:\\/\\/\\S+|www\\.\\S+)$/i);
+          var replacement;
+          if (fullLink) replacement = fullLink[1] + " " + fullLink[2];
+          else if (bareUrl) replacement = "[HyperLink](" + sel + ")";
+          else if (labelUrl) replacement = "[" + labelUrl[1] + "](" + labelUrl[2] + ")";
+          else if (sel) replacement = "[" + sel + "](https://example.com)";
+          else replacement = "[HyperLink](https://example.com)";
+          ta.setRangeText(replacement, a, b, "select");
+        } else {
+          dfToggleEmphasis(ta, k === "b" ? 2 : 1);
+        }
+        renderContent(); scheduleAutosave(); return;
+      }
+      if (e.key === "Tab") { e.preventDefault(); ta.setRangeText("  ", ta.selectionStart, ta.selectionEnd, "end"); }
+    });
+    window.addEventListener("beforeunload", function(e) {
+      if (dirty) { e.preventDefault(); e.returnValue = ""; }
+    });
+  }
+  updateStatus();
+})();
+`;
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(node.name)} - 에디터</title>
+<style>${DF_EDITOR_PAGE_CSS}</style>
+</head>
+<body>
+${bodyHtml}
+<` + `script>
+${dfEditorPageFnBundle()}
+${runtime}
+<` + `/script>
+</body>
+</html>`;
+}
+
+// 파일을 완전히 독립된 새 탭으로 연다. window.opener는 일부러 유지한다(신뢰하는 우리 스크립트가
+// 원래 페이지의 dfsSaveNodeContent를 호출해 저장을 반영해야 하므로).
+function dfsOpenFileInNewTab(node, opts = {}) {
+  const html = dfsBuildEditorPageHtml(node, opts);
+  const win = window.open("about:blank", "_blank");
+  if (!win) { showToast("팝업이 차단되었습니다. 브라우저 설정에서 이 사이트의 팝업을 허용해주세요.", { kind: "warn" }); return null; }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  return win;
+}
+
+// 새 탭 에디터가 opener(이 페이지)를 통해 저장을 반영하기 위해 호출하는 함수
+async function dfsSaveNodeContent(id, content) {
+  if (id == null || !dfsDb) return;
+  await dfsDb.nodes.update(id, { content, updatedAt: Date.now() });
+  await dfsBroadcastChange();
+}
+function dfsSetEditorTheme(theme) {
+  if (!settings) return;
+  settings.dfEditorTheme = theme === "light" ? "light" : "dark";
+  saveSettings();
+}
+function dfStarRunBefore(v, idx) { let n = 0, i = idx - 1; while (i >= 0 && v[i] === "*") { n++; i--; } return n; }
+function dfStarRunAfter(v, idx) { let n = 0, i = idx; while (i < v.length && v[i] === "*") { n++; i++; } return n; }
+function dfToggleEmphasis(ta, bit) {
+  const v = ta.value;
+  const a = ta.selectionStart, b = ta.selectionEnd;
+  let coreStart = a; while (coreStart < b && v[coreStart] === "*") coreStart++;
+  let coreEnd = b; while (coreEnd > coreStart && v[coreEnd - 1] === "*") coreEnd--;
+  const core = v.slice(coreStart, coreEnd) || "text";
+  const left = dfStarRunBefore(v, coreStart), right = dfStarRunAfter(v, coreEnd);
+  const current = Math.min(left, right);
+  const next = current ^ bit;
+  const rangeStart = coreStart - left, rangeEnd = coreEnd + right;
+  const stars = "*".repeat(next);
+  ta.setRangeText(stars + core + stars, rangeStart, rangeEnd, "select");
+  ta.selectionStart = rangeStart + next;
+  ta.selectionEnd = rangeStart + next + core.length;
+}
+
+/* ---------------- 실제 GitHub 리포 파일을 "에디터로 열기"(읽기 전용, 새 탭) ---------------- */
+async function dfsOpenReadonlyRepoFile(it) {
+  showToast(`"${it.name}" 여는 중...`);
+  let text;
+  try {
+    const url = await githubRawUrl(it);
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error(String(res.status));
+    text = await res.text();
+  } catch (e) {
+    showToast(`파일을 불러오지 못했습니다: ${e.message}`, { kind: "warn" });
+    return;
+  }
+  // 이진 파일로 의심돼도 무조건 막지 않는다(오탐 가능성 - 스톱워치.ini 같은 사례) - 대신 CSS
+  // 커스텀 확인창으로 사용자에게 강제로 열지 물어본다.
+  if (!dfLooksLikeText(text.slice(0, 8000))) {
+    const proceed = await showConfirmDialog(`"${it.name}"은(는) 텍스트가 아닌 파일일 수 있습니다.\n그래도 에디터로 열까요? (내용이 깨져 보일 수 있습니다)`);
+    if (!proceed) return;
+  }
+  dfsOpenFileInNewTab({ name: it.name, fileType: dfDetectFileType(it.name), content: text }, { readonly: true });
+}
+
+main();
