@@ -85,6 +85,10 @@ function buildGrid(items, opts) {
     if (desktopMode) {
       const srcId = it.type === "folder" ? it.dfsFolderId : (it.dfsNode ? it.dfsNode.id : null);
       if (srcId != null) {
+        // 바탕화면 아이콘(.df-icon)을 마우스로 끌어다 이 칸 위에 놓는 것(desktop-fs.js의
+        // dfsSetupIconDrag -> dfsElementUnder)도 이 dataset.id로 대상을 찾는다 - 이게 없으면
+        // 바탕화면에서 탐색기 창 안의 폴더 칸으로 끌어다 놔도 대상을 못 찾아 아무 일도 안 일어난다.
+        cell.dataset.id = String(srcId);
         cell.draggable = true;
         cell.addEventListener("dragstart", (e) => {
           // els.contentPane에 걸려있는 전역 dragstart 리스너(밑에서 텍스트/이미지 드래그를 막으려고
@@ -127,6 +131,23 @@ function buildGrid(items, opts) {
     grid.appendChild(cell);
   });
   return grid;
+}
+// Ctrl+A = 내용창(오른쪽) 항목 전체 선택 (keyboard-and-activate.js의 전역 keydown 리스너에서 호출됨).
+// 항목이 1개뿐이면 굳이 다중선택 취급하지 않고 그냥 그 하나를 단일 선택한다(러버밴드 마우스업과
+// 동일한 규칙 - buildGrid의 isMultiSel/isSingleSel 판정이 multiSelected.size > 1을 기준으로 하므로,
+// 1개짜리를 multiSelected에 넣으면 오히려 선택 표시가 하나도 안 붙는 모순이 생긴다).
+function selectAllContentPane() {
+  if (!currentItems.length) return;
+  if (currentItems.length === 1) {
+    const it = currentItems[0];
+    multiSelected.clear();
+    selected = { path: it.path, name: it.name, type: it.type };
+  } else {
+    multiSelected = new Set(currentItems.map(it => it.path.join("/")));
+    selected = null;
+  }
+  paintContentPane();
+  updateStatus();
 }
 function paintContentPane() {
   els.contentPane.innerHTML = "";
@@ -189,8 +210,13 @@ window.addEventListener("mouseup", () => {
     const it = currentItems.find(i => i.path.join("/") === key);
     multiSelected.clear();
     if (it) selected = { path: it.path, name: it.name, type: it.type };
-    paintContentPane();
   }
+  // 버그 리포트: "단순 빈 화면 클릭시 드래그 안 풀림. 빈 화면에 작게 드래그를 해야 풀림" - 마우스를
+  // 전혀 움직이지 않은 순수 클릭이면 mousemove 리스너가 한 번도 안 불려서 화면(DOM)의 .selected
+  // 클래스가 그대로 남아있었다(mousedown에서 상태(multiSelected/selected)는 이미 비웠지만 화면을
+  // 다시 그리는 건 이 size===1 분기 안에서만 했었음). 항상 다시 그려서 실제 드래그가 없어도
+  // 빈 화면 클릭 한 번에 확실히 선택이 풀리도록 한다.
+  paintContentPane();
   updateStatus();
 });
 els.navPane.addEventListener("dragstart", (e) => e.preventDefault());
@@ -203,18 +229,37 @@ els.contentPane.addEventListener("dragstart", (e) => e.preventDefault());
 els.contentPane.addEventListener("dragover", (e) => {
   if (!isDesktopPath(currentPath)) return;
   if (e.target.closest(".grid-item")) return; // 폴더 칸 위는 그 칸 자체의 리스너가 처리
-  if (!e.dataTransfer || Array.from(e.dataTransfer.types || []).indexOf("Files") === -1) return;
+  if (!e.dataTransfer) return;
+  const types = Array.from(e.dataTransfer.types || []);
+  if (types.indexOf("Files") === -1 && types.indexOf("text/plain") === -1) return;
   e.preventDefault();
-  e.dataTransfer.dropEffect = "copy";
+  e.dataTransfer.dropEffect = "move";
 });
+// text/plain(트리 행이나 다른 폴더의 grid-item에서 네이티브 드래그로 끌려온 가상 파일시스템 노드
+// id)을 특정 폴더 칸이 아니라 이 내용창의 빈 곳/배경에 놓으면, 바탕화면 아이콘을 창 안으로 끌어다
+// 놓을 때(desktop-fs.js dfsSetupIconDrag의 "지금 보고 있는 폴더로" 폴백)와 똑같이 "지금 보고 있는
+// 폴더(currentPath)" 안으로 옮긴다 - 버그 리포트: "트리에서... 폴더 탐색기 안쪽으로 넣을 수도
+// 있어야 함".
 els.contentPane.addEventListener("drop", async (e) => {
   if (!isDesktopPath(currentPath)) return;
   if (e.target.closest(".grid-item")) return;
-  if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
+  if (!e.dataTransfer) return;
   e.preventDefault();
+  if (e.dataTransfer.files && e.dataTransfer.files.length) {
+    const folderId = await dfsResolvePathToFolderId(currentPath);
+    if (folderId == null) return;
+    await dfsImportOsFileList(folderId, e.dataTransfer.files, () => renderContentPane());
+    return;
+  }
+  const draggedId = Number(e.dataTransfer.getData("text/plain"));
+  if (!draggedId) return;
   const folderId = await dfsResolvePathToFolderId(currentPath);
-  if (folderId == null) return;
-  await dfsImportOsFileList(folderId, e.dataTransfer.files, () => renderContentPane());
+  if (folderId == null || draggedId === folderId) return;
+  const srcNode = await dfsDb.nodes.get(draggedId);
+  if (!srcNode || srcNode.parentId === folderId) return;
+  const ok = await dfsMove(srcNode, folderId);
+  if (ok) showToast(`"${srcNode.name}"을(를) 옮겼습니다.`);
+  await dfsBroadcastChange();
 });
 els.contentPane.addEventListener("contextmenu", (e) => {
   if (!isDesktopPath(currentPath)) return;

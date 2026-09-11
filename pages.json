@@ -4,8 +4,5 @@
     "Games",
     "Tools"
   ],
-  "files": [
-    {"name": ".nojekyll", "size": 0},
-    {"name": "README.md", "size": 99}
-  ]
+  "files": []
 }

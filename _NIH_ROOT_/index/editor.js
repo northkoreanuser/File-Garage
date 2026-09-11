@@ -227,8 +227,10 @@ function dfsBuildEditorPageHtml(node, opts = {}) {
       </div>
       <div class="df-editor-body">
         <div class="df-e-editor"><textarea spellcheck="false"></textarea></div>
-        <div class="df-e-preview"><div class="df-e-preview-inner"></div></div>
-        <iframe class="df-e-html-frame" sandbox="" referrerpolicy="no-referrer" title="HTML 미리보기(샌드박스)" style="display:none;"></iframe>
+        <div class="df-e-preview">
+          <div class="df-e-preview-inner"></div>
+          <iframe class="df-e-html-frame" sandbox="" referrerpolicy="no-referrer" title="HTML 미리보기(샌드박스)" style="display:none;"></iframe>
+        </div>
       </div>
       <div class="df-editor-status">
         <span class="df-e-chars"></span><span class="df-e-words"></span><span class="df-e-pos"></span>
@@ -280,15 +282,22 @@ function dfsBuildEditorPageHtml(node, opts = {}) {
     document.querySelector(".df-e-words").textContent = (v.trim().match(/\\S+/g) || []).length + "단어";
     document.querySelector(".df-e-pos").textContent = line + "행 " + (col + 1) + "열";
   }
+  // 버그 리포트: "에디터 HTML 모드 수정 안됨" - 예전엔 iframe(.df-e-html-frame)이 .df-editor-body
+  // 바로 밑에 있어서 position:absolute;inset:0이 편집기 전체 폭(왼쪽 textarea까지 포함)을 덮어버려,
+  // HTML 모드로 바꾸면 왼쪽 에디터(textarea)가 화면엔 보여도 클릭/타이핑이 안 먹혔다(iframe이 위에서
+  // 가로막음). 사용자 지시대로 "Markdown 모드 그대로 베끼고 뷰어만 HTML로" 되도록, iframe을
+  // .df-e-preview(오른쪽 뷰어 칸) 안으로 옮겨서(dfsBuildEditorPageHtml 참고) 그 칸 안에서만
+  // absolute로 채워지게 하고, 왼쪽 textarea(ta)는 마크다운/HTML/텍스트 어느 모드든 항상 그대로
+  // 편집 가능하게 둔다 - previewPane 자신은 계속 표시한 채 그 안의 previewInner<->htmlFrame만 바꾼다.
   function renderContent() {
     if (renderMode === "html") {
-      previewPane.style.display = "none";
+      previewInner.style.display = "none";
       htmlFrame.style.display = "";
       htmlFrame.srcdoc = ta.value;
     } else {
       htmlFrame.style.display = "none";
       htmlFrame.srcdoc = "";
-      previewPane.style.display = "";
+      previewInner.style.display = "";
       previewInner.innerHTML = dfMarkdown(ta.value);
     }
     updateStatus();

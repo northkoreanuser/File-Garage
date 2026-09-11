@@ -119,10 +119,10 @@ function isDesktopPath(pathArr) { return pathArr.length > 0 && pathArr[0] === DE
 
 /* ============ 색인 제외 규칙 (indexer.ahk가 이미 거르지만, html도 자체적으로 한번 더 거른다) ============
    - 이름에 "_NIH_"가 포함되면(대소문자 무관) 모든 위치에서 제외
-     -> indexer.ahk/localserver.ahk/start.json/tray.json/index.html의 JS·CSS는 전부 _NIH_ROOT_
-        폴더 안(_NIH_ROOT_/menu/start.json, _NIH_ROOT_/menu/tray.json, _NIH_ROOT_/tools/indexer.ahk,
-        _NIH_ROOT_/tools/localserver.ahk, _NIH_ROOT_/index/*.js, _NIH_ROOT_/ui/theme/*)에 있으므로
-        이 규칙 하나로 자동으로 다 숨겨진다 - 따로 이름을 하나하나 예외 목록에 넣을 필요가 없다
+     -> indexer.ahk/localserver.ahk/menu.json/index.html의 JS·CSS는 전부 _NIH_ROOT_
+        폴더 안(_NIH_ROOT_/index/menu.json, _NIH_ROOT_/tools/indexer.ahk,
+        _NIH_ROOT_/tools/localserver.ahk, _NIH_ROOT_/index/*.js, _NIH_ROOT_/index/ui/theme/*)에
+        있으므로 이 규칙 하나로 자동으로 다 숨겨진다 - 따로 이름을 하나하나 예외 목록에 넣을 필요가 없다
         (사용자 지시로 단순화). 단, GitHub Pages가 이 폴더들을 실제로 서빙하려면 리포 루트에
         .nojekyll 빈 파일이 있어야 한다(Jekyll이 기본적으로 "_"로 시작하는 폴더를 빌드에서 빼버림).
    - "pages.json"은 모든 위치에서 제외
@@ -133,11 +133,16 @@ function isDesktopPath(pathArr) { return pathArr.length > 0 && pathArr[0] === DE
 ============================================================================================= */
 function filterNames(names, pathArr) {
   const isRoot = pathArr.length === 0;
-  const rootOnly = new Set([".git", "index.html", "README.md", DESKTOP_TREE_NAME]);
+  // 대소문자를 가리지 않고 비교한다 - 예를 들어 실제 저장소의 README 파일이 "readme.md"처럼
+  // 소문자로 돼 있으면 정확히 "README.md"와만 비교하는 대소문자 구분 비교로는 못 걸러낸다(버그
+  // 리포트: 루트에서 readme.md가 계속 보임). .nojekyll(GitHub Pages가 _NIH_ 폴더를 서빙하게
+  // 해주는 설정 파일 - index.html 주석 참고)도 사용자용 색인에는 나올 이유가 없는 저장소 관리용
+  // 파일이라 같이 숨긴다.
+  const rootOnly = new Set([".git", "index.html", "readme.md", ".nojekyll", DESKTOP_TREE_NAME.toLowerCase()]);
   return names.filter(name => {
     if (/_NIH_/i.test(name)) return false;
     if (name === "pages.json") return false;
-    if (isRoot && rootOnly.has(name)) return false;
+    if (isRoot && rootOnly.has(name.toLowerCase())) return false;
     return true;
   });
 }
@@ -168,5 +173,5 @@ const els = {};
  "startUserLink","startApps","trayIcons","toast","settingsMenuRow","settingsOverlay",
  "settingsCloseBtn","setGithubLinks","setDoubleClick","setKillHelperBtn","setDownloadHelperBtn",
  "setSearchScope","setSearchRelative","setPreloadAllBtn","setAeroEnabled",
- "setTrayIconCount","setTheme","themeLink"
+ "setTrayIconCount","setTheme","themeLink","setMenuMakerBtn"
 ].forEach(id => els[id] = document.getElementById(id));

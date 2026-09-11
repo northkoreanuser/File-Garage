@@ -6,6 +6,19 @@
    Backspace도 같은 방식의 "뒤로가기" 단축키로 취급하되, 입력 중인 텍스트를 지우는
    본래 동작과 겹치지 않도록 input/textarea/contenteditable에 포커스가 있을 때는 제외한다. */
 document.addEventListener("keydown", (e) => {
+  // Ctrl+A = 전체 선택 (사용자 지시: "바탕 화면 탐색기 모두에서 전체 선택으로 동작"). 입력창/텍스트
+  // 영역/에디터처럼 텍스트를 고르는 게 자연스러운 곳에서는 브라우저 기본 동작(텍스트 전체 선택)을
+  // 그대로 둔다. 바탕화면 아이콘층에 포커스가 있을 때는 desktop-fs.js의 dfIconLayer 전용 keydown
+  // 리스너가 이미 따로 처리하므로 여기서는 건드리지 않는다(중복 처리 방지).
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+    const tag = (e.target && e.target.tagName || "").toLowerCase();
+    const isEditable = tag === "input" || tag === "textarea" || (e.target && e.target.isContentEditable);
+    if (isEditable) return;
+    if (document.activeElement === els.dfIconLayer) return;
+    e.preventDefault();
+    selectAllContentPane();
+    return;
+  }
   if (e.altKey && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
     e.preventDefault();
     if (e.key === "ArrowLeft") goBack();

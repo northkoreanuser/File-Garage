@@ -329,6 +329,15 @@ let dfsSelectedIconId = null;
 // 러버밴드(드래그) 또는 Ctrl/Shift+클릭으로 여러 개를 한꺼번에 선택한 아이콘 id들.
 // 단일 선택(dfsSelectedIconId)과는 서로 배타적 - 하나가 채워지면 다른 하나는 비운다.
 let dfsMultiSelected = new Set();
+// Ctrl+A = 바탕화면 아이콘 전체 선택 (dfIconLayer의 keydown 리스너에서 호출됨).
+async function dfsSelectAllIcons() {
+  if (!dfsDb) return;
+  const items = await dfsChildren(DFS_DESKTOP_ROOT);
+  if (!items.length) return;
+  dfsSelectedIconId = null;
+  dfsMultiSelected = new Set(items.map(n => n.id));
+  dfsRenderDesktop();
+}
 async function dfsRenderDesktop() {
   if (!dfsDb) return;
   const items = await dfsChildren(DFS_DESKTOP_ROOT);
@@ -399,25 +408,41 @@ document.querySelector(".desktop").addEventListener("contextmenu", (e) => {
 // 진짜 컴퓨터(OS)에서 파일을 드래그해서 바탕화면에 떨어뜨리면 텍스트 파일에 한해 즉시 가져온다.
 // 폴더 아이콘 위에 놓으면 그 폴더 안으로, 빈 바탕화면에 놓으면 바탕화면 자체로 들어간다.
 // 어떤 창(.window) 위로 떨어진 경우는 그 창 자신의 drop 핸들러가 처리하므로 여기서는 무시한다.
+// text/plain(내용창 grid-item이나 트리 행에서 네이티브 HTML5 드래그로 끌려온 가상 파일시스템 노드
+// id)도 같은 자리에서 받는다 - 버그 리포트: "폴더 창에서... 바탕화면으로" 끌어다 놓아도 빼낼 수
+// 있어야 함. (바탕화면 아이콘 자체의 드래그는 네이티브 드래그가 아니라 dfsSetupIconDrag의 마우스
+// 추적 방식이라 여기를 지나지 않는다 - 그쪽은 mouseup 핸들러의 clamp() 스냅백이 담당.)
 document.querySelector(".desktop").addEventListener("dragover", (e) => {
   if (!dfsDb) return;
   if (e.target.closest(".window")) return;
-  if (!e.dataTransfer || Array.from(e.dataTransfer.types || []).indexOf("Files") === -1) return;
+  if (!e.dataTransfer) return;
+  const types = Array.from(e.dataTransfer.types || []);
+  if (types.indexOf("Files") === -1 && types.indexOf("text/plain") === -1) return;
   e.preventDefault();
-  e.dataTransfer.dropEffect = "copy";
+  e.dataTransfer.dropEffect = "move";
 });
 document.querySelector(".desktop").addEventListener("drop", async (e) => {
   if (!dfsDb) return;
   if (e.target.closest(".window")) return;
-  if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
+  if (!e.dataTransfer) return;
   e.preventDefault();
-  const under = dfsElementUnder(e.clientX, e.clientY);
-  let targetId = DFS_DESKTOP_ROOT;
-  if (under && under.classList.contains("df-icon") && under.dataset.id) {
-    const node = await dfsDb.nodes.get(Number(under.dataset.id));
-    if (node && node.type === "folder") targetId = node.id;
+  if (e.dataTransfer.files && e.dataTransfer.files.length) {
+    const under = dfsElementUnder(e.clientX, e.clientY);
+    let targetId = DFS_DESKTOP_ROOT;
+    if (under && under.classList.contains("df-icon") && under.dataset.id) {
+      const node = await dfsDb.nodes.get(Number(under.dataset.id));
+      if (node && node.type === "folder") targetId = node.id;
+    }
+    await dfsImportOsFileList(targetId, e.dataTransfer.files, () => dfsRenderDesktop());
+    return;
   }
-  await dfsImportOsFileList(targetId, e.dataTransfer.files, () => dfsRenderDesktop());
+  const draggedId = Number(e.dataTransfer.getData("text/plain"));
+  if (!draggedId) return;
+  const srcNode = await dfsDb.nodes.get(draggedId);
+  if (!srcNode || srcNode.parentId === DFS_DESKTOP_ROOT) return;
+  const ok = await dfsMove(srcNode, DFS_DESKTOP_ROOT);
+  if (ok) showToast(`"${srcNode.name}"을(를) 바탕화면으로 옮겼습니다.`);
+  await dfsBroadcastChange();
 });
 
 /* ---------------- 바탕화면 빈 공간 드래그 = 러버밴드(고무줄) 다중 선택 ----------------
@@ -501,16 +526,19 @@ function dfsSetupIconDrag(iconEl, node) {
     iconEl.style.left = pos.left + "px";
     iconEl.style.top = pos.top + "px";
     iconEl.style.zIndex = 5;
-    els.dfIconLayer.querySelectorAll(".df-icon").forEach(el => el.classList.remove("df-drop-target"));
+    document.querySelectorAll(".df-drop-target").forEach(el => el.classList.remove("df-drop-target"));
     const under = dfsElementUnder(e.clientX, e.clientY, iconEl);
-    if (under && under.dataset.id) document.querySelector(`.df-icon[data-id="${under.dataset.id}"]`)?.classList.add("df-drop-target");
+    if (under && (under.dataset.id || under.dataset.dropFolderKey !== undefined)) under.classList.add("df-drop-target");
   });
   window.addEventListener("mouseup", async (e) => {
     if (!dragging) return;
     dragging = false;
-    els.dfIconLayer.querySelectorAll(".df-icon").forEach(el => el.classList.remove("df-drop-target"));
+    document.querySelectorAll(".df-drop-target").forEach(el => el.classList.remove("df-drop-target"));
     iconEl.style.zIndex = "";
     if (!moved) return;
+    // under는 바탕화면 아이콘(.df-icon)뿐 아니라 통합 탐색기 창(#win)의 내용창 칸(.grid-item -
+    // content-pane.js가 desktopMode일 때 dataset.id를 붙여둔다)도 찾는다. 그 덕분에 바탕화면
+    // 아이콘을 그 창의 특정 "폴더 칸" 위에 정확히 떨어뜨리면 그 폴더 안으로 들어간다.
     const under = dfsElementUnder(e.clientX, e.clientY, iconEl);
     if (under && under.dataset.id) {
       const targetId = Number(under.dataset.id);
@@ -522,6 +550,35 @@ function dfsSetupIconDrag(iconEl, node) {
         return;
       }
     }
+    // 버그 리포트: "바탕화면에서 폴더 탐색기 안쪽으로 드래그 해서... 폴더 창에서 트리로" - 왼쪽
+    // 트리(navPane)의 바탕화면 루트 행이나 가상 폴더 행 위에 놓은 경우(tree-pane.js의
+    // attachTreeDropTarget이 붙여둔 dataset.dropFolderKey로 대상 폴더를 찾는다).
+    if (under && under.dataset.dropFolderKey !== undefined) {
+      const targetPathArr = under.dataset.dropFolderKey === "" ? [] : under.dataset.dropFolderKey.split("/");
+      const targetId = await dfsResolvePathToFolderId(targetPathArr);
+      if (targetId != null && targetId !== node.id && node.parentId !== targetId) {
+        const ok = await dfsMove(node, targetId);
+        if (ok) showToast(`"${node.name}"을(를) 옮겼습니다.`);
+        await dfsBroadcastChange();
+        return;
+      }
+    }
+    // 버그 리포트: "바탕화면에서 탐색기 창 안으로 넣을 수도 없다" - 특정 폴더 칸을 정확히 맞추지
+    // 못했더라도(빈 칸/파일 칸 위, 혹은 그냥 내용창의 빈 공간), 지금 열려있는 탐색기 창이 바탕화면
+    // 폴더를 보여주고 있는 채로 그 창 위에 놓았다면 "지금 보고 있는 그 폴더" 안으로 옮긴다(실제
+    // 윈도우 탐색기에 파일을 끌어다 놓을 때와 동일 - 꼭 안의 하위 폴더 칸에 정확히 맞힐 필요는 없음).
+    if (!els.win.classList.contains("closed") && !els.win.classList.contains("minimized") && isDesktopPath(currentPath)) {
+      const overContentPane = document.elementsFromPoint(e.clientX, e.clientY).some(el => el.closest && el.closest("#contentPane"));
+      if (overContentPane) {
+        const folderId = await dfsResolvePathToFolderId(currentPath);
+        if (folderId != null && folderId !== node.id && node.parentId !== folderId) {
+          const ok = await dfsMove(node, folderId);
+          if (ok) showToast(`"${node.name}"을(를) 옮겼습니다.`);
+          await dfsBroadcastChange();
+          return;
+        }
+      }
+    }
     const pos = clamp(parseFloat(iconEl.style.left) || 0, parseFloat(iconEl.style.top) || 0);
     await dfsDb.nodes.update(node.id, { x: pos.left, y: pos.top });
   });
@@ -529,7 +586,11 @@ function dfsSetupIconDrag(iconEl, node) {
 function dfsElementUnder(clientX, clientY, excludeEl) {
   const stack = document.elementsFromPoint(clientX, clientY);
   for (const el of stack) {
-    const iconEl = el.closest(".df-icon, .grid-item");
+    // .tree-row/.nav-root도 찾는다 - 바탕화면 아이콘을 마우스로 끌어다 왼쪽 트리(navPane) 위에
+    // 놓는 것도 지원해야 하기 때문(버그 리포트: "폴더 창에서 트리로 혹은 바탕화면으로"). 트리 행은
+    // tree-pane.js의 attachTreeDropTarget이 dataset.dropFolderKey를 붙여둔 것만 실제 드롭을 받는다
+    // (저장소의 진짜 폴더처럼 읽기 전용인 행에는 애초에 그 속성이 없다).
+    const iconEl = el.closest(".df-icon, .grid-item, .tree-row, .nav-root");
     if (iconEl && iconEl !== excludeEl) return iconEl;
   }
   return null;
@@ -667,6 +728,13 @@ async function dfsDeleteSelectedIcons() {
    있지 않으면 맨 왼쪽 위 아이콘부터 시작한다(실제 탐색기 내용창의 방향키 이동과 같은 방식). */
 els.dfIconLayer.tabIndex = 0;
 els.dfIconLayer.addEventListener("keydown", async (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+    // Ctrl+A = 바탕화면 아이콘 전체 선택 (실제 바탕화면과 동일 - 사용자 지시).
+    e.preventDefault();
+    e.stopPropagation();
+    await dfsSelectAllIcons();
+    return;
+  }
   if (e.key === "Enter") {
     // 엔터 = 선택된 아이콘 열기(탐색기 내용창의 엔터 동작과 동일). 여러 개 선택돼 있으면
     // 실제 윈도우처럼 선택된 항목을 모두 연다(폴더면 탐색기가 열리고, 파일이면 각자의 방식대로 열림).

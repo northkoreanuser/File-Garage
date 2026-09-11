@@ -424,6 +424,7 @@
   }
   .df-icon.df-drop-target { background: rgba(27,161,226,.5); outline: 1px solid #fff; }
   .grid-item.df-drop-target { background: #EAF6FD; border: 1px solid #1BA1E2; outline: none; }
+  .tree-row.df-drop-target, .nav-root.df-drop-target { background: #EAF6FD; border: 1px solid #1BA1E2; outline: none; }
   /* 바탕화면 드래그 다중 선택(러버밴드) 박스 - 플랫 시안 틴트 + 실선 테두리, 그라데이션/글로우 없음 */
   .df-select-box {
     position: fixed; border: 1px solid #1BA1E2; background: rgba(27,161,226,.25);

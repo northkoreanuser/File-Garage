@@ -143,6 +143,14 @@ window.addEventListener("mousedown", (e) => {
 document.addEventListener("dragstart", (e) => {
   const tag = (e.target && e.target.tagName || "").toLowerCase();
   if (tag === "input" || tag === "textarea") return; // 입력창 안에서 텍스트를 드래그로 재배치하는 건 정상 동작이므로 예외
+  // 버그 리포트: 이 캡처 단계 차단기가 draggable="true"로 표시해둔 이 앱 "자신"의 요소(가상
+  // 파일시스템 내용창의 칸 - content-pane.js의 cell.draggable=true)까지 막아버려서, 폴더 안에서
+  // 항목을 다른 폴더 위로 끌어다 옮기는 내부 드래그 자체가 아예 시작도 못 하고 있었다. 그 칸의
+  // 자체 dragstart 핸들러가 stopPropagation으로 버블링은 막아뒀지만, 이 리스너는 캡처 단계라서
+  // 그보다 먼저 실행돼 preventDefault로 드래그를 끊어버린 것 - 이 앱이 의도적으로 드래그 가능하게
+  // 표시해둔 요소는 예외로 둔다(막아야 할 건 브라우저가 "저절로" 드래그 가능하게 만든 이미지/텍스트
+  // /링크 같은 것들뿐).
+  if (e.target && e.target.closest && e.target.closest('[draggable="true"]')) return;
   e.preventDefault();
 }, true);
 document.addEventListener("click", closeContextMenu);

@@ -1,5 +1,5 @@
 {
-  "items": [
+  "start": [
     {
       "name": "Game 폴더 열기",
       "url": "Game/",
@@ -37,6 +37,38 @@
           "height": 720
         }
       ]
+    }
+  ],
+  "tray": [
+    {
+      "name": "GitHub 저장소",
+      "url": "https://github.com/",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2764%27%20height%3D%2764%27%3E%3Crect%20width%3D%2764%27%20height%3D%2764%27%20rx%3D%2714%27%20fill%3D%27%23eef2f7%27/%3E%3Ctext%20x%3D%2732%27%20y%3D%2738%27%20font-size%3D%2734%27%20text-anchor%3D%27middle%27%20dominant-baseline%3D%27middle%27%3E%F0%9F%90%99%3C/text%3E%3C/svg%3E",
+      "newTab": true
+    },
+    {
+      "name": "루트로 이동",
+      "url": "./",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2764%27%20height%3D%2764%27%3E%3Crect%20width%3D%2764%27%20height%3D%2764%27%20rx%3D%2714%27%20fill%3D%27%23eef2f7%27/%3E%3Ctext%20x%3D%2732%27%20y%3D%2738%27%20font-size%3D%2734%27%20text-anchor%3D%27middle%27%20dominant-baseline%3D%27middle%27%3E%F0%9F%93%84%3C/text%3E%3C/svg%3E",
+      "newTab": false
+    },
+    {
+      "name": "AutoHotkey 문서",
+      "url": "https://www.autohotkey.com/docs/v1/",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2764%27%20height%3D%2764%27%3E%3Crect%20width%3D%2764%27%20height%3D%2764%27%20rx%3D%2714%27%20fill%3D%27%23eef2f7%27/%3E%3Ctext%20x%3D%2732%27%20y%3D%2738%27%20font-size%3D%2734%27%20text-anchor%3D%27middle%27%20dominant-baseline%3D%27middle%27%3E%E2%9A%99%EF%B8%8F%3C/text%3E%3C/svg%3E",
+      "newTab": true
+    },
+    {
+      "name": "문의",
+      "url": "mailto:example@example.com",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2764%27%20height%3D%2764%27%3E%3Crect%20width%3D%2764%27%20height%3D%2764%27%20rx%3D%2714%27%20fill%3D%27%23eef2f7%27/%3E%3Ctext%20x%3D%2732%27%20y%3D%2738%27%20font-size%3D%2734%27%20text-anchor%3D%27middle%27%20dominant-baseline%3D%27middle%27%3E%F0%9F%92%AC%3C/text%3E%3C/svg%3E",
+      "newTab": true
+    },
+    {
+      "name": "AHK 다운로드",
+      "url": "https://www.autohotkey.com/",
+      "icon": "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2764%27%20height%3D%2764%27%3E%3Crect%20width%3D%2764%27%20height%3D%2764%27%20rx%3D%2714%27%20fill%3D%27%23eef2f7%27/%3E%3Ctext%20x%3D%2732%27%20y%3D%2738%27%20font-size%3D%2734%27%20text-anchor%3D%27middle%27%20dominant-baseline%3D%27middle%27%3E%F0%9F%94%97%3C/text%3E%3C/svg%3E",
+      "newTab": true
     }
   ]
 }

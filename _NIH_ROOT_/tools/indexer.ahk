@@ -17,10 +17,11 @@
 ; ------------------ 색인 제외 규칙 ------------------
 ; [모든 폴더(루트+모든 하위)에서 제외]
 ;   pages.json, 이름에 "_NIH_"가 포함된 폴더/파일 (대소문자 무관)
-;   -> indexer.ahk(본인)/localserver.ahk/start.json/tray.json은 전부 _NIH_ROOT_ 폴더 안
-;      (_NIH_ROOT_\start.json, _NIH_ROOT_\tray.json, _NIH_ROOT_\tools\indexer.ahk,
-;      _NIH_ROOT_\tools\localserver.ahk)에 있으므로, 이 규칙 하나로 폴더째 통째로 색인에서
-;      빠진다 - 예전처럼 파일 이름을 하나하나 루트 전용 예외 목록에 넣을 필요가 없다.
+;   -> indexer.ahk(본인)/localserver.ahk/menu.json/index.html의 JS·CSS는 전부 _NIH_ROOT_
+;      폴더 안(_NIH_ROOT_\index\menu.json, _NIH_ROOT_\tools\indexer.ahk,
+;      _NIH_ROOT_\tools\localserver.ahk, _NIH_ROOT_\index\*.js, _NIH_ROOT_\index\ui\theme\*)에
+;      있으므로, 이 규칙 하나로 폴더째 통째로 색인에서 빠진다 - 예전처럼 파일 이름을 하나하나
+;      루트 전용 예외 목록에 넣을 필요가 없다.
 ; [루트에서만 제외]
 ;   .git 폴더, index.html (index.html은 GitHub Pages가 서빙해야 하므로 _NIH_ROOT_ 밖,
 ;   리포 루트에 그대로 둔다)
@@ -48,9 +49,14 @@ SplitPath, RootDir, RepoName
 
 ; 모든 위치에서 이름이 정확히 일치하면 제외
 GlobalExactExclude := ["pages.json"]
-; 루트에서만 제외할 이름 (indexer.ahk/localserver.ahk/start.json/tray.json은 _NIH_ROOT_
-; 폴더 자체가 "_NIH_" 규칙에 걸려 통째로 빠지므로 여기 넣을 필요가 없다)
-RootOnlyExclude := [".git", "index.html"]
+; 루트에서만 제외할 이름 (indexer.ahk/localserver.ahk/menu.json은 _NIH_ROOT_ 폴더 자체가
+; "_NIH_" 규칙에 걸려 통째로 빠지므로 여기 넣을 필요가 없다)
+; README.md는 깃허브 저장소 설명용 파일이라 이 앱 자신의 색인(=사용자가 보는 파일 목록)에는
+; 나올 이유가 없고, .nojekyll도 GitHub Pages가 _NIH_ROOT_ 폴더를 그대로 서빙하게 해주는
+; 저장소 관리용 설정 파일일 뿐이라 마찬가지로 숨긴다(둘 다 pages.json 자체에 아예 안 실리게
+; 해서 index.html 쪽의 filterNames와 이중으로 막는다). AHK의 "=" 비교는 기본적으로 대소문자를
+; 가리지 않으므로 "readme.md"처럼 소문자로 된 실제 파일명도 그대로 걸러진다.
+RootOnlyExclude := [".git", "index.html", "README.md", ".nojekyll"]
 
 ; ------------------------------------------------------------
 ; 자기 경로(A_ScriptFullPath)에서 "_NIH_ROOT_" 폴더 이름을 찾아, 그 앞부분까지를
@@ -143,7 +149,7 @@ IndexDir(dir, isRoot) {
 ; ------------------------------------------------------------
 ; 제외 여부 판정
 ;  - 이름에 "_NIH_"가 포함되면(대소문자 무관) 어디서든 제외 (_NIH_ROOT_ 폴더 자체가 여기 걸려서
-;    그 안의 indexer.ahk/localserver.ahk/start.json/tray.json까지 통째로 같이 빠진다)
+;    그 안의 indexer.ahk/localserver.ahk/menu.json까지 통째로 같이 빠진다)
 ;  - "pages.json"은 어디서든 제외
 ;  - 루트에서는 .git / index.html 도 추가로 제외
 ; ------------------------------------------------------------

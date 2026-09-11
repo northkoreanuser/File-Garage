@@ -486,6 +486,7 @@
   /* 드래그 중인 항목을 폴더 위로 끌고 왔을 때(=여기에 놓으면 그 폴더 안으로 이동) 강조 표시 */
   .df-icon.df-drop-target { background: rgba(120,180,255,.4); outline: 1px dashed #bfe0ff; }
   .grid-item.df-drop-target { background: #dcebff; border-color: #3b8fee; outline: 1px dashed #3b8fee; }
+  .tree-row.df-drop-target, .nav-root.df-drop-target { background: #dcebff; border-color: #3b8fee; outline: 1px dashed #3b8fee; }
   /* 바탕화면 드래그 다중 선택(러버밴드) 박스 - XP의 파란 그라디언트 채움 + 파란 테두리 */
   .df-select-box {
     position: fixed; border: 1px solid #3169c6;

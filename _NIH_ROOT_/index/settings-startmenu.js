@@ -12,16 +12,17 @@ const DEFAULT_SETTINGS = {
   aeroEnabled: true,         // 반투명 블러("에어로") 효과 - 기본 활성화
   trayIconCount: 25,         // 트레이 빠른 실행 아이콘 최대 개수 (최소 1, 최대 25)
   dfEditorTheme: "dark",     // 내장 에디터(옵시디언 스타일) 테마
-  theme: "default"           // 창 스킨: "default" | "win98" (_NIH_ROOT_/ui/theme/<이름>/style.css)
+  theme: "win7"              // 창 스킨: "default"(win11) | "win98" | ... (_NIH_ROOT_/index/ui/theme/<이름>/style.css)
 };
-// "default"는 Windows 11 스타일(사용자 지시: "지금 기본"). 나머지는 각 버전의 폴더명(win2000,
-// winxp, winvista, win7, win8, win10, win98)과 그대로 짝지어 _NIH_ROOT_/ui/theme/<name>/style.css를
-// 가리킨다(themeStylesheetUrl).
+// "default"는 Windows 11 스타일 폴더명이고, 기본으로 적용되는 스킨은 "win7"이다(사용자 지시 -
+// "스킨 기본을 7을 기본으로"). 나머지는 각 버전의 폴더명(win2000, winxp, winvista, win7, win8,
+// win10, win98)과 그대로 짝지어 _NIH_ROOT_/index/ui/theme/<name>/style.css를 가리킨다(themeStylesheetUrl).
 const AVAILABLE_THEMES = new Set(["default", "win98", "win2000", "winxp", "winvista", "win7", "win8", "win10"]);
 // _NIH_ROOT_ 아래 있으므로 색인/트리에는 절대 나타나지 않지만, GitHub Pages는 그대로 서빙하므로
 // index.html과 같은 origin의 상대 경로로 직접 불러온다(base64 내장 없이, 진짜 파일 그대로).
+// ui 폴더는 _NIH_ROOT_/index/ui 아래로 옮겨졌다(사용자 지시 - 인덱스 관련 리소스를 index/ 밑으로 모음).
 function themeStylesheetUrl(name) {
-  return `_NIH_ROOT_/ui/theme/${AVAILABLE_THEMES.has(name) ? name : "default"}/style.css`;
+  return `_NIH_ROOT_/index/ui/theme/${AVAILABLE_THEMES.has(name) ? name : "win7"}/style.css`;
 }
 function applyTheme(name) {
   if (!els.themeLink) return;
@@ -41,7 +42,7 @@ function loadSettings() {
   s.aeroEnabled = s.aeroEnabled !== false;
   s.trayIconCount = Math.max(1, Math.min(25, Number(s.trayIconCount) || DEFAULT_SETTINGS.trayIconCount));
   if (s.dfEditorTheme !== "light") s.dfEditorTheme = "dark";
-  if (!AVAILABLE_THEMES.has(s.theme)) s.theme = "default";
+  if (!AVAILABLE_THEMES.has(s.theme)) s.theme = "win7";
   return s;
 }
 function applyAeroToDocument() {
@@ -128,6 +129,7 @@ function setupSettingsPanel() {
     }
   };
   els.setDownloadHelperBtn.onclick = () => downloadRealFileDirect(LOCALSERVER_TOOL_PATH, "localserver.ahk");
+  if (els.setMenuMakerBtn) els.setMenuMakerBtn.onclick = () => dfsOpenMenuMakerInNewTab();
 }
 function openSettingsPanel() {
   applySettingsToPanel();
@@ -156,13 +158,21 @@ function setupStartMenu(owner) {
   document.addEventListener("click", () => { els.startMenu.classList.remove("open"); closeAllSubmenus(); });
 }
 
-/* ============ start.json / tray.json ============ */
-async function loadJsonConfig(name) {
+/* ============ menu.json (시작 메뉴 + 트레이, 병합) ============
+   예전에는 _NIH_ROOT_/menu/ 아래 start.json과 tray.json 두 파일로 나뉘어 있었지만, 메뉴
+   메이커(GUI)가 파일 하나만 다루면 되도록 _NIH_ROOT_/index/menu.json 하나로 합쳤다(사용자
+   지시). 형식: { "start": [...], "tray": [...] } - 각 배열의 항목 모양(name/url/icon/newTab/
+   popup/width/height/items)은 예전 start.json/tray.json의 item과 동일하다. */
+const MENU_JSON_PATH = "_NIH_ROOT_/index/menu.json";
+async function loadMenuConfig() {
   try {
-    const res = await fetch(name, { cache: "no-store" });
+    const res = await fetch(MENU_JSON_PATH, { cache: "no-store" });
     if (!res.ok) return null;
     const data = await res.json();
-    return Array.isArray(data.items) ? data.items : null;
+    return {
+      start: Array.isArray(data.start) ? data.start : [],
+      tray: Array.isArray(data.tray) ? data.tray : []
+    };
   } catch (e) {
     return null; // 파일이 없거나 형식이 잘못돼도 조용히 무시 (선택 기능이므로)
   }

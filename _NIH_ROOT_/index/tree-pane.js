@@ -12,6 +12,8 @@ function renderNavPane() {
   rootRow.onclick = () => { els.navPane.focus(); navigate([]); closeNavPaneIfNarrow(); };
   rootRow.ondblclick = () => navigate([]);
   els.navPane.appendChild(rootRow);
+  // 저장소 루트는 실제 GitHub 저장소라 읽기 전용이므로(옮겨 넣을 수 없음) 드롭 대상으로 삼지 않는다 -
+  // 바탕화면 루트(dtRow, 바로 아래)와 가상 폴더 행들만 attachTreeDropTarget으로 드롭을 받는다.
 
   const rootEntry = dirCache.get("");
   if (rootEntry) els.navPane.appendChild(buildTreeDom(rootEntry, []));
@@ -25,6 +27,7 @@ function renderNavPane() {
     dtRow.innerHTML = `${folderIcon(16, true)}<span>${escapeHtml(DESKTOP_TREE_NAME)}</span>`;
     dtRow.onclick = () => { els.navPane.focus(); navigate([DESKTOP_TREE_NAME]); closeNavPaneIfNarrow(); };
     dtRow.ondblclick = () => navigate([DESKTOP_TREE_NAME]);
+    attachTreeDropTarget(dtRow, [DESKTOP_TREE_NAME]);
     els.navPane.appendChild(dtRow);
     const dtEntry = dirCache.get(dtKey);
     if (dtEntry) els.navPane.appendChild(buildTreeDom(dtEntry, [DESKTOP_TREE_NAME]));
@@ -35,6 +38,60 @@ function selectTreeFile(it) {
   treeFileHighlightKey = it.path.join("/");
   treeFocusKey = null; // 선택이 새로 확정됐으니, 다음 방향키는 이 새 위치부터 다시 포커스를 잡는다
   renderNavPane();
+}
+/* ============ 트리(왼쪽)에서의 드래그앤드롭 ============
+   버그 리포트: "폴더에서 이전 트리로 드래그 해도 뺄 수 있어야 함, 바탕 화면에서 폴더 탐색기
+   안쪽으로 드래그 해서 넣을 수도 있어야 함(폴더 창에서 트리로 혹은 바탕 화면으로)" - 내용창
+   (content-pane.js)/바탕화면 아이콘층(desktop-fs.js)과 마찬가지로 트리도 드래그의 출발점이자
+   도착점이 될 수 있어야 한다. 실제 저장소 폴더/파일은 읽기 전용이라 옮길 수 없으므로, 드래그
+   출발(draggable)과 드롭 수신 둘 다 "바탕화면(가상 파일시스템) 경로"인 행에만 붙인다
+   (isDesktopPath - pathArr[0]이 DESKTOP_TREE_NAME인 경우). */
+// 드롭 수신: 내용창의 폴더 칸(content-pane.js buildGrid)과 완전히 같은 방식 - text/plain(드래그된
+// 노드의 dexie id) 또는 Files(진짜 OS 파일)를 받아 dfsResolvePathToFolderId(pathArr)로 알아낸
+// 이 트리 행의 실제 폴더로 옮긴다. 바탕화면 아이콘의 마우스 기반 드래그(dfsSetupIconDrag)는 네이티브
+// HTML5 드래그가 아니라서 이 리스너로는 못 받는다 - 그쪽은 desktop-fs.js의 dfsElementUnder가
+// .tree-row/.nav-root도 찾도록 확장하고, dataset.dropFolderKey를 직접 읽어 처리한다(아래 참고).
+function attachTreeDropTarget(row, pathArr) {
+  if (!isDesktopPath(pathArr)) return;
+  row.dataset.dropFolderKey = pathArr.join("/");
+  row.addEventListener("dragover", (e) => {
+    if (!e.dataTransfer) return;
+    const types = Array.from(e.dataTransfer.types || []);
+    if (types.indexOf("Files") === -1 && types.indexOf("text/plain") === -1) return;
+    e.preventDefault();
+    row.classList.add("df-drop-target");
+  });
+  row.addEventListener("dragleave", () => row.classList.remove("df-drop-target"));
+  row.addEventListener("drop", async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    row.classList.remove("df-drop-target");
+    const targetFolderId = await dfsResolvePathToFolderId(pathArr);
+    if (targetFolderId == null) return;
+    if (e.dataTransfer.files && e.dataTransfer.files.length) {
+      await dfsImportOsFileList(targetFolderId, e.dataTransfer.files, () => { renderNavPane(); if (isDesktopPath(currentPath)) renderContentPane(); });
+      return;
+    }
+    const draggedId = Number(e.dataTransfer.getData("text/plain"));
+    if (!draggedId || draggedId === targetFolderId) return;
+    const srcNode = await dfsDb.nodes.get(draggedId);
+    if (!srcNode) return;
+    const ok = await dfsMove(srcNode, targetFolderId);
+    if (ok) showToast(`"${srcNode.name}"을(를) "${pathArr[pathArr.length - 1]}" 폴더로 옮겼습니다.`);
+    await dfsBroadcastChange();
+  });
+}
+// 드래그 출발: 이 트리 행 자체가 가상 파일시스템 항목(폴더/파일)일 때, 다른 트리 폴더/내용창 칸/
+// 바탕화면으로 끌어다 놓을 수 있게 한다. dfsId는 buildTreeDom이 entry.folderNodes(폴더)나
+// f.dfsNode(파일)에서 미리 찾아 넘겨준다.
+function attachTreeDragSource(row, dfsId) {
+  if (dfsId == null) return;
+  row.draggable = true;
+  row.addEventListener("dragstart", (e) => {
+    e.stopPropagation();
+    e.dataTransfer.setData("text/plain", String(dfsId));
+    e.dataTransfer.effectAllowed = "move";
+  });
 }
 function buildTreeDom(entry, pathArr) {
   const wrap = document.createElement("div");
@@ -82,6 +139,8 @@ function buildTreeDom(entry, pathArr) {
       // 폴더일 때만 새로 만들기/이름 변경/삭제 등 메뉴가 뜬다(트리에서도 우클릭 삭제 가능하게).
       showContextMenu(e.clientX, e.clientY, buildFileMenuItems({ name, path: childPath, type: "folder" }));
     };
+    attachTreeDropTarget(row, childPath);
+    attachTreeDragSource(row, entry && entry.folderNodes ? entry.folderNodes.get(name)?.id : undefined);
     wrap.appendChild(row);
 
     if (isOpen) {
@@ -124,6 +183,7 @@ function buildTreeDom(entry, pathArr) {
       selectTreeFile(it);
       showContextMenu(e.clientX, e.clientY, buildFileMenuItems(it));
     };
+    attachTreeDragSource(row, it.dfsNode ? it.dfsNode.id : undefined);
     wrap.appendChild(row);
   });
 

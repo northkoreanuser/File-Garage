@@ -452,6 +452,7 @@
   }
   .df-icon.df-drop-target { background: rgba(120,190,255,.4); outline: 1px dashed #bfe0ff; }
   .grid-item.df-drop-target { background: rgba(90,160,220,.15); border-color: #3a8fe0; outline: 1px dashed #3a8fe0; }
+  .tree-row.df-drop-target, .nav-root.df-drop-target { background: rgba(90,160,220,.15); border-color: #3a8fe0; outline: 1px dashed #3a8fe0; }
   /* 바탕화면 드래그 다중 선택(러버밴드) 박스 - Aero 유리 느낌의 파란 반투명 사각형 */
   .df-select-box {
     position: fixed; border: 1px solid #3a8fe0; border-radius: 2px;

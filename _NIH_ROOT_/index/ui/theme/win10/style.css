@@ -411,6 +411,7 @@
   }
   .df-icon.df-drop-target { background: rgba(0,120,212,.3); outline: 1px dashed #0078D4; }
   .grid-item.df-drop-target { background: #E5F1FB; border-color: #0078D4; outline: 1px dashed #0078D4; }
+  .tree-row.df-drop-target, .nav-root.df-drop-target { background: #E5F1FB; border-color: #0078D4; outline: 1px dashed #0078D4; }
   /* 바탕화면 드래그 다중 선택(러버밴드) 박스 - 플랫 옅은 파랑 배경 + 솔리드 액센트 테두리, 글로우 없음 */
   .df-select-box {
     position: fixed; border: 1px solid #0078D4; background: rgba(0,120,212,.15);

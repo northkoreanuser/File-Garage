@@ -458,6 +458,7 @@
   }
   .df-icon.df-drop-target { background: rgba(0,0,128,.4); outline: 1px dashed #fff; }
   .grid-item.df-drop-target { background: #dcdcf0; border: 1px dashed #000080; }
+  .tree-row.df-drop-target, .nav-root.df-drop-target { background: #dcdcf0; border: 1px dashed #000080; }
   /* 바탕화면 드래그 다중 선택(러버밴드) 박스 - 내용창의 .select-box와 같은 스타일 */
   .df-select-box {
     position: fixed; border: 1px dotted #fff; background: rgba(0,0,128,.25);

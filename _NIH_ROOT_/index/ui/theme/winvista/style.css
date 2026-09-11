@@ -448,6 +448,7 @@
   }
   .df-icon.df-drop-target { background: rgba(80,150,255,.4); outline: 1px dashed #bfe0ff; }
   .grid-item.df-drop-target { background: rgba(44,123,229,.1); border-color: #4da3ff; outline: 1px dashed #4da3ff; }
+  .tree-row.df-drop-target, .nav-root.df-drop-target { background: rgba(44,123,229,.1); border-color: #4da3ff; outline: 1px dashed #4da3ff; }
   /* 바탕화면 드래그 다중 선택(러버밴드) 박스 - 파란 유리 글로우 사각형 */
   .df-select-box {
     position: fixed; border: 1px solid #6ab4ff; background: rgba(60,140,255,.18);

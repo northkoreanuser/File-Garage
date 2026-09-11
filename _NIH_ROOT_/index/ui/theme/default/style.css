@@ -432,6 +432,7 @@
   /* 드래그 중인 항목을 폴더 위로 끌고 왔을 때(=여기에 놓으면 그 폴더 안으로 이동) 강조 표시 */
   .df-icon.df-drop-target { background: rgba(120,180,255,.35); outline: 1px dashed #bfe0ff; }
   .grid-item.df-drop-target { background: #eaf4ff; border-color: #4da3ff; outline: 1px dashed #4da3ff; }
+  .tree-row.df-drop-target, .nav-root.df-drop-target { background: #eaf4ff; border-color: #4da3ff; outline: 1px dashed #4da3ff; }
   /* 바탕화면 드래그 다중 선택(러버밴드) 박스 - 내용창의 .select-box와 같은 개념이지만, 바탕화면은
      content-pane처럼 스크롤되는 좌표계가 아니라 뷰포트 좌표계이므로 position:fixed를 쓴다. */
   .df-select-box {

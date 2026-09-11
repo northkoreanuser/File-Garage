@@ -461,6 +461,7 @@
   }
   .df-icon.df-drop-target { background: rgba(10,36,106,.4); outline: 1px dashed #fff; }
   .grid-item.df-drop-target { background: #dcdcf0; border: 1px dashed #0a246a; }
+  .tree-row.df-drop-target, .nav-root.df-drop-target { background: #dcdcf0; border: 1px dashed #0a246a; }
   /* 바탕화면 드래그 다중 선택(러버밴드) 박스 - Win2000 네이티브 탐색기의 점선 러버밴드 스타일 */
   .df-select-box {
     position: fixed; border: 1px dotted #0a246a; background: rgba(166,202,240,.35);
