@@ -435,9 +435,13 @@
   .tree-row.df-drop-target, .nav-root.df-drop-target { background: #eaf4ff; border-color: #4da3ff; outline: 1px dashed #4da3ff; }
   /* 바탕화면 드래그 다중 선택(러버밴드) 박스 - 내용창의 .select-box와 같은 개념이지만, 바탕화면은
      content-pane처럼 스크롤되는 좌표계가 아니라 뷰포트 좌표계이므로 position:fixed를 쓴다. */
+  /* 버그 리포트(전 스킨 공통): 바탕화면 드래그 다중 선택 박스가 탐색기 창(#win, z-index:2) 위를
+     지나가면 이 박스의 반투명 파란 배경이 창 위에 겹쳐 보여서 "탐색기가 파래진다"는 현상이 있었다 -
+     z-index가 3이라 #win보다 위였기 때문. z-index를 1로 낮춰(.df-icon-layer와 같은 층) 항상 창
+     뒤에서만 그려지게 했다(8개 스킨 전부 동일하게 수정). */
   .df-select-box {
     position: fixed; border: 1px solid #0078d4; background: rgba(0,120,212,.15);
-    pointer-events: none; z-index: 3;
+    pointer-events: none; z-index: 1;
   }
   /* 에디터는 더 이상 이 창 안에서 그려지지 않는다 - 파일을 열면 완전히 독립된 새 탭으로
      뜬다(사용자 지시: "에디터는 GUI 내부가 아니라 새 탭으로 열어" / 폴더 탐색기 창이 에디터로
@@ -457,3 +461,12 @@
     }
     .nav-pane.open { transform: translateX(0); }
   }
+
+  /* ============ 가짜 마우스(커스텀 커서) 예외 규칙 (요청 11) ============
+     body에 걸어둔 커스텀 SVG 화살표 커서(가짜 마우스)는 "진짜 웹페이지 티가 안 나게" 페이지
+     전체 기본값으로 깔아두는 용도였는데, 정작 실제로 클릭 가능한 링크/버튼류에서도 그대로
+     상속되어 버려서 사용자가 "이게 눌리는 건지" 구분할 수 없었다. 아래 요소들만 브라우저
+     네이티브 커서로 되돌린다 - 시계(.clock)는 의도적으로 예외 없이 가짜 커서를 그대로 쓴다. */
+  .df-icon { cursor: default; }
+  .start-btn, .taskbar-app, .battery, .weather { cursor: default; }
+  .tray-icon { cursor: pointer; }

@@ -43,9 +43,12 @@
     height: 640px;
     max-height: 85vh;
     background: #c0c0c0;
+    /* 바깥쪽 남색 테두리(0 0 0 1px #000080)를 추가했다 - 예전엔 회색 베벨만 있어서
+       타이틀바의 남색과 어울리는 "파란 테두리"가 창 프레임에 전혀 없었다(요청 3-나). */
     box-shadow:
       inset 1px 1px 0 #fff, inset -1px -1px 0 #000,
       inset 2px 2px 0 #dfdfdf, inset -2px -2px 0 #808080,
+      0 0 0 1px #000080,
       3px 3px 8px rgba(0,0,0,.4);
     overflow: hidden;
     display: flex;
@@ -462,7 +465,7 @@
   /* 바탕화면 드래그 다중 선택(러버밴드) 박스 - 내용창의 .select-box와 같은 스타일 */
   .df-select-box {
     position: fixed; border: 1px dotted #fff; background: rgba(0,0,128,.25);
-    pointer-events: none; z-index: 3;
+    pointer-events: none; z-index: 1;
   }
 
   @media (max-width: 720px) {
@@ -478,3 +481,12 @@
     }
     .nav-pane.open { transform: translateX(0); }
   }
+
+  /* ============ 가짜 마우스(커스텀 커서) 예외 규칙 (요청 11) ============
+     body에 걸어둔 커스텀 SVG 화살표 커서(가짜 마우스)는 "진짜 웹페이지 티가 안 나게" 페이지
+     전체 기본값으로 깔아두는 용도였는데, 정작 실제로 클릭 가능한 링크/버튼류에서도 그대로
+     상속되어 버려서 사용자가 "이게 눌리는 건지" 구분할 수 없었다. 아래 요소들만 브라우저
+     네이티브 커서로 되돌린다 - 시계(.clock)는 의도적으로 예외 없이 가짜 커서를 그대로 쓴다. */
+  .df-icon { cursor: default; }
+  .start-btn, .taskbar-app, .battery, .weather { cursor: default; }
+  .tray-icon { cursor: pointer; }

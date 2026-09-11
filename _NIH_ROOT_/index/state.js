@@ -27,6 +27,16 @@ function htmlFileIcon(size) {
   </span>`;
 }
 
+// 휴지통(바탕화면 + 트리) 기본 아이콘 - 커스텀 아이콘(menu.json의 icons.recycleBin)이 없을 때 쓴다.
+function trashIcon(size) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+    <path d="M9 11h14l-1.2 15.5A2 2 0 0 1 19.8 28H12.2a2 2 0 0 1-2-1.5L9 11z" fill="#d7dbe1" stroke="#8b929c" stroke-width="1"/>
+    <path d="M6.5 11h19" stroke="#8b929c" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M12.5 8.2A1.5 1.5 0 0 1 14 6.7h4A1.5 1.5 0 0 1 19.5 8.2V11h-7V8.2z" fill="#eef1f4" stroke="#8b929c" stroke-width="1"/>
+    <path d="M13 14.5v9M16 14.5v9M19 14.5v9" stroke="#8b929c" stroke-width="1.4" stroke-linecap="round"/>
+  </svg>`;
+}
+
 /* ============ owner/repo 추출 (하드코딩 금지) ============ */
 function getOwnerRepo() {
   const owner = location.hostname.split(".")[0] || "";
@@ -67,6 +77,34 @@ async function openInRepo(it) {
   const branch = await getDefaultBranchCached();
   window.open(`https://github.com/${owner}/${repo}/blob/${branch}/${githubItemPath(it)}`, "_blank", "noopener,noreferrer");
 }
+// 폴더용 "저장소에서 보기" - 파일의 blob 뷰어 대신 GitHub의 폴더 트리 화면으로 이동한다
+// (사용자가 준 예시: https://github.com/<owner>/<repo>/tree/main/_NIH_ROOT_). 루트 폴더(path가
+// 빈 배열)는 트리 URL 자체가 그냥 저장소 메인 화면과 같다.
+async function openFolderInRepo(it) {
+  const { owner, repo } = getOwnerRepo();
+  const branch = await getDefaultBranchCached();
+  const path = githubItemPath(it);
+  const url = path
+    ? `https://github.com/${owner}/${repo}/tree/${branch}/${path}`
+    : `https://github.com/${owner}/${repo}`;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+// ============ JSZip 지연 로딩 (바탕화면 가상 폴더를 zip으로 통째로 다운로드할 때만 필요) ============
+// 항상 쓰는 기능이 아니므로 페이지 로드시 무조건 불러오지 않고, 실제로 폴더 다운로드를 처음 시도할
+// 때 딱 한 번만 CDN에서 불러온다(dexie처럼 이 저장소가 이미 쓰고 있는 것과 같은 CDN).
+let jszipLoadPromise = null;
+function ensureJSZip() {
+  if (window.JSZip) return Promise.resolve(window.JSZip);
+  if (jszipLoadPromise) return jszipLoadPromise;
+  jszipLoadPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+    s.onload = () => resolve(window.JSZip);
+    s.onerror = () => { jszipLoadPromise = null; reject(new Error("JSZip을 불러오지 못했습니다(네트워크 확인)")); };
+    document.head.appendChild(s);
+  });
+  return jszipLoadPromise;
+}
 // "Pages에서 보기" - raw 파일 URL을 그대로 새 탭에 띄운다. 텍스트/이미지는 브라우저가 그대로 보여준다
 // (다운로드가 아니라 "그 페이지 자체를 보는" 용도 - 강제 다운로드는 아래 downloadFromGithub가 담당).
 async function viewOnPages(it) {
@@ -94,6 +132,45 @@ async function downloadFromGithub(it) {
   } catch (e) {
     showToast(`GitHub 다운로드 오류: ${e.message}`, { kind: "warn" });
   }
+}
+
+/* ============ menu.json의 "icons" 섹션: 폴더/확장자별 커스텀 아이콘(URL 또는 base64) ============
+   메뉴 메이커(menu-maker.js)에서 편집하고, bootstrap.js가 부팅 시 loadMenuConfig()로 읽어와
+   applyCustomIconConfig()로 이 변수에 채워 넣는다. 폴더는 경로("A/B"처럼 "/"로 join한 문자열,
+   루트는 빈 문자열)로, 파일은 확장자(점 없이, 소문자)로 키를 삼는다. repoRoot/recycleBin은
+   바탕화면·트리의 "저장소 루트" 아이콘과 "휴지통" 아이콘을 각각 따로 지정한다. */
+let customIconConfig = { folders: {}, extensions: {}, repoRoot: "", recycleBin: "" };
+function applyCustomIconConfig(icons) {
+  const src = icons || {};
+  customIconConfig = {
+    folders: (src.folders && typeof src.folders === "object") ? src.folders : {},
+    extensions: (src.extensions && typeof src.extensions === "object") ? src.extensions : {},
+    repoRoot: typeof src.repoRoot === "string" ? src.repoRoot : "",
+    recycleBin: typeof src.recycleBin === "string" ? src.recycleBin : ""
+  };
+}
+function customImgIcon(src, size) {
+  return `<img src="${escapeHtml(src)}" width="${size}" height="${size}" style="object-fit:contain;border-radius:3px;" alt="">`;
+}
+// 실제 저장소 폴더 아이콘 - pathArr가 그 폴더의 경로(루트는 []). blue는 트리 루트처럼 파란 폴더
+// 아이콘을 쓸지 여부(커스텀 아이콘이 있으면 이 값은 무시된다).
+function resolveFolderIcon(pathArr, size, blue) {
+  const custom = customIconConfig.folders[pathArr.join("/")];
+  if (custom) return customImgIcon(custom, size);
+  return folderIcon(size, blue);
+}
+function resolveFileIcon(name, size) {
+  const dot = name.lastIndexOf(".");
+  const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
+  const custom = ext && customIconConfig.extensions[ext];
+  if (custom) return customImgIcon(custom, size);
+  return isHtml(name) ? htmlFileIcon(size) : fileIcon(size);
+}
+function resolveRepoRootIcon(size) {
+  return customIconConfig.repoRoot ? customImgIcon(customIconConfig.repoRoot, size) : folderIcon(size, true);
+}
+function resolveRecycleBinIcon(size) {
+  return customIconConfig.recycleBin ? customImgIcon(customIconConfig.recycleBin, size) : trashIcon(size);
 }
 
 function isHtml(name) { return /\.html$/i.test(name); }

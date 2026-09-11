@@ -59,7 +59,7 @@ function buildGrid(items, opts) {
     const cell = document.createElement("div");
     cell.className = "grid-item" + (opts.flat ? " flat" : "") + ((isMultiSel || isSingleSel) ? " selected" : "");
     cell.dataset.key = key;
-    const icon = it.dfsNode ? dfsIconGlyphFor(it.dfsNode, 32) : (it.type === "folder" ? folderIcon(32, false) : it.type === "html" ? htmlFileIcon(32) : fileIcon(32));
+    const icon = it.dfsNode ? dfsIconGlyphFor(it.dfsNode, 32) : (it.type === "folder" ? resolveFolderIcon(it.path, 32, false) : resolveFileIcon(it.name, 32));
     const subHtml = opts.flat ? `<div class="sub">${escapeHtml(dirLabelFor(it, opts))}</div>` : "";
     cell.innerHTML = `<div class="icon">${icon}</div><div class="label">${escapeHtml(it.name)}</div>${subHtml}`;
     cell.onclick = () => {

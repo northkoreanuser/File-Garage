@@ -491,7 +491,7 @@
   .df-select-box {
     position: fixed; border: 1px solid #3169c6;
     background: linear-gradient(180deg, rgba(150,190,255,.35), rgba(90,150,230,.2));
-    pointer-events: none; z-index: 3; border-radius: 2px;
+    pointer-events: none; z-index: 1; border-radius: 2px;
   }
 
   @media (max-width: 720px) {
@@ -507,3 +507,12 @@
     }
     .nav-pane.open { transform: translateX(0); }
   }
+
+  /* ============ 가짜 마우스(커스텀 커서) 예외 규칙 (요청 11) ============
+     body에 걸어둔 커스텀 SVG 화살표 커서(가짜 마우스)는 "진짜 웹페이지 티가 안 나게" 페이지
+     전체 기본값으로 깔아두는 용도였는데, 정작 실제로 클릭 가능한 링크/버튼류에서도 그대로
+     상속되어 버려서 사용자가 "이게 눌리는 건지" 구분할 수 없었다. 아래 요소들만 브라우저
+     네이티브 커서로 되돌린다 - 시계(.clock)는 의도적으로 예외 없이 가짜 커서를 그대로 쓴다. */
+  .df-icon { cursor: default; }
+  .start-btn, .taskbar-app, .battery, .weather { cursor: default; }
+  .tray-icon { cursor: pointer; }

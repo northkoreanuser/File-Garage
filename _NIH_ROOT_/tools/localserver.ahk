@@ -14,6 +14,11 @@
 ;   여러 파일을 받을 때마다 매번 저장 대화상자를 띄우는 대신, 폴더를 딱 한 번만 고르게 한다)
 ; - GET /savetofolder?url=...&size=...&folder=...&name=... -> 대화상자 없이 바로 그 폴더에 저장
 ;   (이름이 이미 있으면 " (2)"처럼 뒤에 번호를 붙여 안 겹치게 한다)
+; - GET /mkdir?base=...&rel=...      -> 폴더 통째로 다운로드할 때 중첩 폴더 구조를 만든다
+;   (base=사용자가 /pickfolder로 고른 위치, rel=그 안의 상대 경로 - 이미 있으면 그냥 OK)
+; - GET /savetopath?url=...&size=...&base=...&rel=... -> 폴더 통째로 다운로드할 때 base\rel 경로에
+;   있는 그대로 저장한다(폴더 구조를 그대로 재현해야 하므로 /savetofolder와 달리 이름 번호를
+;   붙이지 않는다 - 어차피 매번 새로 만든 폴더 안이라 충돌이 없다)
 ; - POST /savecontent?name=... (요청 본문 = 파일 내용 그대로, 최대 4MB)
 ;   -> 저장 대화상자를 띄워서 그 본문 바이트를 그대로 저장. 브라우저 자체 저장소(가상 데스크탑
 ;   파일시스템)나 index.html에 내장된 파일처럼, 서버에 실제 URL이 없어서 /download처럼
@@ -185,6 +190,16 @@ WHHandleRequest(Client) {
     if RegExMatch(queryStr, "(?:^|&)name=([^&]*)", nm)
         nameParam := UrlDecode(nm1)
 
+    ; 폴더 통째로 다운로드용(/mkdir, /savetopath) - base=사용자가 고른 최상위 저장 위치,
+    ; rel=그 안에서의 상대 경로("/"로 구분된 채로 옴, 각 조각은 index.html이 이미 encode해서 보냄).
+    baseParam := ""
+    if RegExMatch(queryStr, "(?:^|&)base=([^&]*)", bam)
+        baseParam := UrlDecode(bam1)
+
+    relParam := ""
+    if RegExMatch(queryStr, "(?:^|&)rel=([^&]*)", rlm)
+        relParam := UrlDecode(rlm1)
+
     FormatTime, ts,, yyyy-MM-dd HH:mm:ss
     FileAppend, % ts . "  " . method . " " . reqPath . "`n", %WHLog%, UTF-8
 
@@ -205,6 +220,10 @@ WHHandleRequest(Client) {
         HandlePickFolder(Client)
     } else if (routePath = "/savetofolder") {
         HandleSaveToFolder(Client, fileUrl, sizeParam, folderParam, nameParam)
+    } else if (routePath = "/mkdir") {
+        HandleMkdir(Client, baseParam, relParam)
+    } else if (routePath = "/savetopath") {
+        HandleSaveToPath(Client, fileUrl, sizeParam, baseParam, relParam)
     } else if (routePath = "/savecontent") {
         HandleSaveContent(Client, &buf + bodyStart, bodyLen, nameParam)
     } else {
@@ -327,6 +346,41 @@ HandleSaveToFolder(Client, fileUrl, sizeParam, folder, nameParam) {
 
     name := (nameParam != "") ? nameParam : UrlToFileName(fileUrl)
     dest := UniqueDestPath(folder, name)
+
+    ok := DownloadWithOptionalProgress(fileUrl, dest, sizeParam, "다운로드")
+    if !ok
+        return WHSend(Client, 502, "다운로드 실패")
+
+    WHSend(Client, 200, "OK")
+}
+
+; ===================== 폴더 통째로 다운로드: base\rel 경로에 중첩 폴더를 만든다(이미 있으면 그냥 OK) =====================
+HandleMkdir(Client, base, rel) {
+    if (base = "")
+        return WHSend(Client, 400, "base 파라미터가 없습니다")
+    target := (rel = "") ? base : base . "\" . rel
+    target := StrReplace(target, "/", "\")  ; index.html은 항상 "/"로 상대경로를 보내므로 윈도우 구분자로 맞춘다
+    if !FileExist(target) {
+        FileCreateDir, % target
+        if !FileExist(target)
+            return WHSend(Client, 502, "폴더를 만들지 못했습니다: " . target)
+    }
+    WHSend(Client, 200, "OK")
+}
+
+; ===================== 폴더 통째로 다운로드: base\rel 경로에 있는 그대로 저장(대화상자 없음, 이름 번호도
+; 안 붙임 - 매번 새로 만드는 폴더 구조를 그대로 재현하는 용도라 충돌이 없다고 가정한다) =====================
+HandleSaveToPath(Client, fileUrl, sizeParam, base, rel) {
+    global Busy
+    if (fileUrl = "" || base = "" || rel = "")
+        return WHSend(Client, 400, "url/base/rel 파라미터가 없습니다")
+    if (Busy)
+        return WHSend(Client, 503, "다른 다운로드가 진행 중입니다. 잠시 후 다시 시도하세요")
+
+    dest := StrReplace(base . "\" . rel, "/", "\")
+    SplitPath, dest,, destDir
+    if (destDir != "" && !FileExist(destDir))
+        FileCreateDir, % destDir
 
     ok := DownloadWithOptionalProgress(fileUrl, dest, sizeParam, "다운로드")
     if !ok

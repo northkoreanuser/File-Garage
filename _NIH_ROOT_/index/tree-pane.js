@@ -8,7 +8,7 @@ function renderNavPane() {
   els.navPane.innerHTML = "";
   const rootRow = document.createElement("div");
   rootRow.className = "nav-root" + (!treeFileHighlightKey && currentPath.length === 0 ? " selected" : "") + (treeFocusKey === "" ? " kbd-focus" : "");
-  rootRow.innerHTML = `${folderIcon(16, true)}<span>${escapeHtml(repoName || "루트")}</span>`;
+  rootRow.innerHTML = `${resolveRepoRootIcon(16)}<span>${escapeHtml(repoName || "루트")}</span>`;
   rootRow.onclick = () => { els.navPane.focus(); navigate([]); closeNavPaneIfNarrow(); };
   rootRow.ondblclick = () => navigate([]);
   els.navPane.appendChild(rootRow);
@@ -17,6 +17,17 @@ function renderNavPane() {
 
   const rootEntry = dirCache.get("");
   if (rootEntry) els.navPane.appendChild(buildTreeDom(rootEntry, []));
+
+  // 휴지통 - 저장소 루트와 나란한 별도의 최상위 항목(사용자 지시: "바탕 화면에 휴지통 추가
+  // 트리에도 추가 아이콘은 동일 사용"). 실제 경로 이동이 아니라 별도의 휴지통 패널을 연다.
+  if (dfsDb) {
+    const rbRow = document.createElement("div");
+    rbRow.className = "nav-root";
+    rbRow.innerHTML = `${resolveRecycleBinIcon(16)}<span>휴지통</span>`;
+    rbRow.onclick = () => { els.navPane.focus(); dfsOpenRecycleBinPanel(); };
+    rbRow.ondblclick = rbRow.onclick;
+    els.navPane.appendChild(rbRow);
+  }
 
   // 바탕화면(가상 파일시스템) - 루트 색인에는 나타나지 않지만, 트리에는 저장소 루트와 나란히
   // 별도의 최상위 항목으로 추가된다(기존 탐색기와 바탕화면 탐색기를 하나로 통합 - 사용자 지시).
@@ -126,7 +137,7 @@ function buildTreeDom(entry, pathArr) {
       renderNavPane();
     };
     row.appendChild(arrow);
-    row.insertAdjacentHTML("beforeend", folderIcon(15, false));
+    row.insertAdjacentHTML("beforeend", resolveFolderIcon(childPath, 15, false));
     const label = document.createElement("span");
     label.textContent = name;
     row.appendChild(label);
@@ -171,7 +182,7 @@ function buildTreeDom(entry, pathArr) {
     const spacer = document.createElement("span");
     spacer.className = "tree-arrow empty";
     row.appendChild(spacer);
-    row.insertAdjacentHTML("beforeend", it.dfsNode ? dfsIconGlyphFor(it.dfsNode, 15) : (it.type === "html" ? htmlFileIcon(15) : fileIcon(15)));
+    row.insertAdjacentHTML("beforeend", it.dfsNode ? dfsIconGlyphFor(it.dfsNode, 15) : resolveFileIcon(f.name, 15));
     const label = document.createElement("span");
     label.textContent = f.name;
     row.appendChild(label);

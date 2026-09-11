@@ -171,7 +171,11 @@ async function loadMenuConfig() {
     const data = await res.json();
     return {
       start: Array.isArray(data.start) ? data.start : [],
-      tray: Array.isArray(data.tray) ? data.tray : []
+      tray: Array.isArray(data.tray) ? data.tray : [],
+      // icons: 폴더/확장자별 커스텀 아이콘 + 저장소 루트/휴지통 아이콘(사용자 지시 - "폴더, 확장자
+      // + ico or base64 를 지정 가능하게(파일 및 폴더 아이콘) / 레포 이름 폴더 + 휴지통 아이콘도
+      // 지정 가능하게"). 없어도(예전 menu.json) 그냥 빈 설정으로 취급한다(state.js applyCustomIconConfig).
+      icons: (data.icons && typeof data.icons === "object") ? data.icons : {}
     };
   } catch (e) {
     return null; // 파일이 없거나 형식이 잘못돼도 조용히 무시 (선택 기능이므로)

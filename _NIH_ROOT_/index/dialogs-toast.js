@@ -94,6 +94,33 @@ function showPromptDialog(message, defaultValue = "") {
   });
 }
 
+/* ============ 취소 가능한 진행 상황 대화상자(폴더 통째로 다운로드용) ============
+   showConfirmDialog와 비슷한 모양이지만 버튼이 "취소" 하나뿐이고, 확인을 기다리지 않고 즉시
+   반환한다 - 호출한 쪽이 setText로 진행 상황을 계속 갱신하고, isCancelled()를 반복문 중간중간
+   확인해서 사용자가 취소를 눌렀으면 그 자리에서 중단한다. */
+function showCancelableProgressDialog(initialMessage) {
+  const overlay = document.createElement("div");
+  overlay.className = "confirm-overlay";
+  overlay.innerHTML = `
+    <div class="confirm-panel">
+      <div class="confirm-message"></div>
+      <div class="confirm-buttons">
+        <button class="settings-button settings-button-neutral progress-cancel">취소</button>
+      </div>
+    </div>`;
+  const msgEl = overlay.querySelector(".confirm-message");
+  msgEl.textContent = initialMessage;
+  document.body.appendChild(overlay);
+  let cancelled = false;
+  const cancelBtn = overlay.querySelector(".progress-cancel");
+  cancelBtn.onclick = () => { cancelled = true; cancelBtn.disabled = true; cancelBtn.textContent = "취소하는 중..."; };
+  return {
+    setText(msg) { msgEl.textContent = msg; },
+    isCancelled() { return cancelled; },
+    close() { overlay.remove(); }
+  };
+}
+
 /* ============ 토스트(알림) ============ */
 function showToast(message, opts = {}) {
   clearTimeout(toastTimer);

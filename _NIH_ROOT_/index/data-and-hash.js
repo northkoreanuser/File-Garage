@@ -130,14 +130,21 @@ async function loadDesktopDir(pathArr) {
 }
 
 /* ============ 경로 <-> 주소창 플래그먼트(#...) ============
-   형식: #<현재경로>|tree=<펼쳐진 트리 폴더 목록(콤마로 구분, 각각 encodeURIComponent)>
-   |tree= 부분이 없으면 예전처럼 경로만 있는 것으로 취급(하위호환). ============ */
+   형식: #<현재경로>|tree=<펼쳐진 트리 폴더 목록(콤마로 구분, 각각 encodeURIComponent)>|nav=<0 또는 없음>
+   |tree= 부분이 없으면 예전처럼 경로만 있는 것으로 취급(하위호환). |nav= 부분(트리 칸/navPane
+   열림·닫힘)은 "닫힘"일 때만 |nav=0으로 기록한다 - 사용자 지시대로 "없으면 온(열림)이 디폴트"이므로
+   열림 상태는 굳이 기록하지 않는다(기존 링크/공유 URL과도 하위호환). ============ */
 function pathToHash(pathArr) { return pathArr.map(encodeURIComponent).join("/"); }
 function splitHash(hash) {
   const h = (hash || "").replace(/^#/, "");
-  const idx = h.indexOf("|tree=");
-  if (idx === -1) return { pathPart: h, treePart: "" };
-  return { pathPart: h.slice(0, idx), treePart: h.slice(idx + 6) };
+  const parts = h.split("|");
+  const pathPart = parts[0] || "";
+  let treePart = "", navPart = "";
+  for (let i = 1; i < parts.length; i++) {
+    if (parts[i].startsWith("tree=")) treePart = parts[i].slice(5);
+    else if (parts[i].startsWith("nav=")) navPart = parts[i].slice(4);
+  }
+  return { pathPart, treePart, navPart };
 }
 function hashToPath(hash) {
   const { pathPart } = splitHash(hash);
@@ -153,13 +160,26 @@ function hashToExpandedSet(hash) {
   });
   return set;
 }
+// 트리 칸(navPane) 열림/닫힘 상태를 해시에서 읽는다: "0"이면 닫힘, 그 외(없음 포함)면 열림(디폴트).
+function hashToNavOpen(hash) {
+  const { navPart } = splitHash(hash);
+  return navPart !== "0";
+}
 function encodeExpandedForHash() {
   return [...expanded].map(encodeURIComponent).join(",");
 }
 function updateHashFragment() {
   const pathPart = pathToHash(currentPath);
   const treePart = encodeExpandedForHash();
-  const hash = treePart ? `${pathPart}|tree=${treePart}` : pathPart;
+  let hash = pathPart;
+  if (treePart) hash += `|tree=${treePart}`;
+  // 탐색기 창(#win) 자체가 아직 닫혀있을 땐 "트리 칸 닫힘" 표시를 적지 않는다 - navPane의 HTML
+  // 기본값이 원래 닫힘이라, 창을 한 번도 연 적 없는 상태에서 (예: 바탕화면 아이콘 생성처럼) 다른
+  // 이유로 이 함수가 불려도 isNavPaneOpen()이 항상 false라서 매번 |nav=0이 찍혀버렸다 - 그러면
+  // 나중에 창을 처음 열 때도 "닫혀있던 걸로" 오인해서 요청 #98(창 열면 트리 칸 기본으로 열림)이
+  // 깨졌다. 창이 열려있을 때만 사용자가 실제로 닫은 것인지 의미가 있으므로 그때만 기록한다.
+  const winIsOpen = !!(els.win && !els.win.classList.contains("closed"));
+  if (winIsOpen && !isNavPaneOpen()) hash += `|nav=0`; // 열림은 디폴트라 안 적고, 닫힘일 때만 명시적으로 남긴다
   try { window.history.replaceState(null, "", "#" + hash); } catch (e) {}
 }
 function expandedStorageKey() { return `idx:${repoName}:expandedTree`; }
@@ -183,12 +203,20 @@ function clearHashFragment() {
 }
 function openNavPane() {
   els.navPane.classList.add("open");
-  updateHashFragment(); // 열자마자 지금 위치/펼침 상태를 주소창에 반영한다
+  updateHashFragment(); // 열자마자 지금 위치/펼침 상태(+ 이제 열림/닫힘 상태도)를 주소창에 반영한다
 }
 function closeNavPane() {
   els.navPane.classList.remove("open");
-  // 사이드바만 접는 것 - 주소창 플래그먼트(위치/트리 펼침 기록)는 그대로 둔다(사용자 지시).
-  // 완전히 지우는 건 창을 닫을 때뿐(els.btnClose.onclick의 clearHashFragment() 참고).
+  // 사용자 지시: "# 뒤에 (트리 열림/닫힘 상태를) 기록해둔다, 없으면 온이 디폴트" - 열고 닫을 때마다
+  // 해시에도 반영한다(닫힘일 때만 |nav=0으로 명시). 완전히 지우는 건 창을 닫을 때뿐
+  // (els.btnClose.onclick의 clearHashFragment() 참고).
+  updateHashFragment();
+}
+// 탐색기 창을 여는 지점(부팅/작업표시줄 클릭/바탕화면 폴더 열기)에서 공통으로 쓰는 헬퍼 - 주소창
+// 해시에 명시적으로 |nav=0(닫힘)이 적혀있지 않은 한 트리 칸을 기본으로 열어준다(사용자 지시 -
+// "탐색기 열면 기본으로 트리 칸 열려있게" + "없으면 온이 디폴트").
+function openNavPaneRespectingHash() {
+  if (hashToNavOpen(location.hash)) openNavPane(); else closeNavPane();
 }
 /* 좁은 화면(오버레이 방식)에서 트리의 폴더를 클릭해 이동하면, 실제 모바일 탐색기 앱처럼 그 자리에서
    탐색창을 자동으로 접어 내용을 바로 보여준다. 넓은 화면(항상 옆에 두고 쓰는 형태)에서는 폴더를

@@ -154,6 +154,10 @@ els.taskbarApp.onclick = () => {
   if (wasClosed) {
     expanded.clear();
     navigate([]);
+    // 버그 리포트: "탐색기 열면 기본으로 트리 칸 열려있게" - 창을 닫았다 다시 열면(작업표시줄
+    // 클릭) 트리 칸이 이전에 닫혀있던 그대로 남아있어서 매번 수동으로 열어야 했다. 새로 여는
+    // 시점이니 해시에 명시적으로 닫힘(|nav=0)이 적혀있지 않은 한 기본으로 열어준다.
+    openNavPaneRespectingHash();
   }
 };
 /* 바탕화면(가상 파일시스템)에서 폴더를 열 때도 더는 별도의 팝업 창이 아니라 이 "진짜" 탐색기
@@ -166,7 +170,7 @@ function openRealExplorerAt(path) {
   persistWindowOpen(true);
   if (wasClosed) expanded.clear();
   navigate(path);
-  openNavPane();
+  openNavPaneRespectingHash();
 }
 els.btnNavToggle.onclick = () => { if (isNavPaneOpen()) closeNavPane(); else openNavPane(); };
 

@@ -52,6 +52,11 @@ const DF_MENUMAKER_PAGE_CSS = `
   .mm-icon-actions .mm-hint { font-size: 10.5px; color: var(--mm-muted); }
   .mm-empty-hint { color: var(--mm-muted); font-size: 12.5px; padding: 40px 0; text-align: center; }
   .mm-submenu-note { font-size: 11.5px; color: var(--mm-muted); background: var(--mm-panel2); border: 1px solid var(--mm-border); border-radius: 6px; padding: 8px 10px; margin-bottom: 14px; }
+  .mm-section-sub { font-size: 10.5px; color: var(--mm-muted); margin: 2px 0 6px; }
+  .mm-special-row { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; }
+  .mm-special-row:hover { background: var(--mm-hover); }
+  .mm-special-row.selected { background: var(--mm-sel); border-color: var(--mm-accent); }
+  .mm-key-input { font-family: "SFMono-Regular",Consolas,monospace; }
 `;
 
 function dfMmFnBundle() {
@@ -68,6 +73,8 @@ function dfsBuildMenuMakerPageHtml(initialData) {
         <span class="mm-title">메뉴 메이커</span>
         <span class="mm-spacer"></span>
         <span class="mm-save-state" id="mmSaveState"></span>
+        <button id="mmImport" title="디스크에 있는 menu.json 파일을 불러와 현재 내용을 덮어씁니다">가져오기</button>
+        <input type="file" id="mmImportFile" accept=".json,application/json" style="display:none;">
         <button id="mmSave">저장/다운로드</button>
       </div>
       <div class="mm-body">
@@ -78,6 +85,17 @@ function dfsBuildMenuMakerPageHtml(initialData) {
           <div class="mm-section-head"><h3>트레이(빠른 실행)</h3></div>
           <div class="mm-list" id="mmTrayList"></div>
           <button class="mm-add-row" id="mmAddTray">+ 새 항목 추가</button>
+          <div class="mm-section-head"><h3>특수 아이콘</h3></div>
+          <div class="mm-section-sub">바탕화면·트리에 쓰이는 고정 아이콘 2개(비워두면 기본 아이콘 사용)</div>
+          <div class="mm-list" id="mmSpecialIconList"></div>
+          <div class="mm-section-head"><h3>폴더별 아이콘</h3></div>
+          <div class="mm-section-sub">저장소 안의 특정 폴더 경로에 아이콘을 지정합니다 (예: docs/images)</div>
+          <div class="mm-list" id="mmIconFolderList"></div>
+          <button class="mm-add-row" id="mmAddIconFolder">+ 폴더 아이콘 추가</button>
+          <div class="mm-section-head"><h3>확장자별 아이콘</h3></div>
+          <div class="mm-section-sub">파일 확장자(점 없이, 예: pdf)에 아이콘을 지정합니다</div>
+          <div class="mm-list" id="mmIconExtList"></div>
+          <button class="mm-add-row" id="mmAddIconExt">+ 확장자 아이콘 추가</button>
         </div>
         <div class="mm-panel" id="mmPanel"></div>
       </div>
@@ -87,11 +105,26 @@ function dfsBuildMenuMakerPageHtml(initialData) {
   var DATA = ${dataJson};
   DATA.start = Array.isArray(DATA.start) ? DATA.start : [];
   DATA.tray = Array.isArray(DATA.tray) ? DATA.tray : [];
-  var sel = null; // { section: "start"|"tray", path: [idx, ...] }
+  // menu.json의 "icons" 섹션(폴더/확장자별 커스텀 아이콘 + 저장소 루트/휴지통 아이콘) - state.js의
+  // customIconConfig와 완전히 같은 모양이다. folders/extensions는 {경로: 아이콘} 객체지만 편집
+  // UI에서는 순서가 있는 목록으로 다루는 게 훨씬 편해서 배열로 풀어서 들고 있다가 저장할 때 다시
+  // 객체로 합친다(serialize 참고).
+  var rawIcons = (DATA.icons && typeof DATA.icons === "object") ? DATA.icons : {};
+  DATA.iconRepoRoot = typeof rawIcons.repoRoot === "string" ? rawIcons.repoRoot : "";
+  DATA.iconRecycleBin = typeof rawIcons.recycleBin === "string" ? rawIcons.recycleBin : "";
+  DATA.iconFolders = (rawIcons.folders && typeof rawIcons.folders === "object")
+    ? Object.keys(rawIcons.folders).map(function(k) { return { key: k, icon: rawIcons.folders[k] }; }) : [];
+  DATA.iconExts = (rawIcons.extensions && typeof rawIcons.extensions === "object")
+    ? Object.keys(rawIcons.extensions).map(function(k) { return { key: k, icon: rawIcons.extensions[k] }; }) : [];
+  delete DATA.icons;
+  var sel = null; // { section: "start"|"tray"|"iconFolders"|"iconExts"|"iconRepoRoot"|"iconRecycleBin", path/idx: ... }
   var dirty = false;
 
   var startListEl = document.getElementById("mmStartList");
   var trayListEl = document.getElementById("mmTrayList");
+  var specialIconListEl = document.getElementById("mmSpecialIconList");
+  var iconFolderListEl = document.getElementById("mmIconFolderList");
+  var iconExtListEl = document.getElementById("mmIconExtList");
   var panelEl = document.getElementById("mmPanel");
   var saveStateEl = document.getElementById("mmSaveState");
 
@@ -180,60 +213,83 @@ function dfsBuildMenuMakerPageHtml(initialData) {
     });
   }
 
-  function renderPanel() {
-    if (!sel) { panelEl.innerHTML = '<div class="mm-empty-hint">왼쪽에서 항목을 고르거나 "+ 새 항목 추가"로 새로 만드세요.</div>'; return; }
-    var item = getItem(sel.section, sel.path);
-    if (!item) { sel = null; renderPanel(); return; }
-    var hasChildren = sel.section === "start" && Array.isArray(item.items) && item.items.length > 0;
-    panelEl.innerHTML = "";
+  // 폴더별/확장자별 아이콘 목록(각각 {key, icon} 배열) - 시작메뉴/트레이의 renderList와 달리
+  // 하위 메뉴나 순서 바꾸기가 없는 단순 평면 목록이라 별도 렌더 함수로 뺐다.
+  function renderIconKeyList(section, arr, container, placeholder) {
+    container.innerHTML = "";
+    arr.forEach(function(item, idx) {
+      var row = document.createElement("div");
+      row.className = "mm-item-row" + (sel && sel.section === section && sel.idx === idx ? " selected" : "");
+      var iconEl = document.createElement("div");
+      iconEl.className = "mm-item-icon";
+      iconEl.innerHTML = iconThumbHtml(item.icon, item.key);
+      row.appendChild(iconEl);
+      var nameEl = document.createElement("span");
+      nameEl.className = "mm-item-name" + (item.key ? "" : " empty");
+      nameEl.textContent = item.key || placeholder;
+      row.appendChild(nameEl);
+      var btns = document.createElement("div");
+      btns.className = "mm-item-btns";
+      var delBtn = document.createElement("button"); delBtn.className = "mm-row-btn"; delBtn.title = "삭제"; delBtn.textContent = "✕";
+      delBtn.onclick = function(e) {
+        e.stopPropagation();
+        arr.splice(idx, 1);
+        if (sel && sel.section === section && sel.idx === idx) sel = null;
+        setDirty();
+        renderAll();
+      };
+      btns.appendChild(delBtn);
+      row.appendChild(btns);
+      row.onclick = function() { sel = { section: section, idx: idx }; renderAll(); };
+      container.appendChild(row);
+    });
+  }
 
-    if (hasChildren) {
-      var note = document.createElement("div");
-      note.className = "mm-submenu-note";
-      note.textContent = "이 항목은 하위 메뉴가 있어 클릭하면 주소로 이동하는 대신 하위 메뉴가 펼쳐집니다(이름/아이콘만 사용됨).";
-      panelEl.appendChild(note);
-    }
+  // 저장소 루트 / 휴지통 - 고정 슬롯 2개짜리 목록(추가/삭제 없이 항상 존재, 클릭하면 편집 패널로).
+  function renderSpecialIconList() {
+    specialIconListEl.innerHTML = "";
+    [
+      { section: "iconRepoRoot", label: "저장소 루트 아이콘", get: function() { return DATA.iconRepoRoot; } },
+      { section: "iconRecycleBin", label: "휴지통 아이콘", get: function() { return DATA.iconRecycleBin; } }
+    ].forEach(function(spec) {
+      var row = document.createElement("div");
+      row.className = "mm-special-row" + (sel && sel.section === spec.section ? " selected" : "");
+      var iconEl = document.createElement("div");
+      iconEl.className = "mm-item-icon";
+      iconEl.innerHTML = iconThumbHtml(spec.get(), spec.label);
+      row.appendChild(iconEl);
+      var nameEl = document.createElement("span");
+      nameEl.className = "mm-item-name";
+      nameEl.textContent = spec.label;
+      row.appendChild(nameEl);
+      row.onclick = function() { sel = { section: spec.section }; renderAll(); };
+      specialIconListEl.appendChild(row);
+    });
+  }
 
-    function field(labelText, inputEl) {
-      var wrap = document.createElement("div");
-      wrap.className = "mm-field";
-      var label = document.createElement("label");
-      label.textContent = labelText;
-      wrap.appendChild(label);
-      wrap.appendChild(inputEl);
-      panelEl.appendChild(wrap);
-      return wrap;
-    }
-
-    var nameInput = document.createElement("input");
-    nameInput.type = "text"; nameInput.value = item.name || "";
-    nameInput.oninput = function() { item.name = nameInput.value; setDirty(); renderLists(); };
-    field("이름", nameInput);
-
-    var urlInput = document.createElement("input");
-    urlInput.type = "url"; urlInput.placeholder = "https://...";
-    urlInput.value = item.url || "";
-    urlInput.oninput = function() { item.url = urlInput.value; setDirty(); };
-    field("주소(URL)", urlInput);
-
-    // 아이콘: URL 입력 또는 이미지 파일 선택 / 붙여넣기(Ctrl+V) -> base64 데이터 URI로 변환
+  // 아이콘 편집기(미리보기 + URL 입력 + 붙여넣기(Ctrl+V) + 파일 선택 -> base64) - 시작메뉴/트레이
+  // 항목뿐 아니라 아래의 폴더별/확장자별/특수(저장소 루트·휴지통) 아이콘 편집 패널에서도 그대로
+  // 재사용한다(예전엔 시작메뉴/트레이 패널에만 인라인으로 있었다).
+  function buildIconEditorField(labelText, initialIcon, previewName, onChange) {
     var iconWrap = document.createElement("div");
     iconWrap.className = "mm-field";
     var iconLabel = document.createElement("label");
-    iconLabel.textContent = "아이콘";
+    iconLabel.textContent = labelText;
     iconWrap.appendChild(iconLabel);
     var iconRow = document.createElement("div");
     iconRow.className = "mm-icon-editor";
     var iconPreview = document.createElement("div");
     iconPreview.className = "mm-icon-preview";
-    function refreshIconPreview() { iconPreview.innerHTML = iconThumbHtml(item.icon, item.name); }
+    var currentIcon = initialIcon || "";
+    function refreshIconPreview() { iconPreview.innerHTML = iconThumbHtml(currentIcon, previewName); }
     refreshIconPreview();
     var iconActions = document.createElement("div");
     iconActions.className = "mm-icon-actions";
     var iconUrlInput = document.createElement("input");
     iconUrlInput.type = "text"; iconUrlInput.placeholder = "아이콘 URL 또는 붙여넣기(Ctrl+V)로 이미지 삽입";
-    iconUrlInput.value = item.icon || "";
-    iconUrlInput.oninput = function() { item.icon = iconUrlInput.value; setDirty(); refreshIconPreview(); renderLists(); };
+    iconUrlInput.value = currentIcon;
+    function setIcon(v) { currentIcon = v; iconUrlInput.value = v; refreshIconPreview(); onChange(v); }
+    iconUrlInput.oninput = function() { setIcon(iconUrlInput.value); };
     iconUrlInput.onpaste = function(e) {
       var items = (e.clipboardData && e.clipboardData.items) || [];
       for (var i = 0; i < items.length; i++) {
@@ -242,11 +298,7 @@ function dfsBuildMenuMakerPageHtml(initialData) {
           if (!file) continue;
           e.preventDefault();
           var reader = new FileReader();
-          reader.onload = function() {
-            item.icon = reader.result;
-            iconUrlInput.value = reader.result;
-            setDirty(); refreshIconPreview(); renderLists();
-          };
+          reader.onload = function() { setIcon(reader.result); };
           reader.readAsDataURL(file);
           return;
         }
@@ -259,11 +311,7 @@ function dfsBuildMenuMakerPageHtml(initialData) {
       var file = fileInput.files && fileInput.files[0];
       if (!file) return;
       var reader = new FileReader();
-      reader.onload = function() {
-        item.icon = reader.result;
-        iconUrlInput.value = reader.result;
-        setDirty(); refreshIconPreview(); renderLists();
-      };
+      reader.onload = function() { setIcon(reader.result); };
       reader.readAsDataURL(file);
     };
     var fileBtn = document.createElement("button");
@@ -282,7 +330,98 @@ function dfsBuildMenuMakerPageHtml(initialData) {
     iconRow.appendChild(iconActions);
     iconRow.appendChild(fileInput);
     iconWrap.appendChild(iconRow);
-    panelEl.appendChild(iconWrap);
+    return iconWrap;
+  }
+
+  function fieldInto(panel, labelText, inputEl) {
+    var wrap = document.createElement("div");
+    wrap.className = "mm-field";
+    var label = document.createElement("label");
+    label.textContent = labelText;
+    wrap.appendChild(label);
+    wrap.appendChild(inputEl);
+    panel.appendChild(wrap);
+    return wrap;
+  }
+
+  // 폴더별/확장자별 아이콘 목록의 한 항목(경로 또는 확장자 문자열 + 아이콘) 편집 패널.
+  function renderIconKeyPanel() {
+    var arr = sel.section === "iconFolders" ? DATA.iconFolders : DATA.iconExts;
+    var item = arr[sel.idx];
+    if (!item) { sel = null; renderPanel(); return; }
+    var isFolder = sel.section === "iconFolders";
+    panelEl.innerHTML = "";
+    var note = document.createElement("div");
+    note.className = "mm-submenu-note";
+    note.textContent = isFolder
+      ? "저장소 루트 기준 폴더 경로를 입력하세요(예: docs/images). 대소문자를 구분합니다."
+      : "점(.) 없이 확장자만 입력하세요(예: pdf, png). 대소문자는 구분하지 않습니다.";
+    panelEl.appendChild(note);
+
+    var keyInput = document.createElement("input");
+    keyInput.type = "text"; keyInput.className = "mm-key-input";
+    keyInput.placeholder = isFolder ? "예: docs/images" : "예: pdf";
+    keyInput.value = item.key || "";
+    keyInput.oninput = function() { item.key = keyInput.value; setDirty(); renderLists(); };
+    fieldInto(panelEl, isFolder ? "폴더 경로" : "확장자", keyInput);
+
+    var iconField = buildIconEditorField("아이콘", item.icon, item.key || "?", function(newIcon) {
+      item.icon = newIcon; setDirty(); renderLists();
+    });
+    panelEl.appendChild(iconField);
+  }
+
+  // 저장소 루트 / 휴지통 - 목록이 아니라 고정 슬롯 2개짜리 단일 아이콘 편집 패널.
+  function renderSpecialIconPanel() {
+    var isRepoRoot = sel.section === "iconRepoRoot";
+    var label = isRepoRoot ? "저장소 루트 아이콘" : "휴지통 아이콘";
+    panelEl.innerHTML = "";
+    var note = document.createElement("div");
+    note.className = "mm-submenu-note";
+    note.textContent = (isRepoRoot
+      ? "바탕화면과 트리 맨 위의 저장소 루트 폴더에 쓰이는 아이콘입니다."
+      : "바탕화면과 트리의 휴지통에 쓰이는 아이콘입니다.") + " 비워두면 기본 아이콘을 사용합니다.";
+    panelEl.appendChild(note);
+    var iconField = buildIconEditorField(label, isRepoRoot ? DATA.iconRepoRoot : DATA.iconRecycleBin, label, function(newIcon) {
+      if (isRepoRoot) DATA.iconRepoRoot = newIcon; else DATA.iconRecycleBin = newIcon;
+      setDirty(); renderLists();
+    });
+    panelEl.appendChild(iconField);
+  }
+
+  function renderPanel() {
+    if (!sel) { panelEl.innerHTML = '<div class="mm-empty-hint">왼쪽에서 항목을 고르거나 "+ 새 항목 추가"로 새로 만드세요.</div>'; return; }
+    if (sel.section === "iconFolders" || sel.section === "iconExts") { renderIconKeyPanel(); return; }
+    if (sel.section === "iconRepoRoot" || sel.section === "iconRecycleBin") { renderSpecialIconPanel(); return; }
+    var item = getItem(sel.section, sel.path);
+    if (!item) { sel = null; renderPanel(); return; }
+    var hasChildren = sel.section === "start" && Array.isArray(item.items) && item.items.length > 0;
+    panelEl.innerHTML = "";
+
+    if (hasChildren) {
+      var note = document.createElement("div");
+      note.className = "mm-submenu-note";
+      note.textContent = "이 항목은 하위 메뉴가 있어 클릭하면 주소로 이동하는 대신 하위 메뉴가 펼쳐집니다(이름/아이콘만 사용됨).";
+      panelEl.appendChild(note);
+    }
+
+    function field(labelText, inputEl) { return fieldInto(panelEl, labelText, inputEl); }
+
+    var nameInput = document.createElement("input");
+    nameInput.type = "text"; nameInput.value = item.name || "";
+    nameInput.oninput = function() { item.name = nameInput.value; setDirty(); renderLists(); };
+    field("이름", nameInput);
+
+    var urlInput = document.createElement("input");
+    urlInput.type = "url"; urlInput.placeholder = "https://...";
+    urlInput.value = item.url || "";
+    urlInput.oninput = function() { item.url = urlInput.value; setDirty(); };
+    field("주소(URL)", urlInput);
+
+    var iconField = buildIconEditorField("아이콘", item.icon, item.name, function(newIcon) {
+      item.icon = newIcon; setDirty(); renderLists();
+    });
+    panelEl.appendChild(iconField);
 
     if (!hasChildren) {
       var newTabRow = document.createElement("label");
@@ -326,6 +465,9 @@ function dfsBuildMenuMakerPageHtml(initialData) {
   function renderLists() {
     renderList("start", DATA.start, startListEl, []);
     renderList("tray", DATA.tray, trayListEl, []);
+    renderSpecialIconList();
+    renderIconKeyList("iconFolders", DATA.iconFolders, iconFolderListEl, "(경로 없음)");
+    renderIconKeyList("iconExts", DATA.iconExts, iconExtListEl, "(확장자 없음)");
   }
   function renderAll() { renderLists(); renderPanel(); }
 
@@ -339,6 +481,53 @@ function dfsBuildMenuMakerPageHtml(initialData) {
     sel = { section: "tray", path: [DATA.tray.length - 1] };
     setDirty(); renderAll();
   };
+  document.getElementById("mmAddIconFolder").onclick = function() {
+    DATA.iconFolders.push({ key: "", icon: "" });
+    sel = { section: "iconFolders", idx: DATA.iconFolders.length - 1 };
+    setDirty(); renderAll();
+  };
+  document.getElementById("mmAddIconExt").onclick = function() {
+    DATA.iconExts.push({ key: "", icon: "" });
+    sel = { section: "iconExts", idx: DATA.iconExts.length - 1 };
+    setDirty(); renderAll();
+  };
+
+  // 가져오기(필수 기능): 디스크에 있는 menu.json(또는 같은 형식의 파일)을 골라서 통째로 불러온다.
+  // 이미 편집 중인 내용이 있으면 덮어쓰기 전에 한 번 확인한다.
+  var importFileInput = document.getElementById("mmImportFile");
+  document.getElementById("mmImport").onclick = function() {
+    if (dirty && !confirm("저장하지 않은 변경 사항이 있습니다. 지금 파일을 불러오면 현재 내용을 덮어씁니다. 계속할까요?")) return;
+    importFileInput.value = "";
+    importFileInput.click();
+  };
+  importFileInput.onchange = function() {
+    var file = importFileInput.files && importFileInput.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function() {
+      var parsed;
+      try { parsed = JSON.parse(String(reader.result)); } catch (e) {
+        alert("이 파일은 올바른 JSON이 아닙니다: " + e.message);
+        return;
+      }
+      if (!parsed || typeof parsed !== "object") { alert("이 파일의 형식을 알아볼 수 없습니다."); return; }
+      DATA.start = Array.isArray(parsed.start) ? parsed.start : [];
+      DATA.tray = Array.isArray(parsed.tray) ? parsed.tray : [];
+      var rawIcons2 = (parsed.icons && typeof parsed.icons === "object") ? parsed.icons : {};
+      DATA.iconRepoRoot = typeof rawIcons2.repoRoot === "string" ? rawIcons2.repoRoot : "";
+      DATA.iconRecycleBin = typeof rawIcons2.recycleBin === "string" ? rawIcons2.recycleBin : "";
+      DATA.iconFolders = (rawIcons2.folders && typeof rawIcons2.folders === "object")
+        ? Object.keys(rawIcons2.folders).map(function(k) { return { key: k, icon: rawIcons2.folders[k] }; }) : [];
+      DATA.iconExts = (rawIcons2.extensions && typeof rawIcons2.extensions === "object")
+        ? Object.keys(rawIcons2.extensions).map(function(k) { return { key: k, icon: rawIcons2.extensions[k] }; }) : [];
+      sel = null;
+      setDirty();
+      renderAll();
+      saveStateEl.textContent = file.name + " 불러옴 - 저장 안 됨";
+    };
+    reader.onerror = function() { alert("파일을 읽는 중 오류가 발생했습니다."); };
+    reader.readAsText(file);
+  };
 
   // 저장/다운로드: 에디터(editor.js)의 다운로드 버튼과 완전히 같은 패턴 - 로컬 헬퍼(웹훅)가 켜져
   // 있으면 웹훅으로 저장 대화상자, 아니면 브라우저 자체 blob 다운로드로 떨어진다. 저장 위치는 항상
@@ -351,8 +540,26 @@ function dfsBuildMenuMakerPageHtml(initialData) {
     if (Array.isArray(it.items) && it.items.length) out.items = it.items.map(cleanItem);
     return out;
   }
+  // 편집용 배열({key, icon}[])을 실제 menu.json 스키마의 객체({경로/확장자: 아이콘})로 되돌린다.
+  // 폴더 경로는 앞뒤 슬래시를 정리하고, 확장자는 점을 떼고 소문자로 맞춘다. key나 icon이 비어있는
+  // 행은 저장하지 않는다(입력 중인 빈 행 등).
+  function serializeIconMap(arr, normalizeKey) {
+    var out = {};
+    arr.forEach(function(it) {
+      var key = normalizeKey((it.key || "").trim());
+      if (!key || !it.icon) return;
+      out[key] = it.icon;
+    });
+    return out;
+  }
   function serialize() {
-    return JSON.stringify({ start: DATA.start.map(cleanItem), tray: DATA.tray.map(cleanItem) }, null, 2);
+    var icons = {
+      folders: serializeIconMap(DATA.iconFolders, function(k) { return k.replace(/^\\/+|\\/+$/g, ""); }),
+      extensions: serializeIconMap(DATA.iconExts, function(k) { return k.replace(/^\\.+/, "").toLowerCase(); }),
+      repoRoot: DATA.iconRepoRoot || "",
+      recycleBin: DATA.iconRecycleBin || ""
+    };
+    return JSON.stringify({ start: DATA.start.map(cleanItem), tray: DATA.tray.map(cleanItem), icons: icons }, null, 2);
   }
   var HELPER_PORT_MIN = 8000, HELPER_PORT_MAX = 8020;
   var HELPER_SIG = "AHK-REPO-INDEXER-LOCALHELPER-v1";
@@ -409,6 +616,13 @@ function dfsBuildMenuMakerPageHtml(initialData) {
     if (!dirty) return;
     e.preventDefault();
     e.returnValue = "";
+  });
+  // 에디터(editor.js)와 같은 습관으로 Ctrl+S도 저장 버튼과 동일하게 동작하게 해준다(UX 개선).
+  window.addEventListener("keydown", function(e) {
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === "s" || e.key === "S")) {
+      e.preventDefault();
+      saveBtn.click();
+    }
   });
 
   renderAll();

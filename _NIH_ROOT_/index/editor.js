@@ -229,7 +229,7 @@ function dfsBuildEditorPageHtml(node, opts = {}) {
         <div class="df-e-editor"><textarea spellcheck="false"></textarea></div>
         <div class="df-e-preview">
           <div class="df-e-preview-inner"></div>
-          <iframe class="df-e-html-frame" sandbox="" referrerpolicy="no-referrer" title="HTML 미리보기(샌드박스)" style="display:none;"></iframe>
+          <iframe class="df-e-html-frame" sandbox="allow-scripts" referrerpolicy="no-referrer" title="HTML 미리보기(샌드박스)" style="display:none;"></iframe>
         </div>
       </div>
       <div class="df-editor-status">
@@ -245,7 +245,6 @@ function dfsBuildEditorPageHtml(node, opts = {}) {
   var RENDER_TITLES = { markdown: "HTML 뷰어로 전환", html: "텍스트 모드로 전환", text: "Markdown 뷰어로 전환" };
   var renderMode = dfInitialRenderMode(NODE.fileType);
   var viewerMode = false;
-  var saveTimer = null;
   var dirty = false;
 
   document.title = NODE.name + " - 에디터";
@@ -282,6 +281,13 @@ function dfsBuildEditorPageHtml(node, opts = {}) {
     document.querySelector(".df-e-words").textContent = (v.trim().match(/\\S+/g) || []).length + "단어";
     document.querySelector(".df-e-pos").textContent = line + "행 " + (col + 1) + "열";
   }
+  // 버그 리포트: "HTML 모드에서 오른쪽에 아무 것도 뜨지 않음" - iframe 자체는 이미 .df-e-preview
+  // 안에 잘 배치돼 있었지만(아래 다른 버그 리포트 참고), sandbox="" (빈 문자열)로 스크립트 실행 자체를
+  // 막아놨었다. 그래서 순수 정적 HTML은 보였어도, 실제 저장소의 html 파일처럼 자바스크립트로
+  // 화면을 그리는 페이지(이 앱 자신이 그렇듯)는 아무 스크립트도 못 돌아서 흰 화면만 나왔다.
+  // sandbox="allow-scripts"로 스크립트 실행은 허용하되, allow-same-origin은 일부러 안 준다 -
+  // 그래야 미리보기 안의 스크립트가 opener 체인을 타고 원래 페이지(부모)로 접근할 수 없다
+  // (srcdoc + allow-scripts만 있으면 그 프레임은 독립된 오리진으로 취급된다).
   // 버그 리포트: "에디터 HTML 모드 수정 안됨" - 예전엔 iframe(.df-e-html-frame)이 .df-editor-body
   // 바로 밑에 있어서 position:absolute;inset:0이 편집기 전체 폭(왼쪽 textarea까지 포함)을 덮어버려,
   // HTML 모드로 바꾸면 왼쪽 에디터(textarea)가 화면엔 보여도 클릭/타이핑이 안 먹혔다(iframe이 위에서
@@ -326,11 +332,13 @@ function dfsBuildEditorPageHtml(node, opts = {}) {
       }
     } catch (e) { setSaveState("저장 실패"); }
   }
-  function scheduleAutosave() {
+  // 자동 저장 제거(사용자 지시) - 예전엔 입력할 때마다 500ms 뒤에 조용히 자동 저장(scheduleAutosave)
+  // 됐지만, 이제는 저장 버튼(또는 Ctrl+S)을 직접 눌러야만 저장된다. 대신 수정만 되고 아직 저장 안
+  // 된 상태를 상태줄에 분명히 보여준다(markDirty) - 저장을 깜빡하고 탭을 닫으려 하면 beforeunload가
+  // 여전히 dirty 플래그로 경고해준다.
+  function markDirty() {
     dirty = true;
-    setSaveState("저장 중...");
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(doSave, 500);
+    setSaveState("저장 안 됨(수정됨) - Ctrl+S로 저장");
   }
 
   applyRenderMode();
@@ -346,7 +354,7 @@ function dfsBuildEditorPageHtml(node, opts = {}) {
     }
   };
   copyAllBtn.onclick = function() { dfCopyText(ta.value, function() { copyAllBtn.classList.add("copied"); var old = copyAllBtn.textContent; copyAllBtn.textContent = "OK"; setTimeout(function() { copyAllBtn.classList.remove("copied"); copyAllBtn.textContent = old; }, 900); }); };
-  saveBtn.onclick = function() { clearTimeout(saveTimer); doSave(); };
+  saveBtn.onclick = function() { doSave(); };
 
   // 다운로드: 이 에디터 탭은 opener(원래 페이지)가 닫혀도 계속 동작해야 하므로, 로컬 헬퍼
   // (localserver.ahk) 감지도 opener를 거치지 않고 이 탭에서 직접 127.0.0.1을 두드려서 확인한다.
@@ -409,13 +417,13 @@ function dfsBuildEditorPageHtml(node, opts = {}) {
     dfCopyText(code.textContent, function() { btn.classList.add("copied"); var old = btn.textContent; btn.textContent = "OK"; setTimeout(function() { btn.classList.remove("copied"); btn.textContent = old; }, 900); });
   });
 
-  ta.addEventListener("input", function() { renderContent(); scheduleAutosave(); });
+  ta.addEventListener("input", function() { renderContent(); markDirty(); });
   ta.addEventListener("click", updateStatus);
   ta.addEventListener("keyup", updateStatus);
   ta.addEventListener("keydown", function(e) {
     if ((e.ctrlKey || e.metaKey) && ["b", "i", "k", "s"].indexOf(e.key.toLowerCase()) !== -1) {
       var k = e.key.toLowerCase();
-      if (k === "s") { e.preventDefault(); clearTimeout(saveTimer); doSave(); return; }
+      if (k === "s") { e.preventDefault(); doSave(); return; }
       e.preventDefault();
       if (k === "k") {
         var a = ta.selectionStart, b = ta.selectionEnd, sel = ta.value.slice(a, b);
@@ -432,7 +440,7 @@ function dfsBuildEditorPageHtml(node, opts = {}) {
       } else {
         dfToggleEmphasis(ta, k === "b" ? 2 : 1);
       }
-      renderContent(); scheduleAutosave(); return;
+      renderContent(); markDirty(); return;
     }
     if (e.key === "Tab") { e.preventDefault(); ta.setRangeText("  ", ta.selectionStart, ta.selectionEnd, "end"); }
   });

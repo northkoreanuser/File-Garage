@@ -72,7 +72,9 @@
 
   .titlebar {
     flex: 0 0 32px;
-    background: #F3F3F3;
+    background: rgba(243,243,243,.82);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
     border-bottom: 1px solid #E1E1E1;
     display: flex;
     align-items: center;
@@ -93,7 +95,9 @@
     align-items: center;
     gap: 4px;
     padding: 0 8px;
-    background: #FAFAFA;
+    background: rgba(250,250,250,.82);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
     border-bottom: 1px solid #E1E1E1;
   }
   .tool-btn {
@@ -133,7 +137,9 @@
 
   .nav-pane {
     width: 220px; flex: 0 0 220px;
-    background: #F3F3F3;
+    background: rgba(243,243,243,.82);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
     border-right: 1px solid #E1E1E1;
     overflow-y: auto;
     overflow-x: auto;
@@ -202,7 +208,9 @@
     position: fixed; left: 0; right: 0; bottom: 0; height: 40px;
     display: flex; align-items: center; justify-content: flex-start; gap: 4px;
     padding-left: 0;
-    background: #1F1F1F;
+    background: rgba(31,31,31,.72);
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
     border-top: 1px solid rgba(255,255,255,.08);
     z-index: 10;
   }
@@ -247,7 +255,9 @@
 
   .start-menu {
     position: fixed; left: 0; bottom: 40px; width: 280px;
-    background: #F3F3F3;
+    background: rgba(243,243,243,.82);
+    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(24px);
     border: 1px solid #E1E1E1; border-radius: 0;
     box-shadow: 0 8px 24px rgba(0,0,0,.25);
     padding: 14px; display: none; z-index: 2010;
@@ -283,7 +293,9 @@
   .start-app-chevron { color: #999; font-size: 10px; }
   .start-submenu {
     position: fixed; min-width: 190px; max-width: 260px;
-    background: #F3F3F3;
+    background: rgba(243,243,243,.85);
+    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(24px);
     border: 1px solid #E1E1E1; border-radius: 0;
     box-shadow: 0 8px 24px rgba(0,0,0,.25);
     padding: 6px; z-index: 2015; display: none;
@@ -299,7 +311,9 @@
   .settings-panel {
     width: 380px; max-width: calc(100vw - 32px);
     max-height: calc(100vh - 48px);
-    background: #FAFAFA;
+    background: rgba(250,250,250,.85);
+    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(24px);
     border: 1px solid #E1E1E1; border-radius: 3px;
     box-shadow: 0 8px 24px rgba(0,0,0,.25);
     overflow: hidden;
@@ -335,7 +349,9 @@
   }
   .confirm-panel {
     width: 340px; max-width: calc(100vw - 32px);
-    background: #FAFAFA;
+    background: rgba(250,250,250,.85);
+    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(24px);
     border: 1px solid #E1E1E1; border-radius: 3px;
     box-shadow: 0 8px 24px rgba(0,0,0,.25);
     padding: 18px; display: flex; flex-direction: column; gap: 12px;
@@ -348,12 +364,13 @@
   .confirm-input:focus { border-color: #0078D4; }
   .confirm-buttons { display: flex; justify-content: flex-end; gap: 8px; }
   .confirm-buttons .settings-button, .confirm-buttons .settings-button-neutral { align-self: auto; }
-  body.no-aero .confirm-panel { background: #FAFAFA; }
 
   /* ---------- 우클릭 커스텀 메뉴 ---------- */
   .ctx-menu {
     position: fixed; min-width: 170px;
-    background: #FAFAFA;
+    background: rgba(250,250,250,.9);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
     border: 1px solid #E1E1E1; border-radius: 2px;
     box-shadow: 0 8px 24px rgba(0,0,0,.25);
     padding: 4px; z-index: 2030;
@@ -361,13 +378,20 @@
   .ctx-item { padding: 7px 10px; font-size: 12.5px; color: #202020; border-radius: 2px; cursor: pointer; }
   .ctx-item:hover { background: #E5E5E5; }
 
-  /* ---------- "에어로" 토글 옵션 - Win10에는 애초에 블러/유리가 없으므로 항상 불투명한 플랫
-     색이다(값이 default 테마처럼 바뀌지 않는다). 선택자만 default와 동일하게 유지한다. ---------- */
-  body.no-aero .taskbar { background: #1F1F1F; }
-  body.no-aero .start-menu { background: #F3F3F3; }
-  body.no-aero .start-submenu { background: #F3F3F3; }
-  body.no-aero .settings-panel { background: #FAFAFA; }
-  body.no-aero .ctx-menu { background: #FAFAFA; }
+  /* ---------- "에어로" 토글 옵션 ----------
+     버그 리포트: Win10도 (98/2000/XP를 뺀) "에어로가 될 만한 스킨"에 포함되는데 블러/유리 효과
+     자체가 아예 없었다(사용자 지시로 수정) - 실제 Win10의 Fluent "Acrylic" 느낌(시작 메뉴/우클릭
+     메뉴/작업표시줄/설정 창에 옅은 블러)을 넣었다. 이 옵션을 끄면(설정 - 에어로 사용 해제) 완전히
+     불투명한 플랫 색으로 되돌아간다(블러 없음). */
+  body.no-aero .taskbar { background: #1F1F1F; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  body.no-aero .start-menu { background: #F3F3F3; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  body.no-aero .start-submenu { background: #F3F3F3; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  body.no-aero .settings-panel { background: #FAFAFA; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  body.no-aero .confirm-panel { background: #FAFAFA; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  body.no-aero .ctx-menu { background: #FAFAFA; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  body.no-aero .titlebar { background: #F3F3F3; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  body.no-aero .toolbar { background: #FAFAFA; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  body.no-aero .nav-pane { background: #F3F3F3; -webkit-backdrop-filter: none; backdrop-filter: none; }
 
   /* ---------- 토스트(알림) ---------- */
   .toast {
@@ -415,7 +439,7 @@
   /* 바탕화면 드래그 다중 선택(러버밴드) 박스 - 플랫 옅은 파랑 배경 + 솔리드 액센트 테두리, 글로우 없음 */
   .df-select-box {
     position: fixed; border: 1px solid #0078D4; background: rgba(0,120,212,.15);
-    pointer-events: none; z-index: 3;
+    pointer-events: none; z-index: 1;
   }
 
   @media (max-width: 720px) {
@@ -431,3 +455,12 @@
     }
     .nav-pane.open { transform: translateX(0); }
   }
+
+  /* ============ 가짜 마우스(커스텀 커서) 예외 규칙 (요청 11) ============
+     body에 걸어둔 커스텀 SVG 화살표 커서(가짜 마우스)는 "진짜 웹페이지 티가 안 나게" 페이지
+     전체 기본값으로 깔아두는 용도였는데, 정작 실제로 클릭 가능한 링크/버튼류에서도 그대로
+     상속되어 버려서 사용자가 "이게 눌리는 건지" 구분할 수 없었다. 아래 요소들만 브라우저
+     네이티브 커서로 되돌린다 - 시계(.clock)는 의도적으로 예외 없이 가짜 커서를 그대로 쓴다. */
+  .df-icon { cursor: default; }
+  .start-btn, .taskbar-app, .battery, .weather { cursor: default; }
+  .tray-icon { cursor: pointer; }

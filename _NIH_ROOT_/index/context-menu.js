@@ -29,7 +29,14 @@ function buildFileMenuItems(it) {
     // 바탕화면(가상 파일시스템) 안의 폴더는 실제 저장소 폴더와 달리 쓰기가 가능하므로, 진짜
     // 탐색기와 하나로 통합된 지금은 여기서도 새 폴더/이름변경/삭제 등 CRUD 메뉴를 그대로 제공한다.
     if (isDesktopPath(it.path)) return dfsDesktopFolderMenuItems(it);
-    return [];
+    // 실제 저장소 폴더는 읽기 전용이지만(CRUD 메뉴 없음), 파일처럼 다운로드/저장소에서 보기는
+    // 할 수 있어야 한다(사용자 지시 - "폴더 우클릭 메뉴 다운로드, 저장소에서 보기"). "저장소에서
+    // 보기"는 GitHub의 tree 주소(.../tree/브랜치/경로)로 열리므로, 더블클릭 없이도 우클릭
+    // 메뉴만으로 그 폴더 안으로 들어갈 수 있도록 "열기"도 맨 앞에 넣는다(사용자 지시 - "이런
+    // 주소도 가능하다, 그러므로 열기 메뉴가 필요하다").
+    const items = [{ label: "열기", action: () => navigate(it.path) }, { label: "다운로드", action: () => downloadFolderRecursive(it) }];
+    if (settings.githubLinksEnabled) items.push({ label: "저장소에서 보기", action: () => openFolderInRepo(it) });
+    return items;
   }
   if (it.dfsNode) return dfsDesktopFileMenuItems(it);
   const items = [];
@@ -58,6 +65,11 @@ function dfsDesktopFolderMenuItems(it) {
   const refresh = () => dfsBroadcastChange();
   return [
     { label: "열기", action: () => navigate(it.path) },
+    { label: "다운로드", action: async () => {
+      const folderId = await dfsDesktopResolveFolderId(it);
+      const node = folderId != null ? await dfsDb.nodes.get(folderId) : null;
+      if (node) await dfsDownloadFolderRecursive(node);
+    } },
     { label: "이름 변경", action: async () => {
       const folderId = await dfsDesktopResolveFolderId(it);
       const node = folderId != null ? await dfsDb.nodes.get(folderId) : null;

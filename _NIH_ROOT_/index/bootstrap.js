@@ -38,7 +38,9 @@ async function main() {
     // 같은 방식 - buildTreeDom 참고), 부팅 시점에 한 번 미리 읽어 dirCache를 채워둔다.
     if (dfsDb) await loadDir([DESKTOP_TREE_NAME]).catch(() => {});
 
-    els.navPane.classList.add("open");
+    // 트리 칸(navPane) 기본 열림(사용자 지시 - "탐색기 열면 기본으로 트리 칸 열려있게" / "# 뒤에
+    // 기록해둔다, 없으면 온이 디폴트") - 해시에 명시적으로 |nav=0이 있을 때만 닫힌 채로 시작한다.
+    if (hashToNavOpen(location.hash)) els.navPane.classList.add("open");
   }
   // shouldStartOpen이 false면 #win은 HTML 기본값(class="window closed")대로 닫힌 채 시작한다 -
   // 진짜 리포 pages.json도 이 시점엔 아예 안 읽는다(창을 열 때 taskbarApp.onclick이 navigate([])로
@@ -61,7 +63,9 @@ async function main() {
         els.taskbarApp.classList.add("active");
         persistWindowOpen(true);
       }
-      if (!isNavPaneOpen()) els.navPane.classList.add("open");
+      // 해시에 적힌 트리 열림/닫힘 상태를 그대로 따른다(없으면 열림이 디폴트).
+      if (hashToNavOpen(location.hash)) { if (!isNavPaneOpen()) els.navPane.classList.add("open"); }
+      else { if (isNavPaneOpen()) els.navPane.classList.remove("open"); }
     }
     const p = hashToPath(location.hash) || [];
     if (p.join("/") !== currentPath.join("/")) {
@@ -77,6 +81,12 @@ async function main() {
     if (!cfg) return;
     renderAppList(cfg.start, els.startApps);
     renderTrayIcons(cfg.tray);
+    // 폴더/확장자별 커스텀 아이콘 + 저장소 루트/휴지통 아이콘 반영. 이미 그려진 트리/바탕화면/
+    // 내용창이 있으면(부팅 시점 타이밍에 따라) 새 아이콘 설정으로 다시 그린다.
+    applyCustomIconConfig(cfg.icons);
+    renderNavPane();
+    if (els.win && !els.win.classList.contains("closed")) renderContentPane();
+    if (dfsDb) dfsRenderDesktop();
   });
 
   if (shouldStartOpen) {

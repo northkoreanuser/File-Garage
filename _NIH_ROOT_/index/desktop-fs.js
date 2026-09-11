@@ -13,6 +13,12 @@
 ================================================================================= */
 
 const DFS_DESKTOP_ROOT = "desktop";
+// 휴지통(완전한 기능 - 사용자 지시): 바탕화면 항목을 "삭제"하면 진짜로 지우지 않고 parentId를
+// 이 특수 값으로 바꿔서 옮겨둔다(원래 있던 위치는 originalParentId에 기억) - 그래서 복원할 수
+// 있고, 이동/붙여넣기 덮어쓰기 확인(dfsMove/dfsCopyInto)에서 지워지는 것도 여기로 가므로 덮어써서
+// 자료가 통째로 사라지는 문제(버그 리포트 #2)도 같이 완화된다. "휴지통 비우기"를 실행할 때만
+// dfsDeleteDeep으로 영구 삭제한다.
+const DFS_RECYCLEBIN_ROOT = "recyclebin";
 let dfsDb = null;
 
 function dfsInitDb() {
@@ -102,8 +108,11 @@ async function dfsChildren(parentId) {
 }
 async function dfsNextIconPos(parentId) {
   // 이미 있는 아이콘 개수를 보고 격자 형태로 다음 좌표를 대충 잡아준다(겹쳐서 쌓이는 것 방지).
+  // 바탕화면 최상위(DFS_DESKTOP_ROOT)는 저장소 루트/휴지통 특수 아이콘 2개가 항상 맨 앞(격자 0,1번
+  // 자리)에 고정으로 그려지므로(dfsRenderDesktop 참고), 실제 사용자 아이콘은 그만큼 밀어서 배치한다.
   const siblings = await dfsDb.nodes.where("parentId").equals(parentId).toArray();
-  const col = siblings.length % 6, row = Math.floor(siblings.length / 6);
+  const idx = siblings.length + (parentId === DFS_DESKTOP_ROOT ? 2 : 0);
+  const col = idx % 6, row = Math.floor(idx / 6);
   return { x: 24 + col * 96, y: 24 + row * 100 };
 }
 async function dfsCreateFolder(parentId) {
@@ -196,6 +205,16 @@ async function dfsCopyInto(node, parentId, desiredName) {
     // 번호를 붙이는 대신 덮어쓸지 물어본다(버그 리포트: 확인창 없이 그냥 처리되던 문제).
     const conflict = await dfsFindNameConflict(parentId, node.name, null);
     if (conflict) {
+      if (node.type === "folder" && conflict.type === "folder") {
+        // 버그 리포트: "새 폴더 (2)를 새 폴더에 넣을때 새 폴더 (2)를 덮을지에 대해서는 묻고
+        // 하위의 하위의 하위 파일 검증은 안해서 이전 자료가 덮어져 소실됨" - 폴더끼리 이름이
+        // 겹치면 기존 폴더를 통째로 지우고 교체하는 대신, 안의 내용을 이름별로 재귀적으로
+        // 맞춰보며 병합한다(실제로 파일이 겹치는 지점에서만 개별적으로 덮어쓸지 물어본다).
+        const ok = await showConfirmDialog(`이 위치에 이미 "${node.name}" 폴더가 있습니다. 안의 내용을 병합할까요?\n(겹치는 파일만 개별적으로 덮어쓸지 물어봅니다)`);
+        if (!ok) return null;
+        await dfsMergeFolderInto(node, conflict.id, "copy");
+        return dfsDb.nodes.get(conflict.id); // 복사는 원본이 그대로 남으므로, 병합된 기존 폴더를 결과로 돌려준다
+      }
       const ok = await showConfirmDialog(`이 위치에 이미 "${node.name}" 항목이 있습니다. 덮어쓸까요?`);
       if (!ok) return null;
       await dfsDelete(conflict);
@@ -236,10 +255,113 @@ async function dfsDeleteDeep(id) {
   for (const kid of kids) await dfsDeleteDeep(kid.id);
   await dfsDb.nodes.delete(id);
 }
+// "삭제"는 이제 영구 삭제가 아니라 휴지통으로 옮기는 것이다(완전한 휴지통 기능 - 사용자 지시).
+// 폴더는 그 안의 내용을 통째로 데리고 이동한다(하위 항목들의 parentId는 그대로라서 구조가 유지됨).
 async function dfsDelete(node) {
-  if (node.type === "folder") await dfsDeleteDeep(node.id);
-  else await dfsDb.nodes.delete(node.id);
+  await dfsDb.nodes.update(node.id, {
+    originalParentId: node.parentId,
+    deletedAt: Date.now(),
+    parentId: DFS_RECYCLEBIN_ROOT
+  });
   await dfsCloseWindowsShowing(node.id);
+}
+// 휴지통 비우기/영구 삭제 전용 - 진짜로 다시는 되돌릴 수 없게 지운다.
+async function dfsPermanentlyDelete(node) {
+  await dfsDeleteDeep(node.id);
+}
+async function dfsRecycleBinItems() {
+  if (!dfsDb) return [];
+  const items = await dfsDb.nodes.where("parentId").equals(DFS_RECYCLEBIN_ROOT).toArray();
+  items.sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+  return items;
+}
+// 휴지통에서 원래 있던 자리로 되돌린다. 그 사이 원래 부모 폴더 자체가 사라졌으면(그 폴더도 같이
+// 삭제됐거나 등) 바탕화면 최상위로 대신 복원한다. 이름이 그 사이 다시 쓰였으면 번호를 붙인다.
+async function dfsRestoreFromRecycleBin(node) {
+  let targetParent = node.originalParentId != null ? node.originalParentId : DFS_DESKTOP_ROOT;
+  if (targetParent !== DFS_DESKTOP_ROOT) {
+    const p = await dfsDb.nodes.get(targetParent);
+    if (!p) targetParent = DFS_DESKTOP_ROOT;
+  }
+  const uniqueName = await dfsUniqueName(targetParent, node.name);
+  const pos = await dfsNextIconPos(targetParent);
+  await dfsDb.nodes.update(node.id, {
+    parentId: targetParent,
+    name: uniqueName,
+    x: pos.x, y: pos.y,
+    updatedAt: Date.now()
+  });
+  showToast(`"${uniqueName}"을(를) 복원했습니다.`);
+}
+async function dfsEmptyRecycleBin() {
+  const items = await dfsRecycleBinItems();
+  if (!items.length) { showToast("휴지통이 비어 있습니다."); return; }
+  const ok = await showConfirmDialog(`휴지통에 있는 ${items.length}개 항목을 완전히 삭제할까요? (되돌릴 수 없습니다)`);
+  if (!ok) return;
+  for (const it of items) await dfsPermanentlyDelete(it);
+  showToast("휴지통을 비웠습니다.");
+}
+/* ---------------- 휴지통 패널(설정 창과 같은 오버레이 스타일 재사용) ---------------- */
+function dfsCloseRecycleBinPanel() {
+  const overlay = document.getElementById("recycleBinOverlay");
+  if (overlay) overlay.remove();
+}
+async function dfsOpenRecycleBinPanel() {
+  dfsCloseRecycleBinPanel();
+  if (!dfsDb) return;
+  const items = await dfsRecycleBinItems();
+  const overlay = document.createElement("div");
+  overlay.id = "recycleBinOverlay";
+  overlay.className = "settings-overlay open";
+  overlay.innerHTML = `
+    <div class="settings-panel">
+      <div class="settings-titlebar">
+        <span>휴지통${items.length ? ` (${items.length}개)` : ""}</span>
+        <button class="settings-close" id="recycleBinCloseBtn" title="닫기">&#x2715;</button>
+      </div>
+      <div class="settings-body" id="recycleBinBody"></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById("recycleBinCloseBtn").onclick = dfsCloseRecycleBinPanel;
+  overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) dfsCloseRecycleBinPanel(); });
+  const body = document.getElementById("recycleBinBody");
+  if (!items.length) {
+    body.innerHTML = `<div class="settings-hint">휴지통이 비어 있습니다.</div>`;
+    return;
+  }
+  items.forEach(node => {
+    const row = document.createElement("div");
+    row.className = "settings-row";
+    row.innerHTML = `<span style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">${dfsIconGlyphFor(node, 20)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(node.name)}</span></span>`;
+    const restoreBtn = document.createElement("button");
+    restoreBtn.className = "settings-button settings-button-neutral";
+    restoreBtn.textContent = "복원";
+    restoreBtn.onclick = async () => {
+      await dfsRestoreFromRecycleBin(node);
+      await dfsBroadcastChange();
+      dfsOpenRecycleBinPanel();
+    };
+    const delBtn = document.createElement("button");
+    delBtn.className = "settings-button";
+    delBtn.textContent = "영구 삭제";
+    delBtn.onclick = async () => {
+      const ok = await showConfirmDialog(`"${node.name}"을(를) 완전히 삭제할까요? (되돌릴 수 없습니다)`);
+      if (!ok) return;
+      await dfsPermanentlyDelete(node);
+      dfsOpenRecycleBinPanel();
+    };
+    row.appendChild(restoreBtn);
+    row.appendChild(delBtn);
+    body.appendChild(row);
+  });
+  const divider = document.createElement("div");
+  divider.className = "settings-divider";
+  body.appendChild(divider);
+  const emptyBtn = document.createElement("button");
+  emptyBtn.className = "settings-button";
+  emptyBtn.textContent = "휴지통 비우기";
+  emptyBtn.onclick = async () => { await dfsEmptyRecycleBin(); dfsOpenRecycleBinPanel(); };
+  body.appendChild(emptyBtn);
 }
 async function dfsIsDescendant(maybeAncestorId, folderId) {
   let p = folderId;
@@ -263,12 +385,53 @@ async function dfsMove(node, newParentId) {
   // 확인창 없이 그냥 처리되던 문제 - 드래그로 옮기기/잘라내기 붙여넣기 둘 다 여기를 지난다).
   const conflict = await dfsFindNameConflict(newParentId, node.name, node.id);
   if (conflict) {
+    if (node.type === "folder" && conflict.type === "folder") {
+      // 버그 리포트(덮어쓰기로 인한 자료 소실): "바탕화면\새 폴더\새 폴더 (2)\새 텍스트 문서.txt"가
+      // 있는 채로 "새 폴더 (2)"를 이미 "새 폴더 (2)"가 있는 위치로 옮기면, 예전엔 최상위 이름
+      // 충돌 한 번만 확인하고 확인을 누르면 기존 "새 폴더 (2)"를 통째로 dfsDelete로 지워버려서
+      // 그 안에 있던(지금 옮기는 폴더에는 없는) 다른 파일들이 검증 없이 그대로 사라졌다. 이제는
+      // 폴더끼리 겹칠 때 통째로 지우고 교체하지 않고, 안의 내용을 이름별로 재귀적으로 맞춰보며
+      // 병합한다 - 실제로 파일이 겹치는 지점(하위의 하위여도)에서만 개별적으로 덮어쓸지 물어본다.
+      const ok = await showConfirmDialog(`이 위치에 이미 "${node.name}" 폴더가 있습니다. 안의 내용을 병합할까요?\n(겹치는 파일만 개별적으로 덮어쓸지 물어봅니다)`);
+      if (!ok) return false;
+      await dfsMergeFolderInto(node, conflict.id, "move");
+      await dfsDelete(node); // 안의 내용을 모두 병합했으니, 이제 비어있는 원본 폴더 자체를 지운다
+      return true;
+    }
     const ok = await showConfirmDialog(`이 위치에 이미 "${node.name}" 항목이 있습니다. 덮어쓸까요?`);
     if (!ok) return false;
     await dfsDelete(conflict);
   }
   await dfsDb.nodes.update(node.id, { parentId: newParentId, name: node.name, updatedAt: Date.now() });
   return true;
+}
+// ---------------- 폴더끼리 이름이 겹칠 때의 재귀 병합(위 dfsMove/dfsCopyInto가 공용으로 씀) ----------------
+// srcFolderNode 밑의 자식들을 이름 기준으로 destFolderId(이미 존재하는 같은 이름의 폴더) 안으로 하나씩
+// 맞춰 넣는다 - 이름이 안 겹치면 그대로 옮기거나 복사하고, 폴더끼리 또 겹치면 한 단계 더 재귀적으로
+// 내려가 병합하며(여기가 핵심 - "하위의 하위의 하위"까지 전부 이렇게 내려간다), 파일이 실제로
+// 겹칠 때만(더 내려갈 데가 없는 진짜 충돌 지점) 개별적으로 덮어쓸지 물어본다.
+async function dfsMergeFolderInto(srcFolderNode, destFolderId, mode) {
+  const kids = await dfsDb.nodes.where("parentId").equals(srcFolderNode.id).toArray();
+  for (const kid of kids) {
+    const conflict = await dfsFindNameConflict(destFolderId, kid.name, mode === "move" ? kid.id : null);
+    if (!conflict) {
+      if (mode === "move") await dfsDb.nodes.update(kid.id, { parentId: destFolderId, updatedAt: Date.now() });
+      else await dfsCopyInto(kid, destFolderId, kid.name);
+      continue;
+    }
+    if (kid.type === "folder" && conflict.type === "folder") {
+      await dfsMergeFolderInto(kid, conflict.id, mode);
+      if (mode === "move") await dfsDeleteDeep(kid.id); // 다 옮겼으니 이제 비어있는 이 하위 폴더는 지운다
+      continue;
+    }
+    // 더 내려갈 데가 없는 진짜 충돌(파일<->파일, 또는 파일<->폴더처럼 타입이 다른 경우) - 여기서만
+    // 개별적으로 물어본다. 취소하면 이 항목만 건너뛰고 나머지 형제들은 계속 처리한다.
+    const ok = await showConfirmDialog(`이 위치에 이미 "${kid.name}" 항목이 있습니다. 덮어쓸까요?`);
+    if (!ok) continue;
+    await dfsDelete(conflict);
+    if (mode === "move") await dfsDb.nodes.update(kid.id, { parentId: destFolderId, updatedAt: Date.now() });
+    else await dfsCopyInto(kid, destFolderId, kid.name);
+  }
 }
 
 /* ---------------- 클립보드(복사/잘라내기/붙여넣기) - 앱 전체에서 하나만 공유 ---------------- */
@@ -338,10 +501,61 @@ async function dfsSelectAllIcons() {
   dfsMultiSelected = new Set(items.map(n => n.id));
   dfsRenderDesktop();
 }
+// 바탕화면의 두 특수 아이콘(저장소 루트 / 휴지통) - dexie에 저장된 진짜 노드가 아니라 매번 고정
+// 위치(dfsNextIconPos의 2칸 예약과 짝을 맞춤)에 그려지는 가짜 아이콘이다. 문자열 id를 붙여서
+// 선택 표시(dfsSelectedIconId)는 재사용하되, F2/Delete/드래그 등 dexie CRUD 경로는 타지 않는다
+// (dfsDb.nodes.get(id)가 문자열 id에 대해 undefined를 돌려주므로 자연히 무시됨).
+const DFS_REPOROOT_ICON_ID = "repo-root";
+const DFS_RECYCLEBIN_ICON_ID = "recycle-bin";
+function dfsRenderSpecialIcon(id, x, y, iconHtml, label, onDblClick, buildMenu) {
+  const icon = document.createElement("div");
+  const isSelected = dfsSelectedIconId === id || dfsMultiSelected.has(id);
+  icon.className = "df-icon" + (isSelected ? " selected" : "");
+  icon.style.left = x + "px";
+  icon.style.top = y + "px";
+  icon.dataset.specialId = id;
+  icon.innerHTML = `<div class="df-icon-glyph">${iconHtml}</div><div class="df-icon-label">${escapeHtml(label)}</div>`;
+  icon.addEventListener("click", (e) => {
+    e.stopPropagation();
+    els.dfIconLayer.focus();
+    dfsMultiSelected.clear();
+    dfsSelectedIconId = id;
+    dfsRenderDesktop();
+  });
+  icon.addEventListener("dblclick", () => onDblClick());
+  icon.addEventListener("contextmenu", (e) => {
+    e.preventDefault(); e.stopPropagation();
+    els.dfIconLayer.focus();
+    dfsMultiSelected.clear();
+    dfsSelectedIconId = id;
+    dfsRenderDesktop();
+    showContextMenu(e.clientX, e.clientY, buildMenu());
+  });
+  els.dfIconLayer.appendChild(icon);
+}
 async function dfsRenderDesktop() {
   if (!dfsDb) return;
   const items = await dfsChildren(DFS_DESKTOP_ROOT);
   els.dfIconLayer.innerHTML = "";
+  // 저장소 루트 아이콘 - 트리의 루트 행과 똑같은 아이콘을 쓴다(사용자 지시).
+  dfsRenderSpecialIcon(
+    DFS_REPOROOT_ICON_ID, 24, 24, resolveRepoRootIcon(40), repoName || "루트",
+    () => openRealExplorerAt([]),
+    () => {
+      const menu = [{ label: "열기", action: () => openRealExplorerAt([]) }];
+      if (settings.githubLinksEnabled) menu.push({ label: "저장소에서 보기", action: () => openFolderInRepo({ path: [] }) });
+      return menu;
+    }
+  );
+  // 휴지통 아이콘 - 바탕화면과 트리 양쪽에 같은 아이콘을 쓴다(사용자 지시).
+  dfsRenderSpecialIcon(
+    DFS_RECYCLEBIN_ICON_ID, 120, 24, resolveRecycleBinIcon(40), "휴지통",
+    () => dfsOpenRecycleBinPanel(),
+    () => [
+      { label: "열기", action: () => dfsOpenRecycleBinPanel() },
+      { label: "휴지통 비우기", action: async () => { await dfsEmptyRecycleBin(); await dfsRenderDesktop(); } }
+    ]
+  );
   items.forEach(node => {
     const icon = document.createElement("div");
     const isSelected = dfsSelectedIconId === node.id || dfsMultiSelected.has(node.id);
@@ -492,7 +706,10 @@ window.addEventListener("mouseup", () => {
   if (!box) return; // 문턱값을 못 넘겼으면 = 그냥 빈 곳 클릭, 뒤이은 click 리스너에 맡긴다
   box.remove();
   const ids = [];
-  els.dfIconLayer.querySelectorAll(".df-icon.selected").forEach(el => ids.push(Number(el.dataset.id)));
+  els.dfIconLayer.querySelectorAll(".df-icon.selected").forEach(el => {
+    if (el.dataset.specialId) ids.push(el.dataset.specialId);
+    else ids.push(Number(el.dataset.id));
+  });
   dfsSelectedIconId = null;
   dfsMultiSelected = new Set(ids);
   dfsSuppressNextDesktopClick = true;
@@ -602,6 +819,7 @@ function dfsBuildIconMenuItems(node, opts = {}) {
   const items = [];
   if (node.type === "folder") {
     items.push({ label: "열기", action: () => dfsActivate(node) });
+    items.push({ label: "다운로드", action: () => dfsDownloadFolderRecursive(node) });
   } else if (node.type === "shortcut") {
     items.push({ label: "열기", action: () => dfsActivate(node) });
   } else {
@@ -641,6 +859,50 @@ async function dfsPromptRename(node, refresh) {
   if (next == null) return;
   const ok = await dfsRename(node, next);
   if (ok) refresh();
+}
+/* ---------------- 폴더 통째로 다운로드(바탕화면 가상 폴더) ----------------
+   실제 저장소 폴더와 달리 서버에 URL이 없는 순수 텍스트 파일들이므로(dexie 안 content), 웹훅을
+   거칠 필요 없이 그냥 zip으로 묶어 blob 다운로드한다(사용자 지시: "바탕 화면 폴더도 blob로 주면 됨"). */
+async function dfsCollectFolderFiles(node, prefix, out) {
+  const kids = await dfsChildren(node.id);
+  for (const kid of kids) {
+    if (kid.type === "folder") {
+      await dfsCollectFolderFiles(kid, prefix + kid.name + "/", out);
+    } else if (kid.type === "file") {
+      out.push({ path: prefix + kid.name, content: kid.content || "" });
+    }
+    // 바로가기(shortcut)는 가리키는 대상이 폴더 안/밖 어디에도 있을 수 있어 애매하므로 제외한다.
+  }
+}
+async function dfsDownloadFolderRecursive(node) {
+  showToast(`"${node.name}" 폴더 압축 준비 중...`);
+  let JSZip;
+  try {
+    JSZip = await ensureJSZip();
+  } catch (e) {
+    showToast(`압축 기능을 불러오지 못했습니다: ${e.message}`, { kind: "warn" });
+    return;
+  }
+  const files = [];
+  await dfsCollectFolderFiles(node, "", files);
+  const zip = new JSZip();
+  const root = zip.folder(node.name);
+  files.forEach(f => root.file(f.path, f.content));
+  let blob;
+  try {
+    blob = await zip.generateAsync({ type: "blob" });
+  } catch (e) {
+    showToast(`압축 중 오류: ${e.message}`, { kind: "warn" });
+    return;
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = node.name + ".zip";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  showToast(`"${node.name}" 폴더를 zip으로 다운로드했습니다.`);
 }
 async function dfsDownloadVirtualFile(node) {
   const blob = new Blob([node.content || ""], { type: "text/plain;charset=utf-8" });
@@ -698,14 +960,17 @@ async function dfsBuildPath(folderId) {
 async function dfsRenameSelectedIcon() {
   // F2는 실제 탐색기와 마찬가지로 정확히 하나가 선택돼 있을 때만 동작한다.
   const id = dfsSelectedIconId !== null ? dfsSelectedIconId : (dfsMultiSelected.size === 1 ? [...dfsMultiSelected][0] : null);
-  if (id == null) return;
+  // 저장소 루트/휴지통 특수 아이콘(문자열 id - dfsRenderSpecialIcon 참고)은 이름을 바꿀 수 없다 -
+  // dexie 기본 키가 숫자라서 문자열 id로 get()을 부르면 안 되므로 여기서 먼저 걸러낸다.
+  if (typeof id !== "number") return;
   const node = await dfsDb.nodes.get(id);
   if (node) await dfsPromptRename(node, () => dfsBroadcastChange());
 }
 async function dfsDeleteSelectedIcons() {
   // Delete는 여러 개 선택돼 있어도 확인 대화상자 하나로 한꺼번에 지운다(다중 선택된 상태에서
-  // 하나씩 확인창이 겹쳐 뜨는 걸 피하기 위함).
-  const ids = dfsMultiSelected.size ? [...dfsMultiSelected] : (dfsSelectedIconId !== null ? [dfsSelectedIconId] : []);
+  // 하나씩 확인창이 겹쳐 뜨는 걸 피하기 위함). 특수 아이콘(문자열 id)은 지울 수 없으므로 제외한다.
+  const ids = (dfsMultiSelected.size ? [...dfsMultiSelected] : (dfsSelectedIconId !== null ? [dfsSelectedIconId] : []))
+    .filter(id => typeof id === "number");
   if (!ids.length) return;
   const nodes = (await Promise.all(ids.map(id => dfsDb.nodes.get(id)))).filter(Boolean);
   if (!nodes.length) return;
