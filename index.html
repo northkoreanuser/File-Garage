@@ -454,7 +454,7 @@
 
 <div class="desktop">
   <div class="df-icon-layer" id="dfIconLayer"></div>
-  <div class="window" id="win">
+  <div class="window closed" id="win">
     <div class="rz rz-n"></div><div class="rz rz-s"></div><div class="rz rz-e"></div><div class="rz rz-w"></div>
     <div class="rz rz-ne"></div><div class="rz rz-nw"></div><div class="rz rz-se"></div><div class="rz rz-sw"></div>
     <div class="titlebar" id="titlebar">
@@ -568,7 +568,7 @@
 
 <div class="taskbar">
   <div class="start-btn" id="startBtn" title="시작">&#8862;</div>
-  <div class="taskbar-app active" id="taskbarApp">📁 탐색기</div>
+  <div class="taskbar-app" id="taskbarApp">📁 탐색기</div>
   <div class="tray-icons" id="trayIcons"></div>
   <div class="tray-right">
     <div class="battery" id="batteryWidget" title="배터리" style="display:none;"></div>
@@ -883,15 +883,20 @@ els.btnClose.onclick = () => {
   els.taskbarApp.classList.remove("active");
   // 실제 윈도우 탐색기처럼, 창을 닫으면 주소창 플래그먼트와 "마지막 위치 기억"이 함께 사라져야
   // 다음에 다시 열었을 때(또는 GitHub Pages 링크로 새로 들어왔을 때) 완전히 처음 상태(탐색창 닫힘 +
-  // 루트 경로)로 돌아간다. 새로고침 시의 복원 기능(탭을 유지한 채 F5)과는 다른 동작이다.
+  // 루트 경로)로 돌아간다. 새로고침 시의 복원 기능(탭을 유지한 채 F5)과는 다른 동작이다. "창을
+  // 닫아뒀었다"는 사실 자체도 기억해서(persistWindowOpen(false)), 다음 로드 때 아예 창을
+  // 띄우지 않는다(사용자 지시 - "진짜 윈도우 바이브").
   closeNavPane();
+  clearHashFragment();
   try { localStorage.removeItem(lastPathKey()); } catch (e) {}
   try { localStorage.removeItem(expandedStorageKey()); } catch (e) {}
+  persistWindowOpen(false);
 };
 els.taskbarApp.onclick = () => {
   const wasClosed = els.win.classList.contains("closed");
   els.win.classList.remove("closed", "minimized");
   els.taskbarApp.classList.add("active");
+  persistWindowOpen(true);
   if (wasClosed) {
     expanded.clear();
     navigate([]);
@@ -904,6 +909,7 @@ function openRealExplorerAt(path) {
   const wasClosed = els.win.classList.contains("closed");
   els.win.classList.remove("closed", "minimized");
   els.taskbarApp.classList.add("active");
+  persistWindowOpen(true);
   if (wasClosed) expanded.clear();
   navigate(path);
   openNavPane();
@@ -916,6 +922,19 @@ els.btnNavToggle.onclick = () => { if (isNavPaneOpen()) closeNavPane(); else ope
 ================================================================== */
 function cacheKey(pathArr) { return `idx:${repoName}:dir:${pathArr.join("/")}`; }
 function lastPathKey() { return `idx:${repoName}:lastpath`; }
+/* 탐색기 창을 "켠 채로" 뒀는지(=닫지 않고 새로고침/재방문했는지) 기억한다(사용자 지시). 진짜
+   윈도우처럼 최초 방문이나 명시적으로 닫은 뒤에는 창을 자동으로 띄우지 않고, 켜둔 채로 새로고침한
+   경우에만 편의상 열린 상태 그대로(+ 위치/트리 펼침) 복원한다. */
+function windowOpenKey() { return `idx:${repoName}:winopen`; }
+function persistWindowOpen(isOpen) {
+  try {
+    if (isOpen) localStorage.setItem(windowOpenKey(), "1");
+    else localStorage.removeItem(windowOpenKey());
+  } catch (e) {}
+}
+function wasWindowOpenLastTime() {
+  try { return localStorage.getItem(windowOpenKey()) === "1"; } catch (e) { return false; }
+}
 function readCache(pathArr) {
   try {
     const raw = localStorage.getItem(cacheKey(pathArr));
@@ -1686,10 +1705,10 @@ function loadExpandedFromStorage() {
 }
 function persistExpanded() {
   try { localStorage.setItem(expandedStorageKey(), JSON.stringify([...expanded])); } catch (e) {}
-  // 탐색창이 닫혀있을 땐 주소창에 경로/트리 상태를 쓰지 않는다(탐색창을 닫으면 주소창 플래그먼트가
-  // 사라지도록 설계됨 - closeNavPane() 참고). 대신 위의 로컬 스토리지 기억은 열림 상태와 무관하게
-  // 항상 이뤄지므로, 새로고침해도 마지막 위치/펼침 상태는 그대로 복원된다.
-  if (isNavPaneOpen()) updateHashFragment();
+  // 주소창 플래그먼트(#경로|tree=...)는 탐색창(사이드바)이 접혀 있어도 항상 갱신한다(사용자 지시 -
+  // "트리 닫아도 트리 기록 지우지 말고"). 사이드바를 접는 건 그냥 레이아웃 토글일 뿐, 위치/펼침
+  // 기록과는 무관하다. 기록 자체가 완전히 사라지는 경우는 창을 아예 닫을 때뿐이다(btnClose 참고).
+  updateHashFragment();
 }
 function isNavPaneOpen() { return !!(els.navPane && els.navPane.classList.contains("open")); }
 function clearHashFragment() {
@@ -1701,7 +1720,8 @@ function openNavPane() {
 }
 function closeNavPane() {
   els.navPane.classList.remove("open");
-  clearHashFragment(); // 탐색창을 닫으면 주소창 플래그먼트도 함께 사라진다(설계대로)
+  // 사이드바만 접는 것 - 주소창 플래그먼트(위치/트리 펼침 기록)는 그대로 둔다(사용자 지시).
+  // 완전히 지우는 건 창을 닫을 때뿐(els.btnClose.onclick의 clearHashFragment() 참고).
 }
 /* 좁은 화면(오버레이 방식)에서 트리의 폴더를 클릭해 이동하면, 실제 모바일 탐색기 앱처럼 그 자리에서
    탐색창을 자동으로 접어 내용을 바로 보여준다. 넓은 화면(항상 옆에 두고 쓰는 형태)에서는 폴더를
@@ -2745,12 +2765,16 @@ loadBattery();
 
 /* ============ 메인 ============ */
 async function main() {
-  // 탐색창 초기 상태: 페이지를 열었을 때 주소창에 플래그먼트(#...)가 이미 있었으면(공유된 링크로
-  // 들어온 경우 등) 펼쳐진 채로 시작하고, 없으면 꺼진 채로 시작한다. 아래에서 navigate() 등을
-  // 호출하며 해시를 다시 쓰기 전에 "로드 시점에 해시가 있었는지"를 먼저 기억해둬야 한다.
-  const hadHashOnLoad = !!location.hash && location.hash !== "#";
+  // 탐색기 창의 초기 열림/닫힘 상태(사용자 지시 - "진짜 윈도우 바이브"): 최초 방문이거나 지난번에
+  // 명시적으로 닫아뒀으면(btnClose) 창을 아예 띄우지 않는다. 지난번에 "켠 채로" 새로고침/재방문한
+  // 경우(편의성)에만 열린 상태 그대로 + 위치/트리 펼침 기록을 복원한다. 주소창에 이미 경로
+  // 플래그먼트가 있으면(공유된 링크로 들어온 경우 등) 그 의도를 존중해서 무조건 연 상태로 시작한다.
   const { owner, repo } = getOwnerRepo();
   repoName = repo || "Repo Index";
+  // repoName을 먼저 정해야 windowOpenKey()/lastPathKey() 등이 올바른 localStorage 키를 가리킨다
+  // (repoName이 아직 빈 문자열일 때 wasWindowOpenLastTime()을 부르면 엉뚱한 키를 읽게 됨).
+  const hashHasPath = !!location.hash && location.hash !== "#";
+  const shouldStartOpen = hashHasPath || wasWindowOpenLastTime();
   document.title = repoName;
   els.winTitle.textContent = repoName;
   if (owner && repo) {
@@ -2762,21 +2786,27 @@ async function main() {
   setupSettingsPanel();
   setupStartMenu(owner);
 
-  // 트리 펼침 상태 복원: 주소창(#...|tree=...)에 있으면 그걸 우선, 없으면 로컬 스토리지에 기억된 걸 사용
-  const hashExpanded = hashToExpandedSet(location.hash);
-  expanded = (hashExpanded && hashExpanded.size) ? hashExpanded : loadExpandedFromStorage();
-  // 복원된 펼침 상태에는 현재 경로의 조상이 아닌 가지(예: 이전에 수동으로 펼쳐뒀던 다른 폴더)도
-  // 있을 수 있다 - navigate()의 실시간 reveal은 "현재 경로"의 조상만 미리 읽어오므로, 그 외의
-  // 가지들은 여기서 한 번에 미리 읽어와야 트리가 "불러오는 중..."에 계속 머물지 않는다.
-  await Promise.all([...expanded].map(key => loadDir(key.split("/").filter(Boolean)).catch(() => {})));
-  // 바탕화면 트리 행도 저장소 루트처럼 화살표 없이 바로 자기 자신의 자식들을 보여주므로(루트와
-  // 같은 방식 - buildTreeDom 참고), 부팅 시점에 한 번 미리 읽어 dirCache를 채워둔다.
-  if (dfsDb) await loadDir([DESKTOP_TREE_NAME]).catch(() => {});
+  if (shouldStartOpen) {
+    els.win.classList.remove("closed");
+    els.taskbarApp.classList.add("active");
+    persistWindowOpen(true);
 
-  // 위에서 정한 대로 탐색창의 초기 열림/닫힘 상태를 적용한다(클래스만 직접 토글 - 아직 이 시점엔
-  // openNavPane()이 하는 "해시에 반영" 동작까지는 필요 없다, 해시는 이미 그대로 있으므로).
-  if (hadHashOnLoad) els.navPane.classList.add("open");
-  else els.navPane.classList.remove("open");
+    // 트리 펼침 상태 복원: 주소창(#...|tree=...)에 있으면 그걸 우선, 없으면 로컬 스토리지에 기억된 걸 사용
+    const hashExpanded = hashToExpandedSet(location.hash);
+    expanded = (hashExpanded && hashExpanded.size) ? hashExpanded : loadExpandedFromStorage();
+    // 복원된 펼침 상태에는 현재 경로의 조상이 아닌 가지(예: 이전에 수동으로 펼쳐뒀던 다른 폴더)도
+    // 있을 수 있다 - navigate()의 실시간 reveal은 "현재 경로"의 조상만 미리 읽어오므로, 그 외의
+    // 가지들은 여기서 한 번에 미리 읽어와야 트리가 "불러오는 중..."에 계속 머물지 않는다.
+    await Promise.all([...expanded].map(key => loadDir(key.split("/").filter(Boolean)).catch(() => {})));
+    // 바탕화면 트리 행도 저장소 루트처럼 화살표 없이 바로 자기 자신의 자식들을 보여주므로(루트와
+    // 같은 방식 - buildTreeDom 참고), 부팅 시점에 한 번 미리 읽어 dirCache를 채워둔다.
+    if (dfsDb) await loadDir([DESKTOP_TREE_NAME]).catch(() => {});
+
+    els.navPane.classList.add("open");
+  }
+  // shouldStartOpen이 false면 #win은 HTML 기본값(class="window closed")대로 닫힌 채 시작한다 -
+  // 진짜 리포 pages.json도 이 시점엔 아예 안 읽는다(창을 열 때 taskbarApp.onclick이 navigate([])로
+  // 그때 가서 새로 읽음).
 
   renderNavPane();
   renderBreadcrumb();
@@ -2788,7 +2818,15 @@ async function main() {
 
   window.addEventListener("hashchange", () => {
     const hasHash = !!location.hash && location.hash !== "#";
-    if (hasHash && !isNavPaneOpen()) els.navPane.classList.add("open"); // 링크/뒤로가기로 플래그먼트가 생기면 탐색창도 함께 켠다
+    if (hasHash) {
+      // 링크/뒤로가기로 플래그먼트가 생기면(공유 링크 등) 창이 닫혀 있었어도 함께 연다.
+      if (els.win.classList.contains("closed")) {
+        els.win.classList.remove("closed");
+        els.taskbarApp.classList.add("active");
+        persistWindowOpen(true);
+      }
+      if (!isNavPaneOpen()) els.navPane.classList.add("open");
+    }
     const p = hashToPath(location.hash) || [];
     if (p.join("/") !== currentPath.join("/")) {
       // 해시가 바뀌어서(뒤로/앞으로 가기 등) 새 경로로 점프하는 것 - navigate()가 트리도 실시간으로 드러낸다.
@@ -2800,16 +2838,18 @@ async function main() {
   loadJsonConfig("start.json").then(items => { if (items) renderAppList(items, els.startApps); });
   loadJsonConfig("tray.json").then(items => { if (items) renderTrayIcons(items); });
 
-  // 시작 경로: 주소창 플래그먼트 우선, 없으면 로컬 스토리지에 기억된 경로 사용
-  let initialPath = hashToPath(location.hash);
-  if (!initialPath) {
-    try {
-      const remembered = JSON.parse(localStorage.getItem(lastPathKey()) || "null");
-      if (Array.isArray(remembered)) initialPath = remembered;
-    } catch (e) { /* 무시 */ }
+  if (shouldStartOpen) {
+    // 시작 경로: 주소창 플래그먼트 우선, 없으면 로컬 스토리지에 기억된 경로 사용
+    let initialPath = hashToPath(location.hash);
+    if (!initialPath) {
+      try {
+        const remembered = JSON.parse(localStorage.getItem(lastPathKey()) || "null");
+        if (Array.isArray(remembered)) initialPath = remembered;
+      } catch (e) { /* 무시 */ }
+    }
+    const resolved = await resolveInitialPath(initialPath || []);
+    await navigate(resolved);
   }
-  const resolved = await resolveInitialPath(initialPath || []);
-  await navigate(resolved);
 
   // 바탕화면 가상 파일시스템(dexie) 아이콘 렌더링 - 진짜 탐색기 창(#win)과는 완전히 독립적이다.
   dfsRenderDesktop().catch(e => console.error("바탕화면 로드 오류:", e));
