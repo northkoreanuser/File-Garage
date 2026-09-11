@@ -206,6 +206,13 @@ async function resolveInitialPath(pathArr) {
 /* 경로를 트리에서 "드러낸다" - 조상 경로를 전부 펼침 상태로 추가하고, 각 단계의 폴더 목록을
    실제로 읽어와서(caching) buildTreeDom이 "불러오는 중..."이 아니라 진짜 하위 폴더를 그릴 수 있게 한다. */
 async function revealPath(pathArr) {
+  // 트리 맨 위(저장소 루트)는 화살표 없이 dirCache.get("")만 있으면 renderNavPane이 곧장 그
+  // 자식들을 그린다(buildTreeDom 참고) - 그런데 아래 for문은 pathArr의 "조상 경로"만 차례로
+  // 읽어오다 보니 pathArr 자체가 빈 배열이 아닌 이상 빈 문자열("")은 한 번도 안 읽는다. 그래서
+  // 주소창에 이미 폴더 경로가 있는 채로(예: #Games|tree=Tools, 공유된 링크 등) 시작하면 트리
+  // 최상위가 텅 빈 채로 남는 버그가 있었다(경로가 없을 때만 우연히 내용창 쪽에서 루트를 따로
+  // 읽어서 정상으로 보였음). 여기서 무조건 한 번 먼저 읽어서 항상 채워둔다.
+  await loadDir([]).catch(() => {});
   for (let i = 0; i < pathArr.length; i++) {
     const prefix = pathArr.slice(0, i + 1);
     // 조상까지만 펼침 상태로 추가한다 - 마지막 항목(=지금 막 들어간 폴더 "본인")은 펼치지 않는다.

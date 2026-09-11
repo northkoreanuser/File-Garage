@@ -57,14 +57,23 @@ function dfsSplitExt(name) {
   const hasExt = dot > 0 && dot < name.length - 1;
   return hasExt ? { base: name.slice(0, dot), ext: name.slice(dot) } : { base: name, ext: "" };
 }
+// "새 폴더 (2)"처럼 이미 "(숫자)" 접미사가 붙어있는 이름이면 그 접미사를 떼어낸 진짜 기본 이름을
+// 돌려준다("새 폴더"). 그래야 그 이름이 또 충돌났을 때 "새 폴더 (2) (2)"처럼 접미사가 중첩되지
+// 않고 "새 폴더 (3)"처럼 이어서 번호가 붙는다(버그 리포트: 복사/붙여넣기로 "새 폴더 (2)"가 이미
+// 있는 상태에서 같은 이름이 또 필요해지면 "(2) (2)"가 되던 문제 - 정규식으로 접미사부터 벗겨낸다).
+function dfsStripCounterSuffix(base) {
+  const m = /^(.*) \((\d+)\)$/.exec(base);
+  return m ? m[1] : base;
+}
 async function dfsUniqueName(parentId, desiredName) {
   const siblings = await dfsDb.nodes.where("parentId").equals(parentId).toArray();
   const taken = new Set(siblings.map(s => s.name.toLowerCase()));
   if (!taken.has(desiredName.toLowerCase())) return desiredName;
   const { base, ext } = dfsSplitExt(desiredName);
+  const trueBase = dfsStripCounterSuffix(base);
   let n = 2;
   while (true) {
-    const candidate = `${base} (${n})${ext}`;
+    const candidate = `${trueBase} (${n})${ext}`;
     if (!taken.has(candidate.toLowerCase())) return candidate;
     n++;
   }
@@ -72,6 +81,14 @@ async function dfsUniqueName(parentId, desiredName) {
 function dfsSuffixedName(name, suffix) {
   const { base, ext } = dfsSplitExt(name);
   return `${base} - ${suffix}${ext}`;
+}
+// 이동/붙여넣기처럼 "원래 이름 그대로 넣으려는" 경우에 이름이 이미 충돌하는 대상이 있는지
+// 찾아준다(자기 자신은 제외). dfsUniqueName처럼 조용히 새 번호를 붙이는 대신, 이 결과가 있으면
+// 호출한 쪽에서 "덮어쓸까요?" 확인창을 띄운다(버그 리포트: 폴더를 드래그해서 넣었는데 이미 같은
+// 이름이 있어도 덮어쓰기 확인 없이 그냥 조용히 처리되던 문제).
+async function dfsFindNameConflict(parentId, name, excludeId) {
+  const siblings = await dfsDb.nodes.where("parentId").equals(parentId).toArray();
+  return siblings.find(s => s.id !== excludeId && s.name.toLowerCase() === name.toLowerCase()) || null;
 }
 
 /* ---------------- CRUD ---------------- */
@@ -124,7 +141,16 @@ async function dfsImportOsFile(parentId, file) {
     showToast(`"${file.name}"은(는) 텍스트 파일이 아닌 것 같아 가져오지 않았습니다.`, { kind: "warn" });
     return null;
   }
-  const name = await dfsUniqueName(parentId, file.name || "새 파일.txt");
+  const desiredName = file.name || "새 파일.txt";
+  // 실제 컴퓨터에서 드롭한 파일이 이미 있는 이름과 겹치면 조용히 번호를 붙이는 대신 덮어쓸지
+  // 물어본다(버그 리포트: 확인창 없이 그냥 처리되던 문제 - dfsMove/dfsCopyInto와 같은 방식).
+  const conflict = await dfsFindNameConflict(parentId, desiredName, null);
+  if (conflict) {
+    const ok = await showConfirmDialog(`이 위치에 이미 "${desiredName}" 항목이 있습니다. 덮어쓸까요?`);
+    if (!ok) return null;
+    await dfsDelete(conflict);
+  }
+  const name = desiredName;
   const now = Date.now();
   const pos = await dfsNextIconPos(parentId);
   const id = await dfsDb.nodes.add({ parentId, type: "file", name, content: text, fileType: dfDetectFileType(name), x: pos.x, y: pos.y, createdAt: now, updatedAt: now });
@@ -155,7 +181,27 @@ async function dfsDeepCopyChildren(fromId, toId) {
   }
 }
 async function dfsCopyInto(node, parentId, desiredName) {
-  const name = await dfsUniqueName(parentId, desiredName || node.name);
+  let name;
+  if (desiredName) {
+    // 호출한 쪽이 이름을 정해서 넘겼다(예: dfsDuplicate의 "- 복사본" 접미사) - 그대로 조용히
+    // 고유화만 한다. 충돌 확인/덮어쓰기 질문은 필요 없음(애초에 다른 이름이라 겹칠 일이 드묾).
+    name = await dfsUniqueName(parentId, desiredName);
+  } else if (node.parentId === parentId) {
+    // 같은 폴더 안에 "붙여넣기"한 경우는 자기 자신과 이름이 겹치는 게 당연하다(사본을 만드는
+    // 것뿐) - 덮어쓰기가 아니라 그냥 번호를 이어 붙인다("새 폴더 (2)" 안에서 붙여넣으면
+    // "새 폴더 (3)"이 되는 식).
+    name = await dfsUniqueName(parentId, node.name);
+  } else {
+    // 다른 폴더로 "붙여넣기"했는데 그 폴더에 이미 같은 이름이 있으면 진짜 충돌이므로 조용히
+    // 번호를 붙이는 대신 덮어쓸지 물어본다(버그 리포트: 확인창 없이 그냥 처리되던 문제).
+    const conflict = await dfsFindNameConflict(parentId, node.name, null);
+    if (conflict) {
+      const ok = await showConfirmDialog(`이 위치에 이미 "${node.name}" 항목이 있습니다. 덮어쓸까요?`);
+      if (!ok) return null;
+      await dfsDelete(conflict);
+    }
+    name = node.name;
+  }
   const now = Date.now();
   const pos = await dfsNextIconPos(parentId);
   const copy = { parentId, type: node.type, name, x: pos.x, y: pos.y, createdAt: now, updatedAt: now };
@@ -212,8 +258,16 @@ async function dfsMove(node, newParentId) {
     return false;
   }
   if (node.parentId === newParentId) return true;
-  const newName = await dfsUniqueName(newParentId, node.name);
-  await dfsDb.nodes.update(node.id, { parentId: newParentId, name: newName, updatedAt: Date.now() });
+  // 이동은 복사와 달리 "같은 이름이면 조용히 번호를 붙이는" 게 아니라 실제 윈도우 탐색기처럼
+  // 덮어쓸지 물어봐야 한다(버그 리포트: 폴더를 드래그해서 이미 같은 이름이 있는 곳에 넣어도
+  // 확인창 없이 그냥 처리되던 문제 - 드래그로 옮기기/잘라내기 붙여넣기 둘 다 여기를 지난다).
+  const conflict = await dfsFindNameConflict(newParentId, node.name, node.id);
+  if (conflict) {
+    const ok = await showConfirmDialog(`이 위치에 이미 "${node.name}" 항목이 있습니다. 덮어쓸까요?`);
+    if (!ok) return false;
+    await dfsDelete(conflict);
+  }
+  await dfsDb.nodes.update(node.id, { parentId: newParentId, name: node.name, updatedAt: Date.now() });
   return true;
 }
 
@@ -613,6 +667,18 @@ async function dfsDeleteSelectedIcons() {
    있지 않으면 맨 왼쪽 위 아이콘부터 시작한다(실제 탐색기 내용창의 방향키 이동과 같은 방식). */
 els.dfIconLayer.tabIndex = 0;
 els.dfIconLayer.addEventListener("keydown", async (e) => {
+  if (e.key === "Enter") {
+    // 엔터 = 선택된 아이콘 열기(탐색기 내용창의 엔터 동작과 동일). 여러 개 선택돼 있으면
+    // 실제 윈도우처럼 선택된 항목을 모두 연다(폴더면 탐색기가 열리고, 파일이면 각자의 방식대로 열림).
+    e.preventDefault();
+    e.stopPropagation();
+    if (!dfsDb) return;
+    const ids = dfsMultiSelected.size ? [...dfsMultiSelected] : (dfsSelectedIconId !== null ? [dfsSelectedIconId] : []);
+    if (!ids.length) return;
+    const nodes = (await Promise.all(ids.map(id => dfsDb.nodes.get(id)))).filter(Boolean);
+    for (const node of nodes) await dfsActivate(node);
+    return;
+  }
   if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) return;
   e.preventDefault();
   e.stopPropagation(); // 전역 Alt+방향키(뒤로/앞으로 가기) 캡처 리스너와 뒤섞이지 않도록

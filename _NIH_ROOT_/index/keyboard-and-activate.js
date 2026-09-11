@@ -37,6 +37,11 @@ document.addEventListener("keydown", (e) => {
    아무 일도 일어나지 않는다). */
 function triggerF2Rename() {
   if (document.activeElement === els.dfIconLayer) { dfsRenameSelectedIcon(); return; }
+  // 내용창에서 2개 이상이 다중 선택된 상태면 F2로 바꿀 단일 대상이 없다(여러 항목을 한 번에 같은
+  // 이름으로 바꿀 순 없으므로 이 앱은 다중 이름변경을 지원하지 않는다) - 여기서 멈추지 않으면 아래
+  // 끝의 "선택된 게 하나도 없을 때 지금 보고 있는 폴더 자신을 바꾸는" 예비 동작까지 새어 들어가서,
+  // 버그 리포트처럼 다중 선택 중에 엉뚱하게 지금 열어본 폴더("새 폴더" 등) 이름이 바뀌어버린다.
+  if (multiSelected.size > 1) return;
   const findRenameAction = (items) => { const found = items.find(it => it.label === "이름 변경"); return found ? found.action : null; };
   const navFocused = document.activeElement === els.navPane;
   if (!navFocused && selected && multiSelected.size <= 1) {
@@ -55,14 +60,19 @@ function triggerF2Rename() {
     if (action) action();
   }
 }
-/* Delete = 지금 선택된 항목 삭제. triggerF2Rename과 완전히 같은 구조로, 대상을 찾는 우선순위만
-   그대로 재사용하고 찾는 메뉴 라벨만 "삭제"로 바꿨다. 바탕화면 아이콘은 여러 개 선택돼 있어도
-   한 번에(확인 대화상자 하나로) 지울 수 있지만, 내용창(트리 통합) 쪽은 F2와 마찬가지로 단일
-   선택일 때만 동작한다(다중 선택 시 확인 대화상자가 여러 개 겹쳐 뜨는 걸 피하기 위함). */
+/* Delete = 지금 선택된 항목 삭제. triggerF2Rename과 거의 같은 구조로, 대상을 찾는 우선순위만
+   그대로 재사용하고 찾는 메뉴 라벨만 "삭제"로 바꿨다. 단, F2(이름 변경)는 여러 개를 한 번에
+   바꿀 수 없어 단일 선택일 때만 동작하는 게 맞지만, 삭제는 바탕화면 아이콘처럼 내용창(트리 통합)
+   쪽에서도 드래그로 여러 개를 선택한 뒤 한 번에(확인 대화상자 하나로) 지울 수 있어야 한다
+   (버그 리포트: 탐색기에서 드래그로 2개 이상 선택 후 Delete가 안 먹었음) - handleMultiDelete로 위임. */
 function triggerDeleteSelected() {
   if (document.activeElement === els.dfIconLayer) { dfsDeleteSelectedIcons(); return; }
   const findDeleteAction = (items) => { const found = items.find(it => it.label === "삭제"); return found ? found.action : null; };
   const navFocused = document.activeElement === els.navPane;
+  if (!navFocused && multiSelected.size > 1) {
+    handleMultiDelete(itemsFromKeys([...multiSelected]));
+    return;
+  }
   if (!navFocused && selected && multiSelected.size <= 1) {
     const it = currentItems.find(i => i.path.join("/") === selected.path.join("/"));
     if (it) { const action = findDeleteAction(buildFileMenuItems(it)); if (action) action(); }

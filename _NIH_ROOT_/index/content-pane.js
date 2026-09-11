@@ -273,12 +273,16 @@ function itemsFromKeys(keys) {
 }
 function buildMultiFileMenuItems(keys) {
   const items = itemsFromKeys(keys);
+  const menu = [];
   // 바탕화면(가상 파일시스템) 항목은 실제 서버 URL이 없으므로(로컬 헬퍼의 /savetofolder는 진짜
   // 저장소 파일에만 쓸 수 있음) 다중 "다운로드" 대상에서 제외한다 - 여러 개를 동시에 골랐을 때는
   // 항목별 개별 메뉴(다운로드/브라우저에서 다운로드)를 대신 쓴다.
   const fileCount = items.filter(it => it.type !== "folder" && !it.dfsNode).length;
-  if (fileCount === 0) return [];
-  return [{ label: `다운로드 (${fileCount}개)`, action: () => handleMultiDownload(items) }];
+  if (fileCount > 0) menu.push({ label: `다운로드 (${fileCount}개)`, action: () => handleMultiDownload(items) });
+  // 삭제는 반대로 바탕화면(가상 파일시스템) 항목만 대상이다(실제 저장소는 읽기 전용이라 메뉴 자체가 없음).
+  const deletableCount = items.filter(it => it.dfsNode || (it.type === "folder" && isDesktopPath(it.path))).length;
+  if (deletableCount > 0) menu.push({ label: `삭제 (${deletableCount}개)`, action: () => handleMultiDelete(items) });
+  return menu;
 }
 async function handleMultiDownload(items) {
   // 바탕화면(가상 파일시스템) 파일은 로컬 헬퍼의 /savetofolder로 저장할 실제 서버 파일이
@@ -321,5 +325,34 @@ async function handleMultiDownload(items) {
   if (failCount) msg += `, 실패 ${failCount}개`;
   if (skippedFolders) msg += ` (폴더 ${skippedFolders}개는 제외됨)`;
   showToast(msg, failCount ? { kind: "warn" } : {});
+}
+
+/* ============ 다중 선택 삭제: 바탕화면(가상 파일시스템) 항목만 지울 수 있다(실제 저장소 항목은
+   애초에 "삭제" 메뉴 자체가 없는 읽기 전용). 드래그로 여러 개를 선택한 뒤 Delete 키를 누르거나
+   우클릭 메뉴에서 선택하면 여기로 온다 - 확인 대화상자 하나로 한꺼번에 지운다(바탕화면 아이콘의
+   다중 삭제, dfsDeleteSelectedIcons와 동일한 방식). ============ */
+async function handleMultiDelete(items) {
+  const resolved = [];
+  for (const it of items) {
+    if (it.type === "folder") {
+      if (!isDesktopPath(it.path)) continue; // 실제 저장소 폴더는 삭제 불가
+      const folderId = await dfsDesktopResolveFolderId(it);
+      const node = folderId != null ? await dfsDb.nodes.get(folderId) : null;
+      if (node) resolved.push(node);
+    } else if (it.dfsNode) {
+      resolved.push(it.dfsNode);
+    }
+    // 그 외(실제 저장소 파일)는 삭제 메뉴 자체가 없는 것과 동일하게 조용히 건너뛴다.
+  }
+  if (!resolved.length) return;
+  const msg = resolved.length === 1
+    ? `"${resolved[0].name}"을(를) 삭제할까요?${resolved[0].type === "folder" ? " (안에 있는 것도 모두 삭제됩니다)" : ""}`
+    : `선택한 ${resolved.length}개 항목을 삭제할까요? (폴더 안의 내용도 모두 삭제됩니다)`;
+  const ok = await showConfirmDialog(msg);
+  if (!ok) return;
+  for (const node of resolved) await dfsDelete(node);
+  multiSelected.clear();
+  selected = null;
+  await dfsBroadcastChange();
 }
 
