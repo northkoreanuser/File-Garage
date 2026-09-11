@@ -22,12 +22,21 @@ document.addEventListener("keydown", (e) => {
     const isEditable = tag === "input" || tag === "textarea" || (e.target && e.target.isContentEditable);
     if (!isEditable) { e.preventDefault(); triggerF2Rename(); }
   }
+  // Delete = 지금 선택된 항목 삭제. 실제 저장소 파일/폴더는 애초에 "삭제" 메뉴 자체가 없으므로
+  // (읽기 전용) 자동으로 아무 일도 일어나지 않는다 - 바탕화면(가상 파일시스템) 항목에서만 동작한다.
+  if (e.key === "Delete") {
+    const tag = (e.target && e.target.tagName || "").toLowerCase();
+    const isEditable = tag === "input" || tag === "textarea" || (e.target && e.target.isContentEditable);
+    if (!isEditable) { e.preventDefault(); triggerDeleteSelected(); }
+  }
 }, true);
-/* F2 = 지금 선택된 항목 이름 변경(실제 윈도우 탐색기와 동일) - 내용창(오른쪽)에 단일 선택된
-   항목이 있으면 그걸, 아니면 트리(왼쪽)에서 강조된 파일이나 지금 선택된 폴더를 대상으로 한다.
-   메뉴를 직접 다시 만들지 않고 buildFileMenuItems()가 이미 만드는 "이름 변경" 항목의 동작을
-   그대로 재사용한다(실제 저장소 항목처럼 메뉴 자체가 없으면 아무 일도 일어나지 않는다). */
+/* F2 = 지금 선택된 항목 이름 변경(실제 윈도우 탐색기와 동일) - 바탕화면 아이콘에 포커스가 있으면
+   그 아이콘을, 아니면 내용창(오른쪽)에 단일 선택된 항목을, 그것도 아니면 트리(왼쪽)에서 강조된
+   파일이나 지금 선택된 폴더를 대상으로 한다. 메뉴를 직접 다시 만들지 않고 buildFileMenuItems()가
+   이미 만드는 "이름 변경" 항목의 동작을 그대로 재사용한다(실제 저장소 항목처럼 메뉴 자체가 없으면
+   아무 일도 일어나지 않는다). */
 function triggerF2Rename() {
+  if (document.activeElement === els.dfIconLayer) { dfsRenameSelectedIcon(); return; }
   const findRenameAction = (items) => { const found = items.find(it => it.label === "이름 변경"); return found ? found.action : null; };
   const navFocused = document.activeElement === els.navPane;
   if (!navFocused && selected && multiSelected.size <= 1) {
@@ -44,6 +53,24 @@ function triggerF2Rename() {
     const it = { name: currentPath[currentPath.length - 1], path: currentPath, type: "folder" };
     const action = findRenameAction(buildFileMenuItems(it));
     if (action) action();
+  }
+}
+/* Delete = 지금 선택된 항목 삭제. triggerF2Rename과 완전히 같은 구조로, 대상을 찾는 우선순위만
+   그대로 재사용하고 찾는 메뉴 라벨만 "삭제"로 바꿨다. 바탕화면 아이콘은 여러 개 선택돼 있어도
+   한 번에(확인 대화상자 하나로) 지울 수 있지만, 내용창(트리 통합) 쪽은 F2와 마찬가지로 단일
+   선택일 때만 동작한다(다중 선택 시 확인 대화상자가 여러 개 겹쳐 뜨는 걸 피하기 위함). */
+function triggerDeleteSelected() {
+  if (document.activeElement === els.dfIconLayer) { dfsDeleteSelectedIcons(); return; }
+  const findDeleteAction = (items) => { const found = items.find(it => it.label === "삭제"); return found ? found.action : null; };
+  const navFocused = document.activeElement === els.navPane;
+  if (!navFocused && selected && multiSelected.size <= 1) {
+    const it = currentItems.find(i => i.path.join("/") === selected.path.join("/"));
+    if (it) { const action = findDeleteAction(buildFileMenuItems(it)); if (action) action(); }
+    return;
+  }
+  if (treeFileHighlightKey !== null) {
+    const entry = flattenVisibleTree().find(en => en.key === treeFileHighlightKey);
+    if (entry && entry.item) { const action = findDeleteAction(buildFileMenuItems(entry.item)); if (action) action(); }
   }
 }
 

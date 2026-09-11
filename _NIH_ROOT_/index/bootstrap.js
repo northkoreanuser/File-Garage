@@ -70,9 +70,11 @@ async function main() {
     }
   });
 
-  // start.json / tray.json은 있으면 반영, 없거나 잘못돼도 조용히 무시 (선택 기능)
-  loadJsonConfig("start.json").then(items => { if (items) renderAppList(items, els.startApps); });
-  loadJsonConfig("tray.json").then(items => { if (items) renderTrayIcons(items); });
+  // start.json / tray.json은 있으면 반영, 없거나 잘못돼도 조용히 무시 (선택 기능).
+  // _NIH_ROOT_/menu/ 안에 있다(트리/색인에는 안 보이지만 GitHub Pages는 그대로 서빙 - .nojekyll
+  // 필요, index.html 주석 참고). 루트에 있던 예전 경로("start.json"/"tray.json")는 더 이상 안 읽는다.
+  loadJsonConfig("_NIH_ROOT_/menu/start.json").then(items => { if (items) renderAppList(items, els.startApps); });
+  loadJsonConfig("_NIH_ROOT_/menu/tray.json").then(items => { if (items) renderTrayIcons(items); });
 
   if (shouldStartOpen) {
     // 시작 경로: 주소창 플래그먼트 우선, 없으면 로컬 스토리지에 기억된 경로 사용

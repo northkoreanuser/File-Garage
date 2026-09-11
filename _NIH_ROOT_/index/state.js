@@ -113,10 +113,12 @@ function isDesktopPath(pathArr) { return pathArr.length > 0 && pathArr[0] === DE
 
 /* ============ 색인 제외 규칙 (indexer.ahk가 이미 거르지만, html도 자체적으로 한번 더 거른다) ============
    - 이름에 "_NIH_"가 포함되면(대소문자 무관) 모든 위치에서 제외
-     -> indexer.ahk/localserver.ahk/start.json/tray.json은 전부 _NIH_ROOT_ 폴더 안(정확히는
-        _NIH_ROOT_/start.json, _NIH_ROOT_/tray.json, _NIH_ROOT_/tools/indexer.ahk,
-        _NIH_ROOT_/tools/localserver.ahk)에 있으므로 이 규칙 하나로 자동으로 다 숨겨진다 -
-        따로 이름을 하나하나 예외 목록에 넣을 필요가 없다(사용자 지시로 단순화).
+     -> indexer.ahk/localserver.ahk/start.json/tray.json/index.html의 JS·CSS는 전부 _NIH_ROOT_
+        폴더 안(_NIH_ROOT_/menu/start.json, _NIH_ROOT_/menu/tray.json, _NIH_ROOT_/tools/indexer.ahk,
+        _NIH_ROOT_/tools/localserver.ahk, _NIH_ROOT_/index/*.js, _NIH_ROOT_/ui/theme/*)에 있으므로
+        이 규칙 하나로 자동으로 다 숨겨진다 - 따로 이름을 하나하나 예외 목록에 넣을 필요가 없다
+        (사용자 지시로 단순화). 단, GitHub Pages가 이 폴더들을 실제로 서빙하려면 리포 루트에
+        .nojekyll 빈 파일이 있어야 한다(Jekyll이 기본적으로 "_"로 시작하는 폴더를 빌드에서 빼버림).
    - "pages.json"은 모든 위치에서 제외
    - 루트에서는 .git / index.html / 바탕화면 도 추가로 제외
      ("바탕화면"은 트리에 별도 최상위 항목으로 추가되므로, 실제로 같은 이름의 저장소 폴더가 있어도

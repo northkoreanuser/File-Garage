@@ -1,4 +1,14 @@
-/* ============ 폴더 데이터 로드 (꼬리에 꼬리를 무는 방식 + 로컬 캐시) ============ */
+/* ============ 폴더 데이터 로드 (꼬리에 꼬리를 무는 방식 + 로컬 캐시) ============
+   사용자 리포트: "폴더 눌러도 반응이 없다 / 열기를 눌러도 캔슬되거나 빈 폴더로 나온다" -
+   원인 두 가지를 같이 고쳤다.
+   1) localStorage 캐시(readCache)를 예전엔 내용이 비어있어도(폴더/파일 모두 0개) 무조건
+      신뢰하고 그대로 돌려줬다. 그런데 pages.json이 아직 갱신되기 전(색인이 안 된 상태)에 한
+      번이라도 빈 상태로 캐시가 만들어지면, 그 뒤로 실제 내용이 생겨도 영원히 "빈 폴더"만 보이는
+      문제가 있었다 - 이제 캐시가 비어있으면 신뢰하지 않고 다시 읽는다("로컬 저장소는 빠르니까"
+      매번 다시 확인해도 부담이 없다).
+   2) pages.json 요청 자체가 응답하지 않고 멈춰버리면(네트워크 문제 등) 그걸 기다리는 동안 클릭이
+      "반응 없음"처럼 보였다 - 이제 5초 타임아웃을 걸어서, 그 안에 응답이 없으면 GitHub API로
+      직접 폴더 내용을 읽어오는 것으로 자동 대체한다(최후 수단). ============ */
 async function loadDir(pathArr) {
   // 바탕화면(가상 파일시스템) 경로는 실제 저장소 pages.json이 아니라 dexie에서 읽는다 - 그 외
   // 나머지 경로/트리/내용창/방향키 로직은 전부 그대로 재사용된다(경로가 이름의 배열이라는
@@ -9,25 +19,63 @@ async function loadDir(pathArr) {
   if (dirCache.has(key)) return dirCache.get(key);
 
   const cached = readCache(pathArr);
-  if (cached) { dirCache.set(key, cached); return cached; }
+  if (cached && (cached.folders.length > 0 || cached.files.length > 0)) {
+    dirCache.set(key, cached);
+    return cached;
+  }
 
   const prefix = pathArr.map(encodeURIComponent).join("/");
   const url = (prefix ? prefix + "/" : "") + "pages.json";
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`${url} 로드 실패: ${res.status}`);
-  const data = await res.json();
-  const folders = filterNames(Array.isArray(data.folders) ? data.folders : [], pathArr)
-    .sort((a, b) => a.localeCompare(b, "ko"));
-  // indexer.ahk가 파일마다 {name, size} 객체로 저장한다(웹훅 다운로드에 크기가 필요해서).
-  // 혹시 예전 방식(순수 문자열 배열)의 pages.json이 섞여 있어도 방어적으로 처리한다.
-  const rawFiles = Array.isArray(data.files) ? data.files : [];
-  const fileObjs = rawFiles.map(f => typeof f === "string" ? { name: f, size: 0 } : { name: String(f.name || ""), size: Number(f.size) || 0 });
-  const keptNames = new Set(filterNames(fileObjs.map(f => f.name), pathArr));
-  const files = fileObjs.filter(f => keptNames.has(f.name)).sort((a, b) => a.name.localeCompare(b.name, "ko"));
-  const entry = { folders, files };
+  let entry;
+  try {
+    const res = await fetchWithTimeout(url, 5000);
+    if (!res.ok) throw new Error(`${url} 로드 실패: ${res.status}`);
+    const data = await res.json();
+    const folders = filterNames(Array.isArray(data.folders) ? data.folders : [], pathArr)
+      .sort((a, b) => a.localeCompare(b, "ko"));
+    // indexer.ahk가 파일마다 {name, size} 객체로 저장한다(웹훅 다운로드에 크기가 필요해서).
+    // 혹시 예전 방식(순수 문자열 배열)의 pages.json이 섞여 있어도 방어적으로 처리한다.
+    const rawFiles = Array.isArray(data.files) ? data.files : [];
+    const fileObjs = rawFiles.map(f => typeof f === "string" ? { name: f, size: 0 } : { name: String(f.name || ""), size: Number(f.size) || 0 });
+    const keptNames = new Set(filterNames(fileObjs.map(f => f.name), pathArr));
+    const files = fileObjs.filter(f => keptNames.has(f.name)).sort((a, b) => a.name.localeCompare(b.name, "ko"));
+    entry = { folders, files };
+  } catch (e) {
+    // pages.json이 5초 안에 응답하지 않거나(타임아웃) 요청 자체가 실패하면, 최후 수단으로
+    // GitHub API에서 직접 읽어온다. 이것마저 실패하면(owner/repo를 모르거나 API 오류) 그대로
+    // 오류를 던진다 - 호출하는 쪽(resolveInitialPath 등)이 이미 이 경우를 처리하고 있다.
+    entry = await fetchGithubDirEntry(pathArr);
+  }
   dirCache.set(key, entry);
   writeCache(pathArr, entry);
   return entry;
+}
+// AbortController로 시간 제한을 건 fetch - 응답이 없으면(타임아웃) AbortError로 실패해서
+// 호출한 쪽의 catch로 넘어간다.
+function fetchWithTimeout(url, ms) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return fetch(url, { cache: "no-store", signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+// pages.json 대신 GitHub Contents API에서 직접 폴더 내용을 읽어 loadDir()과 같은
+// {folders, files} 모양으로 돌려준다(최후 수단 - pages.json이 응답하지 않을 때만 쓰인다).
+// keyboard-and-activate.js의 fetchGithubListing()은 "색인과 비교"용으로 이름만 필요해서
+// 별개로 남겨뒀다(이쪽은 실제로 폴더를 그려야 하므로 type/size까지 필요).
+async function fetchGithubDirEntry(pathArr) {
+  const { owner, repo } = getOwnerRepo();
+  if (!owner || !repo) throw new Error("owner/repo를 알 수 없습니다.");
+  const apiPath = pathArr.map(encodeURIComponent).join("/");
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${apiPath}`;
+  const res = await fetch(url, { headers: { "Accept": "application/vnd.github+json" } });
+  if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+  const data = await res.json();
+  const list = Array.isArray(data) ? data : [];
+  const folders = filterNames(list.filter(it => it.type === "dir").map(it => it.name), pathArr)
+    .sort((a, b) => a.localeCompare(b, "ko"));
+  const fileEntries = list.filter(it => it.type === "file").map(it => ({ name: it.name, size: Number(it.size) || 0 }));
+  const keptFileNames = new Set(filterNames(fileEntries.map(f => f.name), pathArr));
+  const files = fileEntries.filter(f => keptFileNames.has(f.name)).sort((a, b) => a.name.localeCompare(b.name, "ko"));
+  return { folders, files };
 }
 
 /* ---------------- 바탕화면(가상 파일시스템) 경로 읽기 ----------------

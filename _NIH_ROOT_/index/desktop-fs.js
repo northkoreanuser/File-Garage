@@ -289,6 +289,10 @@ async function dfsRenderDesktop() {
     icon.innerHTML = `<div class="df-icon-glyph">${dfsIconGlyphFor(node, 40)}</div><div class="df-icon-label">${escapeHtml(node.name)}</div>`;
     icon.addEventListener("click", (e) => {
       e.stopPropagation();
+      // 아이콘층에 키보드 포커스를 줘야 이동(방향키)/F2/Delete가 먹는다(사용자 지시로 추가된
+      // 바탕화면 키보드 지원 - 아래 dfIconLayer의 keydown 리스너와 triggerF2Rename/
+      // triggerDeleteSelected 참고).
+      els.dfIconLayer.focus();
       if (e.ctrlKey || e.metaKey || e.shiftKey) {
         // 실제 윈도우처럼 Ctrl(또는 Shift)+클릭으로 여러 개를 하나씩 누적/해제한다.
         // 지금까지 단일 선택(dfsSelectedIconId)이었다면, 그 아이콘부터 먼저 다중 선택 집합에
@@ -305,6 +309,7 @@ async function dfsRenderDesktop() {
     icon.addEventListener("dblclick", () => dfsActivate(node));
     icon.addEventListener("contextmenu", (e) => {
       e.preventDefault(); e.stopPropagation();
+      els.dfIconLayer.focus();
       // 이미 다중 선택에 포함된 아이콘을 우클릭하면 그 선택을 유지하고(실제 탐색기와 동일),
       // 선택 밖의 아이콘을 우클릭하면 그 아이콘 하나로 선택을 좁힌다.
       if (!dfsMultiSelected.has(node.id)) {
@@ -372,6 +377,11 @@ document.querySelector(".desktop").addEventListener("mousedown", (e) => {
   if (e.button !== 0) return;
   if (!dfsDb) return;
   if (e.target.closest(".df-icon") || e.target.closest(".window") || e.target.closest(".taskbar") || e.target.closest(".start-menu")) return;
+  // mousedown의 기본 동작(브라우저가 알아서 포커스를 다른 곳으로 옮기거나 텍스트 선택을 시작하는 것)이
+  // 아래 focus() 호출을 뒤늦게 덮어써버리는 걸 막는다 - preventDefault를 안 하면 이 핸들러가 먼저
+  // dfIconLayer로 포커스를 줘도 브라우저의 기본 포커싱 동작이 이어서 실행되며 도로 body로 밀려난다.
+  e.preventDefault();
+  els.dfIconLayer.focus(); // 빈 바탕화면을 눌러도(드래그든 그냥 클릭이든) 키보드 포커스는 바탕화면으로
   dfsBoxSelectStart = { x: e.clientX, y: e.clientY };
 });
 window.addEventListener("mousemove", (e) => {
@@ -565,6 +575,77 @@ async function dfsBuildPath(folderId) {
   }
   return chain;
 }
+
+/* ---------------- 바탕화면 키보드: F2 이름 변경 / Delete 삭제 ----------------
+   keyboard-and-activate.js의 triggerF2Rename()/triggerDeleteSelected()가 document.activeElement
+   === els.dfIconLayer일 때 이 두 함수로 위임한다. 우클릭 메뉴의 "이름 변경"/"삭제"와 완전히 같은
+   동작(dfsPromptRename/dfsDelete)을 재사용해서 두 경로(마우스/키보드)의 결과가 항상 같게 한다. */
+async function dfsRenameSelectedIcon() {
+  // F2는 실제 탐색기와 마찬가지로 정확히 하나가 선택돼 있을 때만 동작한다.
+  const id = dfsSelectedIconId !== null ? dfsSelectedIconId : (dfsMultiSelected.size === 1 ? [...dfsMultiSelected][0] : null);
+  if (id == null) return;
+  const node = await dfsDb.nodes.get(id);
+  if (node) await dfsPromptRename(node, () => dfsBroadcastChange());
+}
+async function dfsDeleteSelectedIcons() {
+  // Delete는 여러 개 선택돼 있어도 확인 대화상자 하나로 한꺼번에 지운다(다중 선택된 상태에서
+  // 하나씩 확인창이 겹쳐 뜨는 걸 피하기 위함).
+  const ids = dfsMultiSelected.size ? [...dfsMultiSelected] : (dfsSelectedIconId !== null ? [dfsSelectedIconId] : []);
+  if (!ids.length) return;
+  const nodes = (await Promise.all(ids.map(id => dfsDb.nodes.get(id)))).filter(Boolean);
+  if (!nodes.length) return;
+  const msg = nodes.length === 1
+    ? `"${nodes[0].name}"을(를) 삭제할까요?${nodes[0].type === "folder" ? " (안에 있는 것도 모두 삭제됩니다)" : ""}`
+    : `선택한 ${nodes.length}개 항목을 삭제할까요? (폴더 안의 내용도 모두 삭제됩니다)`;
+  const ok = await showConfirmDialog(msg);
+  if (!ok) return;
+  for (const node of nodes) await dfsDelete(node);
+  dfsSelectedIconId = null;
+  dfsMultiSelected.clear();
+  await dfsBroadcastChange();
+}
+
+/* ---------------- 바탕화면 키보드: 방향키 = 아이콘 사이 이동(선택 옮기기) ----------------
+   실제 윈도우 바탕화면처럼, 방향키를 누르면 그 방향으로 가장 "가까운" 아이콘으로 선택이
+   옮겨간다(아이콘을 화면에서 실제로 움직이는 게 아니다 - 그건 마우스 드래그의 몫). 후보는
+   눌린 방향으로 실제 투영 성분(along)이 양수인 아이콘만으로 좁히고, 그중 방향에서 벗어난
+   정도(perp)에 패널티를 줘서 가장 "그 방향에 가깝고 가까운" 아이콘을 고른다. 아무것도 선택돼
+   있지 않으면 맨 왼쪽 위 아이콘부터 시작한다(실제 탐색기 내용창의 방향키 이동과 같은 방식). */
+els.dfIconLayer.tabIndex = 0;
+els.dfIconLayer.addEventListener("keydown", async (e) => {
+  if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) return;
+  e.preventDefault();
+  e.stopPropagation(); // 전역 Alt+방향키(뒤로/앞으로 가기) 캡처 리스너와 뒤섞이지 않도록
+  if (!dfsDb) return;
+  const items = await dfsChildren(DFS_DESKTOP_ROOT);
+  if (!items.length) return;
+  const centerOf = (n) => ({ x: (n.x ?? 24) + 36, y: (n.y ?? 24) + 40 }); // 아이콘 박스 대략 중심
+  const currentId = dfsSelectedIconId !== null ? dfsSelectedIconId
+    : (dfsMultiSelected.size ? [...dfsMultiSelected][dfsMultiSelected.size - 1] : null);
+  let next = currentId != null ? items.find(n => n.id === currentId) : null;
+  if (!next) {
+    next = items.slice().sort((a, b) => (a.y ?? 0) - (b.y ?? 0) || (a.x ?? 0) - (b.x ?? 0))[0];
+  } else {
+    const from = centerOf(next);
+    const dirs = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+    const [dx, dy] = dirs[e.key];
+    let best = null, bestScore = Infinity;
+    items.forEach(n => {
+      if (n.id === next.id) return;
+      const to = centerOf(n);
+      const vx = to.x - from.x, vy = to.y - from.y;
+      const along = vx * dx + vy * dy;
+      if (along <= 0) return; // 반대/직각에 가까운 방향은 후보에서 제외
+      const perp = Math.abs(vx * dy - vy * dx);
+      const score = along + perp * 2;
+      if (score < bestScore) { bestScore = score; best = n; }
+    });
+    if (best) next = best;
+  }
+  dfsSelectedIconId = next.id;
+  dfsMultiSelected.clear();
+  dfsRenderDesktop();
+});
 
 dfsInitDb();
 

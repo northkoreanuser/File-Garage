@@ -4,6 +4,11 @@
    Promise<string|null>을 반환한다(취소/배경 클릭/Esc = false 또는 null). ============ */
 function showConfirmDialog(message, opts = {}) {
   return new Promise(resolve => {
+    // 대화상자를 열기 전 포커스가 있던 요소(탐색기 내용창/트리/바탕화면 등)를 기억해뒀다가,
+    // 닫힐 때(확인/취소/Esc/배경 클릭 어느 경로든) 그대로 돌려준다. 이걸 안 하면 대화상자가
+    // overlay.remove()로 사라진 뒤 포커스가 document.body로 떨어져서, 예를 들어 F2로 이름
+    // 변경하다 Esc로 취소했을 때 창에 포커스가 안 돌아와 방향키가 먹통이 되는 버그가 생긴다.
+    const previouslyFocused = document.activeElement;
     const overlay = document.createElement("div");
     overlay.className = "confirm-overlay";
     overlay.innerHTML = `
@@ -24,6 +29,9 @@ function showConfirmDialog(message, opts = {}) {
       done = true;
       overlay.remove();
       document.removeEventListener("keydown", onKey, true);
+      if (previouslyFocused && document.body.contains(previouslyFocused) && typeof previouslyFocused.focus === "function") {
+        previouslyFocused.focus();
+      }
       resolve(result);
     };
     overlay.querySelector(".confirm-cancel").onclick = () => cleanup(false);
@@ -39,6 +47,9 @@ function showConfirmDialog(message, opts = {}) {
 }
 function showPromptDialog(message, defaultValue = "") {
   return new Promise(resolve => {
+    // showConfirmDialog와 동일한 이유로, 열기 전 포커스를 기억해뒀다가 닫힐 때 돌려준다
+    // (F2 이름 변경 -> Esc 취소 후 방향키가 안 먹는 버그의 원인이었다).
+    const previouslyFocused = document.activeElement;
     const overlay = document.createElement("div");
     overlay.className = "confirm-overlay";
     overlay.innerHTML = `
@@ -59,6 +70,9 @@ function showPromptDialog(message, defaultValue = "") {
       if (done) return;
       done = true;
       overlay.remove();
+      if (previouslyFocused && document.body.contains(previouslyFocused) && typeof previouslyFocused.focus === "function") {
+        previouslyFocused.focus();
+      }
       resolve(result);
     };
     overlay.querySelector(".confirm-cancel").onclick = () => cleanup(null);
