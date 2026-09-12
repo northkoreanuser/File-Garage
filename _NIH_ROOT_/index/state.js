@@ -191,8 +191,17 @@ function escapeHtml(s) {
    뜻으로 취급한다 - dfsUniqueName이 같은 부모 안에서 이름을 항상 유일하게 보장하므로,
    진짜 저장소 경로와 완전히 같은 방식(이름만으로 매번 다시 찾기)으로 동작할 수 있다.
    기존 탐색기와 바탕화면(가상) 탐색기를 하나의 창으로 통합하기 위한 기반(사용자 지시). ============ */
-const DESKTOP_TREE_NAME = "바탕화면";
+// 사용자 지시: "바탕화면"이 아니라 "바탕 화면"(띄어쓰기 있음)이 실제 윈도우 표기와 일치함.
+const DESKTOP_TREE_NAME = "바탕 화면";
 function isDesktopPath(pathArr) { return pathArr.length > 0 && pathArr[0] === DESKTOP_TREE_NAME; }
+// 요청 #113 - 사용자 지시: "휴지통도 탐색기에 합쳐라(그냥 트리에 들어있는거 말고 폴더처럼)".
+// 바탕화면과 완전히 같은 방식(예약된 경로 첫 칸)으로 휴지통도 진짜 탐색기 경로처럼 다룬다 -
+// dexie 안에서는 그냥 parentId가 DFS_RECYCLEBIN_ROOT인 또 다른 "루트"일 뿐이다.
+const RECYCLEBIN_TREE_NAME = "휴지통";
+function isRecycleBinPath(pathArr) { return pathArr.length > 0 && pathArr[0] === RECYCLEBIN_TREE_NAME; }
+// 바탕화면이든 휴지통이든 - "실제 저장소가 아니라 dexie로 읽어야 하는 경로인가?"를 함께 물어야
+// 하는 곳(loadDir 라우팅, 캐시 무효화 등)에서 쓴다.
+function isDfsPath(pathArr) { return isDesktopPath(pathArr) || isRecycleBinPath(pathArr); }
 
 /* ============ 색인 제외 규칙 (indexer.ahk가 이미 거르지만, html도 자체적으로 한번 더 거른다) ============
    - 이름에 "_NIH_"가 포함되면(대소문자 무관) 모든 위치에서 제외
@@ -215,7 +224,7 @@ function filterNames(names, pathArr) {
   // 리포트: 루트에서 readme.md가 계속 보임). .nojekyll(GitHub Pages가 _NIH_ 폴더를 서빙하게
   // 해주는 설정 파일 - index.html 주석 참고)도 사용자용 색인에는 나올 이유가 없는 저장소 관리용
   // 파일이라 같이 숨긴다.
-  const rootOnly = new Set([".git", "index.html", "readme.md", ".nojekyll", DESKTOP_TREE_NAME.toLowerCase()]);
+  const rootOnly = new Set([".git", "index.html", "readme.md", ".nojekyll", DESKTOP_TREE_NAME.toLowerCase(), RECYCLEBIN_TREE_NAME.toLowerCase()]);
   return names.filter(name => {
     if (/_NIH_/i.test(name)) return false;
     if (name === "pages.json") return false;

@@ -19,14 +19,28 @@ function renderNavPane() {
   if (rootEntry) els.navPane.appendChild(buildTreeDom(rootEntry, []));
 
   // 휴지통 - 저장소 루트와 나란한 별도의 최상위 항목(사용자 지시: "바탕 화면에 휴지통 추가
-  // 트리에도 추가 아이콘은 동일 사용"). 실제 경로 이동이 아니라 별도의 휴지통 패널을 연다.
+  // 트리에도 추가 아이콘은 동일 사용"). 요청 #113 - 별도의 오버레이 패널이 아니라 저장소
+  // 루트/바탕화면과 똑같이 통합 탐색기 창(navigate)으로 들어간다(진짜 탐색기 휴지통처럼).
   if (dfsDb) {
+    const rbKey = RECYCLEBIN_TREE_NAME;
     const rbRow = document.createElement("div");
-    rbRow.className = "nav-root";
-    rbRow.innerHTML = `${resolveRecycleBinIcon(16)}<span>휴지통</span>`;
-    rbRow.onclick = () => { els.navPane.focus(); dfsOpenRecycleBinPanel(); };
-    rbRow.ondblclick = rbRow.onclick;
+    rbRow.className = "nav-root" + (!treeFileHighlightKey && currentPath.join("/") === rbKey ? " selected" : "") + (treeFocusKey === rbKey ? " kbd-focus" : "");
+    rbRow.innerHTML = `${resolveRecycleBinIcon(16)}<span>${escapeHtml(RECYCLEBIN_TREE_NAME)}</span>`;
+    rbRow.onclick = () => { els.navPane.focus(); navigate([RECYCLEBIN_TREE_NAME]); closeNavPaneIfNarrow(); };
+    rbRow.ondblclick = () => navigate([RECYCLEBIN_TREE_NAME]);
+    rbRow.oncontextmenu = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showContextMenu(e.clientX, e.clientY, [
+        { label: "열기", action: () => navigate([RECYCLEBIN_TREE_NAME]) },
+        { label: "휴지통 비우기", action: async () => { await dfsEmptyRecycleBin(); await dfsBroadcastChange(); } },
+        { label: "속성", action: () => dfsShowRecycleBinProperties() }
+      ]);
+    };
+    attachRecycleBinTreeDropTarget(rbRow);
     els.navPane.appendChild(rbRow);
+    const rbEntry = dirCache.get(rbKey);
+    if (rbEntry) els.navPane.appendChild(buildTreeDom(rbEntry, [RECYCLEBIN_TREE_NAME]));
   }
 
   // 바탕화면(가상 파일시스템) - 루트 색인에는 나타나지 않지만, 트리에는 저장소 루트와 나란히
@@ -89,6 +103,34 @@ function attachTreeDropTarget(row, pathArr) {
     if (!srcNode) return;
     const ok = await dfsMove(srcNode, targetFolderId);
     if (ok) showToast(`"${srcNode.name}"을(를) "${pathArr[pathArr.length - 1]}" 폴더로 옮겼습니다.`);
+    await dfsBroadcastChange();
+  });
+}
+// 휴지통 트리 행(최상위 "휴지통" 자체)에 드롭 - 다른 드롭 대상과 달리 "그 폴더 안으로 옮기기"가
+// 아니라 삭제(휴지통 이동)다. 바탕화면 아이콘층의 dfsIsRecycleBinIcon 드롭 처리와 동일한 동작.
+function attachRecycleBinTreeDropTarget(row) {
+  // desktop-fs.js의 dfsIsRecycleBinIcon이 마우스 기반 드래그(dfsSetupIconDrag)에서도 이 행을
+  // "삭제 대상"으로 인식할 수 있도록 표식을 남긴다(그 드래그는 네이티브 HTML5 드래그가 아니라서
+  // 이 dragover/drop 리스너로는 못 받고, dfsElementUnder + 이 dataset을 직접 읽는다).
+  row.dataset.recycleBinRoot = "1";
+  row.addEventListener("dragover", (e) => {
+    if (!e.dataTransfer) return;
+    const types = Array.from(e.dataTransfer.types || []);
+    if (types.indexOf("text/plain") === -1) return;
+    e.preventDefault();
+    row.classList.add("df-drop-target");
+  });
+  row.addEventListener("dragleave", () => row.classList.remove("df-drop-target"));
+  row.addEventListener("drop", async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    row.classList.remove("df-drop-target");
+    const draggedId = Number(e.dataTransfer.getData("text/plain"));
+    if (!draggedId) return;
+    const srcNode = await dfsDb.nodes.get(draggedId);
+    if (!srcNode || srcNode.parentId === DFS_RECYCLEBIN_ROOT) return;
+    await dfsDelete(srcNode);
+    showToast(`"${srcNode.name}"을(를) 휴지통으로 옮겼습니다.`);
     await dfsBroadcastChange();
   });
 }
@@ -236,6 +278,12 @@ function flattenVisibleTree() {
     list.push({ key: dtKey, type: "folder", pathArr: [DESKTOP_TREE_NAME] });
     const dtEntry = dirCache.get(dtKey);
     if (dtEntry) walk(dtEntry, [DESKTOP_TREE_NAME]);
+
+    // 휴지통도 저장소 루트/바탕화면과 나란한 별도의 최상위 항목이므로 방향키 탐색 목록에 이어 추가.
+    const rbKey = RECYCLEBIN_TREE_NAME;
+    list.push({ key: rbKey, type: "folder", pathArr: [RECYCLEBIN_TREE_NAME] });
+    const rbEntry = dirCache.get(rbKey);
+    if (rbEntry) walk(rbEntry, [RECYCLEBIN_TREE_NAME]);
   }
   return list;
 }
@@ -306,9 +354,9 @@ els.navPane.addEventListener("keydown", async (e) => {
   }
   if (e.key === "ArrowRight") {
     if (cur.type === "file") return; // 파일은 펼칠 하위 항목이 없음
-    if (cur.pathArr.length === 0 || cur.key === DESKTOP_TREE_NAME) {
-      // 저장소 루트와 바탕화면 루트는 둘 다 화살표 없이 항상 펼쳐진 상태로 취급한다(하위 항목이
-      // 이미 보임) - 바로 다음 항목으로 포커스만 이동
+    if (cur.pathArr.length === 0 || cur.key === DESKTOP_TREE_NAME || cur.key === RECYCLEBIN_TREE_NAME) {
+      // 저장소 루트/바탕화면 루트/휴지통 루트는 모두 화살표 없이 항상 펼쳐진 상태로 취급한다(하위
+      // 항목이 이미 보임) - 바로 다음 항목으로 포커스만 이동
       const idxNow = list.findIndex(en => en.key === cur.key);
       if (idxNow !== -1 && idxNow < list.length - 1) { treeFocusKey = list[idxNow + 1].key; renderNavPane(); }
       return;

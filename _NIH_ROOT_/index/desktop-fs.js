@@ -106,14 +106,133 @@ async function dfsChildren(parentId) {
   });
   return rows;
 }
+// 요청 #111 - 사용자 지시: "좌에서 우측이 아니라 좌에서 아래로 배치되야 한다 점점 오른쪽으로
+// (실제 윈도우처럼)". 실제 윈도우 바탕화면은 한 열을 위에서 아래로 다 채운 뒤에야 다음 열
+// (오른쪽)로 넘어간다 - 예전엔 반대로(왼쪽→오른쪽을 다 채우고 다음 줄로 내려감, 즉 행 우선)
+// 배치했었다. 한 열에 들어가는 최대 개수(=몇 개면 다음 열로 넘어가는지)는 화면 높이에 따라
+// 달라지므로, 고정 6개가 아니라 실제 바탕화면 아이콘 레이어의 clientHeight를 기준으로 매번
+// 다시 계산한다(창을 늘리거나 줄여도 다음에 새로 만드는 아이콘부터는 새 높이를 반영한다).
+function dfsMaxGridRows() {
+  const h = (els.dfIconLayer && els.dfIconLayer.clientHeight) || 600;
+  return Math.max(1, Math.floor((h - 24) / 100));
+}
 async function dfsNextIconPos(parentId) {
   // 이미 있는 아이콘 개수를 보고 격자 형태로 다음 좌표를 대충 잡아준다(겹쳐서 쌓이는 것 방지).
-  // 바탕화면 최상위(DFS_DESKTOP_ROOT)는 저장소 루트/휴지통 특수 아이콘 2개가 항상 맨 앞(격자 0,1번
-  // 자리)에 고정으로 그려지므로(dfsRenderDesktop 참고), 실제 사용자 아이콘은 그만큼 밀어서 배치한다.
+  // 바탕화면 최상위(DFS_DESKTOP_ROOT)는 저장소 루트/휴지통 특수 아이콘 2개가 항상 맨 앞(첫 번째
+  // 열의 위쪽 두 자리)에 고정으로 그려지므로(dfsRenderDesktop 참고), 실제 사용자 아이콘은 그만큼
+  // 밀어서 배치한다.
   const siblings = await dfsDb.nodes.where("parentId").equals(parentId).toArray();
   const idx = siblings.length + (parentId === DFS_DESKTOP_ROOT ? 2 : 0);
-  const col = idx % 6, row = Math.floor(idx / 6);
+  const maxRows = dfsMaxGridRows();
+  const col = Math.floor(idx / maxRows), row = idx % maxRows;
   return { x: 24 + col * 96, y: 24 + row * 100 };
+}
+
+/* ---------------- 바탕화면 배치 모드: 자유모드(기본) / 격자모드 (요청 #110) ----------------
+   실제 윈도우 바탕화면의 "아이콘을 격자에 맞춤"과 비슷하게, 두 가지 모드를 오갈 수 있다.
+     - 자유모드(기본, 지금까지의 동작): 원하는 어떤 픽셀 위치로든 자유롭게 끌어다 놓을 수 있다.
+     - 격자모드: 아이콘을 놓을 때마다 가장 가까운 격자 칸(dfsNextIconPos와 같은 칸 크기 96x100,
+       원점 24,24)으로 스냅되고, 그 칸에 이미 다른 아이콘이 있으면 서로 자리를 맞바꾼다(겹치지
+       않게) - 격자모드로 막 전환한 순간에는 지금까지 자유롭게 놓여있던 모든 아이콘을 한 번에
+       가장 가까운 빈 칸으로 정렬한다.
+   모드는 저장소별로 다른 UI 상태(트리 펼침, 특수 아이콘 위치 등)와 같은 방식으로 localStorage에
+   기억한다. */
+const DFS_GRID_CELL_W = 96, DFS_GRID_CELL_H = 100, DFS_GRID_ORIGIN_X = 24, DFS_GRID_ORIGIN_Y = 24;
+function dfsArrangeModeKey() { return `idx:${repoName}:desktopArrangeMode`; }
+function dfsLoadArrangeMode() {
+  try {
+    const v = localStorage.getItem(dfsArrangeModeKey());
+    if (v === "grid" || v === "free") return v;
+  } catch (e) { /* 무시 - 실패해도 기본값(자유모드)으로 동작하면 됨 */ }
+  return "free";
+}
+function dfsSaveArrangeMode(mode) {
+  try { localStorage.setItem(dfsArrangeModeKey(), mode); } catch (e) { /* 용량 초과 등은 무시 */ }
+}
+let dfsArrangeMode = dfsLoadArrangeMode();
+// 픽셀 좌표를 가장 가까운 격자 칸(열,행)으로 변환한다 - 화면 밖(왼쪽/작업표시줄 아래)으로 나가지
+// 않도록 열은 0 이상, 행은 0~(그 순간의 최대 행 수-1) 사이로 자른다.
+function dfsPixelToCell(x, y) {
+  const col = Math.max(0, Math.round((x - DFS_GRID_ORIGIN_X) / DFS_GRID_CELL_W));
+  const maxRows = dfsMaxGridRows();
+  const row = Math.max(0, Math.min(maxRows - 1, Math.round((y - DFS_GRID_ORIGIN_Y) / DFS_GRID_CELL_H)));
+  return { col, row };
+}
+function dfsCellToPixel(col, row) {
+  return { x: DFS_GRID_ORIGIN_X + col * DFS_GRID_CELL_W, y: DFS_GRID_ORIGIN_Y + row * DFS_GRID_CELL_H };
+}
+// 목표 칸이 이미 차 있으면(occupied 집합에 있으면) 그 칸을 중심으로 점점 넓혀가며(열은 오른쪽으로
+// 무한히 늘어날 수 있으므로 열 방향은 제한 없음, 행은 maxRows로 제한) 가장 가까운 빈 칸을 찾는다.
+function dfsNearestFreeCell(occupied, col, row, maxRows) {
+  const key = (c, r) => `${c},${r}`;
+  if (col >= 0 && !occupied.has(key(col, row))) return { col, row };
+  for (let radius = 1; radius < 2000; radius++) {
+    for (let dc = -radius; dc <= radius; dc++) {
+      const c = col + dc;
+      if (c < 0) continue;
+      for (let dr = -radius; dr <= radius; dr++) {
+        if (Math.max(Math.abs(dc), Math.abs(dr)) !== radius) continue; // 이 반경의 "테두리"만(안쪽은 이전 반경에서 이미 검사함)
+        const r = row + dr;
+        if (r < 0 || r >= maxRows) continue;
+        if (!occupied.has(key(c, r))) return { col: c, row: r };
+      }
+    }
+  }
+  return { col: col + 2000, row: 0 }; // 사실상 도달하지 않는 극단적 예비값
+}
+// 지금 바탕화면에 있는 모든 아이콘(진짜 dexie 노드 + 저장소 루트/휴지통 특수 아이콘 2개)의 현재
+// 픽셀 위치를 한 목록으로 모은다 - 격자 스냅/충돌 판정에서 두 종류를 똑같이 다루기 위함.
+async function dfsAllDesktopIconPositions() {
+  const nodes = await dfsChildren(DFS_DESKTOP_ROOT);
+  const specialPos = dfsLoadSpecialIconPos();
+  const list = nodes.map(n => ({ id: n.id, isSpecial: false, x: n.x ?? 24, y: n.y ?? 24 }));
+  const repoRootPos = specialPos[DFS_REPOROOT_ICON_ID] || { x: 24, y: 24 };
+  const recycleBinPos = specialPos[DFS_RECYCLEBIN_ICON_ID] || { x: 24, y: 124 };
+  list.push({ id: DFS_REPOROOT_ICON_ID, isSpecial: true, x: repoRootPos.x, y: repoRootPos.y });
+  list.push({ id: DFS_RECYCLEBIN_ICON_ID, isSpecial: true, x: recycleBinPos.x, y: recycleBinPos.y });
+  return list;
+}
+function dfsSaveIconPosition(id, isSpecial, x, y) {
+  if (isSpecial) return dfsSaveSpecialIconPos(id, x, y);
+  return dfsDb.nodes.update(id, { x, y });
+}
+// 아이콘을 하나 드래그해서 놓았을 때(격자모드) 호출한다 - 놓은 자리에서 가장 가까운 격자 칸으로
+// 스냅하고, 그 칸에 이미 다른 아이콘이 있으면 서로의 자리를 맞바꾼다(밀어내거나 겹치지 않게).
+// 옮긴 아이콘(과 자리를 바꿨다면 상대방도) 즉시 dexie/localStorage에 반영한 뒤, 옮긴 아이콘의
+// 최종 픽셀 좌표를 돌려준다.
+async function dfsGridSnapDrop(draggedId, draggedIsSpecial, droppedX, droppedY, origX, origY) {
+  const target = dfsPixelToCell(droppedX, droppedY);
+  const all = await dfsAllDesktopIconPositions();
+  const isDragged = (it) => it.isSpecial === draggedIsSpecial && it.id === draggedId;
+  const occupant = all.find(it => !isDragged(it) && dfsPixelToCell(it.x, it.y).col === target.col && dfsPixelToCell(it.x, it.y).row === target.row);
+  const finalPos = dfsCellToPixel(target.col, target.row);
+  if (occupant) {
+    // 원래 있던 자리(드래그 시작 전 위치)를 격자 칸으로 스냅한 곳으로 상대방을 보낸다.
+    const origCell = dfsPixelToCell(origX, origY);
+    const swapPos = dfsCellToPixel(origCell.col, origCell.row);
+    await dfsSaveIconPosition(occupant.id, occupant.isSpecial, swapPos.x, swapPos.y);
+  }
+  await dfsSaveIconPosition(draggedId, draggedIsSpecial, finalPos.x, finalPos.y);
+  return finalPos;
+}
+// 격자모드로 막 전환했을 때: 그동안 자유롭게 흩어져 있던 모든 아이콘을 각자 가장 가까운 빈 격자
+// 칸으로 한 번에 정렬한다(실제 윈도우에서 "격자에 맞춤"을 막 켰을 때와 같은 느낌).
+async function dfsSnapAllIconsToGrid() {
+  const all = await dfsAllDesktopIconPositions();
+  const maxRows = dfsMaxGridRows();
+  const occupied = new Set();
+  // 화면에 보이는 순서(위→아래, 왼쪽→오른쪽)로 처리해야 시각적으로 크게 안 튀고 자연스럽게 정렬된다.
+  const ordered = [...all].sort((a, b) => {
+    const ca = dfsPixelToCell(a.x, a.y), cb = dfsPixelToCell(b.x, b.y);
+    return ca.col - cb.col || ca.row - cb.row;
+  });
+  for (const it of ordered) {
+    const wanted = dfsPixelToCell(it.x, it.y);
+    const cell = dfsNearestFreeCell(occupied, wanted.col, wanted.row, maxRows);
+    occupied.add(`${cell.col},${cell.row}`);
+    const pos = dfsCellToPixel(cell.col, cell.row);
+    await dfsSaveIconPosition(it.id, it.isSpecial, pos.x, pos.y);
+  }
 }
 async function dfsCreateFolder(parentId) {
   const name = await dfsUniqueName(parentId, "새 폴더");
@@ -268,6 +387,10 @@ async function dfsDelete(node) {
 // 휴지통 비우기/영구 삭제 전용 - 진짜로 다시는 되돌릴 수 없게 지운다.
 async function dfsPermanentlyDelete(node) {
   await dfsDeleteDeep(node.id);
+  // 요청 #113: 휴지통이 이제 진짜 탐색기 안에서 폴더처럼 열어볼 수 있으므로, 지금 그 폴더 "안"을
+  // 보고 있는 채로 영구 삭제됐다면(예: 휴지통에 든 폴더를 열어본 뒤 그 폴더 자체를 영구 삭제)
+  // 삭제된 경로가 그대로 남아 오류 화면이 뜨지 않도록 휴지통 루트로 되돌린다.
+  await dfsCloseWindowsShowing(node.id);
 }
 async function dfsRecycleBinItems() {
   if (!dfsDb) return [];
@@ -301,67 +424,27 @@ async function dfsEmptyRecycleBin() {
   for (const it of items) await dfsPermanentlyDelete(it);
   showToast("휴지통을 비웠습니다.");
 }
-/* ---------------- 휴지통 패널(설정 창과 같은 오버레이 스타일 재사용) ---------------- */
-function dfsCloseRecycleBinPanel() {
-  const overlay = document.getElementById("recycleBinOverlay");
-  if (overlay) overlay.remove();
-}
-async function dfsOpenRecycleBinPanel() {
-  dfsCloseRecycleBinPanel();
-  if (!dfsDb) return;
+/* ---------------- 휴지통 속성(요청 #113(b) - 윈도우 폴더 속성처럼 경로 표시) ----------------
+   예전엔 휴지통 전용 오버레이 패널이 따로 있었지만(사용자 지시로 제거 - "그냥 트리에 들어있는거
+   말고 폴더처럼" 통합됨), "속성"만은 실제 폴더 속성 대화상자처럼 별도의 작은 안내창으로 남긴다. */
+async function dfsShowRecycleBinProperties() {
   const items = await dfsRecycleBinItems();
-  const overlay = document.createElement("div");
-  overlay.id = "recycleBinOverlay";
-  overlay.className = "settings-overlay open";
-  overlay.innerHTML = `
-    <div class="settings-panel">
-      <div class="settings-titlebar">
-        <span>휴지통${items.length ? ` (${items.length}개)` : ""}</span>
-        <button class="settings-close" id="recycleBinCloseBtn" title="닫기">&#x2715;</button>
-      </div>
-      <div class="settings-body" id="recycleBinBody"></div>
-    </div>`;
-  document.body.appendChild(overlay);
-  document.getElementById("recycleBinCloseBtn").onclick = dfsCloseRecycleBinPanel;
-  overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) dfsCloseRecycleBinPanel(); });
-  const body = document.getElementById("recycleBinBody");
-  if (!items.length) {
-    body.innerHTML = `<div class="settings-hint">휴지통이 비어 있습니다.</div>`;
-    return;
-  }
-  items.forEach(node => {
-    const row = document.createElement("div");
-    row.className = "settings-row";
-    row.innerHTML = `<span style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">${dfsIconGlyphFor(node, 20)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(node.name)}</span></span>`;
-    const restoreBtn = document.createElement("button");
-    restoreBtn.className = "settings-button settings-button-neutral";
-    restoreBtn.textContent = "복원";
-    restoreBtn.onclick = async () => {
-      await dfsRestoreFromRecycleBin(node);
-      await dfsBroadcastChange();
-      dfsOpenRecycleBinPanel();
-    };
-    const delBtn = document.createElement("button");
-    delBtn.className = "settings-button";
-    delBtn.textContent = "영구 삭제";
-    delBtn.onclick = async () => {
-      const ok = await showConfirmDialog(`"${node.name}"을(를) 완전히 삭제할까요? (되돌릴 수 없습니다)`);
-      if (!ok) return;
-      await dfsPermanentlyDelete(node);
-      dfsOpenRecycleBinPanel();
-    };
-    row.appendChild(restoreBtn);
-    row.appendChild(delBtn);
-    body.appendChild(row);
-  });
-  const divider = document.createElement("div");
-  divider.className = "settings-divider";
-  body.appendChild(divider);
-  const emptyBtn = document.createElement("button");
-  emptyBtn.className = "settings-button";
-  emptyBtn.textContent = "휴지통 비우기";
-  emptyBtn.onclick = async () => { await dfsEmptyRecycleBin(); dfsOpenRecycleBinPanel(); };
-  body.appendChild(emptyBtn);
+  const path = `${repoName || "이 PC"}\\${RECYCLEBIN_TREE_NAME}`;
+  await showInfoDialog(`휴지통 속성\n\n종류: 시스템 폴더\n위치: ${path}\n항목: ${items.length}개`);
+}
+// 요청 #113(a): 파일/폴더를 휴지통 위로 드래그해서 놓으면 확인 없이 곧바로 삭제한다(실제 윈도우도
+// 휴지통에 끌어다 놓을 때는 확인창 없이 바로 지운다) - 바탕화면의 휴지통 특수 아이콘(el이 그
+// 아이콘 자신이거나 그 자식)인지 판별하는 공용 헬퍼. 트리의 휴지통 행은 각자 자기 자리에서
+// attachRecycleBinTreeDropTarget(tree-pane.js)로 별도 처리한다.
+function dfsIsRecycleBinIcon(el) {
+  // 바탕화면의 휴지통 특수 아이콘뿐 아니라, 왼쪽 트리의 "휴지통" 행(tree-pane.js의
+  // attachRecycleBinTreeDropTarget이 표시해둔 data-recycle-bin-root)도 같은 "삭제 대상"으로
+  // 취급한다 - 마우스 기반 드래그(dfsSetupIconDrag)는 네이티브 드롭 이벤트가 없어 dfsElementUnder로
+  // 찾은 이 요소를 직접 검사해야 하기 때문(요청 #113).
+  return !!(el && el.closest && (
+    el.closest(`.df-icon[data-special-id="${DFS_RECYCLEBIN_ICON_ID}"]`) ||
+    el.closest('[data-recycle-bin-root]')
+  ));
 }
 async function dfsIsDescendant(maybeAncestorId, folderId) {
   let p = folderId;
@@ -402,7 +485,17 @@ async function dfsMove(node, newParentId) {
     if (!ok) return false;
     await dfsDelete(conflict);
   }
-  await dfsDb.nodes.update(node.id, { parentId: newParentId, name: node.name, updatedAt: Date.now() });
+  const patch = { parentId: newParentId, name: node.name, updatedAt: Date.now() };
+  // 요청 #113(d): 휴지통 안의 항목을 드래그(또는 우클릭 복원)로 휴지통 밖으로 옮기면, 더는
+  // "휴지통에 있다"는 낡은 표시(originalParentId/deletedAt)가 남아있으면 안 된다 - 이 필드들은
+  // dfsRecycleBinItems가 parentId===DFS_RECYCLEBIN_ROOT인 것만 보여주므로 방치해도 화면에는
+  // 안 보이지만, 깨끗하게 지워야 나중에 이 항목이 다시 삭제될 때 옛 원래 위치가 아니라 지금
+  // 새로 옮겨진 위치를 기준으로 복원되게 된다.
+  if (node.parentId === DFS_RECYCLEBIN_ROOT && newParentId !== DFS_RECYCLEBIN_ROOT) {
+    patch.originalParentId = null;
+    patch.deletedAt = null;
+  }
+  await dfsDb.nodes.update(node.id, patch);
   return true;
 }
 // ---------------- 폴더끼리 이름이 겹칠 때의 재귀 병합(위 dfsMove/dfsCopyInto가 공용으로 씀) ----------------
@@ -457,23 +550,26 @@ async function dfsPasteInto(parentId) {
    채워지게 한다. */
 async function dfsBroadcastChange() {
   await dfsRenderDesktop();
+  // 요청 #113: 휴지통도 이제 바탕화면과 똑같이 dexie 기반 경로이므로(복원/영구삭제가 바탕화면
+  // 쪽 캐시에도 영향을 줄 수 있음 - 예: 복원하면 목적지 폴더 캐시가 바뀜) 두 뿌리 다 지운다.
   for (const k of [...dirCache.keys()]) {
-    if (k === DESKTOP_TREE_NAME || k.startsWith(DESKTOP_TREE_NAME + "/")) dirCache.delete(k);
+    if (k === DESKTOP_TREE_NAME || k.startsWith(DESKTOP_TREE_NAME + "/") || k === RECYCLEBIN_TREE_NAME || k.startsWith(RECYCLEBIN_TREE_NAME + "/")) dirCache.delete(k);
   }
   await revealPath(currentPath).catch(() => {});
   await renderContentPane();
   renderNavPane();
 }
 async function dfsCloseWindowsShowing(nodeId) {
-  // 지금 통합된 진짜 탐색기 창(#win)이 방금 삭제된 폴더(또는 그 하위)를 보고 있었다면, 더는
-  // 보여줄 게 없으므로 바탕화면 루트로 이동한다(실제 탐색기도 보던 폴더가 사라지면 오류 대신
-  // 상위/기본 위치로 돌아가는 것과 같은 동작).
-  if (!isDesktopPath(currentPath)) return;
+  // 지금 통합된 진짜 탐색기 창(#win)이 방금 삭제된(또는 영구 삭제된) 폴더(또는 그 하위)를 보고
+  // 있었다면, 더는 보여줄 게 없으므로 그 뿌리(바탕화면 또는 휴지통) 루트로 이동한다(실제
+  // 탐색기도 보던 폴더가 사라지면 오류 대신 상위/기본 위치로 돌아가는 것과 같은 동작). 요청
+  // #113: 휴지통 안까지 들어가서 보고 있을 수도 있으므로 그쪽도 같은 방식으로 처리한다.
+  if (!isDfsPath(currentPath)) return;
   const curFolderId = await dfsResolvePathToFolderId(currentPath);
   // 못 찾으면(curFolderId==null) 지금 보던 위치 자체가 깨진 것이므로(방금 삭제됐거나 그 하위였음)
-  // 마찬가지로 바탕화면 루트로 돌아간다.
+  // 마찬가지로 그 뿌리로 돌아간다.
   if (curFolderId == null || curFolderId === nodeId || await dfsIsDescendant(nodeId, curFolderId)) {
-    navigate([DESKTOP_TREE_NAME]);
+    navigate(isRecycleBinPath(currentPath) ? [RECYCLEBIN_TREE_NAME] : [DESKTOP_TREE_NAME]);
   }
 }
 
@@ -507,6 +603,69 @@ async function dfsSelectAllIcons() {
 // (dfsDb.nodes.get(id)가 문자열 id에 대해 undefined를 돌려주므로 자연히 무시됨).
 const DFS_REPOROOT_ICON_ID = "repo-root";
 const DFS_RECYCLEBIN_ICON_ID = "recycle-bin";
+// 요청 #112 - 사용자 지시: "레포 폴더와, 휴지통도 이동 가능하게". 이 둘은 dexie 노드가 아니라서
+// (x,y)를 dfsDb.nodes에 저장할 수 없으므로, 다른 저장소별 UI 상태(설정/트리 펼침 등)와 같은
+// 방식으로 localStorage에 따로 둔다: idx:<repo>:specialIconPos = { [specialId]: {x,y} }.
+function dfsSpecialIconPosKey() { return `idx:${repoName}:specialIconPos`; }
+function dfsLoadSpecialIconPos() {
+  try {
+    const raw = localStorage.getItem(dfsSpecialIconPosKey());
+    if (raw) { const obj = JSON.parse(raw); if (obj && typeof obj === "object") return obj; }
+  } catch (e) { /* 무시 - 위치 저장은 편의 기능일 뿐이라 실패해도 기본 위치로 그리면 된다 */ }
+  return {};
+}
+function dfsSaveSpecialIconPos(id, x, y) {
+  try {
+    const all = dfsLoadSpecialIconPos();
+    all[id] = { x, y };
+    localStorage.setItem(dfsSpecialIconPosKey(), JSON.stringify(all));
+  } catch (e) { /* 용량 초과 등은 무시 */ }
+}
+// 특수 아이콘 드래그 - dfsSetupIconDrag(진짜 dexie 노드용)와 뼈대는 같지만(마우스로 추적하다가
+// 놓으면 clamp해서 확정), 이 둘은 폴더가 아니고 dexie 노드도 아니므로 "폴더 위에 놓으면 그 안으로
+// 옮기기" 같은 드롭 타겟 로직은 없다 - 실제 윈도우에서도 휴지통/내 PC를 다른 폴더 "안"으로
+// 옮길 수는 없고 바탕화면 위에서 위치만 바꿀 수 있는 것과 동일하다.
+function dfsSetupSpecialIconDrag(iconEl, id) {
+  let dragging = false, moved = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;
+  function clamp(left, top) {
+    const maxLeft = Math.max(0, els.dfIconLayer.clientWidth - iconEl.offsetWidth);
+    const maxTop = Math.max(0, els.dfIconLayer.clientHeight - iconEl.offsetHeight);
+    return { left: Math.max(0, Math.min(left, maxLeft)), top: Math.max(0, Math.min(top, maxTop)) };
+  }
+  iconEl.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    dragging = true; moved = false;
+    startX = e.clientX; startY = e.clientY;
+    origLeft = parseFloat(iconEl.style.left) || 0;
+    origTop = parseFloat(iconEl.style.top) || 0;
+    e.stopPropagation();
+  });
+  window.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - startX, dy = e.clientY - startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
+    if (!moved) return;
+    const pos = clamp(origLeft + dx, origTop + dy);
+    iconEl.style.left = pos.left + "px";
+    iconEl.style.top = pos.top + "px";
+    iconEl.style.zIndex = 5;
+  });
+  window.addEventListener("mouseup", async () => {
+    if (!dragging) return;
+    dragging = false;
+    iconEl.style.zIndex = "";
+    if (!moved) return;
+    const pos = clamp(parseFloat(iconEl.style.left) || 0, parseFloat(iconEl.style.top) || 0);
+    // 요청 #110: 격자모드면 이 특수 아이콘도 예외 없이 격자 칸에 스냅되고, 그 칸에 이미 다른
+    // 아이콘(진짜 노드든 다른 특수 아이콘이든)이 있으면 자리를 맞바꾼다.
+    if (dfsArrangeMode === "grid") {
+      await dfsGridSnapDrop(id, true, pos.left, pos.top, origLeft, origTop);
+      await dfsRenderDesktop();
+      return;
+    }
+    dfsSaveSpecialIconPos(id, pos.left, pos.top);
+  });
+}
 function dfsRenderSpecialIcon(id, x, y, iconHtml, label, onDblClick, buildMenu) {
   const icon = document.createElement("div");
   const isSelected = dfsSelectedIconId === id || dfsMultiSelected.has(id);
@@ -531,15 +690,21 @@ function dfsRenderSpecialIcon(id, x, y, iconHtml, label, onDblClick, buildMenu) 
     dfsRenderDesktop();
     showContextMenu(e.clientX, e.clientY, buildMenu());
   });
+  dfsSetupSpecialIconDrag(icon, id);
   els.dfIconLayer.appendChild(icon);
 }
 async function dfsRenderDesktop() {
   if (!dfsDb) return;
   const items = await dfsChildren(DFS_DESKTOP_ROOT);
   els.dfIconLayer.innerHTML = "";
+  // 요청 #112: 두 특수 아이콘도 이동 가능해야 하므로, 사용자가 옮겨서 localStorage에 저장해둔
+  // 위치가 있으면 그걸 쓰고, 없으면(처음 방문 등) 기존 기본 위치를 그대로 쓴다.
+  const dfsSpecialPos = dfsLoadSpecialIconPos();
+  const repoRootPos = dfsSpecialPos[DFS_REPOROOT_ICON_ID] || { x: 24, y: 24 };
+  const recycleBinPos = dfsSpecialPos[DFS_RECYCLEBIN_ICON_ID] || { x: 24, y: 124 };
   // 저장소 루트 아이콘 - 트리의 루트 행과 똑같은 아이콘을 쓴다(사용자 지시).
   dfsRenderSpecialIcon(
-    DFS_REPOROOT_ICON_ID, 24, 24, resolveRepoRootIcon(40), repoName || "루트",
+    DFS_REPOROOT_ICON_ID, repoRootPos.x, repoRootPos.y, resolveRepoRootIcon(40), repoName || "루트",
     () => openRealExplorerAt([]),
     () => {
       const menu = [{ label: "열기", action: () => openRealExplorerAt([]) }];
@@ -547,13 +712,19 @@ async function dfsRenderDesktop() {
       return menu;
     }
   );
-  // 휴지통 아이콘 - 바탕화면과 트리 양쪽에 같은 아이콘을 쓴다(사용자 지시).
+  // 휴지통 아이콘 - 바탕화면과 트리 양쪽에 같은 아이콘을 쓴다(사용자 지시). 요청 #111(열 우선
+  // 자동배치)과 일관되게, 저장소 루트 아이콘의 옆(같은 줄)이 아니라 바로 아래(같은 첫 번째
+  // 열)에 둔다 - 실제 사용자 아이콘들도 이 두 자리 다음(=idx 2)부터 같은 첫 번째 열을 계속
+  // 이어서 채운다(dfsNextIconPos 참고).
   dfsRenderSpecialIcon(
-    DFS_RECYCLEBIN_ICON_ID, 120, 24, resolveRecycleBinIcon(40), "휴지통",
-    () => dfsOpenRecycleBinPanel(),
+    DFS_RECYCLEBIN_ICON_ID, recycleBinPos.x, recycleBinPos.y, resolveRecycleBinIcon(40), "휴지통",
+    // 요청 #113(c): 더는 별도 오버레이 패널이 아니라, 통합된 진짜 탐색기 창에서 휴지통 경로로
+    // 이동한다 - 다른 폴더 아이콘을 더블클릭하는 것과 완전히 같은 방식.
+    () => openRealExplorerAt([RECYCLEBIN_TREE_NAME]),
     () => [
-      { label: "열기", action: () => dfsOpenRecycleBinPanel() },
-      { label: "휴지통 비우기", action: async () => { await dfsEmptyRecycleBin(); await dfsRenderDesktop(); } }
+      { label: "열기", action: () => openRealExplorerAt([RECYCLEBIN_TREE_NAME]) },
+      { label: "휴지통 비우기", action: async () => { await dfsEmptyRecycleBin(); await dfsBroadcastChange(); } },
+      { label: "속성", action: () => dfsShowRecycleBinProperties() }
     ]
   );
   items.forEach(node => {
@@ -615,6 +786,15 @@ document.querySelector(".desktop").addEventListener("contextmenu", (e) => {
   if (!dfsDb) return; // dexie를 못 불러왔으면 바탕화면 기능 자체를 조용히 비활성화
   const items = [
     { label: "탐색기로 열기", action: () => openRealExplorerAt([DESKTOP_TREE_NAME]) },
+    // 요청 #110: 자유모드/격자모드 전환(체크 표시로 지금 모드를 보여줌 - 실제 윈도우의 "아이콘을
+    // 격자에 맞춤"과 같은 자리).
+    { label: (dfsArrangeMode === "grid" ? "✓ " : "") + "아이콘을 격자에 맞춤", action: async () => {
+      const next = dfsArrangeMode === "grid" ? "free" : "grid";
+      dfsArrangeMode = next;
+      dfsSaveArrangeMode(next);
+      if (next === "grid") await dfsSnapAllIconsToGrid();
+      await dfsRenderDesktop();
+    } },
     ...dfsBuildEmptyAreaMenuItems(DFS_DESKTOP_ROOT, () => dfsBroadcastChange())
   ];
   showContextMenu(e.clientX, e.clientY, items);
@@ -653,9 +833,31 @@ document.querySelector(".desktop").addEventListener("drop", async (e) => {
   const draggedId = Number(e.dataTransfer.getData("text/plain"));
   if (!draggedId) return;
   const srcNode = await dfsDb.nodes.get(draggedId);
-  if (!srcNode || srcNode.parentId === DFS_DESKTOP_ROOT) return;
-  const ok = await dfsMove(srcNode, DFS_DESKTOP_ROOT);
-  if (ok) showToast(`"${srcNode.name}"을(를) 바탕화면으로 옮겼습니다.`);
+  if (!srcNode) return;
+  const under = dfsElementUnder(e.clientX, e.clientY);
+  // 요청 #113(a): 휴지통 아이콘 위로 놓으면(트리/내용창에서 네이티브 드래그로 끌려온 항목 포함,
+  // 예: 복원 중이던 휴지통 항목을 다시 휴지통 위로 놓는 경우까지) 그대로 삭제한다.
+  if (dfsIsRecycleBinIcon(under)) {
+    if (srcNode.parentId === DFS_RECYCLEBIN_ROOT) return;
+    await dfsDelete(srcNode);
+    showToast(`"${srcNode.name}"을(를) 휴지통으로 옮겼습니다.`);
+    await dfsBroadcastChange();
+    return;
+  }
+  // 요청 #113(d): 휴지통 항목을 드래그해서 "바탕화면의 다른 폴더" 아이콘 위에 정확히 놓으면 그
+  // 폴더 안으로 복원되고, 그 외 빈 바탕화면이면 바탕화면 루트로 옮긴다(휴지통 항목이 아닌 일반
+  // 항목의 드래그도 이 경로를 그대로 타므로 동일하게 개선된다 - 예전엔 항상 무조건 루트로만 갔음).
+  let targetId = DFS_DESKTOP_ROOT, targetLabel = "바탕 화면";
+  if (under && under.classList.contains("df-icon") && under.dataset.id) {
+    const targetNode = await dfsDb.nodes.get(Number(under.dataset.id));
+    if (targetNode && targetNode.type === "folder" && targetNode.id !== srcNode.id) {
+      targetId = targetNode.id;
+      targetLabel = `"${targetNode.name}" 폴더`;
+    }
+  }
+  if (srcNode.parentId === targetId) return;
+  const ok = await dfsMove(srcNode, targetId);
+  if (ok) showToast(`"${srcNode.name}"을(를) ${targetLabel}으로 옮겼습니다.`);
   await dfsBroadcastChange();
 });
 
@@ -757,6 +959,15 @@ function dfsSetupIconDrag(iconEl, node) {
     // content-pane.js가 desktopMode일 때 dataset.id를 붙여둔다)도 찾는다. 그 덕분에 바탕화면
     // 아이콘을 그 창의 특정 "폴더 칸" 위에 정확히 떨어뜨리면 그 폴더 안으로 들어간다.
     const under = dfsElementUnder(e.clientX, e.clientY, iconEl);
+    // 요청 #113: 바탕화면 아이콘을 마우스로 끌어 휴지통 특수 아이콘 위에 놓으면 삭제(휴지통 이동).
+    if (dfsIsRecycleBinIcon(under)) {
+      if (node.parentId !== DFS_RECYCLEBIN_ROOT) {
+        await dfsDelete(node);
+        showToast(`"${node.name}"을(를) 휴지통으로 옮겼습니다.`);
+        await dfsBroadcastChange();
+      }
+      return;
+    }
     if (under && under.dataset.id) {
       const targetId = Number(under.dataset.id);
       const target = await dfsDb.nodes.get(targetId);
@@ -784,9 +995,18 @@ function dfsSetupIconDrag(iconEl, node) {
     // 못했더라도(빈 칸/파일 칸 위, 혹은 그냥 내용창의 빈 공간), 지금 열려있는 탐색기 창이 바탕화면
     // 폴더를 보여주고 있는 채로 그 창 위에 놓았다면 "지금 보고 있는 그 폴더" 안으로 옮긴다(실제
     // 윈도우 탐색기에 파일을 끌어다 놓을 때와 동일 - 꼭 안의 하위 폴더 칸에 정확히 맞힐 필요는 없음).
-    if (!els.win.classList.contains("closed") && !els.win.classList.contains("minimized") && isDesktopPath(currentPath)) {
+    if (!els.win.classList.contains("closed") && !els.win.classList.contains("minimized") && isDfsPath(currentPath)) {
       const overContentPane = document.elementsFromPoint(e.clientX, e.clientY).some(el => el.closest && el.closest("#contentPane"));
       if (overContentPane) {
+        // 요청 #113: 지금 열려있는 창이 "휴지통"을 보여주고 있는 채로 그 창 위에 놓으면 삭제(휴지통 이동).
+        if (isRecycleBinPath(currentPath)) {
+          if (node.parentId !== DFS_RECYCLEBIN_ROOT) {
+            await dfsDelete(node);
+            showToast(`"${node.name}"을(를) 휴지통으로 옮겼습니다.`);
+            await dfsBroadcastChange();
+          }
+          return;
+        }
         const folderId = await dfsResolvePathToFolderId(currentPath);
         if (folderId != null && folderId !== node.id && node.parentId !== folderId) {
           const ok = await dfsMove(node, folderId);
@@ -797,6 +1017,13 @@ function dfsSetupIconDrag(iconEl, node) {
       }
     }
     const pos = clamp(parseFloat(iconEl.style.left) || 0, parseFloat(iconEl.style.top) || 0);
+    // 요청 #110: 격자모드면 자유롭게 놓은 픽셀 위치를 그대로 쓰지 않고 가장 가까운 격자 칸으로
+    // 스냅하며, 그 칸에 이미 다른 아이콘이 있으면 자리를 맞바꾼다.
+    if (dfsArrangeMode === "grid") {
+      await dfsGridSnapDrop(node.id, false, pos.left, pos.top, origLeft, origTop);
+      await dfsRenderDesktop();
+      return;
+    }
     await dfsDb.nodes.update(node.id, { x: pos.left, y: pos.top });
   });
 }
@@ -819,7 +1046,7 @@ function dfsBuildIconMenuItems(node, opts = {}) {
   const items = [];
   if (node.type === "folder") {
     items.push({ label: "열기", action: () => dfsActivate(node) });
-    items.push({ label: "다운로드", action: () => dfsDownloadFolderRecursive(node) });
+    items.push({ label: "다운로드", action: () => dfsDownloadFolderChoice(node) });
   } else if (node.type === "shortcut") {
     items.push({ label: "열기", action: () => dfsActivate(node) });
   } else {
@@ -874,6 +1101,37 @@ async function dfsCollectFolderFiles(node, prefix, out) {
     // 바로가기(shortcut)는 가리키는 대상이 폴더 안/밖 어디에도 있을 수 있어 애매하므로 제외한다.
   }
 }
+// dfsCollectFolderFiles와 같은 재귀이지만, 헬퍼로 다운로드할 때는 실제 저장소 폴더의
+// downloadFolderRecursive(local-helper.js)와 똑같이 안이 빈 하위 폴더도 그대로 재현해야 하므로
+// 폴더 목록도 같이 모은다(zip 경로는 JSZip이 파일 경로만으로 폴더를 자동으로 만들어주므로
+// folders가 필요 없어 기존 dfsCollectFolderFiles를 그대로 둔다).
+async function dfsCollectFolderTree(node, prefix, files, folders) {
+  const kids = await dfsChildren(node.id);
+  for (const kid of kids) {
+    if (kid.type === "folder") {
+      const rel = prefix + kid.name;
+      folders.push(rel);
+      await dfsCollectFolderTree(kid, rel + "/", files, folders);
+    } else if (kid.type === "file") {
+      files.push({ path: prefix + kid.name, content: kid.content || "" });
+    }
+    // 바로가기(shortcut)는 dfsCollectFolderFiles와 같은 이유로 제외한다.
+  }
+}
+/* ---------------- 폴더 다운로드 방법 선택: zip 또는 로컬 헬퍼 ----------------
+   사용자 지시: "바탕 화면은 방법 두 개 넣기. zip 혹은 헬퍼(다운로드는 하나지만 받을때 묻기)"
+   - 우클릭/드래그 메뉴에는 "다운로드" 항목이 하나뿐이고, 누르는 순간 방식을 고르게 한다. */
+async function dfsDownloadFolderChoice(node) {
+  const choice = await showChoiceDialog(
+    `"${node.name}" 폴더를 어떻게 받으시겠습니까?`,
+    [
+      { label: "Zip으로 받기", value: "zip" },
+      { label: "헬퍼로 받기(폴더 그대로 저장)", value: "helper" }
+    ]
+  );
+  if (choice === "zip") await dfsDownloadFolderRecursive(node);
+  else if (choice === "helper") await dfsDownloadFolderViaHelper(node);
+}
 async function dfsDownloadFolderRecursive(node) {
   showToast(`"${node.name}" 폴더 압축 준비 중...`);
   let JSZip;
@@ -918,10 +1176,11 @@ async function dfsDownloadVirtualFile(node) {
    새 탭(dfsOpenFileInNewTab)으로 뜬다. */
 async function dfsActivate(node) {
   if (node.type === "folder") {
-    // 이제 별도 팝업 창이 아니라, 하나로 통합된 "진짜" 탐색기 창(#win)에서 이 폴더의 바탕화면
-    // 경로(["바탕화면", ...조상들..., 이 폴더])로 이동시킨다.
-    const chain = await dfsBuildPath(node.id);
-    openRealExplorerAt([DESKTOP_TREE_NAME, ...chain.map(seg => seg.name)]);
+    // 이제 별도 팝업 창이 아니라, 하나로 통합된 "진짜" 탐색기 창(#win)에서 이 폴더의 경로
+    // (["바탕 화면"|"휴지통", ...조상들..., 이 폴더])로 이동시킨다. 요청 #113: 이 폴더가
+    // 휴지통 안에 있을 수도 있으므로(폴더째 삭제된 경우) dfsBuildPath가 어느 뿌리인지도 알려준다.
+    const { chain, rootName } = await dfsBuildPath(node.id);
+    openRealExplorerAt([rootName, ...chain.map(seg => seg.name)]);
     return;
   }
   if (node.type === "shortcut") {
@@ -941,16 +1200,19 @@ async function dfsActivate(node) {
    / dfsActivate 참고). 아래 dfsBuildPath만 그 경로를 계산하기 위해 남아 있다.
 ================================================================================= */
 async function dfsBuildPath(folderId) {
-  // desktop root부터 folderId까지 [{id,name}, ...] (desktop 자체는 포함 안 함, folderId===DESKTOP_ROOT면 빈 배열)
+  // 뿌리(바탕화면 또는 휴지통)부터 folderId까지 [{id,name}, ...] (뿌리 자체는 포함 안 함,
+  // folderId가 뿌리 자신이면 빈 배열) - 요청 #113: 휴지통 안의 폴더(통째로 삭제된 폴더)도
+  // 같은 방식으로 다뤄야 하므로, 어느 뿌리에서 멈췄는지도 같이 돌려준다.
   const chain = [];
   let cur = folderId;
-  while (cur !== DFS_DESKTOP_ROOT && cur != null) {
+  while (cur !== DFS_DESKTOP_ROOT && cur !== DFS_RECYCLEBIN_ROOT && cur != null) {
     const node = await dfsDb.nodes.get(cur);
     if (!node) break;
     chain.unshift({ id: node.id, name: node.name });
     cur = node.parentId;
   }
-  return chain;
+  const rootName = cur === DFS_RECYCLEBIN_ROOT ? RECYCLEBIN_TREE_NAME : DESKTOP_TREE_NAME;
+  return { chain, rootName };
 }
 
 /* ---------------- 바탕화면 키보드: F2 이름 변경 / Delete 삭제 ----------------

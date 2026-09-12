@@ -193,6 +193,129 @@ async function downloadFolderRecursive(it) {
   }
 }
 
+/* ============ 폴더 통째로 다운로드(재귀) - 바탕 화면 가상 폴더, 헬퍼 방식 ============
+   사용자 지시: "바탕 화면은 방법 두 개 넣기. zip 혹은 헬퍼(다운로드는 하나지만 받을때 묻기)".
+   실제 저장소 폴더의 downloadFolderRecursive와 뼈대(pickfolder로 저장 위치 한 번만 고르고
+   mkdir로 폴더 구조부터 재현한 뒤 파일을 하나씩 내려받음)는 같지만, 바탕 화면 가상 파일은
+   서버에 실제 URL이 없어(dexie 안 content) /savetopath처럼 "url을 다시 받아오는" 방식이
+   안 된다 - 대신 이미 갖고 있는 내용을 /savecontentto로 그대로 POST해서 base\rel 경로에 쓴다
+   (localHelperSaveContent가 단일 파일에 하는 것과 같은 방식을, 대화상자 없이 폴더 구조
+   그대로 재현하도록 확장한 것). */
+async function dfsDownloadFolderViaHelper(node) {
+  const port = await ensureHelperPort();
+  if (port === null) { offerHelperDownload("폴더 다운로드"); return; }
+
+  const files = [];
+  const folders = [];
+  await dfsCollectFolderTree(node, "", files, folders);
+
+  let baseRoot;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/pickfolder`);
+    baseRoot = (await res.text()).trim();
+  } catch (e) {
+    showToast(`폴더 선택 중 오류: ${e.message}`, { kind: "warn" });
+    return;
+  }
+  if (!baseRoot || baseRoot === "CANCELLED") { showToast("다운로드가 취소되었습니다."); return; }
+
+  const relPrefix = node.name; // 고른 위치 바로 밑에 이 폴더 이름으로 최상위 폴더를 만들고 그 안에 구조를 재현
+  const dlg = showCancelableProgressDialog(`"${node.name}" 폴더 다운로드 준비 중...`);
+  try {
+    const mkRoot = await fetch(`http://127.0.0.1:${port}/mkdir?base=${encodeURIComponent(baseRoot)}&rel=${encodeURIComponent(relPrefix)}`);
+    if (!mkRoot.ok) throw new Error(String(mkRoot.status));
+    // 안에 파일이 하나도 없는 빈 하위 폴더도 그대로 재현되도록, 모든 하위 폴더를 파일보다 먼저 만든다.
+    for (const f of folders) {
+      if (dlg.isCancelled()) { showToast("폴더 다운로드가 취소되었습니다."); return; }
+      const rel = relPrefix + "/" + f;
+      dlg.setText(`폴더 만드는 중: ${f}`);
+      await fetch(`http://127.0.0.1:${port}/mkdir?base=${encodeURIComponent(baseRoot)}&rel=${encodeURIComponent(rel)}`);
+    }
+    let ok = 0, fail = 0;
+    for (let i = 0; i < files.length; i++) {
+      if (dlg.isCancelled()) { showToast(`폴더 다운로드가 취소되었습니다. (${ok}개 저장됨)`); return; }
+      const f = files[i];
+      const rel = relPrefix + "/" + f.path;
+      dlg.setText(`다운로드 중 (${i + 1}/${files.length}): ${f.path}`);
+      try {
+        const res = await fetch(`http://127.0.0.1:${port}/savecontentto?base=${encodeURIComponent(baseRoot)}&rel=${encodeURIComponent(rel)}`, {
+          method: "POST",
+          body: f.content ?? ""
+        });
+        if (!res.ok) throw new Error(String(res.status));
+        ok++;
+      } catch (e) { fail++; }
+    }
+    showToast(`"${node.name}" 폴더 다운로드 완료: ${ok}개${fail ? `, 실패 ${fail}개` : ""}`, fail ? { kind: "warn" } : {});
+  } finally {
+    dlg.close();
+  }
+}
+
+/* ============ 다중 선택 다운로드에 폴더 포함 (요청 #115) ============
+   위 두 함수(downloadFolderRecursive/dfsDownloadFolderViaHelper)는 "폴더 하나"를 우클릭으로
+   다운로드할 때 자기가 직접 /pickfolder로 저장 위치를 고르지만, 다중 선택 다운로드
+   (content-pane.js의 handleMultiDownload)는 파일+폴더가 섞여 있어도 한 번 고른 위치 하나에
+   전부 담아야 하므로 항목(폴더)마다 /pickfolder를 다시 부를 수 없다. 그래서 "이미 골라둔
+   baseRoot 아래에 폴더 하나를 그대로 재현한다"는 부분만 떼어내 재사용 가능하게 만든다 - mkdir/
+   savetopath/savecontentto 호출 방식은 위 두 함수와 완전히 같다(다만 다중 선택은 진행률
+   대화상자 하나를 모든 항목이 함께 쓰므로 dlg를 인자로 받는다). */
+async function downloadRealFolderIntoBase(it, port, baseRoot, dlg) {
+  const entries = await crawlAll(it.path);
+  const folders = entries.filter(en => en.type === "folder");
+  const files = entries.filter(en => en.type !== "folder");
+  const relPrefix = it.name; // 고른 위치 바로 밑에 이 폴더 이름으로 하위 폴더를 만들고 그 안에 구조를 재현
+  const mkRoot = await fetch(`http://127.0.0.1:${port}/mkdir?base=${encodeURIComponent(baseRoot)}&rel=${encodeURIComponent(relPrefix)}`);
+  if (!mkRoot.ok) throw new Error(String(mkRoot.status));
+  for (const f of folders) {
+    if (dlg.isCancelled()) return { cancelled: true, ok: 0, fail: 0 };
+    const rel = relPrefix + "/" + f.path.slice(it.path.length).join("/");
+    dlg.setText(`폴더 만드는 중: ${f.name}`);
+    await fetch(`http://127.0.0.1:${port}/mkdir?base=${encodeURIComponent(baseRoot)}&rel=${encodeURIComponent(rel)}`);
+  }
+  let ok = 0, fail = 0;
+  for (let i = 0; i < files.length; i++) {
+    if (dlg.isCancelled()) return { cancelled: true, ok, fail };
+    const f = files[i];
+    const rel = relPrefix + "/" + f.path.slice(it.path.length).join("/");
+    dlg.setText(`다운로드 중 (${i + 1}/${files.length}): ${f.name}`);
+    const url = absoluteFileUrl(f.path);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/savetopath?url=${encodeURIComponent(url)}&base=${encodeURIComponent(baseRoot)}&rel=${encodeURIComponent(rel)}${sizeQueryParam(f)}`);
+      if (!res.ok) throw new Error(String(res.status));
+      ok++;
+    } catch (e) { fail++; }
+  }
+  return { cancelled: false, ok, fail };
+}
+async function dfsDownloadFolderIntoBase(node, port, baseRoot, dlg) {
+  const files = [];
+  const folders = [];
+  await dfsCollectFolderTree(node, "", files, folders);
+  const relPrefix = node.name;
+  const mkRoot = await fetch(`http://127.0.0.1:${port}/mkdir?base=${encodeURIComponent(baseRoot)}&rel=${encodeURIComponent(relPrefix)}`);
+  if (!mkRoot.ok) throw new Error(String(mkRoot.status));
+  for (const f of folders) {
+    if (dlg.isCancelled()) return { cancelled: true, ok: 0, fail: 0 };
+    const rel = relPrefix + "/" + f;
+    dlg.setText(`폴더 만드는 중: ${f}`);
+    await fetch(`http://127.0.0.1:${port}/mkdir?base=${encodeURIComponent(baseRoot)}&rel=${encodeURIComponent(rel)}`);
+  }
+  let ok = 0, fail = 0;
+  for (let i = 0; i < files.length; i++) {
+    if (dlg.isCancelled()) return { cancelled: true, ok, fail };
+    const f = files[i];
+    const rel = relPrefix + "/" + f.path;
+    dlg.setText(`다운로드 중 (${i + 1}/${files.length}): ${f.path}`);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/savecontentto?base=${encodeURIComponent(baseRoot)}&rel=${encodeURIComponent(rel)}`, { method: "POST", body: f.content ?? "" });
+      if (!res.ok) throw new Error(String(res.status));
+      ok++;
+    } catch (e) { fail++; }
+  }
+  return { cancelled: false, ok, fail };
+}
+
 // 브라우저 자체 저장소(바탕화면 가상 파일시스템)에만 있는 파일은 서버에 URL이 없으므로
 // /download처럼 url= 파라미터로 받아올 수 없다. 대신 이미 갖고 있는 내용을 그대로 로컬
 // 헬퍼에 POST로 보내고, 헬퍼가 저장 대화상자를 띄워서 저장한다.

@@ -222,7 +222,7 @@ function dfsBuildEditorPageHtml(node, opts = {}) {
         <span class="df-spacer"></span>
         <button class="df-e-theme" title="테마 전환">T</button>
         <button class="df-e-copyall" title="전체 복사">[C]</button>
-        <button class="df-e-save" title="지금 저장(Ctrl+S) - 이 가짜 PC의 바탕화면에 저장됩니다">저장</button>
+        <button class="df-e-save" title="지금 저장(Ctrl+S) - 이 가짜 PC의 바탕 화면에 저장됩니다">저장</button>
         <button class="df-e-download" title="다운로드 - 웹훅이 켜져 있으면 웹훅으로, 아니면 브라우저 다운로드로">다운로드</button>
       </div>
       <div class="df-editor-body">
@@ -323,7 +323,7 @@ function dfsBuildEditorPageHtml(node, opts = {}) {
           document.querySelector(".df-e-name").textContent = NODE.name;
           document.title = NODE.name + " - 에디터";
           dirty = false;
-          setSaveState("바탕화면에 저장됨 " + new Date().toLocaleTimeString());
+          setSaveState("바탕 화면에 저장됨 " + new Date().toLocaleTimeString());
         }, function() { setSaveState("저장 실패"); });
       } else {
         window.opener.dfsSaveNodeContent(NODE.id, ta.value);

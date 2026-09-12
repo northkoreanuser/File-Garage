@@ -94,6 +94,93 @@ function showPromptDialog(message, defaultValue = "") {
   });
 }
 
+/* ============ 여러 개 중 하나를 고르는 대화상자(예: 폴더 다운로드 zip/헬퍼 선택) ============
+   showConfirmDialog와 같은 모양이지만 버튼이 확인/취소 둘이 아니라 choices 배열 순서대로
+   임의 개수 생긴다 + 맨 끝에 취소 버튼이 항상 하나 더 붙는다. choices: [{label, value}, ...].
+   선택한 항목의 value로 resolve되고, 취소(배경 클릭/Esc/취소 버튼)는 null로 resolve된다. */
+function showChoiceDialog(message, choices) {
+  return new Promise(resolve => {
+    const previouslyFocused = document.activeElement;
+    const overlay = document.createElement("div");
+    overlay.className = "confirm-overlay";
+    overlay.innerHTML = `
+      <div class="confirm-panel">
+        <div class="confirm-message"></div>
+        <div class="confirm-buttons"></div>
+      </div>`;
+    overlay.querySelector(".confirm-message").textContent = message;
+    const btnRow = overlay.querySelector(".confirm-buttons");
+    document.body.appendChild(overlay);
+    let done = false;
+    const cleanup = (result) => {
+      if (done) return;
+      done = true;
+      overlay.remove();
+      document.removeEventListener("keydown", onKey, true);
+      if (previouslyFocused && document.body.contains(previouslyFocused) && typeof previouslyFocused.focus === "function") {
+        previouslyFocused.focus();
+      }
+      resolve(result);
+    };
+    choices.forEach((c) => {
+      const btn = document.createElement("button");
+      btn.className = "settings-button";
+      btn.textContent = c.label;
+      btn.onclick = () => cleanup(c.value);
+      btnRow.appendChild(btn);
+    });
+    const cancelBtn = document.createElement("button");
+    cancelBtn.className = "settings-button settings-button-neutral";
+    cancelBtn.textContent = "취소";
+    cancelBtn.onclick = () => cleanup(null);
+    btnRow.appendChild(cancelBtn);
+    overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) cleanup(null); });
+    function onKey(e) {
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); cleanup(null); }
+    }
+    document.addEventListener("keydown", onKey, true);
+    btnRow.querySelector("button").focus();
+  });
+}
+
+/* ============ 안내 전용 대화상자(버튼 하나) ============
+   요청 #113 - 휴지통 "속성" 등, 확인/취소 구분 없이 그냥 내용을 보여주고 닫기만 하면 되는 경우. */
+function showInfoDialog(message, okLabel) {
+  return new Promise(resolve => {
+    const previouslyFocused = document.activeElement;
+    const overlay = document.createElement("div");
+    overlay.className = "confirm-overlay";
+    overlay.innerHTML = `
+      <div class="confirm-panel">
+        <div class="confirm-message"></div>
+        <div class="confirm-buttons">
+          <button class="settings-button confirm-ok"></button>
+        </div>
+      </div>`;
+    overlay.querySelector(".confirm-message").textContent = message;
+    overlay.querySelector(".confirm-ok").textContent = okLabel || "닫기";
+    document.body.appendChild(overlay);
+    let done = false;
+    const cleanup = () => {
+      if (done) return;
+      done = true;
+      overlay.remove();
+      document.removeEventListener("keydown", onKey, true);
+      if (previouslyFocused && document.body.contains(previouslyFocused) && typeof previouslyFocused.focus === "function") {
+        previouslyFocused.focus();
+      }
+      resolve();
+    };
+    overlay.querySelector(".confirm-ok").onclick = cleanup;
+    overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) cleanup(); });
+    function onKey(e) {
+      if (e.key === "Escape" || e.key === "Enter") { e.preventDefault(); e.stopPropagation(); cleanup(); }
+    }
+    document.addEventListener("keydown", onKey, true);
+    overlay.querySelector(".confirm-ok").focus();
+  });
+}
+
 /* ============ 취소 가능한 진행 상황 대화상자(폴더 통째로 다운로드용) ============
    showConfirmDialog와 비슷한 모양이지만 버튼이 "취소" 하나뿐이고, 확인을 기다리지 않고 즉시
    반환한다 - 호출한 쪽이 setText로 진행 상황을 계속 갱신하고, isCancelled()를 반복문 중간중간

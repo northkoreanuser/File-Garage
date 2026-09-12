@@ -23,6 +23,11 @@
 ;   -> 저장 대화상자를 띄워서 그 본문 바이트를 그대로 저장. 브라우저 자체 저장소(가상 데스크탑
 ;   파일시스템)나 index.html에 내장된 파일처럼, 서버에 실제 URL이 없어서 /download처럼
 ;   "url을 다시 받아오는" 방식이 안 되는 파일을 다운로드할 때 쓴다.
+; - POST /savecontentto?base=...&rel=... (요청 본문 = 파일 내용 그대로, 최대 4MB) -> 대화상자
+;   없이 base\rel 경로에 있는 그대로 저장한다(/savetopath와 같은 폴더 재현 방식이지만, url을
+;   다시 받아오는 대신 /savecontent처럼 이미 POST 본문에 들어있는 내용을 그대로 쓴다) - 바탕
+;   화면 가상 파일시스템 폴더를 통째로 다운로드할 때(폴더 구조를 그대로 재현해야 하는데 각
+;   파일이 서버에 실제 URL은 없는 경우) 쓴다.
 ;
 ; 포트는 고정하지 않고 8000~8020 사이에서 비어있는 걸 동적으로 잡는다.
 ; index.html도 같은 범위를 스캔해서 응답하는 포트를 찾아 쓴다 (양쪽 다 동적).
@@ -226,6 +231,8 @@ WHHandleRequest(Client) {
         HandleSaveToPath(Client, fileUrl, sizeParam, baseParam, relParam)
     } else if (routePath = "/savecontent") {
         HandleSaveContent(Client, &buf + bodyStart, bodyLen, nameParam)
+    } else if (routePath = "/savecontentto") {
+        HandleSaveContentToPath(Client, &buf + bodyStart, bodyLen, baseParam, relParam)
     } else {
         WHSend(Client, 404, "Not Found")
     }
@@ -314,6 +321,38 @@ HandleSaveContent(Client, bodyPtr, bodyLen, nameParam) {
         FileDelete, %savePath%
     ok := false
     f := FileOpen(savePath, "w")
+    if IsObject(f) {
+        f.RawWrite(bodyPtr, bodyLen)
+        f.Close()
+        ok := true
+    }
+    Busy := false
+
+    if !ok
+        return WHSend(Client, 502, "저장 실패")
+    WHSend(Client, 200, "OK")
+}
+
+; ===================== 바탕 화면 가상 폴더 다운로드용: 대화상자 없이 base\rel 경로에 POST 본문을
+; 그대로 저장(HandleSaveToPath와 같은 뼈대이지만 url이 아니라 HandleSaveContent처럼 이미 받은
+; 본문 바이트를 그대로 쓴다 - 폴더 구조를 그대로 재현하는 용도라 이름 번호는 붙이지 않는다) =====================
+HandleSaveContentToPath(Client, bodyPtr, bodyLen, base, rel) {
+    global Busy
+    if (base = "" || rel = "")
+        return WHSend(Client, 400, "base/rel 파라미터가 없습니다")
+    if (Busy)
+        return WHSend(Client, 503, "다른 다운로드가 진행 중입니다. 잠시 후 다시 시도하세요")
+
+    dest := StrReplace(base . "\" . rel, "/", "\")
+    SplitPath, dest,, destDir
+    if (destDir != "" && !FileExist(destDir))
+        FileCreateDir, % destDir
+
+    Busy := true
+    if FileExist(dest)
+        FileDelete, %dest%
+    ok := false
+    f := FileOpen(dest, "w")
     if IsObject(f) {
         f.RawWrite(bodyPtr, bodyLen)
         f.Close()

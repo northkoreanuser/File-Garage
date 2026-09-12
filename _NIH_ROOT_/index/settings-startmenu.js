@@ -6,7 +6,10 @@
 ================================================================== */
 const DEFAULT_SETTINGS = {
   githubLinksEnabled: true,
-  doubleClickAction: "open", // "open" | "download"
+  // "newtab"(새 탭에서 열기 - 이 사이트 자체의 배포된 주소로 열기, 기본값) | "helper"(로컬 헬퍼로
+  // 열기 - 예전의 "open") | "text"(텍스트로 열기 - 우클릭의 "브라우저에서 보기"와 동일, GitHub raw
+  // 주소) | "download"(헬퍼의 다운로드 기능) - 사용자 지시로 4가지로 재설계됨
+  doubleClickAction: "newtab",
   searchScope: "subtree",    // "subtree"(현재 폴더의 하위만) | "all"(전체 저장소)
   searchRelativePath: true,  // 검색 결과 위치를 현재 폴더 기준 상대 경로로 표시할지
   aeroEnabled: true,         // 반투명 블러("에어로") 효과 - 기본 활성화
@@ -36,7 +39,10 @@ function loadSettings() {
     const raw = localStorage.getItem(settingsKey());
     if (raw) s = { ...s, ...JSON.parse(raw) };
   } catch (e) { /* 무시 */ }
-  if (s.doubleClickAction !== "download") s.doubleClickAction = "open";
+  // 예전 저장값 마이그레이션: "open"은 새 기본값인 "newtab"으로, 그 외 알 수 없는 값도 "newtab"으로.
+  if (s.doubleClickAction === "open" || !["newtab", "helper", "text", "download"].includes(s.doubleClickAction)) {
+    s.doubleClickAction = "newtab";
+  }
   if (s.searchScope !== "all") s.searchScope = "subtree";
   s.searchRelativePath = s.searchRelativePath !== false;
   s.aeroEnabled = s.aeroEnabled !== false;

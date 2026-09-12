@@ -35,8 +35,10 @@ async function main() {
     // 가지들은 여기서 한 번에 미리 읽어와야 트리가 "불러오는 중..."에 계속 머물지 않는다.
     await Promise.all([...expanded].map(key => loadDir(key.split("/").filter(Boolean)).catch(() => {})));
     // 바탕화면 트리 행도 저장소 루트처럼 화살표 없이 바로 자기 자신의 자식들을 보여주므로(루트와
-    // 같은 방식 - buildTreeDom 참고), 부팅 시점에 한 번 미리 읽어 dirCache를 채워둔다.
-    if (dfsDb) await loadDir([DESKTOP_TREE_NAME]).catch(() => {});
+    // 같은 방식 - buildTreeDom 참고), 부팅 시점에 한 번 미리 읽어 dirCache를 채워둔다. 휴지통은
+    // 트리에서 화살표로 펼치는 하위 트리는 없지만(요청 #113 - 단순 행 하나), 내용창에 들어갔을 때
+    // 곧바로 보여주려면 마찬가지로 미리 읽어두는 게 좋다.
+    if (dfsDb) await Promise.all([loadDir([DESKTOP_TREE_NAME]).catch(() => {}), loadDir([RECYCLEBIN_TREE_NAME]).catch(() => {})]);
 
     // 트리 칸(navPane) 기본 열림(사용자 지시 - "탐색기 열면 기본으로 트리 칸 열려있게" / "# 뒤에
     // 기록해둔다, 없으면 온이 디폴트") - 해시에 명시적으로 |nav=0이 있을 때만 닫힌 채로 시작한다.

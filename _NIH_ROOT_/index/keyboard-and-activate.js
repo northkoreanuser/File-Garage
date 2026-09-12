@@ -80,7 +80,8 @@ function triggerF2Rename() {
    (버그 리포트: 탐색기에서 드래그로 2개 이상 선택 후 Delete가 안 먹었음) - handleMultiDelete로 위임. */
 function triggerDeleteSelected() {
   if (document.activeElement === els.dfIconLayer) { dfsDeleteSelectedIcons(); return; }
-  const findDeleteAction = (items) => { const found = items.find(it => it.label === "삭제"); return found ? found.action : null; };
+  // 휴지통 안 항목은 buildFileMenuItems가 "삭제" 대신 "영구 삭제"를 내놓으므로(요청 #113) 둘 다 인식한다.
+  const findDeleteAction = (items) => { const found = items.find(it => it.label === "삭제" || it.label === "영구 삭제"); return found ? found.action : null; };
   const navFocused = document.activeElement === els.navPane;
   if (!navFocused && multiSelected.size > 1) {
     handleMultiDelete(itemsFromKeys([...multiSelected]));
@@ -103,9 +104,10 @@ els.btnRefresh.onclick = async () => {
   // 바탕화면(가상 파일시스템) 경로는 애초에 GitHub 저장소와 무관한 로컬(dexie) 데이터이므로,
   // 실제 저장소용 "GitHub과 비교" 로직을 돌릴 이유가 없다 - 돌리면 owner/repo가 없거나
   // 엉뚱한 API 호출을 시도해 오류만 난다. 캐시만 비우고 다시 그린다.
-  if (isDesktopPath(path)) {
+  if (isDfsPath(path)) {
+    const treeName = path[0];
     for (const k of [...dirCache.keys()]) {
-      if (k === DESKTOP_TREE_NAME || k.startsWith(DESKTOP_TREE_NAME + "/")) dirCache.delete(k);
+      if (k === treeName || k.startsWith(treeName + "/")) dirCache.delete(k);
     }
     await revealPath(path).catch(() => {});
     await renderContentPane();
@@ -153,13 +155,18 @@ function compareWithIndex(pathArr, ghNames) {
   showToast(lines.join("\n"), { kind: "warn", sticky: true });
 }
 
-/* 폴더 열기 / md는 항상 에디터로 / 그 외(html 포함)는 환경설정의 더블클릭 동작을 따른다.
-   예전엔 html만 특별 취급해서 항상 "호스팅된 페이지 보기"로 열었는데(설정 무시), 사용자
-   지시로 그 특별 취급을 없앴다 - html도 이제 그냥 다른 파일처럼 열기/다운로드 기본 동작을
-   따르고, 호스팅된 페이지로 보고 싶을 때는 우클릭 메뉴의 "새 탭에서 열기"(viewHtmlAsHostedPage)
-   를 쓰면 된다. 대신 md는(설명 문서라 바로 읽기 좋은 형태가 자연스러우므로) 더블클릭하면
-   항상 내장 에디터로 연다. */
+/* 폴더 열기 / md는 항상 에디터로 / 그 외(html 포함)는 환경설정의 더블클릭 동작 4가지 중 하나를
+   따른다(사용자 지시로 재설계됨 - 기본값은 "새 탭에서 열기"). md는(설명 문서라 바로 읽기 좋은
+   형태가 자연스러우므로) 더블클릭하면 항상 내장 에디터로 연다. */
 async function activate(it) {
+  // 요청 #113: 휴지통 안의 파일은 실제 윈도우처럼 더블클릭으로 바로 열 수 없다(폴더는 그냥
+  // navigate로 안까지 들어가지므로 여기 안 걸린다 - type==="folder"에는 dfsNode가 없음).
+  // 복원해야 연다고 안내하고, 확인하면 복원까지 대신 해준다.
+  if (it.dfsNode && isRecycleBinPath(it.path)) {
+    const ok = await showConfirmDialog(`휴지통에 있는 파일은 복원해야 열 수 있습니다.\n"${it.name}"을(를) 지금 복원할까요?`);
+    if (ok) { await dfsRestoreFromRecycleBin(it.dfsNode); await dfsBroadcastChange(); }
+    return;
+  }
   // 바탕화면(가상 파일시스템) 파일/바로가기는 진짜 저장소 파일이 아니므로 dfs 전용 활성화
   // 로직(에디터 새 탭으로 열기 / 바로가기 따라가기)을 그대로 재사용한다.
   if (it.dfsNode) { dfsActivate(it.dfsNode); return; }
@@ -181,20 +188,29 @@ async function activate(it) {
     dfsOpenRepoFileInEditor(it);
     return;
   }
-  // 일반 파일(html 포함): 환경설정에서 고른 더블클릭 동작을 따른다 (기본값은 "열기")
-  if (settings.doubleClickAction === "download") {
-    localHelperDownload(it);
-  } else {
-    localHelperOpen(it);
+  // 일반 파일(html 포함): 환경설정에서 고른 더블클릭 동작 4가지 중 하나를 따른다(사용자 지시로
+  // 재설계됨) - 기본값은 "newtab"(새 탭에서 열기).
+  //   newtab   -> 이 사이트 자체의 배포된 주소로 새 탭에서 열기(viewAsHostedPage)
+  //   helper   -> 로컬 헬퍼로 열기(예전 "open" 동작, localHelperOpen)
+  //   text     -> 텍스트로 열기(우클릭의 "브라우저에서 보기"와 동일, viewOnPages)
+  //   download -> 헬퍼의 다운로드 기능(localHelperDownload)
+  switch (settings.doubleClickAction) {
+    case "helper": localHelperOpen(it); break;
+    case "text": viewOnPages(it); break;
+    case "download": localHelperDownload(it); break;
+    case "newtab":
+    default: viewAsHostedPage(it); break;
   }
 }
-// html을 "호스팅된 페이지"(실제 GitHub Pages에 배포된 라이브 페이지)로 새 탭에서 본다 - 더블클릭
-// 기본 동작에서는 빠지고(activate() 참고), 우클릭 메뉴 "새 탭에서 열기"에서만 쓰인다.
-function viewHtmlAsHostedPage(it) {
+// 이 사이트 자체의 배포된 주소("호스팅된 페이지")로 새 탭에서 연다 - html의 index.html은 폴더
+// 주소로(GitHub Pages가 자동으로 index.html을 서빙하는 것과 동일하게), 그 외에는 파일 경로
+// 그대로. 예전엔 html 전용이었지만(viewHtmlAsHostedPage), 더블클릭 기본 동작이 됨에 따라
+// 모든 파일 형식에 쓸 수 있도록 일반화됐다(사용자 지시).
+function viewAsHostedPage(it) {
   const path = it.path;
-  const isIndex = path[path.length - 1].toLowerCase() === "index.html";
+  const isHtmlIndex = it.type === "html" && path[path.length - 1].toLowerCase() === "index.html";
   let url;
-  if (isIndex) {
+  if (isHtmlIndex) {
     const dirPath = path.slice(0, -1);
     url = dirPath.length ? dirPath.map(encodeURIComponent).join("/") + "/" : "./";
   } else {

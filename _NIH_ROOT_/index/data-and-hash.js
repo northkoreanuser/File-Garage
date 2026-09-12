@@ -14,7 +14,7 @@ async function loadDir(pathArr) {
   // 나머지 경로/트리/내용창/방향키 로직은 전부 그대로 재사용된다(경로가 이름의 배열이라는
   // 점은 동일하기 때문). dirCache에도 똑같이 채워 넣어서 동기적으로 읽는 트리 그리기 함수들이
   // 그대로 동작하게 한다.
-  if (isDesktopPath(pathArr)) return loadDesktopDir(pathArr);
+  if (isDfsPath(pathArr)) return loadDesktopDir(pathArr);
   const key = pathArr.join("/");
   if (dirCache.has(key)) return dirCache.get(key);
 
@@ -86,10 +86,11 @@ async function fetchGithubDirEntry(pathArr) {
    실어 보낸다 - 우클릭 메뉴/드래그앤드롭 등에서 매번 다시 조회하지 않아도 되게 하기 위함.
    (localStorage에는 캐싱하지 않는다 - dexie 자체가 이미 로컬에 영구 저장되는 정본이기 때문.) */
 async function dfsResolvePathToFolderId(pathArr) {
-  // pathArr는 DESKTOP_TREE_NAME으로 시작하는 전체 경로. 반환값은 그 마지막 폴더의 dexie id
-  // (DESKTOP_TREE_NAME 하나만 있으면 바탕화면 자기 자신 = DFS_DESKTOP_ROOT).
+  // pathArr는 DESKTOP_TREE_NAME 또는 RECYCLEBIN_TREE_NAME으로 시작하는 전체 경로(요청 #113 -
+  // 휴지통도 바탕화면과 똑같은 방식으로 다룬다). 반환값은 그 마지막 폴더의 dexie id(그 예약된
+  // 첫 칸 하나만 있으면 그 자신 = DFS_DESKTOP_ROOT 또는 DFS_RECYCLEBIN_ROOT).
   if (!dfsDb) return null;
-  let cur = DFS_DESKTOP_ROOT;
+  let cur = isRecycleBinPath(pathArr) ? DFS_RECYCLEBIN_ROOT : DFS_DESKTOP_ROOT;
   for (let i = 1; i < pathArr.length; i++) {
     const kids = await dfsDb.nodes.where("parentId").equals(cur).toArray();
     const hit = kids.find(k => k.type === "folder" && k.name === pathArr[i]);
@@ -100,7 +101,7 @@ async function dfsResolvePathToFolderId(pathArr) {
 }
 async function dfsNodeAtPath(pathArr) {
   // pathArr는 DESKTOP_TREE_NAME으로 시작. 마지막 항목은 폴더/파일/바로가기 무엇이든 될 수 있다.
-  if (!dfsDb || !isDesktopPath(pathArr) || pathArr.length < 2) return null;
+  if (!dfsDb || !isDfsPath(pathArr) || pathArr.length < 2) return null;
   const parentId = await dfsResolvePathToFolderId(pathArr.slice(0, -1));
   if (parentId == null) return null;
   const kids = await dfsDb.nodes.where("parentId").equals(parentId).toArray();

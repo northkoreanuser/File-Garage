@@ -52,6 +52,10 @@ function buildGrid(items, opts) {
   // 동작한다 - 실제 저장소 폴더는 읽기 전용이라 옮길 수 없기 때문(하나로 통합된 창이라 지금
   // 보고 있는 위치가 바탕화면인지 여부로 판단한다).
   const desktopMode = !opts.flat && isDesktopPath(currentPath);
+  // 요청 #113: 휴지통 안에서도 항목을 "밖으로" 끌어내 복원할 수 있어야 하므로(드래그 출발) 이
+  // 모드도 필요하다 - 다만 휴지통 폴더 칸을 "그 안으로 넣는" 드롭 대상으로 삼진 않는다(그건
+  // desktopMode에서만, 아래 참고).
+  const recycleBinMode = !opts.flat && isRecycleBinPath(currentPath);
   items.forEach(it => {
     const key = it.path.join("/");
     const isMultiSel = multiSelected.size > 1 && multiSelected.has(key);
@@ -82,12 +86,14 @@ function buildGrid(items, opts) {
       paintContentPane();
       showContextMenu(e.clientX, e.clientY, buildFileMenuItems(it));
     };
-    if (desktopMode) {
+    if (desktopMode || recycleBinMode) {
       const srcId = it.type === "folder" ? it.dfsFolderId : (it.dfsNode ? it.dfsNode.id : null);
       if (srcId != null) {
         // 바탕화면 아이콘(.df-icon)을 마우스로 끌어다 이 칸 위에 놓는 것(desktop-fs.js의
         // dfsSetupIconDrag -> dfsElementUnder)도 이 dataset.id로 대상을 찾는다 - 이게 없으면
         // 바탕화면에서 탐색기 창 안의 폴더 칸으로 끌어다 놔도 대상을 못 찾아 아무 일도 안 일어난다.
+        // 휴지통 안 항목도 이 dataset.id/draggable을 그대로 갖게 해서(요청 #113) 밖으로 끌어내면
+        // 복원(dfsMove가 originalParentId/deletedAt을 자동으로 지움)이 되게 한다.
         cell.dataset.id = String(srcId);
         cell.draggable = true;
         cell.addEventListener("dragstart", (e) => {
@@ -99,7 +105,7 @@ function buildGrid(items, opts) {
           e.dataTransfer.effectAllowed = "move";
         });
       }
-      if (it.type === "folder" && it.dfsFolderId != null) {
+      if (desktopMode && it.type === "folder" && it.dfsFolderId != null) {
         cell.addEventListener("dragover", (e) => {
           if (!e.dataTransfer) return;
           const types = Array.from(e.dataTransfer.types || []);
@@ -227,7 +233,7 @@ els.contentPane.addEventListener("dragstart", (e) => e.preventDefault());
    안일 때만 동작한다(하나로 통합된 창이라 매번 currentPath로 판단). 리스너는 렌더될 때마다
    새로 붙이지 않고 한 번만 등록한다(중복 등록 버그 방지 - 이전에 겪었던 문제). ============ */
 els.contentPane.addEventListener("dragover", (e) => {
-  if (!isDesktopPath(currentPath)) return;
+  if (!isDfsPath(currentPath)) return;
   if (e.target.closest(".grid-item")) return; // 폴더 칸 위는 그 칸 자체의 리스너가 처리
   if (!e.dataTransfer) return;
   const types = Array.from(e.dataTransfer.types || []);
@@ -239,12 +245,22 @@ els.contentPane.addEventListener("dragover", (e) => {
 // id)을 특정 폴더 칸이 아니라 이 내용창의 빈 곳/배경에 놓으면, 바탕화면 아이콘을 창 안으로 끌어다
 // 놓을 때(desktop-fs.js dfsSetupIconDrag의 "지금 보고 있는 폴더로" 폴백)와 똑같이 "지금 보고 있는
 // 폴더(currentPath)" 안으로 옮긴다 - 버그 리포트: "트리에서... 폴더 탐색기 안쪽으로 넣을 수도
-// 있어야 함".
+// 있어야 함". 요청 #113: 지금 보고 있는 게 휴지통이면 "안으로 넣기"가 아니라 삭제(휴지통 이동)다.
 els.contentPane.addEventListener("drop", async (e) => {
-  if (!isDesktopPath(currentPath)) return;
+  if (!isDfsPath(currentPath)) return;
   if (e.target.closest(".grid-item")) return;
   if (!e.dataTransfer) return;
   e.preventDefault();
+  if (isRecycleBinPath(currentPath)) {
+    const draggedId = Number(e.dataTransfer.getData("text/plain"));
+    if (!draggedId) return;
+    const srcNode = await dfsDb.nodes.get(draggedId);
+    if (!srcNode || srcNode.parentId === DFS_RECYCLEBIN_ROOT) return;
+    await dfsDelete(srcNode);
+    showToast(`"${srcNode.name}"을(를) 휴지통으로 옮겼습니다.`);
+    await dfsBroadcastChange();
+    return;
+  }
   if (e.dataTransfer.files && e.dataTransfer.files.length) {
     const folderId = await dfsResolvePathToFolderId(currentPath);
     if (folderId == null) return;
@@ -262,10 +278,18 @@ els.contentPane.addEventListener("drop", async (e) => {
   await dfsBroadcastChange();
 });
 els.contentPane.addEventListener("contextmenu", (e) => {
-  if (!isDesktopPath(currentPath)) return;
+  if (!isDfsPath(currentPath)) return;
   if (e.target.closest(".grid-item")) return;
   e.preventDefault();
   e.stopPropagation();
+  // 요청 #113: 휴지통의 빈 영역 메뉴는 새 폴더 등 CRUD가 아니라 [휴지통 비우기, 속성]뿐이다.
+  if (isRecycleBinPath(currentPath)) {
+    showContextMenu(e.clientX, e.clientY, [
+      { label: "휴지통 비우기", action: async () => { await dfsEmptyRecycleBin(); await dfsBroadcastChange(); } },
+      { label: "속성", action: () => dfsShowRecycleBinProperties() }
+    ]);
+    return;
+  }
   dfsResolvePathToFolderId(currentPath).then(folderId => {
     if (folderId == null) return;
     showContextMenu(e.clientX, e.clientY, dfsBuildEmptyAreaMenuItems(folderId, () => dfsBroadcastChange()));
@@ -319,57 +343,90 @@ function itemsFromKeys(keys) {
 function buildMultiFileMenuItems(keys) {
   const items = itemsFromKeys(keys);
   const menu = [];
-  // 바탕화면(가상 파일시스템) 항목은 실제 서버 URL이 없으므로(로컬 헬퍼의 /savetofolder는 진짜
-  // 저장소 파일에만 쓸 수 있음) 다중 "다운로드" 대상에서 제외한다 - 여러 개를 동시에 골랐을 때는
-  // 항목별 개별 메뉴(다운로드/브라우저에서 다운로드)를 대신 쓴다.
-  const fileCount = items.filter(it => it.type !== "folder" && !it.dfsNode).length;
-  if (fileCount > 0) menu.push({ label: `다운로드 (${fileCount}개)`, action: () => handleMultiDownload(items) });
-  // 삭제는 반대로 바탕화면(가상 파일시스템) 항목만 대상이다(실제 저장소는 읽기 전용이라 메뉴 자체가 없음).
-  const deletableCount = items.filter(it => it.dfsNode || (it.type === "folder" && isDesktopPath(it.path))).length;
+  const inBin = isRecycleBinPath(currentPath);
+  // 삭제는 바탕화면/휴지통(가상 파일시스템) 항목만 대상이다(실제 저장소는 읽기 전용이라 메뉴 자체가 없음).
+  const deletableCount = items.filter(it => it.dfsNode || (it.type === "folder" && isDfsPath(it.path))).length;
+  if (inBin) {
+    // 요청 #113: 휴지통 안에서는 다운로드 대신 복원/영구 삭제 두 가지만 제공한다.
+    if (deletableCount > 0) {
+      menu.push({ label: `복원 (${deletableCount}개)`, action: () => handleMultiRestore(items) });
+      menu.push({ label: `영구 삭제 (${deletableCount}개)`, action: () => handleMultiDelete(items) });
+    }
+    return menu;
+  }
+  // 요청 #115: 예전엔 폴더와 바탕화면(가상 파일시스템) 파일을 다중 "다운로드" 대상에서 제외했지만,
+  // 이제 handleMultiDownload가 로컬 헬퍼를 통해 폴더(재귀적으로 구조 재현)와 가상 파일(내용을
+  // 그대로 POST)까지 전부 처리하므로 선택한 항목 전체가 대상이 된다.
+  if (items.length > 0) menu.push({ label: `다운로드 (${items.length}개)`, action: () => handleMultiDownload(items) });
   if (deletableCount > 0) menu.push({ label: `삭제 (${deletableCount}개)`, action: () => handleMultiDelete(items) });
   return menu;
 }
+/* 요청 #115: 다중 선택 다운로드에 폴더도 포함한다. 파일과 폴더가 섞여 있어도 저장 위치는 한
+   번만 고르고, 폴더는 그 이름의 하위 폴더로 구조를 그대로 재현(비어 있는 하위 폴더까지)하며,
+   실제 저장소 파일/폴더와 바탕화면(가상 파일시스템) 파일/폴더를 각각 알맞은 방식(로컬 헬퍼의
+   /savetofolder·/savetopath는 URL을 다시 받아오고, /savecontentto는 이미 가진 내용을 그대로
+   써넣음)으로 하나씩 처리한다. 폴더 하나만 다운로드하는 우클릭 메뉴(downloadFolderRecursive/
+   dfsDownloadFolderChoice)와 뼈대는 같지만, 그 두 함수는 폴더마다 저장 위치를 새로 고르므로
+   여기서는 그 중 "이미 고른 위치 아래에 폴더 구조를 재현하는" 부분만 떼어낸 함수(local-helper.js의
+   downloadRealFolderIntoBase/dfsDownloadFolderIntoBase)를 재사용한다. */
 async function handleMultiDownload(items) {
-  // 바탕화면(가상 파일시스템) 파일은 로컬 헬퍼의 /savetofolder로 저장할 실제 서버 파일이
-  // 아니므로(dexie 콘텐츠) 폴더와 마찬가지로 다중 다운로드 대상에서 제외한다.
-  const files = items.filter(it => it.type !== "folder" && !it.dfsNode);
-  const skippedFolders = items.length - files.length;
-  if (files.length === 0) { showToast("다운로드할 파일이 없습니다(폴더는 제외됩니다).", { kind: "warn" }); return; }
-
+  if (!items.length) return;
   const port = await ensureHelperPort();
   if (port === null) { offerHelperDownload("다운로드"); return; }
 
   showToast("저장할 폴더를 선택하세요...");
-  let folder;
+  let baseRoot;
   try {
     const res = await fetch(`http://127.0.0.1:${port}/pickfolder`);
-    folder = (await res.text()).trim();
+    baseRoot = (await res.text()).trim();
   } catch (e) {
     showToast(`폴더 선택 중 오류: ${e.message}`, { kind: "warn" });
     return;
   }
-  if (!folder || folder === "CANCELLED") {
-    showToast("다운로드가 취소되었습니다.");
-    return;
-  }
+  if (!baseRoot || baseRoot === "CANCELLED") { showToast("다운로드가 취소되었습니다."); return; }
 
+  const dlg = showCancelableProgressDialog("다운로드 준비 중...");
   let okCount = 0, failCount = 0;
-  for (let i = 0; i < files.length; i++) {
-    const it = files[i];
-    showToast(`다운로드 중 (${i + 1}/${files.length}): ${it.name}`);
-    const url = absoluteFileUrl(it.path);
-    try {
-      const res = await fetch(`http://127.0.0.1:${port}/savetofolder?url=${encodeURIComponent(url)}&folder=${encodeURIComponent(folder)}&name=${encodeURIComponent(it.name)}${sizeQueryParam(it)}`);
-      if (!res.ok) throw new Error(String(res.status));
-      okCount++;
-    } catch (e) {
-      failCount++;
+  try {
+    for (let i = 0; i < items.length; i++) {
+      if (dlg.isCancelled()) { showToast(`다운로드가 취소되었습니다.${okCount ? ` (${okCount}개 저장됨)` : ""}`); return; }
+      const it = items[i];
+      dlg.setText(`다운로드 중 (${i + 1}/${items.length}): ${it.name}`);
+      try {
+        if (it.type === "folder") {
+          let result;
+          if (isDfsPath(it.path)) {
+            const folderId = await dfsDesktopResolveFolderId(it);
+            const node = folderId != null ? await dfsDb.nodes.get(folderId) : null;
+            result = node ? await dfsDownloadFolderIntoBase(node, port, baseRoot, dlg) : { cancelled: false, ok: 0, fail: 1 };
+          } else {
+            result = await downloadRealFolderIntoBase(it, port, baseRoot, dlg);
+          }
+          okCount += result.ok; failCount += result.fail;
+          if (result.cancelled) { showToast(`다운로드가 취소되었습니다.${okCount ? ` (${okCount}개 저장됨)` : ""}`); return; }
+        } else if (it.dfsNode) {
+          const res = await fetch(`http://127.0.0.1:${port}/savecontentto?base=${encodeURIComponent(baseRoot)}&rel=${encodeURIComponent(it.name)}`, {
+            method: "POST",
+            body: it.dfsNode.content || ""
+          });
+          if (!res.ok) throw new Error(String(res.status));
+          okCount++;
+        } else {
+          const url = absoluteFileUrl(it.path);
+          const res = await fetch(`http://127.0.0.1:${port}/savetofolder?url=${encodeURIComponent(url)}&folder=${encodeURIComponent(baseRoot)}&name=${encodeURIComponent(it.name)}${sizeQueryParam(it)}`);
+          if (!res.ok) throw new Error(String(res.status));
+          okCount++;
+        }
+      } catch (e) {
+        failCount++;
+      }
     }
+    let msg = `다중 다운로드 완료: ${okCount}개`;
+    if (failCount) msg += `, 실패 ${failCount}개`;
+    showToast(msg, failCount ? { kind: "warn" } : {});
+  } finally {
+    dlg.close();
   }
-  let msg = `다중 다운로드 완료: ${okCount}개`;
-  if (failCount) msg += `, 실패 ${failCount}개`;
-  if (skippedFolders) msg += ` (폴더 ${skippedFolders}개는 제외됨)`;
-  showToast(msg, failCount ? { kind: "warn" } : {});
 }
 
 /* ============ 다중 선택 삭제: 바탕화면(가상 파일시스템) 항목만 지울 수 있다(실제 저장소 항목은
@@ -377,10 +434,11 @@ async function handleMultiDownload(items) {
    우클릭 메뉴에서 선택하면 여기로 온다 - 확인 대화상자 하나로 한꺼번에 지운다(바탕화면 아이콘의
    다중 삭제, dfsDeleteSelectedIcons와 동일한 방식). ============ */
 async function handleMultiDelete(items) {
+  const inBin = isRecycleBinPath(currentPath);
   const resolved = [];
   for (const it of items) {
     if (it.type === "folder") {
-      if (!isDesktopPath(it.path)) continue; // 실제 저장소 폴더는 삭제 불가
+      if (!isDfsPath(it.path)) continue; // 실제 저장소 폴더는 삭제 불가
       const folderId = await dfsDesktopResolveFolderId(it);
       const node = folderId != null ? await dfsDb.nodes.get(folderId) : null;
       if (node) resolved.push(node);
@@ -390,12 +448,32 @@ async function handleMultiDelete(items) {
     // 그 외(실제 저장소 파일)는 삭제 메뉴 자체가 없는 것과 동일하게 조용히 건너뛴다.
   }
   if (!resolved.length) return;
-  const msg = resolved.length === 1
-    ? `"${resolved[0].name}"을(를) 삭제할까요?${resolved[0].type === "folder" ? " (안에 있는 것도 모두 삭제됩니다)" : ""}`
-    : `선택한 ${resolved.length}개 항목을 삭제할까요? (폴더 안의 내용도 모두 삭제됩니다)`;
+  // 요청 #113: 휴지통 안에서의 "삭제"는 영구 삭제다(다시 휴지통으로 옮길 곳이 없음) - 복구 불가 경고로 바꾼다.
+  const msg = inBin
+    ? (resolved.length === 1 ? `"${resolved[0].name}"을(를) 영구적으로 삭제할까요? (복구할 수 없습니다)` : `선택한 ${resolved.length}개 항목을 영구적으로 삭제할까요? (복구할 수 없습니다)`)
+    : (resolved.length === 1 ? `"${resolved[0].name}"을(를) 삭제할까요?${resolved[0].type === "folder" ? " (안에 있는 것도 모두 삭제됩니다)" : ""}` : `선택한 ${resolved.length}개 항목을 삭제할까요? (폴더 안의 내용도 모두 삭제됩니다)`);
   const ok = await showConfirmDialog(msg);
   if (!ok) return;
-  for (const node of resolved) await dfsDelete(node);
+  for (const node of resolved) await (inBin ? dfsPermanentlyDelete(node) : dfsDelete(node));
+  multiSelected.clear();
+  selected = null;
+  await dfsBroadcastChange();
+}
+/* 휴지통 다중 복원(요청 #113) - 각 항목을 원래 있던 자리로(그 폴더가 사라졌으면 바탕화면 최상위로)
+   되돌린다. dfsRestoreFromRecycleBin이 항목마다 알아서 토스트를 띄운다. */
+async function handleMultiRestore(items) {
+  const resolved = [];
+  for (const it of items) {
+    if (it.type === "folder") {
+      const folderId = await dfsDesktopResolveFolderId(it);
+      const node = folderId != null ? await dfsDb.nodes.get(folderId) : null;
+      if (node) resolved.push(node);
+    } else if (it.dfsNode) {
+      resolved.push(it.dfsNode);
+    }
+  }
+  if (!resolved.length) return;
+  for (const node of resolved) await dfsRestoreFromRecycleBin(node);
   multiSelected.clear();
   selected = null;
   await dfsBroadcastChange();

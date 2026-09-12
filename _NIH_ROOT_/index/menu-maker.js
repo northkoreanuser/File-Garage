@@ -86,7 +86,7 @@ function dfsBuildMenuMakerPageHtml(initialData) {
           <div class="mm-list" id="mmTrayList"></div>
           <button class="mm-add-row" id="mmAddTray">+ 새 항목 추가</button>
           <div class="mm-section-head"><h3>특수 아이콘</h3></div>
-          <div class="mm-section-sub">바탕화면·트리에 쓰이는 고정 아이콘 2개(비워두면 기본 아이콘 사용)</div>
+          <div class="mm-section-sub">바탕 화면·트리에 쓰이는 고정 아이콘 2개(비워두면 기본 아이콘 사용)</div>
           <div class="mm-list" id="mmSpecialIconList"></div>
           <div class="mm-section-head"><h3>폴더별 아이콘</h3></div>
           <div class="mm-section-sub">저장소 안의 특정 폴더 경로에 아이콘을 지정합니다 (예: docs/images)</div>
@@ -379,8 +379,8 @@ function dfsBuildMenuMakerPageHtml(initialData) {
     var note = document.createElement("div");
     note.className = "mm-submenu-note";
     note.textContent = (isRepoRoot
-      ? "바탕화면과 트리 맨 위의 저장소 루트 폴더에 쓰이는 아이콘입니다."
-      : "바탕화면과 트리의 휴지통에 쓰이는 아이콘입니다.") + " 비워두면 기본 아이콘을 사용합니다.";
+      ? "바탕 화면과 트리 맨 위의 저장소 루트 폴더에 쓰이는 아이콘입니다."
+      : "바탕 화면과 트리의 휴지통에 쓰이는 아이콘입니다.") + " 비워두면 기본 아이콘을 사용합니다.";
     panelEl.appendChild(note);
     var iconField = buildIconEditorField(label, isRepoRoot ? DATA.iconRepoRoot : DATA.iconRecycleBin, label, function(newIcon) {
       if (isRepoRoot) DATA.iconRepoRoot = newIcon; else DATA.iconRecycleBin = newIcon;

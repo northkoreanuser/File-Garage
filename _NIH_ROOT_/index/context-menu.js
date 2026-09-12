@@ -25,6 +25,9 @@ function showContextMenu(x, y, items) {
   activeCtxMenu = menu;
 }
 function buildFileMenuItems(it) {
+  // 요청 #113: 휴지통 안의 항목(파일/폴더 모두)은 CRUD 메뉴 대신 복원/영구 삭제 두 개만 제공한다
+  // (실제 윈도우 휴지통과 동일 - 이름 변경/새 폴더/복사 등은 휴지통 안에서는 의미가 없음).
+  if (isRecycleBinPath(it.path)) return dfsRecycleBinItemMenuItems(it);
   if (it.type === "folder") {
     // 바탕화면(가상 파일시스템) 안의 폴더는 실제 저장소 폴더와 달리 쓰기가 가능하므로, 진짜
     // 탐색기와 하나로 통합된 지금은 여기서도 새 폴더/이름변경/삭제 등 CRUD 메뉴를 그대로 제공한다.
@@ -40,7 +43,9 @@ function buildFileMenuItems(it) {
   }
   if (it.dfsNode) return dfsDesktopFileMenuItems(it);
   const items = [];
-  if (it.type === "html") items.push({ label: "새 탭에서 열기", action: () => viewHtmlAsHostedPage(it) });
+  // "새 탭에서 열기"는 이제 더블클릭 기본 동작(newtab)과 짝을 맞춰 모든 파일 형식에 표시한다 -
+  // 예전엔 html 전용이었다(사용자 지시로 일반화됨).
+  items.push({ label: "새 탭에서 열기", action: () => viewAsHostedPage(it) });
   // 열기/다운로드는 이 사이트에서는 항상 로컬 프로그램(webhook)을 통해서만 가능하므로
   // 굳이 "로컬 프로그램으로"라고 설명을 덧붙이지 않는다.
   items.push({ label: "열기", action: () => localHelperOpen(it) });
@@ -90,6 +95,30 @@ function dfsDesktopFolderMenuItems(it) {
       const ok = await showConfirmDialog(`"${node.name}"을(를) 삭제할까요? (안에 있는 것도 모두 삭제됩니다)`);
       if (!ok) return;
       await dfsDelete(node);
+      await refresh();
+    } }
+  ];
+}
+/* ---------------- 휴지통 안 항목의 우클릭 메뉴 (요청 #113) ----------------
+   내용창 칸(it.dfsNode/it.dfsFolderId로 이미 노드를 앎)이든 트리 행(경로로만 앎)이든 재사용
+   가능하도록 dfsDesktopResolveFolderId와 같은 방식으로 노드를 다시 찾는다. */
+function dfsRecycleBinResolveNode(it) {
+  if (it.dfsNode) return Promise.resolve(it.dfsNode);
+  return dfsDesktopResolveFolderId(it).then(id => id != null ? dfsDb.nodes.get(id) : null);
+}
+function dfsRecycleBinItemMenuItems(it) {
+  const refresh = () => dfsBroadcastChange();
+  return [
+    { label: "복원", action: async () => {
+      const node = await dfsRecycleBinResolveNode(it);
+      if (node) { await dfsRestoreFromRecycleBin(node); await refresh(); }
+    } },
+    { label: "영구 삭제", action: async () => {
+      const node = await dfsRecycleBinResolveNode(it);
+      if (!node) return;
+      const ok = await showConfirmDialog(`"${node.name}"을(를) 영구적으로 삭제할까요? (복구할 수 없습니다)`);
+      if (!ok) return;
+      await dfsPermanentlyDelete(node);
       await refresh();
     } }
   ];

@@ -20,6 +20,7 @@
     min-height: 100%;
     /* 2000의 표준 화살표 커서는 98/95 계열과 형태가 거의 동일하다(검정 테두리 + 흰 속) */
     cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><polygon points="2,2 2,26 8,20 14,26 17,24 11,18 20,18" fill="black"/><polygon points="4,4 4,22 8,17 13,22 15,20 10,15 17,15" fill="white"/></svg>') 2 2, auto;
+    --cur-link: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="28" viewBox="0 0 24 28"><g fill="black"><rect x="9" y="1" width="5" height="13" rx="1"/><rect x="2" y="12" width="6" height="10" rx="1"/><rect x="4" y="9" width="17" height="15" rx="2"/></g><g fill="white"><rect x="10" y="2.4" width="3" height="10"/><rect x="3.2" y="13" width="4" height="7.5"/><rect x="5.3" y="10.3" width="14.5" height="12" rx="1"/></g></svg>') 11 2, pointer;
   }
 
   /* ---------- 베벨(입체 테두리) 재사용 값 ----------
@@ -100,7 +101,7 @@
   .tb-controls { display: flex; height: 100%; align-items: center; gap: 2px; padding-right: 3px; }
   .tb-btn {
     width: 18px; height: 16px; padding: 0; border: none;
-    background: #c0c0c0; font-size: 11px; line-height: 1; color: #000; cursor: pointer;
+    background: #c0c0c0; font-size: 11px; line-height: 1; color: #000; cursor: var(--cur-link);
     box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #404040, inset 2px 2px 0 #dfdfdf, inset -2px -2px 0 #808080;
   }
   .tb-btn:hover { background: #c0c0c0; }
@@ -121,7 +122,7 @@
     width: 28px; height: 28px;
     border: 1px solid transparent;
     background: transparent;
-    cursor: pointer;
+    cursor: var(--cur-link);
     font-size: 13px;
     color: #000;
     display: flex; align-items: center; justify-content: center;
@@ -133,7 +134,7 @@
   .tool-btn:active:not(:disabled) {
     box-shadow: inset -1px -1px 0 #fff, inset 1px 1px 0 #404040, inset -2px -2px 0 #dfdfdf, inset 2px 2px 0 #808080;
   }
-  .tool-btn:disabled { color: #808080; cursor: default; }
+  .tool-btn:disabled { color: #808080; cursor: inherit; }
   .nav-toggle { display: flex; }
   .address-bar {
     flex: 1; height: 24px;
@@ -144,7 +145,7 @@
     overflow-x: auto; white-space: nowrap;
   }
   .address-bar::-webkit-scrollbar { display: none; }
-  .crumb { cursor: pointer; padding: 1px 4px; }
+  .crumb { cursor: var(--cur-link); padding: 1px 4px; }
   .crumb:hover { background: #0a246a; color: #fff; }
   .crumb-sep { color: #808080; }
   .search-box { width: 170px; height: 24px; flex: 0 0 auto; }
@@ -176,7 +177,7 @@
   .nav-root {
     display: flex; align-items: center; gap: 5px;
     padding: 2px 8px; margin: 0 2px 1px;
-    cursor: pointer; font-weight: 700; color: #000;
+    cursor: var(--cur-link); font-weight: 700; color: #000;
     border: 1px solid transparent;
     width: fit-content; max-width: none;
   }
@@ -188,13 +189,13 @@
   .tree-row {
     display: flex; align-items: center; gap: 4px;
     padding: 2px 6px; margin: 0 2px;
-    cursor: pointer; color: #000;
+    cursor: var(--cur-link); color: #000;
     white-space: nowrap; border: 1px solid transparent;
     width: fit-content; max-width: none;
   }
   .tree-row:hover { background: #0a246a; color: #fff; }
   .tree-row.selected { background: #0a246a; color: #fff; border-color: #0a246a; }
-  .tree-row.tree-loading { color: #808080; font-style: italic; cursor: default; }
+  .tree-row.tree-loading { color: #808080; font-style: italic; cursor: inherit; }
   .tree-row.tree-loading:hover { background: transparent; color: #808080; }
   .tree-arrow { width: 12px; flex: 0 0 12px; text-align: center; color: #000; font-size: 9px; }
   .tree-arrow.empty { visibility: hidden; }
@@ -208,7 +209,7 @@
   .grid { display: flex; flex-wrap: wrap; gap: 4px; align-content: flex-start; }
   .grid-item {
     width: 92px; padding: 6px 4px; text-align: center;
-    cursor: pointer; border: 1px solid transparent;
+    cursor: var(--cur-link); border: 1px solid transparent;
   }
   .grid-item.flat { width: 128px; }
   .grid-item:hover { background: #dcdcf0; border: 1px dotted #0a246a; }
@@ -242,7 +243,7 @@
   .start-btn, .taskbar-app {
     height: 24px; padding: 0 8px;
     display: flex; align-items: center; gap: 5px;
-    cursor: pointer; font-size: 12px; font-weight: 700; color: #000;
+    cursor: var(--cur-link); font-size: 12px; font-weight: 700; color: #000;
     box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #404040, inset 2px 2px 0 #dfdfdf, inset -2px -2px 0 #808080;
   }
   .start-btn { width: auto; justify-content: center; padding: 0 8px; font-size: 13px; color: #000; }
@@ -262,13 +263,13 @@
   .clock { font-size: 11px; color: #000; text-align: center; line-height: 1.2; user-select: none; white-space: nowrap; }
   .battery {
     display: flex; align-items: center; gap: 4px;
-    padding: 2px 4px; cursor: default;
+    padding: 2px 4px; cursor: inherit;
     font-size: 11px; color: #000;
   }
   .battery:hover { background: transparent; }
   .battery .bicon { font-size: 14px; line-height: 1; }
   .weather {
-    display: flex; align-items: center; gap: 4px; cursor: pointer;
+    display: flex; align-items: center; gap: 4px; cursor: var(--cur-link);
     font-size: 11px; color: #000; padding: 2px 4px; user-select: none;
   }
   .weather:hover { background: transparent; }
@@ -282,7 +283,7 @@
 
   .tray-icons { display: flex; align-items: center; gap: 2px; }
   .tray-icon {
-    width: 22px; height: 22px; cursor: pointer;
+    width: 22px; height: 22px; cursor: var(--cur-link);
     display: flex; align-items: center; justify-content: center;
     overflow: hidden; background: transparent; font-size: 11px; font-weight: 700; color: #000;
   }
@@ -319,7 +320,7 @@
   .start-apps { display: flex; flex-direction: column; gap: 0; max-height: 260px; overflow-y: auto; padding: 2px; }
   .start-app-row {
     display: flex; align-items: center; gap: 8px; padding: 4px 6px;
-    cursor: pointer; font-size: 12px; color: #000;
+    cursor: var(--cur-link); font-size: 12px; color: #000;
   }
   .start-app-row:hover { background: #0a246a; color: #fff; }
   .start-app-row:hover .start-app-chevron { color: #fff; }
@@ -360,13 +361,13 @@
     font-size: 12px; font-weight: 700; color: #fff;
   }
   .settings-close {
-    border: none; background: #c0c0c0; font-size: 11px; color: #000; cursor: pointer; padding: 1px 6px;
+    border: none; background: #c0c0c0; font-size: 11px; color: #000; cursor: var(--cur-link); padding: 1px 6px;
     box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #404040, inset 2px 2px 0 #dfdfdf, inset -2px -2px 0 #808080;
   }
   .settings-close:hover { background: #c0c0c0; }
   .settings-body { padding: 12px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex: 1 1 auto; min-height: 0; background: #c0c0c0; }
   .settings-row { display: flex; flex-direction: column; gap: 4px; }
-  .settings-check { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #000; cursor: pointer; }
+  .settings-check { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #000; cursor: var(--cur-link); }
   .settings-check input { width: 13px; height: 13px; }
   .settings-hint { font-size: 11px; color: #444; margin-left: 20px; line-height: 1.4; }
   .settings-label { font-size: 12px; color: #000; }
@@ -377,7 +378,7 @@
   .settings-divider { height: 1px; background: #808080; box-shadow: 0 1px 0 #fff; }
   .settings-button {
     height: 24px; border: none; padding: 0 12px;
-    font-size: 12px; background: #c0c0c0; color: #000; cursor: pointer; align-self: flex-start;
+    font-size: 12px; background: #c0c0c0; color: #000; cursor: var(--cur-link); align-self: flex-start;
     box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #404040, inset 2px 2px 0 #dfdfdf, inset -2px -2px 0 #808080;
   }
   .settings-button:hover { background: #c0c0c0; }
@@ -415,7 +416,7 @@
     box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #404040, inset 2px 2px 0 #dfdfdf, inset -2px -2px 0 #808080, 2px 2px 5px rgba(0,0,0,.3);
     padding: 2px; z-index: 2030; /* 가상 탐색기 창(.df-window, z-index 100+)보다 항상 위에 떠야 함 */
   }
-  .ctx-item { padding: 4px 10px; font-size: 12px; color: #000; cursor: pointer; }
+  .ctx-item { padding: 4px 10px; font-size: 12px; color: #000; cursor: var(--cur-link); }
   .ctx-item:hover { background: #0a246a; color: #fff; }
 
   /* ---------- 에어로(반투명) 옵션 - Win2000에는 애초에 블러가 없으므로 켜져 있어도 항상 불투명하다 ---------- */
@@ -439,7 +440,7 @@
   .toast.show { opacity: 1; pointer-events: auto; transform: translateY(0); }
   .toast.warn { background: #c0c0c0; border-top: 3px solid #ffbf00; }
   .toast-msg { flex: 1; white-space: pre-line; word-break: break-word; }
-  .toast-close { background: transparent; border: none; color: #000; opacity: .7; cursor: pointer; font-size: 13px; line-height: 1; padding: 0 2px; }
+  .toast-close { background: transparent; border: none; color: #000; opacity: .7; cursor: var(--cur-link); font-size: 13px; line-height: 1; padding: 0 2px; }
   .toast-close:hover { opacity: 1; }
 
   /* ============ 바탕화면 가상 파일시스템(dexie) - 아이콘 / 다중 탐색기 창 / 내장 에디터 ============ */
@@ -452,7 +453,7 @@
   .df-icon {
     position: absolute; width: 80px; padding: 6px 4px;
     display: flex; flex-direction: column; align-items: center; gap: 4px;
-    cursor: default; user-select: none; pointer-events: auto;
+    user-select: none; pointer-events: auto;
   }
   .df-icon:hover { background: rgba(255,255,255,.15); }
   .df-icon.selected { background: rgba(10,36,106,.55); outline: 1px dotted #fff; outline-offset: -2px; }
@@ -488,11 +489,20 @@
     .nav-pane.open { transform: translateX(0); }
   }
 
-  /* ============ 가짜 마우스(커스텀 커서) 예외 규칙 (요청 11) ============
-     body에 걸어둔 커스텀 SVG 화살표 커서(가짜 마우스)는 "진짜 웹페이지 티가 안 나게" 페이지
-     전체 기본값으로 깔아두는 용도였는데, 정작 실제로 클릭 가능한 링크/버튼류에서도 그대로
-     상속되어 버려서 사용자가 "이게 눌리는 건지" 구분할 수 없었다. 아래 요소들만 브라우저
-     네이티브 커서로 되돌린다 - 시계(.clock)는 의도적으로 예외 없이 가짜 커서를 그대로 쓴다. */
-  .df-icon { cursor: default; }
-  .start-btn, .taskbar-app, .battery, .weather { cursor: default; }
-  .tray-icon { cursor: pointer; }
+  /* ============ 가짜 마우스(커스텀 커서) 예외 규칙 (요청 11, 정정됨) ============
+     예전엔 "보통 상태"/"평범한 기본 커서"를 브라우저 네이티브 커서(cursor:default)로 잘못
+     구현했었다 - 사용자 지시로 정정: 이 앱 안에서는 네이티브 커서가 아예 나오면 안 되고,
+     "보통 상태"란 body에 깔아둔 커스텀 화살표(가짜 마우스)를 그대로 상속하는 것을 뜻한다.
+     시작/탐색기/배터리/날씨는 각자 자기 규칙에서 클릭 가능 표시로 cursor:pointer를 갖고
+     있었는데(날씨/배터리는 눌러서 상세 정보를 보여줌), 그걸 그대로 var(--cur-link)로
+     바꾸면 안 되고(사용자 지시 - 이 넷은 "평범한" 상태여야 함) 여기서 cursor:inherit으로
+     다시 body의 화살표를 상속하도록 되돌린다. 바탕화면 아이콘(.df-icon)과 시계(.clock)는
+     애초에 자기 cursor 규칙이 없어 상속만으로 이미 화살표이므로 별도 규칙이 필요 없다.
+     반대로 "하이퍼링크처럼 눌리는 곳"도 네이티브 pointer가 아니라 --cur-link(스킨별 커스텀
+     손가락 커서)를 쓴다 - 트레이 퀵런치 아이콘, 시작메뉴 팝업 항목(.start-app-row는 트레이
+     아이콘의 하위 메뉴에도 재사용됨)이 여기 해당하고, 나머지 클릭 가능 요소들(탐색창/뒤로/
+     앞으로/위로/새로고침/주소 표시줄/트리/탐색기 내 파일·폴더 등)은 위에서 이미 cursor:pointer를
+     전부 var(--cur-link)로 일괄 치환해뒀다. */
+  .start-btn, .taskbar-app, .battery, .weather { cursor: inherit; }
+  .tray-icon { cursor: var(--cur-link); }
+  .user-link { cursor: var(--cur-link); }

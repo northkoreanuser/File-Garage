@@ -18,6 +18,7 @@
     min-height: 100%;
     /* 얇은 검정 테두리를 두른 플랫 흰색 화살표 - Aero/7 시절의 무거운 그림자 없이 크리스프하게 */
     cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28"><polygon points="3,2 3,22 8.2,17.3 11.8,24.4 15,22.9 11.6,16 18,16" fill="white" stroke="black" stroke-width="1.1" stroke-linejoin="round"/></svg>') 3 2, auto;
+    --cur-link: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="22" height="26" viewBox="0 0 22 26"><g fill="white" stroke="black" stroke-width="1.1" stroke-linejoin="round"><rect x="8" y="1" width="5" height="12" rx="2.2"/><rect x="1.5" y="11" width="6" height="9" rx="2.4"/><rect x="3.5" y="8" width="16" height="14" rx="3.8"/></g></svg>') 10 2, pointer;
   }
 
   .desktop {
@@ -84,7 +85,7 @@
   .tb-icon { font-size: 14px; margin-right: 8px; }
   .tb-title { font-size: 12.5px; color: #202020; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tb-controls { display: flex; height: 100%; }
-  .tb-btn { width: 44px; height: 100%; border: none; background: transparent; font-size: 11px; color: #202020; cursor: pointer; }
+  .tb-btn { width: 44px; height: 100%; border: none; background: transparent; font-size: 11px; color: #202020; cursor: var(--cur-link); }
   .tb-btn:hover { background: #E5E5E5; }
   .tb-close:hover { background: #E81123; color: #fff; }
 
@@ -105,13 +106,13 @@
     border: 1px solid transparent;
     background: transparent;
     border-radius: 2px;
-    cursor: pointer;
+    cursor: var(--cur-link);
     font-size: 13px;
     color: #333;
     display: flex; align-items: center; justify-content: center;
   }
   .tool-btn:hover:not(:disabled) { background: #E5E5E5; border-color: #E5E5E5; }
-  .tool-btn:disabled { color: #C4C4C4; cursor: default; }
+  .tool-btn:disabled { color: #C4C4C4; cursor: inherit; }
   .nav-toggle { display: flex; }
   .address-bar {
     flex: 1; height: 28px;
@@ -121,7 +122,7 @@
     overflow-x: auto; white-space: nowrap;
   }
   .address-bar::-webkit-scrollbar { display: none; }
-  .crumb { cursor: pointer; padding: 2px 5px; border-radius: 2px; }
+  .crumb { cursor: var(--cur-link); padding: 2px 5px; border-radius: 2px; }
   .crumb:hover { background: #E5E5E5; }
   .crumb-sep { color: #9a9a9a; }
   .search-box { width: 180px; height: 28px; flex: 0 0 auto; }
@@ -152,7 +153,7 @@
   .nav-root {
     display: flex; align-items: center; gap: 6px;
     padding: 5px 10px; margin: 0 4px 2px;
-    cursor: pointer; font-weight: 600; color: #202020;
+    cursor: var(--cur-link); font-weight: 600; color: #202020;
     border-radius: 2px; border: 1px solid transparent;
     width: fit-content; max-width: none;
   }
@@ -162,13 +163,13 @@
   .tree-row {
     display: flex; align-items: center; gap: 4px;
     padding: 4px 6px; margin: 0 4px;
-    cursor: pointer; border-radius: 2px; color: #202020;
+    cursor: var(--cur-link); border-radius: 2px; color: #202020;
     white-space: nowrap; border: 1px solid transparent;
     width: fit-content; max-width: none;
   }
   .tree-row:hover { background: #E5E5E5; }
   .tree-row.selected { background: #CDE8FF; border-color: #0078D4; }
-  .tree-row.tree-loading { color: #999; font-style: italic; cursor: default; }
+  .tree-row.tree-loading { color: #999; font-style: italic; cursor: inherit; }
   .tree-row.tree-loading:hover { background: transparent; }
   .tree-arrow { width: 14px; flex: 0 0 14px; text-align: center; color: #666; font-size: 10px; }
   .tree-arrow.empty { visibility: hidden; }
@@ -182,7 +183,7 @@
   .grid { display: flex; flex-wrap: wrap; gap: 4px; align-content: flex-start; }
   .grid-item {
     width: 96px; padding: 8px 4px; text-align: center;
-    border-radius: 2px; cursor: pointer; border: 1px solid transparent;
+    border-radius: 2px; cursor: var(--cur-link); border: 1px solid transparent;
   }
   .grid-item.flat { width: 132px; }
   .grid-item:hover { background: #ECECEC; border-color: #E1E1E1; }
@@ -217,7 +218,7 @@
   .start-btn, .taskbar-app {
     height: 40px; padding: 0 12px;
     display: flex; align-items: center; gap: 6px;
-    border-radius: 0; cursor: pointer; font-size: 13px; color: #fff;
+    border-radius: 0; cursor: var(--cur-link); font-size: 13px; color: #fff;
   }
   .start-btn { width: 46px; justify-content: center; padding: 0; font-size: 18px; color: #fff; }
   .start-btn:hover, .taskbar-app:hover { background: rgba(255,255,255,.08); }
@@ -226,13 +227,13 @@
   .clock { font-size: 12px; color: #fff; text-align: center; line-height: 1.3; user-select: none; white-space: nowrap; }
   .battery {
     display: flex; align-items: center; gap: 4px;
-    padding: 4px 6px; border-radius: 0; cursor: default;
+    padding: 4px 6px; border-radius: 0; cursor: inherit;
     font-size: 12.5px; color: #fff;
   }
   .battery:hover { background: rgba(255,255,255,.08); }
   .battery .bicon { font-size: 15px; line-height: 1; }
   .weather {
-    display: flex; align-items: center; gap: 5px; cursor: pointer;
+    display: flex; align-items: center; gap: 5px; cursor: var(--cur-link);
     font-size: 12px; color: #fff; padding: 5px 8px; border-radius: 0; user-select: none;
   }
   .weather:hover { background: rgba(255,255,255,.08); }
@@ -246,7 +247,7 @@
 
   .tray-icons { display: flex; align-items: center; gap: 4px; }
   .tray-icon {
-    width: 32px; height: 32px; border-radius: 0; cursor: pointer;
+    width: 32px; height: 32px; border-radius: 0; cursor: var(--cur-link);
     display: flex; align-items: center; justify-content: center;
     overflow: hidden; background: transparent; font-size: 12px; font-weight: 600; color: #fff;
   }
@@ -280,7 +281,7 @@
   .start-apps { display: flex; flex-direction: column; gap: 1px; max-height: 260px; overflow-y: auto; }
   .start-app-row {
     display: flex; align-items: center; gap: 9px; padding: 7px 8px;
-    border-radius: 0; cursor: pointer; font-size: 12.5px; color: #202020;
+    border-radius: 0; cursor: var(--cur-link); font-size: 12.5px; color: #202020;
   }
   .start-app-row:hover { background: #E5E5E5; }
   .start-app-icon {
@@ -324,11 +325,11 @@
     display: flex; align-items: center; justify-content: space-between;
     padding: 12px 14px; border-bottom: 1px solid #E1E1E1; font-size: 13.5px; font-weight: 600; color: #202020;
   }
-  .settings-close { border: none; background: transparent; font-size: 14px; color: #444; cursor: pointer; padding: 2px 6px; border-radius: 2px; }
+  .settings-close { border: none; background: transparent; font-size: 14px; color: #444; cursor: var(--cur-link); padding: 2px 6px; border-radius: 2px; }
   .settings-close:hover { background: #E5E5E5; }
   .settings-body { padding: 14px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
   .settings-row { display: flex; flex-direction: column; gap: 4px; }
-  .settings-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #202020; cursor: pointer; }
+  .settings-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #202020; cursor: var(--cur-link); }
   .settings-check input { width: 15px; height: 15px; }
   .settings-hint { font-size: 11.5px; color: #888; margin-left: 23px; line-height: 1.4; }
   .settings-label { font-size: 13px; color: #202020; }
@@ -336,7 +337,7 @@
   .settings-divider { height: 1px; background: #E1E1E1; }
   .settings-button {
     height: 28px; border: 1px solid #D5B5B0; border-radius: 2px; padding: 0 12px;
-    font-size: 12.5px; background: #FDF2F0; color: #A03C2E; cursor: pointer; align-self: flex-start;
+    font-size: 12.5px; background: #FDF2F0; color: #A03C2E; cursor: var(--cur-link); align-self: flex-start;
   }
   .settings-button:hover { background: #FBE4E0; }
   .settings-button-neutral { border-color: #B8D6F0; background: #E5F1FB; color: #005A9E; }
@@ -375,7 +376,7 @@
     box-shadow: 0 8px 24px rgba(0,0,0,.25);
     padding: 4px; z-index: 2030;
   }
-  .ctx-item { padding: 7px 10px; font-size: 12.5px; color: #202020; border-radius: 2px; cursor: pointer; }
+  .ctx-item { padding: 7px 10px; font-size: 12.5px; color: #202020; border-radius: 2px; cursor: var(--cur-link); }
   .ctx-item:hover { background: #E5E5E5; }
 
   /* ---------- "에어로" 토글 옵션 ----------
@@ -407,7 +408,7 @@
   .toast.show { opacity: 1; pointer-events: auto; transform: translateY(0); }
   .toast.warn { background: #8A5A00; }
   .toast-msg { flex: 1; white-space: pre-line; word-break: break-word; }
-  .toast-close { background: transparent; border: none; color: #fff; opacity: .7; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; }
+  .toast-close { background: transparent; border: none; color: #fff; opacity: .7; cursor: var(--cur-link); font-size: 14px; line-height: 1; padding: 0 2px; }
   .toast-close:hover { opacity: 1; }
 
   /* ============ 바탕화면 가상 파일시스템(dexie) - 아이콘 / 다중 탐색기 창 / 내장 에디터 ============ */
@@ -420,7 +421,7 @@
   .df-icon {
     position: absolute; width: 84px; padding: 8px 4px; border-radius: 2px;
     display: flex; flex-direction: column; align-items: center; gap: 4px;
-    cursor: default; user-select: none; pointer-events: auto;
+    user-select: none; pointer-events: auto;
   }
   .df-icon:hover { background: rgba(255,255,255,.12); }
   .df-icon.selected { background: rgba(0,120,212,.35); outline: 1px solid #0078D4; outline-offset: -1px; }
@@ -456,11 +457,20 @@
     .nav-pane.open { transform: translateX(0); }
   }
 
-  /* ============ 가짜 마우스(커스텀 커서) 예외 규칙 (요청 11) ============
-     body에 걸어둔 커스텀 SVG 화살표 커서(가짜 마우스)는 "진짜 웹페이지 티가 안 나게" 페이지
-     전체 기본값으로 깔아두는 용도였는데, 정작 실제로 클릭 가능한 링크/버튼류에서도 그대로
-     상속되어 버려서 사용자가 "이게 눌리는 건지" 구분할 수 없었다. 아래 요소들만 브라우저
-     네이티브 커서로 되돌린다 - 시계(.clock)는 의도적으로 예외 없이 가짜 커서를 그대로 쓴다. */
-  .df-icon { cursor: default; }
-  .start-btn, .taskbar-app, .battery, .weather { cursor: default; }
-  .tray-icon { cursor: pointer; }
+  /* ============ 가짜 마우스(커스텀 커서) 예외 규칙 (요청 11, 정정됨) ============
+     예전엔 "보통 상태"/"평범한 기본 커서"를 브라우저 네이티브 커서(cursor:default)로 잘못
+     구현했었다 - 사용자 지시로 정정: 이 앱 안에서는 네이티브 커서가 아예 나오면 안 되고,
+     "보통 상태"란 body에 깔아둔 커스텀 화살표(가짜 마우스)를 그대로 상속하는 것을 뜻한다.
+     시작/탐색기/배터리/날씨는 각자 자기 규칙에서 클릭 가능 표시로 cursor:pointer를 갖고
+     있었는데(날씨/배터리는 눌러서 상세 정보를 보여줌), 그걸 그대로 var(--cur-link)로
+     바꾸면 안 되고(사용자 지시 - 이 넷은 "평범한" 상태여야 함) 여기서 cursor:inherit으로
+     다시 body의 화살표를 상속하도록 되돌린다. 바탕화면 아이콘(.df-icon)과 시계(.clock)는
+     애초에 자기 cursor 규칙이 없어 상속만으로 이미 화살표이므로 별도 규칙이 필요 없다.
+     반대로 "하이퍼링크처럼 눌리는 곳"도 네이티브 pointer가 아니라 --cur-link(스킨별 커스텀
+     손가락 커서)를 쓴다 - 트레이 퀵런치 아이콘, 시작메뉴 팝업 항목(.start-app-row는 트레이
+     아이콘의 하위 메뉴에도 재사용됨)이 여기 해당하고, 나머지 클릭 가능 요소들(탐색창/뒤로/
+     앞으로/위로/새로고침/주소 표시줄/트리/탐색기 내 파일·폴더 등)은 위에서 이미 cursor:pointer를
+     전부 var(--cur-link)로 일괄 치환해뒀다. */
+  .start-btn, .taskbar-app, .battery, .weather { cursor: inherit; }
+  .tray-icon { cursor: var(--cur-link); }
+  .user-link { cursor: var(--cur-link); }
