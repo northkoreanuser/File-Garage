@@ -244,6 +244,12 @@
   .weather-place { font-size: 12.5px; color: #888; margin-bottom: 4px; }
   .weather-desc { font-size: 13px; color: #555; margin: 6px 0 4px; }
   .weather-detail-row { font-size: 12.5px; color: #444; padding: 2px 0; }
+  /* 요청 #132: 시계 클릭 -> 이번 달 달력 팝업(오늘 강조) */
+  .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-top: 4px; }
+  .calendar-cell { text-align: center; font-size: 12px; padding: 5px 0; border-radius: 2px; color: #333; }
+  .calendar-head { font-weight: 600; color: #888; font-size: 11px; }
+  .calendar-empty { visibility: hidden; }
+  .calendar-today { background: #CDE8FF; border: 1px solid #0078D4; font-weight: 700; color: #003a66; }
 
   .tray-icons { display: flex; align-items: center; gap: 4px; }
   .tray-icon {
@@ -437,9 +443,14 @@
   .df-icon.df-drop-target { background: rgba(0,120,212,.3); outline: 1px dashed #0078D4; }
   .grid-item.df-drop-target { background: #E5F1FB; border-color: #0078D4; outline: 1px dashed #0078D4; }
   .tree-row.df-drop-target, .nav-root.df-drop-target { background: #E5F1FB; border-color: #0078D4; outline: 1px dashed #0078D4; }
-  /* 바탕화면 드래그 다중 선택(러버밴드) 박스 - 플랫 옅은 파랑 배경 + 솔리드 액센트 테두리, 글로우 없음 */
+  /* 요청 #124: 바탕화면 드래그 다중 선택(러버밴드) 박스. Win10 기본 바탕화면 배경이 이 스킨에서
+     단색 액센트 블루(#0078D4)라서, 예전엔 이 박스도 같은 블루 계열(테두리 #0078D4 + 옅은 파란
+     반투명 배경)이라 배경에 거의 그대로 묻혀 안 보였다(드래그로 실제 선택은 됐지만 눈에는 안
+     보이던 버그). 그래서 바탕화면(단색 블루)과 뚜렷이 대비되는 흰색 계열로 바꾼다 - 실제 윈도우도
+     바탕화면 배경이 무엇이든 잘 보이도록 밝은 반투명 흰색 박스를 쓴다. */
   .df-select-box {
-    position: fixed; border: 1px solid #0078D4; background: rgba(0,120,212,.15);
+    position: fixed; border: 1px solid #fff; background: rgba(255,255,255,.28);
+    box-shadow: 0 0 0 1px rgba(0,0,0,.35);
     pointer-events: none; z-index: 1;
   }
 

@@ -64,9 +64,9 @@ async function preloadAllToCache() {
   }
   try {
     await walk([]);
-    showToast(`전체 미리 불러오기 완료 (${count}개 폴더)`);
+    showToast(`전체 미리 불러오기 완료 (${count}개 폴더)`, { sound: "notify_success" });
   } catch (e) {
-    showToast(`미리 불러오기 중 오류: ${e.message}`, { kind: "warn" });
+    showToast(`미리 불러오기 중 오류: ${e.message}`, { kind: "warn", sound: "error_generic" });
   }
 }
 
@@ -122,6 +122,53 @@ function updateClock() {
 }
 updateClock();
 setInterval(updateClock, 1000);
+
+/* ============ 요청 #132: 시계 클릭 메뉴 (실제 윈도우의 "날짜 및 시간" 달력 팝업 흉내) ============
+   weather-detail(showWeatherDetail)와 같은 방식(settings-overlay/settings-panel 재사용)으로,
+   오늘 날짜가 강조된 이번 달 달력 한 칸을 간단히 보여준다. */
+function closeClockDetail() {
+  const overlay = document.getElementById("clockOverlay");
+  if (overlay) overlay.remove();
+}
+function buildMonthCalendarHtml(year, month /* 0-based */, todayDate) {
+  const first = new Date(year, month, 1);
+  const startWeekday = first.getDay(); // 0=일요일
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const weekdayNames = ["일", "월", "화", "수", "목", "금", "토"];
+  let html = '<div class="calendar-grid">';
+  weekdayNames.forEach(w => { html += `<div class="calendar-cell calendar-head">${w}</div>`; });
+  for (let i = 0; i < startWeekday; i++) html += '<div class="calendar-cell calendar-empty"></div>';
+  for (let d = 1; d <= daysInMonth; d++) {
+    const isToday = d === todayDate;
+    html += `<div class="calendar-cell${isToday ? " calendar-today" : ""}">${d}</div>`;
+  }
+  html += '</div>';
+  return html;
+}
+function showClockDetail() {
+  closeClockDetail();
+  const now = new Date();
+  const overlay = document.createElement("div");
+  overlay.id = "clockOverlay";
+  overlay.className = "settings-overlay open";
+  const dateLabel = now.toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
+  overlay.innerHTML = `
+    <div class="settings-panel" style="width:300px;">
+      <div class="settings-titlebar">
+        <span>날짜 및 시간</span>
+        <button class="settings-close" id="clockCloseBtn">닫기</button>
+      </div>
+      <div class="settings-body">
+        <div class="weather-place">${escapeHtml(dateLabel)}</div>
+        <div class="settings-divider"></div>
+        ${buildMonthCalendarHtml(now.getFullYear(), now.getMonth(), now.getDate())}
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById("clockCloseBtn").onclick = closeClockDetail;
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeClockDetail(); });
+}
+if (els.clock) els.clock.onclick = showClockDetail;
 
 /* ============ 날씨 (Open-Meteo, API 키 불필요) ============
    브라우저 로케일로 국가를 추정해서(위치 권한 요청 없이) 그 나라 대표 도시 좌표로 조회한다.
@@ -227,8 +274,11 @@ setInterval(loadWeather, 15 * 60 * 1000); // 15분마다 갱신
 /* ============ 배터리(트레이, 날씨 왼쪽) ============
    navigator.getBattery()는 Battery Status API - 노트북처럼 배터리가 있는 기기의 브라우저에서만
    값을 준다. 지원하지 않는 브라우저(사파리 등)나 권한이 없는 환경에서는 조용히 숨긴다(에러 없이). */
+let batteryLevel = null, batteryCharging = false; // 요청 #132: 클릭 메뉴가 마지막 값을 그대로 보여주기 위해 기억해둔다.
 function renderBatteryWidget(level, charging) {
   if (!els.batteryWidget) return;
+  batteryLevel = level;
+  batteryCharging = charging;
   if (level == null) { els.batteryWidget.style.display = "none"; els.batteryWidget.innerHTML = ""; return; }
   const pct = Math.round(level * 100);
   const icon = charging ? "🔌" : (pct <= 20 ? "🪫" : "🔋");
@@ -249,4 +299,38 @@ async function loadBattery() {
   }
 }
 loadBattery();
+
+/* ============ 요청 #132: 배터리 클릭 메뉴 (실제 윈도우의 배터리 플라이아웃 흉내) ============
+   weather-detail과 같은 방식(settings-overlay/settings-panel 재사용)으로 퍼센트/충전 상태를
+   보여준다. 배터리 API 자체가 없으면(el이 숨겨진 상태) 애초에 눌릴 일이 없다. */
+function closeBatteryDetail() {
+  const overlay = document.getElementById("batteryOverlay");
+  if (overlay) overlay.remove();
+}
+function showBatteryDetail() {
+  if (batteryLevel == null) return;
+  closeBatteryDetail();
+  const pct = Math.round(batteryLevel * 100);
+  const overlay = document.createElement("div");
+  overlay.id = "batteryOverlay";
+  overlay.className = "settings-overlay open";
+  overlay.innerHTML = `
+    <div class="settings-panel" style="width:280px;">
+      <div class="settings-titlebar">
+        <span>배터리</span>
+        <button class="settings-close" id="batteryCloseBtn">닫기</button>
+      </div>
+      <div class="settings-body">
+        <div class="weather-big">
+          <span class="wicon-big">${batteryCharging ? "🔌" : (pct <= 20 ? "🪫" : "🔋")}</span>
+          <span class="temp-big">${pct}%</span>
+        </div>
+        <div class="weather-desc">${batteryCharging ? "충전 중" : "배터리로 작동 중"}</div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById("batteryCloseBtn").onclick = closeBatteryDetail;
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeBatteryDetail(); });
+}
+if (els.batteryWidget) els.batteryWidget.onclick = showBatteryDetail;
 

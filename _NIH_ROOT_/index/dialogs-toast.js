@@ -94,6 +94,103 @@ function showPromptDialog(message, defaultValue = "") {
   });
 }
 
+/* ============ 바로가기 생성 대화상자 (요청 #133) ============
+   바탕화면/탐색기(가상 폴더)의 빈 곳에서 "바로가기 생성"을 고르면, 기존 항목을 가리키는 게
+   아니라 사용자가 직접 이름/주소(URL)/아이콘을 입력해서 완전히 새로운 바로가기를 만든다(메뉴
+   메이커의 항목 편집 패널과 같은 개념이지만, 여기서는 바탕화면에 아이콘으로 놓인다). 아이콘은
+   URL 텍스트를 입력하거나, 이미지를 클립보드에서 붙여넣거나(Ctrl+V) 파일로 선택하면 base64
+   data URL로 바로 들어간다(menu-maker.js의 buildIconEditorField와 같은 방식). 기존 CSS 클래스
+   (confirm-overlay/confirm-panel/confirm-input/settings-button 등)만 재사용해서 테마 8종의
+   style.css를 전부 건드리지 않고, 레이아웃은 인라인 스타일로만 처리한다.
+   반환: 확인 -> {name, url, icon}, 취소(배경 클릭/취소 버튼/Esc) -> null. */
+function showShortcutDialog(defaults = {}) {
+  return new Promise(resolve => {
+    const previouslyFocused = document.activeElement;
+    const overlay = document.createElement("div");
+    overlay.className = "confirm-overlay";
+    overlay.innerHTML = `
+      <div class="confirm-panel">
+        <div class="confirm-message">바로가기 생성</div>
+        <input type="text" class="confirm-input sc-name-input" placeholder="이름" spellcheck="false">
+        <input type="text" class="confirm-input sc-url-input" placeholder="주소(URL, 예: https://...)" spellcheck="false">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div class="sc-icon-preview" style="width:32px;height:32px;flex:0 0 auto;border:1px solid #d5d5d5;border-radius:6px;background-color:#fff;background-size:contain;background-position:center;background-repeat:no-repeat;"></div>
+          <input type="text" class="confirm-input sc-icon-input" placeholder="아이콘 URL 또는 붙여넣기(Ctrl+V)로 이미지 삽입" style="flex:1;">
+        </div>
+        <div style="display:flex;">
+          <button class="settings-button settings-button-neutral sc-icon-file-btn">이미지 파일 선택</button>
+        </div>
+        <input type="file" accept="image/*" class="sc-icon-file-input" style="display:none">
+        <div class="confirm-buttons">
+          <button class="settings-button settings-button-neutral confirm-cancel">취소</button>
+          <button class="settings-button confirm-ok">만들기</button>
+        </div>
+      </div>`;
+    const nameInput = overlay.querySelector(".sc-name-input");
+    const urlInput = overlay.querySelector(".sc-url-input");
+    const iconInput = overlay.querySelector(".sc-icon-input");
+    const iconPreview = overlay.querySelector(".sc-icon-preview");
+    const fileInput = overlay.querySelector(".sc-icon-file-input");
+    nameInput.value = defaults.name || "";
+    urlInput.value = defaults.url || "";
+    let currentIcon = defaults.icon || "";
+    function refreshPreview() { iconPreview.style.backgroundImage = currentIcon ? `url("${currentIcon}")` : "none"; }
+    function setIcon(v) { currentIcon = v; iconInput.value = v; refreshPreview(); }
+    setIcon(currentIcon);
+    document.body.appendChild(overlay);
+    let done = false;
+    const cleanup = (result) => {
+      if (done) return;
+      done = true;
+      overlay.remove();
+      if (previouslyFocused && document.body.contains(previouslyFocused) && typeof previouslyFocused.focus === "function") {
+        previouslyFocused.focus();
+      }
+      resolve(result);
+    };
+    function submit() {
+      const url = urlInput.value.trim();
+      if (!url) { showToast("주소(URL)를 입력하세요.", { kind: "warn", sound: "error_generic" }); urlInput.focus(); return; }
+      const name = nameInput.value.trim() || "새 바로가기";
+      cleanup({ name, url, icon: currentIcon });
+    }
+    overlay.querySelector(".confirm-cancel").onclick = () => cleanup(null);
+    overlay.querySelector(".confirm-ok").onclick = submit;
+    overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) cleanup(null); });
+    [nameInput, urlInput, iconInput].forEach((input) => {
+      input.addEventListener("keydown", (e) => {
+        e.stopPropagation(); // 전역 백스페이스=뒤로가기 등이 타이핑을 가로채지 않게 함(showPromptDialog와 동일)
+        if (e.key === "Enter") { e.preventDefault(); submit(); }
+        else if (e.key === "Escape") { e.preventDefault(); cleanup(null); }
+      });
+    });
+    iconInput.oninput = () => setIcon(iconInput.value);
+    iconInput.onpaste = (e) => {
+      const items = (e.clipboardData && e.clipboardData.items) || [];
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type && items[i].type.indexOf("image/") === 0) {
+          const file = items[i].getAsFile();
+          if (!file) continue;
+          e.preventDefault();
+          const reader = new FileReader();
+          reader.onload = () => setIcon(reader.result);
+          reader.readAsDataURL(file);
+          return;
+        }
+      }
+    };
+    overlay.querySelector(".sc-icon-file-btn").onclick = () => fileInput.click();
+    fileInput.onchange = () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => setIcon(reader.result);
+      reader.readAsDataURL(file);
+    };
+    requestAnimationFrame(() => { nameInput.focus(); nameInput.select(); });
+  });
+}
+
 /* ============ 여러 개 중 하나를 고르는 대화상자(예: 폴더 다운로드 zip/헬퍼 선택) ============
    showConfirmDialog와 같은 모양이지만 버튼이 확인/취소 둘이 아니라 choices 배열 순서대로
    임의 개수 생긴다 + 맨 끝에 취소 버튼이 항상 하나 더 붙는다. choices: [{label, value}, ...].
@@ -226,5 +323,9 @@ function showToast(message, opts = {}) {
   // 더 일찍 닫고 싶으면 닫기(✕) 버튼으로 언제든 닫을 수 있다.
   const duration = opts.sticky ? 6000 : 2500;
   toastTimer = setTimeout(() => els.toast.classList.remove("show"), duration);
+  // 요청 #122: opts.sound로 상황(sound_set.json의 시나리오 키)을 넘긴 호출부에서만 알림음을
+  // 재생한다 - 토스트가 뜨는 모든 곳에 소리를 강제로 붙이지 않고, 사운드 메이커에서 그 상황에
+  // 실제로 소리를 지정했을 때만(dfsPlaySound 참고) 조용하지 않게 동작한다.
+  if (opts.sound) dfsPlaySound(opts.sound);
 }
 

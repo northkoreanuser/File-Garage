@@ -9,6 +9,36 @@ const LOCAL_HELPER_PORT_MAX = 8020;
 // 그게 우리 헬퍼인지 확신할 수 없다. localserver.ahk의 HELPER_SIGNATURE와 정확히 같은 문자열이어야만 인정한다.
 const HELPER_SIGNATURE = "AHK-REPO-INDEXER-LOCALHELPER-v1";
 let cachedHelperPort = null; // 한 번 찾으면 이 페이지가 살아있는 동안은 재사용
+// 요청 #122(사운드 시나리오): "로컬 헬퍼(웹훅)가 처음 확인됐을 때" 딱 한 번만 알림음을 낸다
+// (같은 세션에서 매번 ensureHelperPort를 부를 때마다 울리면 너무 시끄러움).
+let dfHelperConnectedOnce = false;
+// 요청 #134: 웹훅(로컬 헬퍼)이 이 리포에서(이 브라우저 기준) 통틀어 처음으로 연결된 걸 확인하면,
+// 더블클릭 동작을 수동으로 "열기(로컬)"로 바꾸지 않아도 되도록 자동으로 그 설정을 켜준다 - 웹훅을
+// 받아서 실행하는 수고를 들인 사람은 당연히 그걸 바로 쓰고 싶어할 거라는 전제. 세션마다 다시
+// 켜는 게 아니라 딱 한 번만 하도록(사용자가 나중에 직접 다른 방식으로 바꿔도 계속 존중되도록)
+// localStorage에 "이미 자동 활성화했음" 플래그를 남긴다. 이미 "열기(로컬)"였으면(직접 그렇게
+// 골랐든, 예전에 이미 자동 활성화됐든) 조용히 플래그만 남기고 설정/토스트는 건드리지 않는다.
+function dfWebhookAutoActivatedKey() { return `idx:${repoName}:webhookAutoActivated`; }
+function dfAutoActivateHelperSetting() {
+  let alreadyDone = false;
+  try {
+    alreadyDone = localStorage.getItem(dfWebhookAutoActivatedKey()) === "1";
+    if (!alreadyDone) localStorage.setItem(dfWebhookAutoActivatedKey(), "1");
+  } catch (e) { /* localStorage를 못 쓰면 매번 다시 시도하게 되는 정도라 크게 문제 없음 */ }
+  if (alreadyDone || settings.doubleClickAction === "helper") return;
+  settings.doubleClickAction = "helper";
+  saveSettings();
+  dfSettingsReflectDoubleClick("helper"); // 설정창이 이미 열려 있었다면 바로 반영
+  // sound를 따로 지정하지 않는다 - 바로 위에서 이미 "webhook_connected" 알림음이 울렸으므로
+  // 여기서 또 다른 소리를 겹쳐 울리면 시끄럽기만 하다.
+  showToast('로컬 헬퍼가 연결되어, 더블클릭 동작이 자동으로 "열기(로컬)"로 설정되었습니다. 환경설정에서 언제든 바꿀 수 있습니다.', { sticky: true });
+}
+function dfNoteWebhookConnected() {
+  if (dfHelperConnectedOnce) return;
+  dfHelperConnectedOnce = true;
+  dfsPlaySound("webhook_connected");
+  dfAutoActivateHelperSetting();
+}
 
 /* ============ 도구 파일 실제 위치 (base64 내장 대신 저장소의 진짜 파일을 그대로 가리킴) ============
    예전엔 index.html 안에 localserver.ahk/indexer.ahk를 base64로 통째로 내장해서(VIRTUAL_FILES)
@@ -74,6 +104,7 @@ async function scanForHelperPort() {
 async function ensureHelperPort() {
   if (cachedHelperPort !== null && (await pingPort(cachedHelperPort))) return cachedHelperPort;
   cachedHelperPort = await scanForHelperPort();
+  if (cachedHelperPort !== null) dfNoteWebhookConnected();
   return cachedHelperPort;
 }
 // 특정 포트에 종료 요청을 보낸다 (응답이 오든 안 오든, 연결이 끊기든 상관없이 실패는 그냥 무시한다 -
@@ -96,6 +127,7 @@ async function initHelperPortAndCollapseDuplicates() {
   const found = await scanAllHelperPorts();
   if (found.length === 0) { cachedHelperPort = null; return; }
   cachedHelperPort = found[0];
+  dfNoteWebhookConnected();
   if (found.length > 1) {
     const extras = found.slice(1);
     await Promise.allSettled(extras.map(p => killHelperPort(p)));
@@ -109,27 +141,27 @@ async function localHelperOpen(it) {
   const port = await ensureHelperPort();
   if (port === null) { offerHelperDownload("열기"); return; }
   const url = absoluteFileUrl(it.path);
-  showToast(`여는 중: ${it.name}`);
+  showToast(`여는 중: ${it.name}`, { sound: "download_start" });
   try {
     const res = await fetch(`http://127.0.0.1:${port}/open?url=${encodeURIComponent(url)}${sizeQueryParam(it)}`);
     if (!res.ok) throw new Error(String(res.status));
-    showToast(`열었습니다: ${it.name}`);
+    showToast(`열었습니다: ${it.name}`, { sound: "download_complete" });
   } catch (e) {
-    showToast(`여는 중 오류: ${e.message}`, { kind: "warn" });
+    showToast(`여는 중 오류: ${e.message}`, { kind: "warn", sound: "download_error" });
   }
 }
 async function localHelperDownload(it) {
   const port = await ensureHelperPort();
   if (port === null) { offerHelperDownload("다운로드"); return; }
   const url = absoluteFileUrl(it.path);
-  showToast(`저장 위치를 선택하세요: ${it.name}`);
+  showToast(`저장 위치를 선택하세요: ${it.name}`, { sound: "download_start" });
   try {
     const res = await fetch(`http://127.0.0.1:${port}/download?url=${encodeURIComponent(url)}${sizeQueryParam(it)}`);
     const text = await res.text();
     if (!res.ok) throw new Error(String(res.status));
-    showToast(text.includes("CANCELLED") ? "다운로드가 취소되었습니다." : `다운로드 완료: ${it.name}`);
+    showToast(text.includes("CANCELLED") ? "다운로드가 취소되었습니다." : `다운로드 완료: ${it.name}`, { sound: text.includes("CANCELLED") ? "download_cancel" : "download_complete" });
   } catch (e) {
-    showToast(`다운로드 오류: ${e.message}`, { kind: "warn" });
+    showToast(`다운로드 오류: ${e.message}`, { kind: "warn", sound: "download_error" });
   }
 }
 /* ============ 폴더 통째로 다운로드(재귀) - 실제 저장소 폴더 ============
@@ -141,12 +173,12 @@ async function downloadFolderRecursive(it) {
   const port = await ensureHelperPort();
   if (port === null) { offerHelperDownload("폴더 다운로드"); return; }
 
-  showToast(`"${it.name}" 폴더 내용을 확인하는 중...`);
+  showToast(`"${it.name}" 폴더 내용을 확인하는 중...`, { sound: "download_start" });
   let entries;
   try {
     entries = await crawlAll(it.path);
   } catch (e) {
-    showToast(`폴더 내용을 읽지 못했습니다: ${e.message}`, { kind: "warn" });
+    showToast(`폴더 내용을 읽지 못했습니다: ${e.message}`, { kind: "warn", sound: "download_error" });
     return;
   }
   const folders = entries.filter(en => en.type === "folder");
@@ -157,10 +189,10 @@ async function downloadFolderRecursive(it) {
     const res = await fetch(`http://127.0.0.1:${port}/pickfolder`);
     baseRoot = (await res.text()).trim();
   } catch (e) {
-    showToast(`폴더 선택 중 오류: ${e.message}`, { kind: "warn" });
+    showToast(`폴더 선택 중 오류: ${e.message}`, { kind: "warn", sound: "download_error" });
     return;
   }
-  if (!baseRoot || baseRoot === "CANCELLED") { showToast("다운로드가 취소되었습니다."); return; }
+  if (!baseRoot || baseRoot === "CANCELLED") { showToast("다운로드가 취소되었습니다.", { sound: "download_cancel" }); return; }
 
   const relPrefix = it.name; // 고른 위치 바로 밑에 이 폴더 이름으로 최상위 폴더를 만들고 그 안에 구조를 재현
   const dlg = showCancelableProgressDialog(`"${it.name}" 폴더 다운로드 준비 중...`);
@@ -169,14 +201,14 @@ async function downloadFolderRecursive(it) {
     if (!mkRoot.ok) throw new Error(String(mkRoot.status));
     // 안에 파일이 하나도 없는 빈 하위 폴더도 그대로 재현되도록, 모든 하위 폴더를 파일보다 먼저 만든다.
     for (const f of folders) {
-      if (dlg.isCancelled()) { showToast("폴더 다운로드가 취소되었습니다."); return; }
+      if (dlg.isCancelled()) { showToast("폴더 다운로드가 취소되었습니다.", { sound: "download_cancel" }); return; }
       const rel = relPrefix + "/" + f.path.slice(it.path.length).join("/");
       dlg.setText(`폴더 만드는 중: ${f.name}`);
       await fetch(`http://127.0.0.1:${port}/mkdir?base=${encodeURIComponent(baseRoot)}&rel=${encodeURIComponent(rel)}`);
     }
     let ok = 0, fail = 0;
     for (let i = 0; i < files.length; i++) {
-      if (dlg.isCancelled()) { showToast(`폴더 다운로드가 취소되었습니다. (${ok}개 저장됨)`); return; }
+      if (dlg.isCancelled()) { showToast(`폴더 다운로드가 취소되었습니다. (${ok}개 저장됨)`, { sound: "download_cancel" }); return; }
       const f = files[i];
       const rel = relPrefix + "/" + f.path.slice(it.path.length).join("/");
       dlg.setText(`다운로드 중 (${i + 1}/${files.length}): ${f.name}`);
@@ -187,7 +219,7 @@ async function downloadFolderRecursive(it) {
         ok++;
       } catch (e) { fail++; }
     }
-    showToast(`"${it.name}" 폴더 다운로드 완료: ${ok}개${fail ? `, 실패 ${fail}개` : ""}`, fail ? { kind: "warn" } : {});
+    showToast(`"${it.name}" 폴더 다운로드 완료: ${ok}개${fail ? `, 실패 ${fail}개` : ""}`, fail ? { kind: "warn", sound: "download_error" } : { sound: "download_complete" });
   } finally {
     dlg.close();
   }
@@ -214,10 +246,10 @@ async function dfsDownloadFolderViaHelper(node) {
     const res = await fetch(`http://127.0.0.1:${port}/pickfolder`);
     baseRoot = (await res.text()).trim();
   } catch (e) {
-    showToast(`폴더 선택 중 오류: ${e.message}`, { kind: "warn" });
+    showToast(`폴더 선택 중 오류: ${e.message}`, { kind: "warn", sound: "download_error" });
     return;
   }
-  if (!baseRoot || baseRoot === "CANCELLED") { showToast("다운로드가 취소되었습니다."); return; }
+  if (!baseRoot || baseRoot === "CANCELLED") { showToast("다운로드가 취소되었습니다.", { sound: "download_cancel" }); return; }
 
   const relPrefix = node.name; // 고른 위치 바로 밑에 이 폴더 이름으로 최상위 폴더를 만들고 그 안에 구조를 재현
   const dlg = showCancelableProgressDialog(`"${node.name}" 폴더 다운로드 준비 중...`);
@@ -226,14 +258,14 @@ async function dfsDownloadFolderViaHelper(node) {
     if (!mkRoot.ok) throw new Error(String(mkRoot.status));
     // 안에 파일이 하나도 없는 빈 하위 폴더도 그대로 재현되도록, 모든 하위 폴더를 파일보다 먼저 만든다.
     for (const f of folders) {
-      if (dlg.isCancelled()) { showToast("폴더 다운로드가 취소되었습니다."); return; }
+      if (dlg.isCancelled()) { showToast("폴더 다운로드가 취소되었습니다.", { sound: "download_cancel" }); return; }
       const rel = relPrefix + "/" + f;
       dlg.setText(`폴더 만드는 중: ${f}`);
       await fetch(`http://127.0.0.1:${port}/mkdir?base=${encodeURIComponent(baseRoot)}&rel=${encodeURIComponent(rel)}`);
     }
     let ok = 0, fail = 0;
     for (let i = 0; i < files.length; i++) {
-      if (dlg.isCancelled()) { showToast(`폴더 다운로드가 취소되었습니다. (${ok}개 저장됨)`); return; }
+      if (dlg.isCancelled()) { showToast(`폴더 다운로드가 취소되었습니다. (${ok}개 저장됨)`, { sound: "download_cancel" }); return; }
       const f = files[i];
       const rel = relPrefix + "/" + f.path;
       dlg.setText(`다운로드 중 (${i + 1}/${files.length}): ${f.path}`);
@@ -246,7 +278,7 @@ async function dfsDownloadFolderViaHelper(node) {
         ok++;
       } catch (e) { fail++; }
     }
-    showToast(`"${node.name}" 폴더 다운로드 완료: ${ok}개${fail ? `, 실패 ${fail}개` : ""}`, fail ? { kind: "warn" } : {});
+    showToast(`"${node.name}" 폴더 다운로드 완료: ${ok}개${fail ? `, 실패 ${fail}개` : ""}`, fail ? { kind: "warn", sound: "download_error" } : { sound: "download_complete" });
   } finally {
     dlg.close();
   }
@@ -322,7 +354,7 @@ async function dfsDownloadFolderIntoBase(node, port, baseRoot, dlg) {
 async function localHelperSaveContent(name, content) {
   const port = await ensureHelperPort();
   if (port === null) { offerHelperDownload("다운로드"); return; }
-  showToast(`저장 위치를 선택하세요: ${name}`);
+  showToast(`저장 위치를 선택하세요: ${name}`, { sound: "download_start" });
   try {
     const res = await fetch(`http://127.0.0.1:${port}/savecontent?name=${encodeURIComponent(name)}`, {
       method: "POST",
@@ -330,9 +362,9 @@ async function localHelperSaveContent(name, content) {
     });
     const text = await res.text();
     if (!res.ok) throw new Error(String(res.status));
-    showToast(text.includes("CANCELLED") ? "다운로드가 취소되었습니다." : `다운로드 완료: ${name}`);
+    showToast(text.includes("CANCELLED") ? "다운로드가 취소되었습니다." : `다운로드 완료: ${name}`, { sound: text.includes("CANCELLED") ? "download_cancel" : "download_complete" });
   } catch (e) {
-    showToast(`다운로드 오류: ${e.message}`, { kind: "warn" });
+    showToast(`다운로드 오류: ${e.message}`, { kind: "warn", sound: "download_error" });
   }
 }
 

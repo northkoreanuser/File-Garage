@@ -68,85 +68,6 @@
   </div>
 </div>
 
-<div class="settings-overlay" id="settingsOverlay">
-  <div class="settings-panel">
-    <div class="settings-titlebar">
-      <span>환경설정</span>
-      <button class="settings-close" id="settingsCloseBtn" title="닫기">&#x2715;</button>
-    </div>
-    <div class="settings-body">
-      <div class="settings-row">
-        <span class="settings-label">테마</span>
-        <select class="settings-select" id="setTheme">
-          <option value="win98">Windows 98</option>
-          <option value="win2000">Windows 2000</option>
-          <option value="winxp">Windows XP</option>
-          <option value="winvista">Windows Vista</option>
-          <option value="win7">Windows 7 (기본)</option>
-          <option value="win8">Windows 8</option>
-          <option value="win10">Windows 10</option>
-          <option value="default">Windows 11</option>
-        </select>
-      </div>
-      <div class="settings-divider"></div>
-      <div class="settings-row">
-        <label class="settings-check"><input type="checkbox" id="setGithubLinks"> GitHub 바로가기 표시</label>
-        <div class="settings-hint">우클릭 메뉴에 "브라우저에서 보기 / 저장소에서 보기 / 브라우저에서 다운로드"를 추가로 표시합니다.</div>
-      </div>
-      <div class="settings-divider"></div>
-      <div class="settings-row">
-        <span class="settings-label">파일 더블클릭 시 동작 (폴더 · md 파일 제외, html 포함)</span>
-        <select class="settings-select" id="setDoubleClick">
-          <option value="newtab">열기(새 탭에서 열기)</option>
-          <option value="helper">열기(로컬)</option>
-          <option value="text">텍스트로 열기</option>
-          <option value="download">다운로드</option>
-        </select>
-      </div>
-      <div class="settings-divider"></div>
-      <div class="settings-row">
-        <span class="settings-label">검색 범위</span>
-        <select class="settings-select" id="setSearchScope">
-          <option value="subtree">현재 폴더의 하위 폴더만</option>
-          <option value="all">전체 저장소</option>
-        </select>
-      </div>
-      <div class="settings-row">
-        <label class="settings-check"><input type="checkbox" id="setSearchRelative"> 검색 결과 위치를 현재 폴더 기준 상대 경로로 표시</label>
-      </div>
-      <div class="settings-divider"></div>
-      <div class="settings-row">
-        <label class="settings-check"><input type="checkbox" id="setAeroEnabled"> 에어로(반투명 블러 효과) 사용</label>
-        <div class="settings-hint">작업표시줄/시작 메뉴/설정 창/우클릭 메뉴의 반투명 유리 효과를 켜고 끕니다.</div>
-      </div>
-      <div class="settings-divider"></div>
-      <div class="settings-row">
-        <span class="settings-label">트레이 빠른 실행 아이콘 개수 (1~25)</span>
-        <input type="number" class="settings-select" id="setTrayIconCount" min="1" max="25" step="1">
-      </div>
-      <div class="settings-divider"></div>
-      <div class="settings-row">
-        <span class="settings-label">로컬 캐시</span>
-        <button class="settings-button settings-button-neutral" id="setPreloadAllBtn">전체 폴더 미리 불러오기</button>
-        <div class="settings-hint">저장소 전체를 지금 미리 순회해서 로컬 스토리지에 캐시해둡니다(폴더가 많으면 시간이 걸릴 수 있음).</div>
-      </div>
-      <div class="settings-divider"></div>
-      <div class="settings-row">
-        <span class="settings-label">시작 메뉴 / 트레이</span>
-        <button class="settings-button settings-button-neutral" id="setMenuMakerBtn">메뉴 메이커 열기</button>
-        <div class="settings-hint">시작 메뉴와 트레이 빠른 실행 아이콘(_NIH_ROOT_/index/menu.json)을 새 탭의 GUI로 편집합니다 - 항목을 넣었다 뺐다 하고 순서도 바꿀 수 있고, 이름·주소·아이콘(URL 또는 이미지 붙여넣기) 지정, 하위 메뉴 구성이 가능합니다. 저장은 다른 저장/다운로드 버튼과 같은 방식이며, 받은 menu.json 파일을 저장소의 같은 위치에 덮어써야 실제로 반영됩니다.</div>
-      </div>
-      <div class="settings-divider"></div>
-      <div class="settings-row">
-        <span class="settings-label">로컬 헬퍼(웹훅)</span>
-        <button class="settings-button settings-button-neutral" id="setDownloadHelperBtn">웹훅 받기</button>
-        <button class="settings-button" id="setKillHelperBtn">웹훅 종료</button>
-        <div class="settings-hint">"웹훅 받기"는 저장소의 localserver.ahk를 바로 내려받습니다(받은 뒤 실행하세요). "웹훅 종료"는 실행 중인 로컬 헬퍼를 끕니다 - 트레이 아이콘이 없어서 마우스로는 끌 수 없으므로 끄려면 이 버튼을 사용하세요. (8000~8020 전체 포트에 종료 요청을 보냅니다)</div>
-      </div>
-    </div>
-  </div>
-</div>
-
 <div class="taskbar">
   <div class="start-btn" id="startBtn" title="시작">&#8862;</div>
   <div class="taskbar-app" id="taskbarApp">📁 탐색기</div>
@@ -162,6 +83,7 @@
 
 <script src="_NIH_ROOT_/index/state.js"></script>
 <script src="_NIH_ROOT_/index/window-chrome.js"></script>
+<script src="_NIH_ROOT_/index/app-window.js"></script>
 <script src="_NIH_ROOT_/index/settings-startmenu.js"></script>
 <script src="_NIH_ROOT_/index/dialogs-toast.js"></script>
 <script src="_NIH_ROOT_/index/local-helper.js"></script>

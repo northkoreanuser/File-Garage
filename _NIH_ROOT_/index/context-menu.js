@@ -39,6 +39,7 @@ function buildFileMenuItems(it) {
     // 주소도 가능하다, 그러므로 열기 메뉴가 필요하다").
     const items = [{ label: "열기", action: () => navigate(it.path) }, { label: "다운로드", action: () => downloadFolderRecursive(it) }];
     if (settings.githubLinksEnabled) items.push({ label: "저장소에서 보기", action: () => openFolderInRepo(it) });
+    dfsPushIconSettingsMenuItem(items);
     return items;
   }
   if (it.dfsNode) return dfsDesktopFileMenuItems(it);
@@ -58,7 +59,16 @@ function buildFileMenuItems(it) {
     items.push({ label: "저장소에서 보기", action: () => openInRepo(it) });
     items.push({ label: "브라우저에서 다운로드", action: () => downloadFromGithub(it) });
   }
+  dfsPushIconSettingsMenuItem(items);
   return items;
+}
+// 요청 #137: 파일/폴더 우클릭 메뉴는(가상 바탕화면이든 실제 저장소든) 전부 이 한 줄로 끝에
+// "아이콘 설정"을 덧붙여 메뉴 메이커의 아이콘 탭으로 바로 연결한다 - 여러 메뉴 빌더 함수에서
+// 공통으로 재사용(dfsDesktopFolderMenuItems/dfsDesktopFileMenuItems/buildFileMenuItems).
+function dfsPushIconSettingsMenuItem(items) {
+  if (typeof dfsOpenMenuMakerInWindow === "function") {
+    items.push({ label: "아이콘 설정", action: () => dfsOpenMenuMakerInWindow({ initialTab: "icon" }) });
+  }
 }
 /* ---------------- 바탕화면(가상 파일시스템) 항목의 우클릭 메뉴 (통합된 진짜 탐색기 창용) ----------------
    내용창/트리 어디서 온 항목이든 재사용할 수 있도록, id를 알면(it.dfsFolderId) 그걸 바로 쓰고
@@ -68,7 +78,7 @@ function dfsDesktopResolveFolderId(it) {
 }
 function dfsDesktopFolderMenuItems(it) {
   const refresh = () => dfsBroadcastChange();
-  return [
+  const items = [
     { label: "열기", action: () => navigate(it.path) },
     { label: "다운로드", action: async () => {
       const folderId = await dfsDesktopResolveFolderId(it);
@@ -82,11 +92,11 @@ function dfsDesktopFolderMenuItems(it) {
     } },
     { label: "복사", action: async () => {
       const folderId = await dfsDesktopResolveFolderId(it);
-      if (folderId != null) { dfsClipboard = { id: folderId, mode: "copy" }; showToast(`"${it.name}"을(를) 복사했습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`); }
+      if (folderId != null) { dfsClipboard = { id: folderId, mode: "copy" }; showToast(`"${it.name}"을(를) 복사했습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`, { sound: "copy_to_clipboard" }); }
     } },
     { label: "잘라내기", action: async () => {
       const folderId = await dfsDesktopResolveFolderId(it);
-      if (folderId != null) { dfsClipboard = { id: folderId, mode: "cut" }; showToast(`"${it.name}"을(를) 잘라냈습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`); }
+      if (folderId != null) { dfsClipboard = { id: folderId, mode: "cut" }; showToast(`"${it.name}"을(를) 잘라냈습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`, { sound: "copy_to_clipboard" }); }
     } },
     { label: "삭제", action: async () => {
       const folderId = await dfsDesktopResolveFolderId(it);
@@ -98,6 +108,8 @@ function dfsDesktopFolderMenuItems(it) {
       await refresh();
     } }
   ];
+  dfsPushIconSettingsMenuItem(items);
+  return items;
 }
 /* ---------------- 휴지통 안 항목의 우클릭 메뉴 (요청 #113) ----------------
    내용창 칸(it.dfsNode/it.dfsFolderId로 이미 노드를 앎)이든 트리 행(경로로만 앎)이든 재사용
@@ -127,11 +139,11 @@ function dfsDesktopFileMenuItems(it) {
   const refresh = () => dfsBroadcastChange();
   const node = it.dfsNode;
   if (node.type === "shortcut") {
-    return [
+    const shortcutItems = [
       { label: "열기", action: () => dfsActivate(node) },
       { label: "이름 변경", action: async () => dfsPromptRename(node, refresh) },
-      { label: "복사", action: () => { dfsClipboard = { id: node.id, mode: "copy" }; showToast(`"${node.name}"을(를) 복사했습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`); } },
-      { label: "잘라내기", action: () => { dfsClipboard = { id: node.id, mode: "cut" }; showToast(`"${node.name}"을(를) 잘라냈습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`); } },
+      { label: "복사", action: () => { dfsClipboard = { id: node.id, mode: "copy" }; showToast(`"${node.name}"을(를) 복사했습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`, { sound: "copy_to_clipboard" }); } },
+      { label: "잘라내기", action: () => { dfsClipboard = { id: node.id, mode: "cut" }; showToast(`"${node.name}"을(를) 잘라냈습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`, { sound: "copy_to_clipboard" }); } },
       { label: "삭제", action: async () => {
         const ok = await showConfirmDialog(`"${node.name}"을(를) 삭제할까요?`);
         if (!ok) return;
@@ -139,16 +151,18 @@ function dfsDesktopFileMenuItems(it) {
         await refresh();
       } }
     ];
+    dfsPushIconSettingsMenuItem(shortcutItems);
+    return shortcutItems;
   }
-  return [
+  const fileItems = [
     { label: "에디터로 열기", action: () => dfsActivate(node) },
     // 실제 탐색기 파일 메뉴와 순서를 맞춘다: 다운로드(웹훅으로 로컬 헬퍼가 저장) 다음
     // 브라우저에서 다운로드(강제 blob 다운로드).
     { label: "다운로드", action: () => localHelperSaveContent(node.name, node.content || "") },
     { label: "브라우저에서 다운로드", action: () => dfsDownloadVirtualFile(node) },
     { label: "이름 변경", action: async () => dfsPromptRename(node, refresh) },
-    { label: "복사", action: () => { dfsClipboard = { id: node.id, mode: "copy" }; showToast(`"${node.name}"을(를) 복사했습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`); } },
-    { label: "잘라내기", action: () => { dfsClipboard = { id: node.id, mode: "cut" }; showToast(`"${node.name}"을(를) 잘라냈습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`); } },
+    { label: "복사", action: () => { dfsClipboard = { id: node.id, mode: "copy" }; showToast(`"${node.name}"을(를) 복사했습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`, { sound: "copy_to_clipboard" }); } },
+    { label: "잘라내기", action: () => { dfsClipboard = { id: node.id, mode: "cut" }; showToast(`"${node.name}"을(를) 잘라냈습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`, { sound: "copy_to_clipboard" }); } },
     { label: "바로가기 만들기", action: async () => { await dfsCreateShortcut(node); await refresh(); } },
     { label: "삭제", action: async () => {
       const ok = await showConfirmDialog(`"${node.name}"을(를) 삭제할까요?`);
@@ -157,6 +171,8 @@ function dfsDesktopFileMenuItems(it) {
       await refresh();
     } }
   ];
+  dfsPushIconSettingsMenuItem(fileItems);
+  return fileItems;
 }
 /* ============ 브라우저 기본 우클릭 메뉴/드래그 선택 우회 방지 (강화판) ============
    사용자 리포트: 예전 방식(contextmenu 이벤트만 막음)은 일부 우회 경로를 못 막았다 - 예를 들어
@@ -199,4 +215,53 @@ document.addEventListener("scroll", closeContextMenu, true);
 
 // 실제 탐색기처럼 Tab이 브라우저 포커스 순환을 마구 돌리지 않게 막는다 (단순하게 그냥 전부 막음).
 document.addEventListener("keydown", (e) => { if (e.key === "Tab") e.preventDefault(); }, true);
+
+/* ============ 요청 #119/#120: ESC로 모든 우클릭 메뉴 닫기 + 키보드 "컨텍스트 메뉴 호출" 키로
+   지금 선택된 항목의 메뉴 열기 ============
+   실제 우클릭을 흉내내려고, 대상 DOM 요소에 실제 contextmenu 이벤트를 그 요소의 중심 좌표로 직접
+   발생시킨다(dispatchEvent) - 이러면 각 요소가 이미 갖고 있는 우클릭 핸들러(선택 상태 갱신 + 메뉴
+   구성)를 그대로 재사용하게 돼서 메뉴 내용이 실제 우클릭과 완전히 같아지고 로직이 중복되지 않는다.
+   지금 어느 영역(바탕화면 아이콘층/통합 탐색기 내용창/왼쪽 트리)에 키보드 포커스가 있는지로 대상을
+   정하고, 그 안에서 선택된 항목이 없으면 그 영역의 빈 곳 메뉴로, 그것도 없으면(예: 아무데도 포커스
+   가 없음) 최종적으로 바탕화면 빈 곳 메뉴로 대체한다. */
+function findContextMenuKeyTarget() {
+  const active = document.activeElement;
+  if (els.dfIconLayer && active === els.dfIconLayer && typeof dfsFindContextMenuKeyIcon === "function") {
+    return dfsFindContextMenuKeyIcon();
+  }
+  if (els.contentPane && active === els.contentPane && typeof findContentPaneContextMenuKeyCell === "function") {
+    return findContentPaneContextMenuKeyCell();
+  }
+  if (els.navPane && active === els.navPane) {
+    return els.navPane.querySelector(".selected");
+  }
+  return null;
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    if (activeCtxMenu) { e.preventDefault(); e.stopPropagation(); closeContextMenu(); }
+    return; // ESC의 다른 동작(대화상자 취소 등)은 각자의 리스너가 그대로 처리하도록 건드리지 않음
+  }
+  if (e.key !== "ContextMenu") return; // 풀사이즈/오피스 키보드에만 있는 "메뉴 호출" 키
+  e.preventDefault();
+  const target = findContextMenuKeyTarget();
+  const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+  if (target) {
+    const r = target.getBoundingClientRect();
+    target.dispatchEvent(new MouseEvent("contextmenu", {
+      bubbles: true, cancelable: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2
+    }));
+    return;
+  }
+  const active = document.activeElement;
+  if (els.contentPane && active === els.contentPane && typeof contentPaneOpenBackgroundMenu === "function") {
+    contentPaneOpenBackgroundMenu(cx, cy);
+    return;
+  }
+  // 그 외(트리에 포커스가 있었지만 선택된 게 없거나, 바탕화면에 포커스가 있는데 선택된 아이콘이
+  // 없거나, 아무 데도 포커스가 없는 경우)는 실제 윈도우처럼 결국 바탕화면 컨텍스트로 대체한다.
+  if (typeof dfsDb !== "undefined" && dfsDb && typeof dfsBuildDesktopBackgroundMenuItems === "function") {
+    showContextMenu(cx, cy, dfsBuildDesktopBackgroundMenuItems());
+  }
+});
 

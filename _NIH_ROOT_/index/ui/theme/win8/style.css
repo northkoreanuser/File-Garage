@@ -256,6 +256,12 @@
   .weather-place { font-size: 12.5px; color: #888888; margin-bottom: 4px; }
   .weather-desc { font-size: 13px; color: #555555; margin: 6px 0 4px; }
   .weather-detail-row { font-size: 12.5px; color: #444444; padding: 2px 0; }
+  /* 요청 #132: 시계 클릭 -> 이번 달 달력 팝업(오늘 강조) */
+  .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-top: 4px; }
+  .calendar-cell { text-align: center; font-size: 12px; padding: 5px 0; color: #1D1D1D; }
+  .calendar-head { font-weight: 600; color: #888888; font-size: 11px; }
+  .calendar-empty { visibility: hidden; }
+  .calendar-today { background: #1BA1E2; color: #fff; font-weight: 700; }
 
   .tray-icons { display: flex; align-items: center; gap: 4px; }
   .tray-icon {
@@ -451,9 +457,13 @@
   .df-icon.df-drop-target { background: rgba(27,161,226,.5); outline: 1px solid #fff; }
   .grid-item.df-drop-target { background: #EAF6FD; border: 1px solid #1BA1E2; outline: none; }
   .tree-row.df-drop-target, .nav-root.df-drop-target { background: #EAF6FD; border: 1px solid #1BA1E2; outline: none; }
-  /* 바탕화면 드래그 다중 선택(러버밴드) 박스 - 플랫 시안 틴트 + 실선 테두리, 그라데이션/글로우 없음 */
+  /* 요청 #124 관련 추가 발견: 바탕화면 배경의 기본 단색(#1BA1E2)과 이 선택 박스 색이 완전히
+     같아서, win10과 같은 이유로 대각선 줄무늬의 밝은 칸 위에서는 선택 박스가 거의 안 보이는
+     문제가 있었다(자동화된 대비 검사로 발견 - win10 수정과 같은 원리로 흰색 계열로 바꿔 배경의
+     두 스트라이프 색 모두와 뚜렷이 대비되게 한다). */
   .df-select-box {
-    position: fixed; border: 1px solid #1BA1E2; background: rgba(27,161,226,.25);
+    position: fixed; border: 1px solid #fff; background: rgba(255,255,255,.28);
+    box-shadow: 0 0 0 1px rgba(0,0,0,.3);
     pointer-events: none; z-index: 1;
   }
 

@@ -16,6 +16,7 @@ async function main() {
     els.repoLink.innerHTML = `<a href="https://github.com/${owner}/${repo}" target="_blank" rel="noopener noreferrer">${owner}/${repo}</a>`;
   }
   settings = loadSettings();
+  dfSetupFullscreenAutoManagement();
   applyTheme(settings.theme);
   applySearchPlaceholder();
   applyAeroToDocument();
@@ -76,16 +77,19 @@ async function main() {
     }
   });
 
-  // menu.json(시작 메뉴 + 트레이 병합)은 있으면 반영, 없거나 잘못돼도 조용히 무시 (선택 기능).
-  // _NIH_ROOT_/index/menu.json 하나에 있다(트리/색인에는 안 보이지만 GitHub Pages는 그대로 서빙 -
-  // .nojekyll 필요, index.html 주석 참고). 예전의 두 파일(start.json/tray.json)은 더 이상 안 읽는다.
-  loadMenuConfig().then(cfg => {
-    if (!cfg) return;
-    renderAppList(cfg.start, els.startApps);
-    renderTrayIcons(cfg.tray);
+  // menu_set.json/icon_set.json/sound_set.json(요청 #122로 메뉴/아이콘/사운드 3개로 분리)은
+  // 있으면 반영, 없거나 잘못돼도 조용히 무시(선택 기능). 전부 _NIH_ROOT_/index/ 안에 있다
+  // (트리/색인에는 안 보이지만 GitHub Pages는 그대로 서빙 - .nojekyll 필요, index.html 주석 참고).
+  loadAllMenuMakerConfigs().then(cfg => {
+    renderAppList(cfg.menu.start, els.startApps);
+    renderTrayIcons(cfg.menu.tray);
     // 폴더/확장자별 커스텀 아이콘 + 저장소 루트/휴지통 아이콘 반영. 이미 그려진 트리/바탕화면/
     // 내용창이 있으면(부팅 시점 타이밍에 따라) 새 아이콘 설정으로 다시 그린다.
-    applyCustomIconConfig(cfg.icons);
+    // 요청 #121: 기본 icon_set.json과 현재 스킨의 icon_set.json(있다면)을 병합해서 적용한다
+    // (menu_set.json/sound_set.json은 스킨에 있어도 무시하고 항상 기본 것만 쓴다).
+    applyCustomIconConfig(mergeIconSetConfigs(cfg.icons, cfg.skinIcons, settings.skinIconPriority));
+    // 상황별 알림음(sound_set.json) 반영 - state.js의 dfsPlaySound가 이 설정을 참조한다.
+    applySoundSetConfig(cfg.sounds);
     renderNavPane();
     if (els.win && !els.win.classList.contains("closed")) renderContentPane();
     if (dfsDb) dfsRenderDesktop();

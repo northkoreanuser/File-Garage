@@ -1,0 +1,20 @@
+{
+  "notify_success": "",
+  "notify_info": "",
+  "notify_warn": "",
+  "download_start": "",
+  "download_complete": "",
+  "download_cancel": "",
+  "download_error": "",
+  "delete_to_recyclebin": "",
+  "recyclebin_empty": "",
+  "restore_from_recyclebin": "",
+  "move_or_copy": "",
+  "copy_to_clipboard": "",
+  "webhook_connected": "",
+  "window_open": "",
+  "window_close": "",
+  "window_minimize": "",
+  "window_maximize_restore": "",
+  "error_generic": ""
+}

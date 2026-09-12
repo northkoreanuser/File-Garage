@@ -18,6 +18,23 @@ function renderNavPane() {
   const rootEntry = dirCache.get("");
   if (rootEntry) els.navPane.appendChild(buildTreeDom(rootEntry, []));
 
+  // 바탕화면(가상 파일시스템) - 루트 색인에는 나타나지 않지만, 트리에는 저장소 루트와 나란히
+  // 별도의 최상위 항목으로 추가된다(기존 탐색기와 바탕화면 탐색기를 하나로 통합 - 사용자 지시).
+  // 요청 #139(ps2) - 트리 순서는 레포, 바탕 화면, 휴지통 순이어야 한다(예전엔 레포, 휴지통,
+  // 바탕화면 순으로 잘못돼 있었음) - 그래서 이 블록이 휴지통보다 먼저 온다.
+  if (dfsDb) {
+    const dtKey = DESKTOP_TREE_NAME;
+    const dtRow = document.createElement("div");
+    dtRow.className = "nav-root" + (!treeFileHighlightKey && currentPath.join("/") === dtKey ? " selected" : "") + (treeFocusKey === dtKey ? " kbd-focus" : "");
+    dtRow.innerHTML = `${folderIcon(16, true)}<span>${escapeHtml(DESKTOP_TREE_NAME)}</span>`;
+    dtRow.onclick = () => { els.navPane.focus(); navigate([DESKTOP_TREE_NAME]); closeNavPaneIfNarrow(); };
+    dtRow.ondblclick = () => navigate([DESKTOP_TREE_NAME]);
+    attachTreeDropTarget(dtRow, [DESKTOP_TREE_NAME]);
+    els.navPane.appendChild(dtRow);
+    const dtEntry = dirCache.get(dtKey);
+    if (dtEntry) els.navPane.appendChild(buildTreeDom(dtEntry, [DESKTOP_TREE_NAME]));
+  }
+
   // 휴지통 - 저장소 루트와 나란한 별도의 최상위 항목(사용자 지시: "바탕 화면에 휴지통 추가
   // 트리에도 추가 아이콘은 동일 사용"). 요청 #113 - 별도의 오버레이 패널이 아니라 저장소
   // 루트/바탕화면과 똑같이 통합 탐색기 창(navigate)으로 들어간다(진짜 탐색기 휴지통처럼).
@@ -41,21 +58,6 @@ function renderNavPane() {
     els.navPane.appendChild(rbRow);
     const rbEntry = dirCache.get(rbKey);
     if (rbEntry) els.navPane.appendChild(buildTreeDom(rbEntry, [RECYCLEBIN_TREE_NAME]));
-  }
-
-  // 바탕화면(가상 파일시스템) - 루트 색인에는 나타나지 않지만, 트리에는 저장소 루트와 나란히
-  // 별도의 최상위 항목으로 추가된다(기존 탐색기와 바탕화면 탐색기를 하나로 통합 - 사용자 지시).
-  if (dfsDb) {
-    const dtKey = DESKTOP_TREE_NAME;
-    const dtRow = document.createElement("div");
-    dtRow.className = "nav-root" + (!treeFileHighlightKey && currentPath.join("/") === dtKey ? " selected" : "") + (treeFocusKey === dtKey ? " kbd-focus" : "");
-    dtRow.innerHTML = `${folderIcon(16, true)}<span>${escapeHtml(DESKTOP_TREE_NAME)}</span>`;
-    dtRow.onclick = () => { els.navPane.focus(); navigate([DESKTOP_TREE_NAME]); closeNavPaneIfNarrow(); };
-    dtRow.ondblclick = () => navigate([DESKTOP_TREE_NAME]);
-    attachTreeDropTarget(dtRow, [DESKTOP_TREE_NAME]);
-    els.navPane.appendChild(dtRow);
-    const dtEntry = dirCache.get(dtKey);
-    if (dtEntry) els.navPane.appendChild(buildTreeDom(dtEntry, [DESKTOP_TREE_NAME]));
   }
 }
 /* 트리에서 "파일" 행을 클릭해 선택(파란 포커스)한다 - 폴더처럼 내용창으로 진입하진 않는다. */
@@ -102,7 +104,7 @@ function attachTreeDropTarget(row, pathArr) {
     const srcNode = await dfsDb.nodes.get(draggedId);
     if (!srcNode) return;
     const ok = await dfsMove(srcNode, targetFolderId);
-    if (ok) showToast(`"${srcNode.name}"을(를) "${pathArr[pathArr.length - 1]}" 폴더로 옮겼습니다.`);
+    if (ok) showToast(`"${srcNode.name}"을(를) "${pathArr[pathArr.length - 1]}" 폴더로 옮겼습니다.`, { sound: "move_or_copy" });
     await dfsBroadcastChange();
   });
 }
@@ -130,7 +132,7 @@ function attachRecycleBinTreeDropTarget(row) {
     const srcNode = await dfsDb.nodes.get(draggedId);
     if (!srcNode || srcNode.parentId === DFS_RECYCLEBIN_ROOT) return;
     await dfsDelete(srcNode);
-    showToast(`"${srcNode.name}"을(를) 휴지통으로 옮겼습니다.`);
+    showToast(`"${srcNode.name}"을(를) 휴지통으로 옮겼습니다.`, { sound: "delete_to_recyclebin" });
     await dfsBroadcastChange();
   });
 }

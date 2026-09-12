@@ -143,8 +143,10 @@ function dfsLoadArrangeMode() {
   try {
     const v = localStorage.getItem(dfsArrangeModeKey());
     if (v === "grid" || v === "free") return v;
-  } catch (e) { /* 무시 - 실패해도 기본값(자유모드)으로 동작하면 됨 */ }
-  return "free";
+  } catch (e) { /* 무시 - 실패해도 기본값(격자모드)으로 동작하면 됨 */ }
+  // 요청 #139(ps): 아이콘 배치 기본값은 자유모드가 아니라 격자모드다(실제 윈도우 바탕화면의
+  // 기본 "아이콘을 격자에 맞춤" 설정과 동일).
+  return "grid";
 }
 function dfsSaveArrangeMode(mode) {
   try { localStorage.setItem(dfsArrangeModeKey(), mode); } catch (e) { /* 용량 초과 등은 무시 */ }
@@ -262,11 +264,11 @@ async function dfsImportOsFile(parentId, file) {
   try {
     text = await file.text();
   } catch (e) {
-    showToast(`"${file.name}"을(를) 읽지 못했습니다: ${e.message}`, { kind: "warn" });
+    showToast(`"${file.name}"을(를) 읽지 못했습니다: ${e.message}`, { kind: "warn", sound: "error_generic" });
     return null;
   }
   if (!dfLooksLikeText(text.slice(0, 8000))) {
-    showToast(`"${file.name}"은(는) 텍스트 파일이 아닌 것 같아 가져오지 않았습니다.`, { kind: "warn" });
+    showToast(`"${file.name}"은(는) 텍스트 파일이 아닌 것 같아 가져오지 않았습니다.`, { kind: "warn", sound: "error_generic" });
     return null;
   }
   const desiredName = file.name || "새 파일.txt";
@@ -303,7 +305,9 @@ async function dfsDeepCopyChildren(fromId, toId) {
     const now = Date.now();
     const copy = { parentId: toId, type: kid.type, name: kid.name, createdAt: now, updatedAt: now };
     if (kid.type === "file") { copy.content = kid.content; copy.fileType = kid.fileType; }
-    if (kid.type === "shortcut") copy.targetId = kid.targetId;
+    // 요청 #133: targetId가 있으면(기존 방식) 내부 항목을 가리키는 바로가기, 없고 url이 있으면
+    // 사용자가 직접 주소/아이콘을 입력해 만든 바로가기 - 둘 다 복사 시 그대로 유지해야 한다.
+    if (kid.type === "shortcut") { copy.targetId = kid.targetId; copy.url = kid.url; copy.icon = kid.icon; }
     const newId = await dfsDb.nodes.add(copy);
     if (kid.type === "folder") await dfsDeepCopyChildren(kid.id, newId);
   }
@@ -344,7 +348,7 @@ async function dfsCopyInto(node, parentId, desiredName) {
   const pos = await dfsNextIconPos(parentId);
   const copy = { parentId, type: node.type, name, x: pos.x, y: pos.y, createdAt: now, updatedAt: now };
   if (node.type === "file") { copy.content = node.content; copy.fileType = node.fileType; }
-  if (node.type === "shortcut") copy.targetId = node.targetId;
+  if (node.type === "shortcut") { copy.targetId = node.targetId; copy.url = node.url; copy.icon = node.icon; } // 요청 #133
   const id = await dfsDb.nodes.add(copy);
   if (node.type === "folder") await dfsDeepCopyChildren(node.id, id);
   return dfsDb.nodes.get(id);
@@ -359,13 +363,24 @@ async function dfsCreateShortcut(node) {
   const id = await dfsDb.nodes.add({ parentId: node.parentId, type: "shortcut", name, targetId: node.id, x: pos.x, y: pos.y, createdAt: now, updatedAt: now });
   return dfsDb.nodes.get(id);
 }
+// 요청 #133: 바탕화면/탐색기(가상 폴더) 빈 곳에서 "바로가기 생성"을 고르면 기존 항목을 가리키는
+// 게 아니라, 사용자가 직접 입력한 이름/주소(URL)/아이콘으로 완전히 새로운 바로가기를 만든다
+// (dfsCreateShortcut의 targetId 방식과 달리 url/icon 필드를 쓴다 - dfsActivate/dfsIconGlyphFor
+// 양쪽에서 이 둘을 구분해서 처리한다). icon은 비어 있으면 기본 파일 아이콘으로 그려진다.
+async function dfsCreateUrlShortcut(parentId, info) {
+  const name = await dfsUniqueName(parentId, info.name || "새 바로가기");
+  const now = Date.now();
+  const pos = await dfsNextIconPos(parentId);
+  const id = await dfsDb.nodes.add({ parentId, type: "shortcut", name, url: info.url, icon: info.icon || "", x: pos.x, y: pos.y, createdAt: now, updatedAt: now });
+  return dfsDb.nodes.get(id);
+}
 async function dfsRename(node, newNameRaw) {
   const err = dfsValidateName(newNameRaw);
-  if (err) { showToast(err, { kind: "warn" }); return false; }
+  if (err) { showToast(err, { kind: "warn", sound: "error_generic" }); return false; }
   const newName = newNameRaw.trim();
   const siblings = await dfsDb.nodes.where("parentId").equals(node.parentId).toArray();
   const clash = siblings.some(s => s.id !== node.id && s.name.toLowerCase() === newName.toLowerCase());
-  if (clash) { showToast(`"${newName}" 이름이 이미 있습니다.`, { kind: "warn" }); return false; }
+  if (clash) { showToast(`"${newName}" 이름이 이미 있습니다.`, { kind: "warn", sound: "error_generic" }); return false; }
   await dfsDb.nodes.update(node.id, { name: newName, updatedAt: Date.now() });
   return true;
 }
@@ -414,7 +429,7 @@ async function dfsRestoreFromRecycleBin(node) {
     x: pos.x, y: pos.y,
     updatedAt: Date.now()
   });
-  showToast(`"${uniqueName}"을(를) 복원했습니다.`);
+  showToast(`"${uniqueName}"을(를) 복원했습니다.`, { sound: "restore_from_recyclebin" });
 }
 async function dfsEmptyRecycleBin() {
   const items = await dfsRecycleBinItems();
@@ -422,7 +437,7 @@ async function dfsEmptyRecycleBin() {
   const ok = await showConfirmDialog(`휴지통에 있는 ${items.length}개 항목을 완전히 삭제할까요? (되돌릴 수 없습니다)`);
   if (!ok) return;
   for (const it of items) await dfsPermanentlyDelete(it);
-  showToast("휴지통을 비웠습니다.");
+  showToast("휴지통을 비웠습니다.", { sound: "recyclebin_empty" });
 }
 /* ---------------- 휴지통 속성(요청 #113(b) - 윈도우 폴더 속성처럼 경로 표시) ----------------
    예전엔 휴지통 전용 오버레이 패널이 따로 있었지만(사용자 지시로 제거 - "그냥 트리에 들어있는거
@@ -459,7 +474,7 @@ async function dfsIsDescendant(maybeAncestorId, folderId) {
 async function dfsMove(node, newParentId) {
   if (node.id === newParentId) return false;
   if (node.type === "folder" && await dfsIsDescendant(node.id, newParentId)) {
-    showToast("폴더를 자기 자신의 하위로 옮길 수 없습니다.", { kind: "warn" });
+    showToast("폴더를 자기 자신의 하위로 옮길 수 없습니다.", { kind: "warn", sound: "error_generic" });
     return false;
   }
   if (node.parentId === newParentId) return true;
@@ -497,6 +512,41 @@ async function dfsMove(node, newParentId) {
   }
   await dfsDb.nodes.update(node.id, patch);
   return true;
+}
+/* ---------------- 요청 #138: 다중 선택한 여러 아이콘을 한 번에 드래그해서 폴더/휴지통에
+   떨어뜨렸을 때 전부 함께 옮기거나 지운다(예전엔 드래그한 그 아이콘 하나만 움직이고/처리됐음).
+   특수 아이콘(저장소 루트/휴지통)은 애초에 옮기거나 지울 수 없으므로 호출부에서 이미 걸러내고
+   실제 노드 id만 넘겨준다(dfsSetupIconDrag 참고). ---------------- */
+async function dfsMoveManyToRecycleBin(ids) {
+  if (!ids.length) return;
+  const nodes = (await Promise.all(ids.map(id => dfsDb.nodes.get(id)))).filter(n => n && n.parentId !== DFS_RECYCLEBIN_ROOT);
+  if (!nodes.length) return;
+  for (const n of nodes) await dfsDelete(n);
+  showToast(nodes.length === 1
+    ? `"${nodes[0].name}"을(를) 휴지통으로 옮겼습니다.`
+    : `${nodes.length}개 항목을 휴지통으로 옮겼습니다.`, { sound: "delete_to_recyclebin" });
+  await dfsBroadcastChange();
+}
+async function dfsMoveManyToFolder(ids, targetId, targetName) {
+  if (!ids.length) return;
+  const candidates = (await Promise.all(ids.map(id => dfsDb.nodes.get(id)))).filter(n => n && n.id !== targetId);
+  if (!candidates.length) return;
+  const movedNames = [];
+  for (const n of candidates) {
+    // dfsMove는 형제 구조(이름 충돌 등)를 그때그때 다시 확인해야 하므로, 앞선 이동으로 상태가
+    // 바뀌었을 수 있는 캐시된 n 대신 매번 최신 노드를 다시 읽어서 넘긴다.
+    const fresh = await dfsDb.nodes.get(n.id);
+    if (!fresh || fresh.parentId === targetId) continue;
+    const ok = await dfsMove(fresh, targetId);
+    if (ok) movedNames.push(fresh.name);
+  }
+  if (movedNames.length) {
+    const dest = targetName ? `"${targetName}" 폴더` : "옮긴 위치";
+    showToast(movedNames.length === 1
+      ? `"${movedNames[0]}"을(를) ${dest}으로 옮겼습니다.`
+      : `${movedNames.length}개 항목을 ${dest}으로 옮겼습니다.`, { sound: "move_or_copy" });
+  }
+  await dfsBroadcastChange();
 }
 // ---------------- 폴더끼리 이름이 겹칠 때의 재귀 병합(위 dfsMove/dfsCopyInto가 공용으로 씀) ----------------
 // srcFolderNode 밑의 자식들을 이름 기준으로 destFolderId(이미 존재하는 같은 이름의 폴더) 안으로 하나씩
@@ -577,7 +627,10 @@ async function dfsCloseWindowsShowing(nodeId) {
 function dfsIconGlyphFor(node, size) {
   let inner;
   if (node.type === "folder") inner = folderIcon(size, false);
-  else if (node.type === "shortcut") inner = fileIcon(size);
+  // 요청 #133: 사용자가 직접 주소/아이콘을 입력해 만든 바로가기는 그 아이콘(URL 또는 붙여넣은
+  // base64 이미지)이 있으면 그대로 그린다 - 기존 항목을 가리키는 바로가기(아이콘 지정 없음)는
+  // 예전처럼 기본 파일 아이콘을 쓴다.
+  else if (node.type === "shortcut") inner = node.icon ? `<img src="${escapeHtml(node.icon)}" style="width:${size}px;height:${size}px;object-fit:contain;">` : fileIcon(size);
   else inner = node.fileType === "html" ? htmlFileIcon(size) : fileIcon(size);
   const badge = node.type === "shortcut" ? '<span class="df-icon-shortcut-badge">↪</span>' : "";
   return `<span style="position:relative;display:inline-block;">${inner}${badge}</span>`;
@@ -588,6 +641,11 @@ let dfsSelectedIconId = null;
 // 러버밴드(드래그) 또는 Ctrl/Shift+클릭으로 여러 개를 한꺼번에 선택한 아이콘 id들.
 // 단일 선택(dfsSelectedIconId)과는 서로 배타적 - 하나가 채워지면 다른 하나는 비운다.
 let dfsMultiSelected = new Set();
+// 요청 #120: 키보드의 "컨텍스트 메뉴 호출" 키를 눌렀을 때 다중 선택 중 어느 항목 위에 메뉴를 열지
+// 정하기 위한 값 - "click"이면 Ctrl/Shift+클릭으로 하나씩 누적한 선택(이 경우 마지막으로 클릭한
+// 항목 위에 열림), "drag"면 러버밴드로 한 번에 잡은 선택(이 경우 동시에 잡힌 것으로 보고 가장
+// 오른쪽 위 항목 위에 열림) - dfsFindContextMenuKeyIcon 참고.
+let dfsLastSelectionOrigin = "click";
 // Ctrl+A = 바탕화면 아이콘 전체 선택 (dfIconLayer의 keydown 리스너에서 호출됨).
 async function dfsSelectAllIcons() {
   if (!dfsDb) return;
@@ -627,9 +685,13 @@ function dfsSaveSpecialIconPos(id, x, y) {
 // 옮길 수는 없고 바탕화면 위에서 위치만 바꿀 수 있는 것과 동일하다.
 function dfsSetupSpecialIconDrag(iconEl, id) {
   let dragging = false, moved = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;
-  function clamp(left, top) {
-    const maxLeft = Math.max(0, els.dfIconLayer.clientWidth - iconEl.offsetWidth);
-    const maxTop = Math.max(0, els.dfIconLayer.clientHeight - iconEl.offsetHeight);
+  // 요청 #138: 이 특수 아이콘(저장소 루트/휴지통)도 다중 선택에 포함된 채로 끌리면, 선택된 나머지
+  // 아이콘들이 형태를 유지하며 함께 움직인다. 다만 이 손잡이로 드롭했을 때는(원래도 그랬듯) 폴더로
+  // 옮기거나 휴지통으로 지우는 동작은 없다 - 그룹 전체를 그냥 그 자리에 재배치/격자 스냅만 한다.
+  let dragGroup = null;
+  function clamp(el, left, top) {
+    const maxLeft = Math.max(0, els.dfIconLayer.clientWidth - el.offsetWidth);
+    const maxTop = Math.max(0, els.dfIconLayer.clientHeight - el.offsetHeight);
     return { left: Math.max(0, Math.min(left, maxLeft)), top: Math.max(0, Math.min(top, maxTop)) };
   }
   iconEl.addEventListener("mousedown", (e) => {
@@ -638,6 +700,13 @@ function dfsSetupSpecialIconDrag(iconEl, id) {
     startX = e.clientX; startY = e.clientY;
     origLeft = parseFloat(iconEl.style.left) || 0;
     origTop = parseFloat(iconEl.style.top) || 0;
+    dragGroup = (dfsMultiSelected.size > 1 && dfsMultiSelected.has(id))
+      ? [...dfsMultiSelected].map(gid => {
+          const el = dfsIconElementFor(gid);
+          if (!el || el === iconEl) return null;
+          return { el, id: gid, isSpecial: typeof gid === "string", origLeft: parseFloat(el.style.left) || 0, origTop: parseFloat(el.style.top) || 0 };
+        }).filter(Boolean)
+      : null;
     e.stopPropagation();
   });
   window.addEventListener("mousemove", (e) => {
@@ -645,25 +714,50 @@ function dfsSetupSpecialIconDrag(iconEl, id) {
     const dx = e.clientX - startX, dy = e.clientY - startY;
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
     if (!moved) return;
-    const pos = clamp(origLeft + dx, origTop + dy);
+    const pos = clamp(iconEl, origLeft + dx, origTop + dy);
     iconEl.style.left = pos.left + "px";
     iconEl.style.top = pos.top + "px";
     iconEl.style.zIndex = 5;
+    if (dragGroup) {
+      const appliedDx = pos.left - origLeft, appliedDy = pos.top - origTop;
+      dragGroup.forEach(g => {
+        const gp = clamp(g.el, g.origLeft + appliedDx, g.origTop + appliedDy);
+        g.el.style.left = gp.left + "px";
+        g.el.style.top = gp.top + "px";
+        g.el.style.zIndex = 5;
+      });
+    }
   });
   window.addEventListener("mouseup", async () => {
     if (!dragging) return;
     dragging = false;
     iconEl.style.zIndex = "";
+    const group = dragGroup;
+    dragGroup = null;
+    if (group) group.forEach(g => { g.el.style.zIndex = ""; });
     if (!moved) return;
-    const pos = clamp(parseFloat(iconEl.style.left) || 0, parseFloat(iconEl.style.top) || 0);
+    const pos = clamp(iconEl, parseFloat(iconEl.style.left) || 0, parseFloat(iconEl.style.top) || 0);
     // 요청 #110: 격자모드면 이 특수 아이콘도 예외 없이 격자 칸에 스냅되고, 그 칸에 이미 다른
     // 아이콘(진짜 노드든 다른 특수 아이콘이든)이 있으면 자리를 맞바꾼다.
     if (dfsArrangeMode === "grid") {
       await dfsGridSnapDrop(id, true, pos.left, pos.top, origLeft, origTop);
+      if (group) {
+        for (const g of group) {
+          const gp = clamp(g.el, parseFloat(g.el.style.left) || 0, parseFloat(g.el.style.top) || 0);
+          await dfsGridSnapDrop(g.id, g.isSpecial, gp.left, gp.top, g.origLeft, g.origTop);
+        }
+      }
       await dfsRenderDesktop();
       return;
     }
     dfsSaveSpecialIconPos(id, pos.left, pos.top);
+    if (group) {
+      for (const g of group) {
+        const gp = clamp(g.el, parseFloat(g.el.style.left) || 0, parseFloat(g.el.style.top) || 0);
+        await dfsSaveIconPosition(g.id, g.isSpecial, gp.left, gp.top);
+      }
+      await dfsRenderDesktop();
+    }
   });
 }
 function dfsRenderSpecialIcon(id, x, y, iconHtml, label, onDblClick, buildMenu) {
@@ -748,6 +842,9 @@ async function dfsRenderDesktop() {
         if (dfsSelectedIconId !== null) { dfsMultiSelected.add(dfsSelectedIconId); dfsSelectedIconId = null; }
         if (dfsMultiSelected.has(node.id)) dfsMultiSelected.delete(node.id);
         else dfsMultiSelected.add(node.id);
+        // 요청 #120: 지금부터의 다중 선택은 "하나씩 Ctrl/Shift로 누적"한 것이므로, 나중에 컨텍스트
+        // 메뉴 키를 누르면 이 중 "마지막으로 클릭한" 항목(Set의 마지막 원소) 위에 열려야 한다.
+        dfsLastSelectionOrigin = "click";
       } else {
         dfsMultiSelected.clear();
         dfsSelectedIconId = node.id;
@@ -780,10 +877,9 @@ document.addEventListener("click", () => {
     dfsRenderDesktop();
   }
 });
-document.querySelector(".desktop").addEventListener("contextmenu", (e) => {
-  if (e.target.closest(".df-icon") || e.target.closest(".window")) return;
-  e.preventDefault();
-  if (!dfsDb) return; // dexie를 못 불러왔으면 바탕화면 기능 자체를 조용히 비활성화
+// 요청 #119/#120: 바탕화면 빈 곳 우클릭 메뉴 - 마우스 우클릭 리스너와 컨텍스트 메뉴 키(아무것도
+// 선택 안 된 상태에서 누른 경우의 대체 동작) 양쪽에서 재사용하기 위해 이름 있는 함수로 뺐다.
+function dfsBuildDesktopBackgroundMenuItems() {
   const items = [
     { label: "탐색기로 열기", action: () => openRealExplorerAt([DESKTOP_TREE_NAME]) },
     // 요청 #110: 자유모드/격자모드 전환(체크 표시로 지금 모드를 보여줌 - 실제 윈도우의 "아이콘을
@@ -797,6 +893,43 @@ document.querySelector(".desktop").addEventListener("contextmenu", (e) => {
     } },
     ...dfsBuildEmptyAreaMenuItems(DFS_DESKTOP_ROOT, () => dfsBroadcastChange())
   ];
+  // 요청 #137: 실제 윈도우 바탕화면 우클릭 메뉴 맨 끝에 "디스플레이 설정" 같은 항목이 있는 것처럼,
+  // 이 앱도 바탕화면 빈 곳 우클릭에서 바로 환경설정을 열 수 있게 한다.
+  if (typeof dfsOpenSettingsWindow === "function") {
+    items.push({ label: "환경설정", action: () => dfsOpenSettingsWindow() });
+  }
+  return items;
+}
+// 요청 #120: 컨텍스트 메뉴 키를 눌렀을 때 지금 선택된 아이콘(들) 중 메뉴를 열 기준이 되는 요소를
+// 고른다 - 단일 선택이면 그것, 다중 선택이면 dfsLastSelectionOrigin에 따라 "마지막 클릭"
+// 또는 "우측 상단" 항목을 고른다(위 dfsLastSelectionOrigin 선언부 주석 참고).
+function dfsIconElementFor(id) {
+  return typeof id === "string"
+    ? els.dfIconLayer.querySelector(`[data-special-id="${id}"]`)
+    : els.dfIconLayer.querySelector(`[data-id="${id}"]`);
+}
+function dfsFindContextMenuKeyIcon() {
+  const ids = dfsMultiSelected.size ? [...dfsMultiSelected] : (dfsSelectedIconId != null ? [dfsSelectedIconId] : []);
+  if (!ids.length) return null;
+  if (ids.length === 1) return dfsIconElementFor(ids[0]);
+  if (dfsLastSelectionOrigin === "drag") {
+    let best = null, bestScore = -Infinity;
+    for (const id of ids) {
+      const el = dfsIconElementFor(id);
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      const score = r.right * 1000 - r.top; // 오른쪽 우선, 동률이면 위쪽 우선
+      if (score > bestScore) { bestScore = score; best = el; }
+    }
+    return best;
+  }
+  return dfsIconElementFor(ids[ids.length - 1]);
+}
+document.querySelector(".desktop").addEventListener("contextmenu", (e) => {
+  if (e.target.closest(".df-icon") || e.target.closest(".window")) return;
+  e.preventDefault();
+  if (!dfsDb) return; // dexie를 못 불러왔으면 바탕화면 기능 자체를 조용히 비활성화
+  const items = dfsBuildDesktopBackgroundMenuItems();
   showContextMenu(e.clientX, e.clientY, items);
 });
 // 진짜 컴퓨터(OS)에서 파일을 드래그해서 바탕화면에 떨어뜨리면 텍스트 파일에 한해 즉시 가져온다.
@@ -840,7 +973,7 @@ document.querySelector(".desktop").addEventListener("drop", async (e) => {
   if (dfsIsRecycleBinIcon(under)) {
     if (srcNode.parentId === DFS_RECYCLEBIN_ROOT) return;
     await dfsDelete(srcNode);
-    showToast(`"${srcNode.name}"을(를) 휴지통으로 옮겼습니다.`);
+    showToast(`"${srcNode.name}"을(를) 휴지통으로 옮겼습니다.`, { sound: "delete_to_recyclebin" });
     await dfsBroadcastChange();
     return;
   }
@@ -857,7 +990,7 @@ document.querySelector(".desktop").addEventListener("drop", async (e) => {
   }
   if (srcNode.parentId === targetId) return;
   const ok = await dfsMove(srcNode, targetId);
-  if (ok) showToast(`"${srcNode.name}"을(를) ${targetLabel}으로 옮겼습니다.`);
+  if (ok) showToast(`"${srcNode.name}"을(를) ${targetLabel}으로 옮겼습니다.`, { sound: "move_or_copy" });
   await dfsBroadcastChange();
 });
 
@@ -914,18 +1047,28 @@ window.addEventListener("mouseup", () => {
   });
   dfsSelectedIconId = null;
   dfsMultiSelected = new Set(ids);
+  // 요청 #120: 지금부터의 다중 선택은 러버밴드로 "한 번에" 잡은 것이다 - 컨텍스트 메뉴 키를
+  // 누르면 이 중 가장 오른쪽 위(우측 상단) 항목 위에 열려야 한다(사용자가 밝힌 대로 정확한 실제
+  // 규칙은 불확실하지만, "동시에 잡히면 우측 상단 기준"이라는 사용자 본인의 추정을 따른다).
+  dfsLastSelectionOrigin = "drag";
   dfsSuppressNextDesktopClick = true;
   dfsRenderDesktop();
 });
 
 function dfsSetupIconDrag(iconEl, node) {
   let dragging = false, moved = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;
+  // 요청 #138: 지금 끄는 이 아이콘이 다중 선택(2개 이상)에 포함돼 있으면, 선택된 나머지 아이콘도
+  // 전부 같은 델타로 함께 움직여야 한다(대각선 등 어떤 배치든 형태를 유지한 채로). dragGroup은
+  // [{el, id, isSpecial, origLeft, origTop}] - 특수 아이콘(저장소 루트/휴지통)도 선택에 끼어
+  // 있으면 화면상으로는 같이 움직이지만, 옮기거나 지우는 실제 대상이 될 수는 없으므로 드롭 처리
+  // 쪽에서는 실제 노드(숫자 id)만 걸러 쓴다.
+  let dragGroup = null;
   // 아이콘이 드래그로 화면 맨 아래 작업표시줄 밑을 뚫고 내려가거나 화면 오른쪽 밖으로 나가지
   // 않도록, 아이콘층(.df-icon-layer, 이미 작업표시줄 높이만큼 bottom을 뺀 영역) 자기 자신의
   // 크기 안으로만 좌표를 묶어둔다.
-  function clamp(left, top) {
-    const maxLeft = Math.max(0, els.dfIconLayer.clientWidth - iconEl.offsetWidth);
-    const maxTop = Math.max(0, els.dfIconLayer.clientHeight - iconEl.offsetHeight);
+  function clamp(el, left, top) {
+    const maxLeft = Math.max(0, els.dfIconLayer.clientWidth - el.offsetWidth);
+    const maxTop = Math.max(0, els.dfIconLayer.clientHeight - el.offsetHeight);
     return { left: Math.max(0, Math.min(left, maxLeft)), top: Math.max(0, Math.min(top, maxTop)) };
   }
   iconEl.addEventListener("mousedown", (e) => {
@@ -934,6 +1077,13 @@ function dfsSetupIconDrag(iconEl, node) {
     startX = e.clientX; startY = e.clientY;
     origLeft = parseFloat(iconEl.style.left) || 0;
     origTop = parseFloat(iconEl.style.top) || 0;
+    dragGroup = (dfsMultiSelected.size > 1 && dfsMultiSelected.has(node.id))
+      ? [...dfsMultiSelected].map(id => {
+          const el = dfsIconElementFor(id);
+          if (!el || el === iconEl) return null;
+          return { el, id, isSpecial: typeof id === "string", origLeft: parseFloat(el.style.left) || 0, origTop: parseFloat(el.style.top) || 0 };
+        }).filter(Boolean)
+      : null;
     e.stopPropagation();
   });
   window.addEventListener("mousemove", (e) => {
@@ -941,10 +1091,22 @@ function dfsSetupIconDrag(iconEl, node) {
     const dx = e.clientX - startX, dy = e.clientY - startY;
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
     if (!moved) return;
-    const pos = clamp(origLeft + dx, origTop + dy);
+    const pos = clamp(iconEl, origLeft + dx, origTop + dy);
     iconEl.style.left = pos.left + "px";
     iconEl.style.top = pos.top + "px";
     iconEl.style.zIndex = 5;
+    if (dragGroup) {
+      // 기준 아이콘(iconEl) 자신에게 실제로 적용된(클램프된) 델타를 그대로 나머지에도 적용해서
+      // 서로의 상대적 위치(형태)가 어긋나지 않게 한다. 각자 화면 밖으로 안 나가게 클램프는 개별
+      // 적용하지만, 델타 자체는 항상 기준 아이콘 것 하나로 통일한다.
+      const appliedDx = pos.left - origLeft, appliedDy = pos.top - origTop;
+      dragGroup.forEach(g => {
+        const gp = clamp(g.el, g.origLeft + appliedDx, g.origTop + appliedDy);
+        g.el.style.left = gp.left + "px";
+        g.el.style.top = gp.top + "px";
+        g.el.style.zIndex = 5;
+      });
+    }
     document.querySelectorAll(".df-drop-target").forEach(el => el.classList.remove("df-drop-target"));
     const under = dfsElementUnder(e.clientX, e.clientY, iconEl);
     if (under && (under.dataset.id || under.dataset.dropFolderKey !== undefined)) under.classList.add("df-drop-target");
@@ -954,27 +1116,28 @@ function dfsSetupIconDrag(iconEl, node) {
     dragging = false;
     document.querySelectorAll(".df-drop-target").forEach(el => el.classList.remove("df-drop-target"));
     iconEl.style.zIndex = "";
+    const group = dragGroup;
+    dragGroup = null;
+    if (group) group.forEach(g => { g.el.style.zIndex = ""; });
     if (!moved) return;
+    // 그룹(다중 선택) 드래그면 실제 노드(숫자 id, 특수 아이콘 제외)들을 한꺼번에 옮기거나 지운다.
+    // 단일 아이콘 드래그면 이 배열이 그 아이콘 하나뿐이라 기존 동작과 완전히 같다.
+    const realIds = group ? group.filter(g => !g.isSpecial).map(g => g.id) : [];
+    if (!group || !realIds.includes(node.id)) realIds.unshift(node.id); // node.id는 항상 실제 노드(기준 아이콘)
     // under는 바탕화면 아이콘(.df-icon)뿐 아니라 통합 탐색기 창(#win)의 내용창 칸(.grid-item -
     // content-pane.js가 desktopMode일 때 dataset.id를 붙여둔다)도 찾는다. 그 덕분에 바탕화면
     // 아이콘을 그 창의 특정 "폴더 칸" 위에 정확히 떨어뜨리면 그 폴더 안으로 들어간다.
     const under = dfsElementUnder(e.clientX, e.clientY, iconEl);
-    // 요청 #113: 바탕화면 아이콘을 마우스로 끌어 휴지통 특수 아이콘 위에 놓으면 삭제(휴지통 이동).
+    // 요청 #113/#138: 바탕화면 아이콘(들)을 마우스로 끌어 휴지통 특수 아이콘 위에 놓으면 삭제(휴지통 이동).
     if (dfsIsRecycleBinIcon(under)) {
-      if (node.parentId !== DFS_RECYCLEBIN_ROOT) {
-        await dfsDelete(node);
-        showToast(`"${node.name}"을(를) 휴지통으로 옮겼습니다.`);
-        await dfsBroadcastChange();
-      }
+      await dfsMoveManyToRecycleBin(realIds);
       return;
     }
     if (under && under.dataset.id) {
       const targetId = Number(under.dataset.id);
       const target = await dfsDb.nodes.get(targetId);
-      if (target && target.type === "folder" && target.id !== node.id) {
-        const ok = await dfsMove(node, target.id);
-        if (ok) showToast(`"${node.name}"을(를) "${target.name}" 폴더로 옮겼습니다.`);
-        await dfsBroadcastChange();
+      if (target && target.type === "folder" && !realIds.includes(target.id)) {
+        await dfsMoveManyToFolder(realIds, target.id, target.name);
         return;
       }
     }
@@ -984,10 +1147,8 @@ function dfsSetupIconDrag(iconEl, node) {
     if (under && under.dataset.dropFolderKey !== undefined) {
       const targetPathArr = under.dataset.dropFolderKey === "" ? [] : under.dataset.dropFolderKey.split("/");
       const targetId = await dfsResolvePathToFolderId(targetPathArr);
-      if (targetId != null && targetId !== node.id && node.parentId !== targetId) {
-        const ok = await dfsMove(node, targetId);
-        if (ok) showToast(`"${node.name}"을(를) 옮겼습니다.`);
-        await dfsBroadcastChange();
+      if (targetId != null && !realIds.includes(targetId)) {
+        await dfsMoveManyToFolder(realIds, targetId, null);
         return;
       }
     }
@@ -998,25 +1159,30 @@ function dfsSetupIconDrag(iconEl, node) {
     if (!els.win.classList.contains("closed") && !els.win.classList.contains("minimized") && isDfsPath(currentPath)) {
       const overContentPane = document.elementsFromPoint(e.clientX, e.clientY).some(el => el.closest && el.closest("#contentPane"));
       if (overContentPane) {
-        // 요청 #113: 지금 열려있는 창이 "휴지통"을 보여주고 있는 채로 그 창 위에 놓으면 삭제(휴지통 이동).
+        // 요청 #113/#138: 지금 열려있는 창이 "휴지통"을 보여주고 있는 채로 그 창 위에 놓으면 삭제(휴지통 이동).
         if (isRecycleBinPath(currentPath)) {
-          if (node.parentId !== DFS_RECYCLEBIN_ROOT) {
-            await dfsDelete(node);
-            showToast(`"${node.name}"을(를) 휴지통으로 옮겼습니다.`);
-            await dfsBroadcastChange();
-          }
+          await dfsMoveManyToRecycleBin(realIds);
           return;
         }
         const folderId = await dfsResolvePathToFolderId(currentPath);
-        if (folderId != null && folderId !== node.id && node.parentId !== folderId) {
-          const ok = await dfsMove(node, folderId);
-          if (ok) showToast(`"${node.name}"을(를) 옮겼습니다.`);
-          await dfsBroadcastChange();
+        if (folderId != null && !realIds.includes(folderId)) {
+          await dfsMoveManyToFolder(realIds, folderId, null);
           return;
         }
       }
     }
-    const pos = clamp(parseFloat(iconEl.style.left) || 0, parseFloat(iconEl.style.top) || 0);
+    // 빈 곳에 놓음: 유효한 이동/삭제 대상이 아니었으므로, 그룹 전체(특수 아이콘 포함)의 위치를
+    // 그대로 또는 격자에 맞춰 저장한다 - 방금 화면에서 옮긴 상대적 형태를 그대로 유지한다.
+    if (group) {
+      for (const g of [...group, { el: iconEl, id: node.id, isSpecial: false, origLeft, origTop }]) {
+        const pos = clamp(g.el, parseFloat(g.el.style.left) || 0, parseFloat(g.el.style.top) || 0);
+        if (dfsArrangeMode === "grid") await dfsGridSnapDrop(g.id, g.isSpecial, pos.left, pos.top, g.origLeft, g.origTop);
+        else await dfsSaveIconPosition(g.id, g.isSpecial, pos.left, pos.top);
+      }
+      await dfsRenderDesktop();
+      return;
+    }
+    const pos = clamp(iconEl, parseFloat(iconEl.style.left) || 0, parseFloat(iconEl.style.top) || 0);
     // 요청 #110: 격자모드면 자유롭게 놓은 픽셀 위치를 그대로 쓰지 않고 가장 가까운 격자 칸으로
     // 스냅하며, 그 칸에 이미 다른 아이콘이 있으면 자리를 맞바꾼다.
     if (dfsArrangeMode === "grid") {
@@ -1057,8 +1223,8 @@ function dfsBuildIconMenuItems(node, opts = {}) {
     items.push({ label: "브라우저에서 다운로드", action: () => dfsDownloadVirtualFile(node) });
   }
   items.push({ label: "이름 변경", action: () => dfsPromptRename(node, refresh) });
-  items.push({ label: "복사", action: () => { dfsClipboard = { id: node.id, mode: "copy" }; showToast(`"${node.name}"을(를) 복사했습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`); } });
-  items.push({ label: "잘라내기", action: () => { dfsClipboard = { id: node.id, mode: "cut" }; showToast(`"${node.name}"을(를) 잘라냈습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`); } });
+  items.push({ label: "복사", action: () => { dfsClipboard = { id: node.id, mode: "copy" }; showToast(`"${node.name}"을(를) 복사했습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`, { sound: "copy_to_clipboard" }); } });
+  items.push({ label: "잘라내기", action: () => { dfsClipboard = { id: node.id, mode: "cut" }; showToast(`"${node.name}"을(를) 잘라냈습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`, { sound: "copy_to_clipboard" }); } });
   if (node.type !== "shortcut") {
     items.push({ label: "바로가기 만들기", action: async () => { await dfsCreateShortcut(node); await refresh(); } });
   }
@@ -1076,6 +1242,14 @@ function dfsBuildEmptyAreaMenuItems(parentId, refresh) {
     { label: "새 텍스트 문서", action: async () => { await dfsCreateFile(parentId, "txt"); await refresh(); } },
     { label: "새 Markdown 문서", action: async () => { await dfsCreateFile(parentId, "md"); await refresh(); } },
     { label: "새 HTML 문서", action: async () => { await dfsCreateFile(parentId, "html"); await refresh(); } },
+    // 요청 #133: 기존 항목을 가리키는 "바로가기 만들기"(dfsCreateShortcut)와 달리, 여기서는 처음부터
+    // 이름/주소(URL)/아이콘을 직접 입력해서 새 바로가기를 만든다(showShortcutDialog).
+    { label: "바로가기 생성", action: async () => {
+      const info = await showShortcutDialog();
+      if (!info) return;
+      await dfsCreateUrlShortcut(parentId, info);
+      await refresh();
+    } },
   ];
   if (dfsClipboard) items.push({ label: "붙여넣기", action: async () => { await dfsPasteInto(parentId); await refresh(); } });
   items.push({ label: "새로고침", action: () => refresh() });
@@ -1133,12 +1307,12 @@ async function dfsDownloadFolderChoice(node) {
   else if (choice === "helper") await dfsDownloadFolderViaHelper(node);
 }
 async function dfsDownloadFolderRecursive(node) {
-  showToast(`"${node.name}" 폴더 압축 준비 중...`);
+  showToast(`"${node.name}" 폴더 압축 준비 중...`, { sound: "download_start" });
   let JSZip;
   try {
     JSZip = await ensureJSZip();
   } catch (e) {
-    showToast(`압축 기능을 불러오지 못했습니다: ${e.message}`, { kind: "warn" });
+    showToast(`압축 기능을 불러오지 못했습니다: ${e.message}`, { kind: "warn", sound: "download_error" });
     return;
   }
   const files = [];
@@ -1150,7 +1324,7 @@ async function dfsDownloadFolderRecursive(node) {
   try {
     blob = await zip.generateAsync({ type: "blob" });
   } catch (e) {
-    showToast(`압축 중 오류: ${e.message}`, { kind: "warn" });
+    showToast(`압축 중 오류: ${e.message}`, { kind: "warn", sound: "download_error" });
     return;
   }
   const a = document.createElement("a");
@@ -1160,7 +1334,7 @@ async function dfsDownloadFolderRecursive(node) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-  showToast(`"${node.name}" 폴더를 zip으로 다운로드했습니다.`);
+  showToast(`"${node.name}" 폴더를 zip으로 다운로드했습니다.`, { sound: "download_complete" });
 }
 async function dfsDownloadVirtualFile(node) {
   const blob = new Blob([node.content || ""], { type: "text/plain;charset=utf-8" });
@@ -1172,8 +1346,8 @@ async function dfsDownloadVirtualFile(node) {
 }
 
 /* ---------------- 활성화(더블클릭) ----------------
-   에디터는 더 이상 탐색기 창 내부에서 그려지지 않는다 - 파일을 열면 완전히 독립된
-   새 탭(dfsOpenFileInNewTab)으로 뜬다. */
+   에디터는 더 이상 탐색기 창 내부에서 그려지지 않는다 - 파일을 열면 앱 내 창(요청 #135,
+   dfsOpenFileInWindow)으로 뜬다. */
 async function dfsActivate(node) {
   if (node.type === "folder") {
     // 이제 별도 팝업 창이 아니라, 하나로 통합된 "진짜" 탐색기 창(#win)에서 이 폴더의 경로
@@ -1184,11 +1358,19 @@ async function dfsActivate(node) {
     return;
   }
   if (node.type === "shortcut") {
+    // 요청 #133: targetId가 있으면(기존 방식) 그 내부 항목을 그대로 연다. 없으면 사용자가 직접
+    // 입력한 주소(url)를 여는 바로가기이므로, 메뉴 항목/트레이 아이콘 등과 같은 방식으로 새 탭에서
+    // 연다(dfOpenNewTab이 전체화면을 먼저 풀어주는 것까지 동일하게 재사용).
+    if (!node.targetId) {
+      if (!node.url) { showToast("바로가기에 주소가 없습니다.", { kind: "warn", sound: "error_generic" }); return; }
+      dfOpenNewTab(node.url, "_blank", "noopener,noreferrer");
+      return;
+    }
     const target = await dfsDb.nodes.get(node.targetId);
-    if (!target) { showToast("바로가기 대상을 찾을 수 없습니다(삭제된 항목).", { kind: "warn" }); return; }
+    if (!target) { showToast("바로가기 대상을 찾을 수 없습니다(삭제된 항목).", { kind: "warn", sound: "error_generic" }); return; }
     return dfsActivate(target);
   }
-  dfsOpenFileInNewTab(node);
+  dfsOpenFileInWindow(node);
 }
 
 /* ============================================================================
@@ -1270,7 +1452,16 @@ els.dfIconLayer.addEventListener("keydown", async (e) => {
     if (!dfsDb) return;
     const ids = dfsMultiSelected.size ? [...dfsMultiSelected] : (dfsSelectedIconId !== null ? [dfsSelectedIconId] : []);
     if (!ids.length) return;
-    const nodes = (await Promise.all(ids.map(id => dfsDb.nodes.get(id)))).filter(Boolean);
+    // 요청 #125: 저장소 루트/휴지통 특수 아이콘(id가 문자열)은 dfsDb.nodes 안에 없으므로 따로
+    // 처리해야 한다 - 안 그러면 dfsDb.nodes.get()이 undefined를 반환해 filter(Boolean)에서
+    // 걸러지고 엔터가 아무 반응도 안 하는 버그가 생긴다(더블클릭과 완전히 같은 동작으로 열어줌).
+    const specialIds = ids.filter(id => typeof id === "string");
+    const realIds = ids.filter(id => typeof id === "number");
+    for (const sid of specialIds) {
+      if (sid === DFS_REPOROOT_ICON_ID) await openRealExplorerAt([]);
+      else if (sid === DFS_RECYCLEBIN_ICON_ID) await openRealExplorerAt([RECYCLEBIN_TREE_NAME]);
+    }
+    const nodes = (await Promise.all(realIds.map(id => dfsDb.nodes.get(id)))).filter(Boolean);
     for (const node of nodes) await dfsActivate(node);
     return;
   }

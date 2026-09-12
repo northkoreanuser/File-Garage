@@ -129,7 +129,7 @@ function buildGrid(items, opts) {
           const srcNode = await dfsDb.nodes.get(draggedId);
           if (!srcNode) return;
           const ok = await dfsMove(srcNode, it.dfsFolderId);
-          if (ok) showToast(`"${srcNode.name}"을(를) "${it.name}" 폴더로 옮겼습니다.`);
+          if (ok) showToast(`"${srcNode.name}"을(를) "${it.name}" 폴더로 옮겼습니다.`, { sound: "move_or_copy" });
           await dfsBroadcastChange();
         });
       }
@@ -257,7 +257,7 @@ els.contentPane.addEventListener("drop", async (e) => {
     const srcNode = await dfsDb.nodes.get(draggedId);
     if (!srcNode || srcNode.parentId === DFS_RECYCLEBIN_ROOT) return;
     await dfsDelete(srcNode);
-    showToast(`"${srcNode.name}"을(를) 휴지통으로 옮겼습니다.`);
+    showToast(`"${srcNode.name}"을(를) 휴지통으로 옮겼습니다.`, { sound: "delete_to_recyclebin" });
     await dfsBroadcastChange();
     return;
   }
@@ -274,17 +274,26 @@ els.contentPane.addEventListener("drop", async (e) => {
   const srcNode = await dfsDb.nodes.get(draggedId);
   if (!srcNode || srcNode.parentId === folderId) return;
   const ok = await dfsMove(srcNode, folderId);
-  if (ok) showToast(`"${srcNode.name}"을(를) 옮겼습니다.`);
+  if (ok) showToast(`"${srcNode.name}"을(를) 옮겼습니다.`, { sound: "move_or_copy" });
   await dfsBroadcastChange();
 });
-els.contentPane.addEventListener("contextmenu", (e) => {
-  if (!isDfsPath(currentPath)) return;
-  if (e.target.closest(".grid-item")) return;
-  e.preventDefault();
-  e.stopPropagation();
+// 요청 #119/#120/#129: 마우스 우클릭 리스너와 컨텍스트 메뉴 키(선택된 항목이 없을 때의 대체 동작)
+// 양쪽에서 재사용할 수 있도록 이름 있는 함수로 뺐다. 실제 저장소 폴더(읽기 전용)와 바탕화면/휴지통
+// (가상 파일시스템) 모두 각자의 빈 영역 메뉴를 갖는다.
+function contentPaneOpenBackgroundMenu(x, y) {
+  if (!isDfsPath(currentPath)) {
+    // 요청 #129: 실제 저장소 폴더는 CRUD가 없으니 "새로고침"/"경로 복사"만 제공한다. 위 툴바의
+    // 새로고침 버튼과 완전히 같은 함수(refreshCurrentFolder)를 그대로 호출하므로 결과 토스트도
+    // 항상 똑같이 나온다.
+    showContextMenu(x, y, [
+      { label: "새로고침", action: () => refreshCurrentFolder() },
+      { label: "경로 복사", action: () => copyCurrentUrlToClipboard() }
+    ]);
+    return;
+  }
   // 요청 #113: 휴지통의 빈 영역 메뉴는 새 폴더 등 CRUD가 아니라 [휴지통 비우기, 속성]뿐이다.
   if (isRecycleBinPath(currentPath)) {
-    showContextMenu(e.clientX, e.clientY, [
+    showContextMenu(x, y, [
       { label: "휴지통 비우기", action: async () => { await dfsEmptyRecycleBin(); await dfsBroadcastChange(); } },
       { label: "속성", action: () => dfsShowRecycleBinProperties() }
     ]);
@@ -292,9 +301,36 @@ els.contentPane.addEventListener("contextmenu", (e) => {
   }
   dfsResolvePathToFolderId(currentPath).then(folderId => {
     if (folderId == null) return;
-    showContextMenu(e.clientX, e.clientY, dfsBuildEmptyAreaMenuItems(folderId, () => dfsBroadcastChange()));
+    showContextMenu(x, y, dfsBuildEmptyAreaMenuItems(folderId, () => dfsBroadcastChange()));
   });
+}
+els.contentPane.addEventListener("contextmenu", (e) => {
+  if (e.target.closest(".grid-item")) return;
+  e.preventDefault();
+  e.stopPropagation();
+  contentPaneOpenBackgroundMenu(e.clientX, e.clientY);
 });
+
+// 요청 #120: 컨텍스트 메뉴 키를 눌렀을 때 내용창(그리드)에서 메뉴를 열 기준 칸을 고른다. 이
+// 내용창은 다중 선택을 러버밴드 드래그로만 만들 수 있고(Ctrl+클릭으로 하나씩 누적하는 방식은 없음
+// - onclick 참고), 다중 선택은 늘 "한 번에 동시에 잡힌" 경우이므로 그때는 항상 가장 오른쪽 위
+// (우측 상단) 칸을 기준으로 삼는다(desktop-fs.js의 dfsFindContextMenuKeyIcon과 같은 원리).
+function findContentPaneContextMenuKeyCell() {
+  const cellFor = (key) => [...els.contentPane.querySelectorAll(".grid-item")].find(c => c.dataset.key === key);
+  if (multiSelected.size >= 2) {
+    let best = null, bestScore = -Infinity;
+    multiSelected.forEach(key => {
+      const el = cellFor(key);
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const score = r.right * 1000 - r.top;
+      if (score > bestScore) { bestScore = score; best = el; }
+    });
+    return best;
+  }
+  if (selected) return cellFor(selected.path.join("/"));
+  return null;
+}
 
 /* ============ 내용창(오른쪽) 방향키 내비게이션: 상하좌우 = 그리드 이동, 엔터 = 폴더 진입/파일 열기 시도.
    다중 선택 상태(2개 이상)에서 엔터는 "다중 열기"(위험함) 대신 순차 다운로드로 대체한다. ============ */
@@ -374,22 +410,22 @@ async function handleMultiDownload(items) {
   const port = await ensureHelperPort();
   if (port === null) { offerHelperDownload("다운로드"); return; }
 
-  showToast("저장할 폴더를 선택하세요...");
+  showToast("저장할 폴더를 선택하세요...", { sound: "download_start" });
   let baseRoot;
   try {
     const res = await fetch(`http://127.0.0.1:${port}/pickfolder`);
     baseRoot = (await res.text()).trim();
   } catch (e) {
-    showToast(`폴더 선택 중 오류: ${e.message}`, { kind: "warn" });
+    showToast(`폴더 선택 중 오류: ${e.message}`, { kind: "warn", sound: "download_error" });
     return;
   }
-  if (!baseRoot || baseRoot === "CANCELLED") { showToast("다운로드가 취소되었습니다."); return; }
+  if (!baseRoot || baseRoot === "CANCELLED") { showToast("다운로드가 취소되었습니다.", { sound: "download_cancel" }); return; }
 
   const dlg = showCancelableProgressDialog("다운로드 준비 중...");
   let okCount = 0, failCount = 0;
   try {
     for (let i = 0; i < items.length; i++) {
-      if (dlg.isCancelled()) { showToast(`다운로드가 취소되었습니다.${okCount ? ` (${okCount}개 저장됨)` : ""}`); return; }
+      if (dlg.isCancelled()) { showToast(`다운로드가 취소되었습니다.${okCount ? ` (${okCount}개 저장됨)` : ""}`, { sound: "download_cancel" }); return; }
       const it = items[i];
       dlg.setText(`다운로드 중 (${i + 1}/${items.length}): ${it.name}`);
       try {
@@ -403,7 +439,7 @@ async function handleMultiDownload(items) {
             result = await downloadRealFolderIntoBase(it, port, baseRoot, dlg);
           }
           okCount += result.ok; failCount += result.fail;
-          if (result.cancelled) { showToast(`다운로드가 취소되었습니다.${okCount ? ` (${okCount}개 저장됨)` : ""}`); return; }
+          if (result.cancelled) { showToast(`다운로드가 취소되었습니다.${okCount ? ` (${okCount}개 저장됨)` : ""}`, { sound: "download_cancel" }); return; }
         } else if (it.dfsNode) {
           const res = await fetch(`http://127.0.0.1:${port}/savecontentto?base=${encodeURIComponent(baseRoot)}&rel=${encodeURIComponent(it.name)}`, {
             method: "POST",
@@ -423,7 +459,7 @@ async function handleMultiDownload(items) {
     }
     let msg = `다중 다운로드 완료: ${okCount}개`;
     if (failCount) msg += `, 실패 ${failCount}개`;
-    showToast(msg, failCount ? { kind: "warn" } : {});
+    showToast(msg, failCount ? { kind: "warn", sound: "download_error" } : { sound: "download_complete" });
   } finally {
     dlg.close();
   }

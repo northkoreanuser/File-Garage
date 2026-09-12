@@ -19,6 +19,27 @@ document.addEventListener("keydown", (e) => {
     selectAllContentPane();
     return;
   }
+  // 요청 #126: Ctrl+E = 루트 탐색기 열기(단, 지금 "닫혀 있을 때만" - 이미 열려 있으면 사용자가
+  // 보고 있던 위치를 그대로 두고 아무 일도 하지 않는다. 실제 윈도우의 Win+E는 매번 새 탐색기를
+  // 열지만, 이 앱은 통합 창이 하나뿐이라 이미 열려 있으면 굳이 루트로 되돌리지 않는 게 더 자연스럽다).
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "e") {
+    const tag = (e.target && e.target.tagName || "").toLowerCase();
+    const isEditable = tag === "input" || tag === "textarea" || (e.target && e.target.isContentEditable);
+    if (isEditable) return;
+    e.preventDefault();
+    if (els.win.classList.contains("closed")) openRealExplorerAt([]);
+    return;
+  }
+  // 요청 #126/#127: Ctrl+W와 Alt+W 둘 다 "탐색기 창 닫기"로 취급한다. Ctrl+W는 브라우저가 "탭
+  // 닫기"로 예약해둔 단축키라 여기서 preventDefault를 해도 브라우저/환경에 따라 먹지 않을 수
+  // 있다(그러면 이 핸들러가 실행되기도 전에 탭이 그냥 닫혀버려서 대응할 수 없음) - 그래서 항상
+  // 확실히 먹는 Alt+W를 대체 단축키로 함께 둔다. 어느 쪽으로든 여기까지 도달하면 곧바로 닫지 않고
+  // 확인창을 띄운다(요청 #127 - 실수로 창을 닫는 것 방지).
+  if ((((e.ctrlKey || e.metaKey) && !e.altKey) || (e.altKey && !e.ctrlKey && !e.metaKey)) && e.key.toLowerCase() === "w") {
+    e.preventDefault();
+    triggerCloseWindowWithConfirm();
+    return;
+  }
   if (e.altKey && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
     e.preventDefault();
     if (e.key === "ArrowLeft") goBack();
@@ -98,8 +119,20 @@ function triggerDeleteSelected() {
   }
 }
 
-/* 새로고침 버튼: 페이지 새로고침이 아니라 "이 폴더" 캐시만 비우고 다시 읽기 + GitHub API로 일치 여부 확인 */
-els.btnRefresh.onclick = async () => {
+/* 요청 #126/#127: Ctrl+W/Alt+W로 탐색기 창을 닫기 전에 확인창을 띄운다 - 실제 닫기 동작
+   자체는 window-chrome.js의 btnClose.onclick이 이미 갖고 있는 로직(작업표시줄 비활성화, 해시/
+   마지막 경로 초기화 등)을 그대로 재사용한다(중복 구현 방지). */
+async function triggerCloseWindowWithConfirm() {
+  if (els.win.classList.contains("closed")) return; // 이미 닫혀 있으면 할 일 없음
+  const ok = await showConfirmDialog("탐색기 창을 닫을까요?");
+  if (ok) els.btnClose.onclick();
+}
+
+/* 새로고침: 페이지 새로고침이 아니라 "이 폴더" 캐시만 비우고 다시 읽기 + GitHub API로 일치 여부
+   확인. 요청 #129: 위쪽 툴바의 새로고침 버튼과 저장소 탐색기 빈 영역 우클릭 메뉴의 "새로고침" 둘
+   다 이 함수 하나를 그대로 호출하게 해서, 어느 쪽으로 실행하든 하단 좌측 토스트 문구가 완전히
+   똑같이 나오게 한다(로직 중복 방지 + 결과 일관성). */
+async function refreshCurrentFolder() {
   const path = currentPath;
   // 바탕화면(가상 파일시스템) 경로는 애초에 GitHub 저장소와 무관한 로컬(dexie) 데이터이므로,
   // 실제 저장소용 "GitHub과 비교" 로직을 돌릴 이유가 없다 - 돌리면 owner/repo가 없거나
@@ -123,9 +156,17 @@ els.btnRefresh.onclick = async () => {
   if (ghResult.status === "fulfilled") {
     compareWithIndex(path, ghResult.value);
   } else {
-    showToast("GitHub 확인 실패: " + ghResult.reason.message, { kind: "warn" });
+    showToast("GitHub 확인 실패: " + ghResult.reason.message, { kind: "warn", sound: "error_generic" });
   }
-};
+}
+els.btnRefresh.onclick = refreshCurrentFolder;
+
+// 요청 #129: "경로 복사" - 라벨은 경로 복사지만 실제로는 지금 보고 있는 페이지의 URL을 그대로
+// 클립보드에 복사한다(이 앱은 해시 라우팅이라 window.location.href 자체가 지금 경로를 포함함).
+// editor.js의 dfCopyText(클립보드 API + execCommand 폴백)를 그대로 재사용한다.
+function copyCurrentUrlToClipboard() {
+  dfCopyText(window.location.href, () => showToast("주소를 복사했습니다.", { sound: "copy_to_clipboard" }));
+}
 
 async function fetchGithubListing(pathArr) {
   const { owner, repo } = getOwnerRepo();
@@ -146,13 +187,13 @@ function compareWithIndex(pathArr, ghNames) {
   const missing = ghNames.filter(n => !idxSet.has(n));   // GitHub엔 있는데 색인엔 없음
   const stale = indexNames.filter(n => !ghSet.has(n));   // 색인엔 있는데 GitHub엔 없음
   if (missing.length === 0 && stale.length === 0) {
-    showToast("GitHub과 일치합니다.");
+    showToast("GitHub과 일치합니다.", { sound: "notify_success" });
     return;
   }
   const lines = [];
   if (missing.length) lines.push(`색인에 없는 항목(GitHub엔 있음): ${missing.join(", ")}`);
   if (stale.length) lines.push(`색인에만 있는 항목(GitHub엔 없음): ${stale.join(", ")}`);
-  showToast(lines.join("\n"), { kind: "warn", sticky: true });
+  showToast(lines.join("\n"), { kind: "warn", sticky: true, sound: "error_generic" });
 }
 
 /* 폴더 열기 / md는 항상 에디터로 / 그 외(html 포함)는 환경설정의 더블클릭 동작 4가지 중 하나를
@@ -216,7 +257,7 @@ function viewAsHostedPage(it) {
   } else {
     url = path.map(encodeURIComponent).join("/");
   }
-  window.open(url, "_blank", "noopener,noreferrer");
+  dfOpenNewTab(url, "_blank", "noopener,noreferrer");
 }
 function flashStatus(msg) {
   clearTimeout(statusFlashTimer);

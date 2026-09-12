@@ -4,7 +4,7 @@
    - 닫은 뒤 작업표시줄에서 다시 열면(최소화 상태에서 복구하는 것과 달리) 최상위 경로 + 트리 완전히 접힌
      상태로 초기화된다(실제 윈도우 탐색기도 창을 닫았다 새로 열면 이전 상태를 기억하지 않는다).
 ================================================================== */
-els.btnMin.onclick = () => els.win.classList.add("minimized");
+els.btnMin.onclick = () => { els.win.classList.add("minimized"); dfsPlaySound("window_minimize"); };
 // 드래그로 옮긴 위치(position:fixed의 left/top 인라인 스타일)는 최대화하면 잠깐 지워야
 // (.maximized 클래스의 top:0/left:0을 인라인 스타일이 덮어써버리면 꽉 채워지지 않음) 온전히 꽉 찬다.
 // 최대화를 풀면 그 위치를 되돌려서 이어서 옮긴 자리에 복귀한다(실제 창처럼).
@@ -27,6 +27,7 @@ function toggleMaximize() {
     }
   }
   els.btnMax.innerHTML = els.win.classList.contains("maximized") ? "&#x2752;" : "&#x25A1;";
+  dfsPlaySound("window_maximize_restore");
 }
 els.btnMax.onclick = toggleMaximize;
 els.titlebar.addEventListener("dblclick", toggleMaximize);
@@ -134,6 +135,7 @@ els.titlebar.addEventListener("dblclick", toggleMaximize);
 
 els.btnClose.onclick = () => {
   els.win.classList.add("closed");
+  dfsPlaySound("window_close");
   els.taskbarApp.classList.remove("active");
   // 실제 윈도우 탐색기처럼, 창을 닫으면 주소창 플래그먼트와 "마지막 위치 기억"이 함께 사라져야
   // 다음에 다시 열었을 때(또는 GitHub Pages 링크로 새로 들어왔을 때) 완전히 처음 상태(탐색창 닫힘 +
@@ -148,9 +150,11 @@ els.btnClose.onclick = () => {
 };
 els.taskbarApp.onclick = () => {
   const wasClosed = els.win.classList.contains("closed");
+  const wasHidden = wasClosed || els.win.classList.contains("minimized");
   els.win.classList.remove("closed", "minimized");
   els.taskbarApp.classList.add("active");
   persistWindowOpen(true);
+  if (wasHidden) dfsPlaySound("window_open");
   if (wasClosed) {
     expanded.clear();
     navigate([]);
@@ -160,14 +164,32 @@ els.taskbarApp.onclick = () => {
     openNavPaneRespectingHash();
   }
 };
+// 요청 #130: 작업표시줄의 탐색기 아이콘을 우클릭하면 실제 윈도우처럼 최소화/최대화(또는 복원)/
+// 닫기를 제공한다(소소한 디테일 흉내). 창이 이미 닫혀 있으면(=실행 중이 아님) 조작할 대상이
+// 없으므로 메뉴를 띄우지 않는다. "닫기"는 실제 X 버튼과 똑같이 곧바로 닫는다 - 확인창(요청 #127)은
+// 실수로 눌리기 쉬운 키보드 단축키(Ctrl+W/Alt+W)에만 필요한 안전장치이고, 메뉴에서 명시적으로
+// "닫기"를 고르는 것은 X 버튼 클릭과 같은 성격의 의도적인 동작이라 그대로 즉시 닫는다.
+els.taskbarApp.oncontextmenu = (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (els.win.classList.contains("closed")) return;
+  const isMax = els.win.classList.contains("maximized");
+  showContextMenu(e.clientX, e.clientY, [
+    { label: "최소화", action: () => els.btnMin.onclick() },
+    { label: isMax ? "복원" : "최대화", action: () => toggleMaximize() },
+    { label: "닫기", action: () => els.btnClose.onclick() }
+  ]);
+};
 /* 바탕화면(가상 파일시스템)에서 폴더를 열 때도 더는 별도의 팝업 창이 아니라 이 "진짜" 탐색기
    창(#win) 하나로 통합해서 보여준다(탐색기 통합 - 사용자 지시). 창이 닫혀있었으면 taskbarApp을
    누른 것과 똑같이 다시 열어준다. */
 function openRealExplorerAt(path) {
   const wasClosed = els.win.classList.contains("closed");
+  const wasHidden = wasClosed || els.win.classList.contains("minimized");
   els.win.classList.remove("closed", "minimized");
   els.taskbarApp.classList.add("active");
   persistWindowOpen(true);
+  if (wasHidden) dfsPlaySound("window_open");
   if (wasClosed) expanded.clear();
   navigate(path);
   openNavPaneRespectingHash();

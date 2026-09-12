@@ -265,6 +265,16 @@
   .weather-place { font-size: 12.5px; color: #7a91a5; margin-bottom: 4px; }
   .weather-desc { font-size: 13px; color: #3a5069; margin: 6px 0 4px; }
   .weather-detail-row { font-size: 12.5px; color: #2c465f; padding: 2px 0; }
+  /* 요청 #132: 시계 클릭 -> 이번 달 달력 팝업(오늘 강조) */
+  .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-top: 4px; }
+  .calendar-cell { text-align: center; font-size: 12px; padding: 5px 0; border-radius: 3px; color: #2c465f; }
+  .calendar-head { font-weight: 600; color: #7a91a5; font-size: 11px; }
+  .calendar-empty { visibility: hidden; }
+  .calendar-today {
+    background: linear-gradient(180deg, rgba(180,220,255,.75), rgba(140,195,245,.65));
+    border: 1px solid #6fb3e8; box-shadow: inset 0 0 0 1px rgba(255,255,255,.5);
+    font-weight: 700; color: #16324f;
+  }
 
   .tray-icons { display: flex; align-items: center; gap: 4px; }
   .tray-icon {
