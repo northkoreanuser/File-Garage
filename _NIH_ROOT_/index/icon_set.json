@@ -1,6 +1,18 @@
 {
   "folders": {},
-  "extensions": {},
-  "repoRoot": "",
-  "recycleBin": ""
+  "extensions": {
+    "ahk": "/File-Garage/_NIH_ROOT_/index/ui/icon/ahk.svg",
+    "dll": "/File-Garage/_NIH_ROOT_/index/ui/icon/dll.ico",
+    "exe": "/File-Garage/_NIH_ROOT_/index/ui/icon/exe.ico",
+    "html": "/File-Garage/_NIH_ROOT_/index/ui/icon/html.svg",
+    "ico": "/File-Garage/_NIH_ROOT_/index/ui/icon/ico.svg",
+    "json": "/File-Garage/_NIH_ROOT_/index/ui/icon/json.svg",
+    "txt": "/File-Garage/_NIH_ROOT_/index/ui/icon/txt.ico",
+    "bin": "/File-Garage/_NIH_ROOT_/index/ui/icon/bin.svg",
+    "bat": "/File-Garage/_NIH_ROOT_/index/ui/icon/bat.ico",
+    "cmd": "/File-Garage/_NIH_ROOT_/index/ui/icon/cmd.ico",
+    "ini": "/File-Garage/_NIH_ROOT_/index/ui/icon/txt.ico"
+  },
+  "repoRoot": "/File-Garage/_NIH_ROOT_/index/ui/icon/desktop/drive.ico",
+  "recycleBin": "/File-Garage/_NIH_ROOT_/index/ui/icon/desktop/recyclebin1.ico"
 }
