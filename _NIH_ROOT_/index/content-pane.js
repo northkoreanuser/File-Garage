@@ -154,7 +154,7 @@ function buildGrid(items, opts) {
         cell.addEventListener("dragover", (e) => {
           if (!e.dataTransfer) return;
           const types = Array.from(e.dataTransfer.types || []);
-          if (types.indexOf("Files") === -1 && types.indexOf("text/plain") === -1) return;
+          if (types.indexOf("Files") === -1 && types.indexOf("text/plain") === -1 && types.indexOf("DownloadURL") === -1) return;
           e.preventDefault();
           cell.classList.add("df-drop-target");
         });
@@ -163,6 +163,13 @@ function buildGrid(items, opts) {
           e.preventDefault();
           e.stopPropagation();
           cell.classList.remove("df-drop-target");
+          // 저장소(GitHub 리포) 화면에서 텍스트 파일을 이 폴더 칸 위로 끌어다 놓은 경우: 다운로드
+          // 없이 바로 이 폴더 안에 가상 파일로 가져온다(버그 리포트: 바탕화면엔 되는데 그 안의
+          // 폴더에는 안 됐던 문제 - dfDragHasRepoFile/dfHandleRepoFileDrop 참고).
+          if (dfDragHasRepoFile(e)) {
+            await dfHandleRepoFileDrop(e, it.dfsFolderId, () => renderContentPane());
+            return;
+          }
           // 진짜 컴퓨터(OS)에서 파일을 이 폴더 칸 위로 끌어다 놓은 경우: 텍스트 파일이면 그
           // 폴더 안으로 즉시 가져온다.
           if (e.dataTransfer.files && e.dataTransfer.files.length) {
@@ -287,7 +294,7 @@ els.contentPane.addEventListener("dragover", (e) => {
   if (e.target.closest(".grid-item")) return; // 폴더 칸 위는 그 칸 자체의 리스너가 처리
   if (!e.dataTransfer) return;
   const types = Array.from(e.dataTransfer.types || []);
-  if (types.indexOf("Files") === -1 && types.indexOf("text/plain") === -1) return;
+  if (types.indexOf("Files") === -1 && types.indexOf("text/plain") === -1 && types.indexOf("DownloadURL") === -1) return;
   e.preventDefault();
   e.dataTransfer.dropEffect = "move";
 });
@@ -309,6 +316,14 @@ els.contentPane.addEventListener("drop", async (e) => {
     await dfsDelete(srcNode);
     showToast(`"${srcNode.name}"을(를) 휴지통으로 옮겼습니다.`, { sound: "delete_to_recyclebin" });
     await dfsBroadcastChange();
+    return;
+  }
+  // 저장소 화면에서 끌어온 텍스트 파일을 지금 보고 있는 폴더(바탕화면 안의 하위 폴더 포함)의
+  // 빈 곳/배경에 놓은 경우 - dfDragHasRepoFile/dfHandleRepoFileDrop 참고.
+  if (dfDragHasRepoFile(e)) {
+    const folderId = await dfsResolvePathToFolderId(currentPath);
+    if (folderId == null) return;
+    await dfHandleRepoFileDrop(e, folderId, () => renderContentPane());
     return;
   }
   if (e.dataTransfer.files && e.dataTransfer.files.length) {

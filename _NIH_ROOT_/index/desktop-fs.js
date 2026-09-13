@@ -274,6 +274,81 @@ async function dfsCreateFile(parentId, kind) {
 // 그 외에는 그냥 다운로드된다(dfsActivateBinaryFile 참고) - 다른 모든 기능(이름변경/복사/이동/
 // 삭제/속성/폴더 다운로드 등)은 dfsFileByteSize 등을 통해 문자열 content든 Blob이든 구분 없이
 // 그대로 동작한다.
+// ---------------- 저장소(GitHub 리포) 파일을 이 앱 "안"의 가짜 바탕화면/폴더로 드롭해서 가져오기 ----------------
+// 버그 리포트: "바탕화면에 드래그&드롭하면 저장되는데, 탐색기(바탕화면 안의) 폴더 안에 드롭하면
+// 로컬 저장소(IndexedDB)에 안 들어감" - 원인은 attachRepoFileDragOut(content-pane.js)이 dragstart에서
+// "DownloadURL" 데이터만 채워뒀을 뿐, 이 앱 자신의 드롭 대상(desktop-fs.js .desktop / content-pane.js
+// 폴더 칸·내용창 배경 / tree-pane.js 트리 행)들은 전부 "Files"(진짜 OS 파일)나 "text/plain"(내부
+// 가상 파일시스템 이동)만 받아들이고 "DownloadURL"은 아예 검사하지 않았던 것 - 그래서 브라우저
+// 밖(진짜 OS 바탕화면/탐색기)으로 끌어낼 때만 되고, 페이지 "안"의 어디에 놓든(바탕화면이든 그
+// 안의 폴더든 전부 마찬가지로) 전혀 반응이 없었다. 새로 만든 폴더만 안 되는 게 아니라 사실 바탕화면
+// 자체도 안 됐던 것인데, 바탕화면 아이콘 위(예: 다른 텍스트 파일 위)에 놓았을 때만 우연히 그 파일의
+// text/plain 이동 조건과 헷갈렸을 뿐이다. 고침: "DownloadURL"도 각 드롭 대상이 인식하는 타입에
+// 추가하고, 드롭 시 이 함수로 실제 내용을 fetch해서 텍스트 그대로 새 가상 파일로 만든다(다운로드
+// 없이 바로 IndexedDB에 저장 - 사용자 지시대로 OS로 실제로 다운로드하지 않는다).
+function dfParseDownloadUrlData(raw) {
+  // "mime-type:filename:url" 형식(우리가 만든 값 - content-pane.js의 attachRepoFileDragOut 참고).
+  // filename/url 자체엔 콜론이 없다고 가정할 수 없으므로(특히 url은 http://...라서 반드시 있음),
+  // 첫 번째 콜론까지를 mime, 그 다음 콜론까지를 filename, 나머지 전부를 url로 자른다.
+  if (!raw) return null;
+  const i1 = raw.indexOf(":");
+  if (i1 === -1) return null;
+  const i2 = raw.indexOf(":", i1 + 1);
+  if (i2 === -1) return null;
+  const name = raw.slice(i1 + 1, i2);
+  const url = raw.slice(i2 + 1);
+  if (!name || !url) return null;
+  return { name, url };
+}
+async function dfsImportRepoFileFromDownloadUrlData(parentId, raw) {
+  const parsed = dfParseDownloadUrlData(raw);
+  if (!parsed) return null;
+  let text;
+  try {
+    const res = await fetch(parsed.url);
+    if (!res.ok) throw new Error(String(res.status));
+    text = await res.text();
+  } catch (e) {
+    showToast(`"${parsed.name}"을(를) 가져오지 못했습니다: ${e.message}`, { kind: "warn", sound: "error_generic" });
+    return null;
+  }
+  // 드래그가 시작될 때 이미 텍스트 형식만 걸러서 draggable로 만들었지만(attachRepoFileDragOut),
+  // 혹시 모를 예외(캐시가 낡았거나 등)에 대비해 실제로 받은 내용으로 한 번 더 확인한다.
+  if (!dfLooksLikeText(text.slice(0, 8000))) {
+    showToast(`"${parsed.name}"은(는) 텍스트 형식이 아니라서 가져올 수 없습니다.`, { kind: "warn", sound: "error_generic" });
+    return null;
+  }
+  const desiredName = parsed.name || "새 파일.txt";
+  const conflict = await dfsFindNameConflict(parentId, desiredName, null);
+  if (conflict) {
+    const ok = await showConfirmDialog(`이 위치에 이미 "${desiredName}" 항목이 있습니다. 덮어쓸까요?`);
+    if (!ok) return null;
+    await dfsDelete(conflict);
+  }
+  const now = Date.now();
+  const pos = await dfsNextIconPos(parentId);
+  const id = await dfsDb.nodes.add({
+    parentId, type: "file", name: desiredName, content: text, fileType: dfDetectFileType(desiredName),
+    x: pos.x, y: pos.y, createdAt: now, updatedAt: now
+  });
+  return dfsDb.nodes.get(id);
+}
+// dragover/drop 리스너가 공통으로 쓰는 판별/처리 헬퍼 - "DownloadURL" 타입이 있으면 저장소 파일
+// 드래그이므로 이 경로로, 아니면(기존처럼) 호출한 쪽이 Files/text-plain 분기를 계속 처리한다.
+function dfDragHasRepoFile(e) {
+  if (!e.dataTransfer) return false;
+  const types = Array.from(e.dataTransfer.types || []);
+  return types.indexOf("DownloadURL") !== -1;
+}
+async function dfHandleRepoFileDrop(e, parentId, refresh) {
+  const raw = e.dataTransfer.getData("DownloadURL");
+  const result = await dfsImportRepoFileFromDownloadUrlData(parentId, raw);
+  if (result) {
+    showToast(`"${result.name}"을(를) 가져왔습니다.`);
+    if (refresh) await refresh();
+    await dfsBroadcastChange();
+  }
+}
 async function dfsImportOsFile(parentId, file) {
   // 요청 #154: 저장소 등에서 .sc로 받아둔 바로가기 파일을 데스크탑으로 다시 끌어다 놓으면, 그냥
   // 텍스트 파일로 가져가지 말고 진짜 바로가기(type:"shortcut")로 되살려야 한다는 지시 - 다른 곳의
@@ -1233,7 +1308,7 @@ document.querySelector(".desktop").addEventListener("dragover", (e) => {
   if (e.target.closest(".window")) return;
   if (!e.dataTransfer) return;
   const types = Array.from(e.dataTransfer.types || []);
-  if (types.indexOf("Files") === -1 && types.indexOf("text/plain") === -1) return;
+  if (types.indexOf("Files") === -1 && types.indexOf("text/plain") === -1 && types.indexOf("DownloadURL") === -1) return;
   e.preventDefault();
   e.dataTransfer.dropEffect = "move";
 });
@@ -1242,6 +1317,16 @@ document.querySelector(".desktop").addEventListener("drop", async (e) => {
   if (e.target.closest(".window")) return;
   if (!e.dataTransfer) return;
   e.preventDefault();
+  if (dfDragHasRepoFile(e)) {
+    const under = dfsElementUnder(e.clientX, e.clientY);
+    let targetId = DFS_DESKTOP_ROOT;
+    if (under && under.classList.contains("df-icon") && under.dataset.id) {
+      const node = await dfsDb.nodes.get(Number(under.dataset.id));
+      if (node && node.type === "folder") targetId = node.id;
+    }
+    await dfHandleRepoFileDrop(e, targetId, () => dfsRenderDesktop());
+    return;
+  }
   if (e.dataTransfer.files && e.dataTransfer.files.length) {
     const under = dfsElementUnder(e.clientX, e.clientY);
     let targetId = DFS_DESKTOP_ROOT;

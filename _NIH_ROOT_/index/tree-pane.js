@@ -86,7 +86,7 @@ function attachTreeDropTarget(row, pathArr) {
   row.addEventListener("dragover", (e) => {
     if (!e.dataTransfer) return;
     const types = Array.from(e.dataTransfer.types || []);
-    if (types.indexOf("Files") === -1 && types.indexOf("text/plain") === -1) return;
+    if (types.indexOf("Files") === -1 && types.indexOf("text/plain") === -1 && types.indexOf("DownloadURL") === -1) return;
     e.preventDefault();
     row.classList.add("df-drop-target");
   });
@@ -97,6 +97,11 @@ function attachTreeDropTarget(row, pathArr) {
     row.classList.remove("df-drop-target");
     const targetFolderId = await dfsResolvePathToFolderId(pathArr);
     if (targetFolderId == null) return;
+    // 저장소 화면에서 끌어온 텍스트 파일을 트리의 바탕화면(하위 폴더 포함) 행 위에 놓은 경우.
+    if (dfDragHasRepoFile(e)) {
+      await dfHandleRepoFileDrop(e, targetFolderId, () => { renderNavPane(); if (isDesktopPath(currentPath)) renderContentPane(); });
+      return;
+    }
     if (e.dataTransfer.files && e.dataTransfer.files.length) {
       await dfsImportOsFileList(targetFolderId, e.dataTransfer.files, () => { renderNavPane(); if (isDesktopPath(currentPath)) renderContentPane(); });
       return;
