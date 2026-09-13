@@ -5,5 +5,7 @@
     "ShortCut",
     "Tools"
   ],
-  "files": []
+  "files": [
+    {"name": "사용설명서.pdf", "size": 3380004}
+  ]
 }
