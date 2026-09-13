@@ -304,6 +304,9 @@ function runDoubleClickAction(action, it) {
     case "download": localHelperDownload(it); break;
     case "repo": settings.githubLinksEnabled ? openInRepo(it) : viewAsHostedPage(it); break;
     case "newtab": viewAsHostedPage(it); break;
+    // 요청: 확장자 탭의 "새 탭에서 열기(newtab)"와 짝을 맞춘 "팝업으로 열기(popup)" - 같은 주소를
+    // 작은 별도 창으로 연다.
+    case "popup": viewAsHostedPage(it, true); break;
     case "editor": dfsOpenRepoFileInEditor(it); break;
     case "hls": dfsOpenRepoFileInHlsPlayer(it); break;
     case "helper":
@@ -313,8 +316,9 @@ function runDoubleClickAction(action, it) {
 // 이 사이트 자체의 배포된 주소("호스팅된 페이지")로 새 탭에서 연다 - html의 index.html은 폴더
 // 주소로(GitHub Pages가 자동으로 index.html을 서빙하는 것과 동일하게), 그 외에는 파일 경로
 // 그대로. 예전엔 html 전용이었지만(viewHtmlAsHostedPage), 더블클릭 기본 동작이 됨에 따라
-// 모든 파일 형식에 쓸 수 있도록 일반화됐다(사용자 지시).
-function viewAsHostedPage(it) {
+// 모든 파일 형식에 쓸 수 있도록 일반화됐다(사용자 지시). 요청: popup이 참이면 새 탭 대신
+// openShortcutUrl과 같은 크기의 작은 별도 창으로 연다(우클릭/확장자 탭의 팝업 옵션이 쓴다).
+function viewAsHostedPage(it, popup) {
   const path = it.path;
   const isHtmlIndex = it.type === "html" && path[path.length - 1].toLowerCase() === "index.html";
   let url;
@@ -324,7 +328,8 @@ function viewAsHostedPage(it) {
   } else {
     url = path.map(encodeURIComponent).join("/");
   }
-  dfOpenNewTab(url, "_blank", "noopener,noreferrer");
+  if (popup) dfOpenNewTab(url, "_blank", "width=1000,height=700,resizable=yes,scrollbars=yes,noopener");
+  else dfOpenNewTab(url, "_blank", "noopener,noreferrer");
 }
 // 요청 #141: 저장소에 올라간 .sc 파일의 실제 내용(JSON 텍스트)을 읽어서 그 안의 주소로 이동한다 -
 // 이 사이트 자체와 같은 오리진(GitHub Pages)이므로 CORS 걱정 없이 상대경로로 그냥 fetch할 수

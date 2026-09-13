@@ -205,6 +205,8 @@ function buildFileMenuItems(it) {
   items.push({ label: "바탕 화면에 바로가기 만들기", action: () => dfsCreateDesktopShortcutFromRepoItem(it) });
   if (settings.githubLinksEnabled) {
     items.push({ label: "브라우저에서 보기", action: () => viewOnPages(it) });
+    // 요청: "브라우저에서 보기"의 팝업 버전 - 새 탭 대신 작은 별도 창으로 연다.
+    items.push({ label: "브라우저에서 보기 (팝업)", action: () => viewOnPages(it, true) });
     items.push({ label: "저장소에서 보기", action: () => openInRepo(it) });
     items.push({ label: "브라우저에서 다운로드", action: () => downloadFromGithub(it) });
   }

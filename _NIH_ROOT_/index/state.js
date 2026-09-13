@@ -125,9 +125,12 @@ function ensureJSZip() {
 }
 // "Pages에서 보기" - raw 파일 URL을 그대로 새 탭에 띄운다. 텍스트/이미지는 브라우저가 그대로 보여준다
 // (다운로드가 아니라 "그 페이지 자체를 보는" 용도 - 강제 다운로드는 아래 downloadFromGithub가 담당).
-async function viewOnPages(it) {
+// 요청: 우클릭의 "브라우저에서 보기" 옆에 팝업 버전도 필요하다 - popup이 참이면 새 탭 대신
+// openShortcutUrl과 같은 크기의 작은 별도 창으로 연다.
+async function viewOnPages(it, popup) {
   const url = await githubRawUrl(it);
-  dfOpenNewTab(url, "_blank", "noopener,noreferrer");
+  if (popup) dfOpenNewTab(url, "_blank", "width=1000,height=700,resizable=yes,scrollbars=yes,noopener");
+  else dfOpenNewTab(url, "_blank", "noopener,noreferrer");
 }
 // "GitHub에서 다운로드" - 단순 링크 이동이 아니라 fetch로 받아서 blob으로 강제 저장한다.
 // (raw.githubusercontent.com은 텍스트/이미지를 그냥 열어버리기 때문에, 링크 이동만으로는 다운로드가 안 됨)
@@ -336,6 +339,10 @@ function dfArmBootSoundOnFirstInteraction() {
 const EXTENSION_RUN_ACTIONS = [
   { key: "helper", label: "로컬에서 열기(헬퍼)" },
   { key: "newtab", label: "새 탭에서 열기" },
+  // 요청: "새 탭에서 열기(newtab)"의 짝으로 팝업 버전도 확장자 탭에서 고를 수 있어야 한다 -
+  // viewAsHostedPage와 완전히 같은 주소를 새 탭 대신 작은 별도 창(popup)으로 연다
+  // (openShortcutUrl/트레이 항목의 "팝업으로 열기"와 같은 창 크기 패턴).
+  { key: "popup", label: "팝업으로 열기" },
   { key: "editor", label: "에디터로 열기" },
   { key: "text", label: "텍스트(브라우저)로 열기" },
   { key: "download", label: "다운로드" },
