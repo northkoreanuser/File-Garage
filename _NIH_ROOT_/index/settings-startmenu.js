@@ -29,8 +29,8 @@ const DEFAULT_SETTINGS = {
   // 기본값 이유로 기본을 켬으로 둔다 - mergeSoundSetConfigs 참고).
   skinSoundPriority: true,
   // 요청 #152: "페이지를 열 때마다 로컬 헬퍼(웹훅)가 켜져 있는지 미리 조용히 확인해두는 것" -
-  // 브라우저의 로컬 네트워크 접근 권한 팝업이 뜰 수 있어 기본은 꺼둔다. 웹훅으로 실제 다운로드가
-  // 한 번이라도 성공하면(local-helper.js의 dfNoteWebhookDownloadSucceeded) 자동으로 켜진다.
+  // 브라우저의 로컬 네트워크 접근 권한 팝업이 뜰 수 있어 기본은 꺼둔다. 웹훅이 한 번이라도
+  // 응답하면(연결 확인·다운로드 성공·실패 모두 포함, local-helper.js의 dfNoteWebhookInUse) 자동으로 켜진다.
   checkHelperOnLoad: false,
   // 요청 #128: "페이지 로드시 전체화면" - 기본 켬. 실제로는 브라우저 정책상 사용자 동작(클릭) 없이
   // 전체화면 API를 부를 수 없어서, 로드 후 첫 클릭에 자동으로 들어간다(dfArmFullscreenOnNextClick
@@ -258,8 +258,8 @@ function dfSettingsReflectDoubleClick(value) {
   const sel = dfSettingsWinHandle.bodyEl.querySelector("#setDoubleClick");
   if (sel) sel.value = value;
 }
-// 요청 #152: 웹훅 다운로드가 처음 성공해서 "페이지를 열 때 로컬 웹훅 자동 확인"이 자동으로 켜질 때,
-// 환경설정 창이 열려 있었다면 체크박스에도 바로 반영한다(dfNoteWebhookDownloadSucceeded에서 호출).
+// 요청 #152: 웹훅이 처음 응답해서(연결·성공·실패 무관) "페이지를 열 때 로컬 웹훅 자동 확인"이 자동으로 켜질 때,
+// 환경설정 창이 열려 있었다면 체크박스에도 바로 반영한다(dfNoteWebhookInUse에서 호출).
 function dfSettingsReflectCheckHelperOnLoad(value) {
   if (!dfSettingsWinHandle) return;
   const cb = dfSettingsWinHandle.bodyEl.querySelector("#setCheckHelperOnLoad");

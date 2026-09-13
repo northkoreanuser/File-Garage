@@ -38,19 +38,24 @@ function dfNoteWebhookConnected() {
   dfHelperConnectedOnce = true;
   dfsPlaySound("webhook_connected");
   dfAutoActivateHelperSetting();
+  // 요청 #152 보강: 웹훅이 한 번이라도 응답하면(포트 스캔 성공 = 헬퍼가 살아 있음) 이미
+  // 쓰는 중으로 보고, 페이지 로드시 로컬 웹훅 자동 검사를 켠다. 다운로드 성공/실패와 무관하다
+  // - 실패 토스트가 떠도 웹훅이 명령은 받았다는 증거이므로 같은 취급.
+  dfNoteWebhookInUse();
 }
 // 요청 #152: "로컬 웹훅 검사(페이지를 열 때마다 자동으로 헬퍼가 켜져 있는지 미리 확인하는 것)"는
-// 기본 꺼짐이지만(브라우저 로컬 네트워크 접근 팝업 등이 번거로울 수 있어서), 웹훅으로 실제 다운로드가
-// 한 번이라도 성공하면 - "이 사람은 이미 헬퍼를 쓰고 있구나"로 보고 - 그때부터는 자동으로 켜준다.
-// 요청 #134(더블클릭 동작 자동 전환)와는 완전히 별개 기능이라 서로 건드리지 않는다. 이 함수는
-// 세션마다 매번이 아니라 실제로 설정이 꺼져 있을 때만 의미가 있고, 한 번 켜지면 계속 켜진 채로
-// 저장되므로 다음에 또 다운로드해도 조용히 아무 일도 안 한다.
-function dfNoteWebhookDownloadSucceeded() {
+// 기본 꺼짐이지만(브라우저 로컬 네트워크 접근 팝업 등이 번거로울 수 있어서), 웹훅이 한 번이라도
+// 응답하면 - 성공 다운로드든, 실패/오류든, 연결 확인이든 - "이 사람은 이미 헬퍼를 쓰고 있구나"로
+// 보고 그때부터 자동으로 켠다. 요청 #134(더블클릭 동작 자동 전환)와는 완전히 별개 기능이라
+// 서로 건드리지 않는다. 한 번 켜지면 계속 켜진 채로 저장되므로 이후에는 조용히 아무 일도 안 한다.
+function dfNoteWebhookInUse() {
   if (settings.checkHelperOnLoad) return;
   settings.checkHelperOnLoad = true;
   saveSettings();
   if (typeof dfSettingsReflectCheckHelperOnLoad === "function") dfSettingsReflectCheckHelperOnLoad(true);
 }
+// 하위 호환 별칭(기존 호출부 유지). 이제는 성공만이 아니라 웹훅 사용 자체가 기준이다.
+function dfNoteWebhookDownloadSucceeded() { dfNoteWebhookInUse(); }
 
 /* ============ 도구 파일 실제 위치 (base64 내장 대신 저장소의 진짜 파일을 그대로 가리킴) ============
    예전엔 index.html 안에 localserver.ahk/indexer.ahk를 base64로 통째로 내장해서(VIRTUAL_FILES)
