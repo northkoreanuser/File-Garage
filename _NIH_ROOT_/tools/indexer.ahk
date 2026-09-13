@@ -209,13 +209,19 @@ SortFilesKo(ByRef arr) {
 
 ; ------------------------------------------------------------
 ; 폴더 하나의 pages.json 작성 -> {"folders":[...], "files":[{"name":...,"size":...}, ...]}
+; 파일 목록이 이전과 동일하면 덮어쓰지 않는다(수정 시간이 바뀌어 불필요한 커밋이 생기지 않도록).
 ; ------------------------------------------------------------
 WritePagesJson(dir, folders, files) {
     json := "{`n  ""folders"": " . BuildJsonArray(folders) . ",`n  ""files"": " . BuildFilesJsonArray(files) . "`n}`n"
 
     outFile := dir . "\pages.json"
-    if FileExist(outFile)
+    if FileExist(outFile) {
+        FileRead, existing, %outFile%
+        ; 줄바꿈/공백 차이까지 포함해 바이트 단위로 동일하면 스킵 (수정 시간 유지)
+        if (existing = json)
+            return
         FileDelete, %outFile%
+    }
     FileAppend, %json%, %outFile%, UTF-8-RAW
 }
 
