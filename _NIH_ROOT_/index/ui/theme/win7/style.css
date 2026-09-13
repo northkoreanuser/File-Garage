@@ -412,7 +412,7 @@
     padding: 4px; z-index: 2030;
   }
   .ctx-item { padding: 7px 10px; font-size: 12.5px; color: #16324f; border-radius: 5px; cursor: var(--cur-link); }
-  .ctx-item:hover { background: rgba(90,160,220,.2); }
+  .ctx-item:hover, .ctx-item.ctx-focused { background: rgba(90,160,220,.2); }
 
   /* ---------- 에어로(반투명 블러) 끄기 옵션 - 환경설정에서 토글, 기본 켜짐 ---------- */
   body.no-aero .taskbar { background: #1e2e40; -webkit-backdrop-filter: none; backdrop-filter: none; }

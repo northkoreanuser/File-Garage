@@ -5,16 +5,61 @@ let activeCtxMenu = null;
 // .ctx-menu가 하나 더 뜬다(같은 클래스를 재사용하므로 테마별 CSS를 새로 추가할 필요가 없다).
 // 하위 메뉴는 한 번에 하나만 열려 있을 수 있고, 최상위 메뉴를 닫으면 같이 정리된다.
 let activeCtxSubmenu = null;
+// 방향키 컨텍스트 메뉴 탐색: 지금 방향키 포커스가 가 있는 "레벨"(최상위 메뉴 또는 그 아래로 열린
+// 하위 메뉴 하나) - 마우스만 쓸 때는 그대로 null로 남아있고(기존 동작과 완전히 동일), 방향키를
+// 한 번이라도 누르는 순간부터 이 변수가 그 메뉴를 가리키며 각 행에 .ctx-focused 클래스로
+// 시각 표시를 해준다(테마별 style.css에서 :hover와 같은 배경을 쓰도록 이미 맞춰뒀다).
+let ctxFocusMenu = null;
 function closeCtxSubmenu() {
   if (activeCtxSubmenu) { activeCtxSubmenu.remove(); activeCtxSubmenu = null; }
+  // 하위 메뉴가 닫히면서 그 안에 있던 방향키 포커스도 같이 사라지므로, 포커스를 그 부모(최상위
+  // 메뉴)로 되돌려준다 - 그래야 하위 메뉴를 여러 번 열었다 닫았다 해도 포커스가 미아가 되지 않는다.
+  if (ctxFocusMenu && ctxFocusMenu !== activeCtxMenu) ctxFocusMenu = activeCtxMenu;
 }
 function closeContextMenu() {
   closeCtxSubmenu();
   if (activeCtxMenu) { activeCtxMenu.remove(); activeCtxMenu = null; }
+  ctxFocusMenu = null;
 }
-function dfsBuildCtxMenuEl(items) {
+// 방향키(위/아래)로 menu 안의 idx번째 행에 포커스를 준다 - 범위를 벗어나면 반대쪽 끝으로
+// 돌아온다(실제 윈도우 메뉴와 동일한 감각).
+function ctxSetRowFocus(menu, idx) {
+  if (!menu || !menu._rows || !menu._rows.length) return;
+  const n = menu._rows.length;
+  idx = ((idx % n) + n) % n;
+  if (menu._focusIndex >= 0 && menu._rows[menu._focusIndex]) menu._rows[menu._focusIndex].classList.remove("ctx-focused");
+  menu._focusIndex = idx;
+  const row = menu._rows[idx];
+  row.classList.add("ctx-focused");
+  if (row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
+}
+// 실제로 하위 메뉴를 만들어 화면에 배치한다 - 마우스 hover(dfsBuildCtxMenuEl 안)와 키보드
+// 오른쪽 화살표/Enter(아래 keydown 리스너) 양쪽에서 재사용하므로 로직이 중복되지 않는다.
+function ctxOpenSubmenuForRow(row, it, parentMenu) {
+  const sub = dfsBuildCtxMenuEl(it.items, parentMenu, row);
+  sub._forRow = row;
+  document.body.appendChild(sub);
+  const r = row.getBoundingClientRect();
+  const w = sub.offsetWidth, h = sub.offsetHeight;
+  let left = r.right - 2;
+  if (left + w > window.innerWidth) left = Math.max(4, r.left - w + 2);
+  let top = r.top;
+  if (top + h > window.innerHeight) top = window.innerHeight - h - 4;
+  sub.style.left = Math.max(4, left) + "px";
+  sub.style.top = Math.max(4, top) + "px";
+  activeCtxSubmenu = sub;
+  return sub;
+}
+// parentMenu/parentRow: 이 메뉴가 하위 메뉴일 때 "누구 아래에 열렸는지" 기억해둔다 - 방향키
+// 왼쪽으로 다시 닫을 때 포커스를 그 부모 항목으로 되돌리기 위해서다(최상위 메뉴는 둘 다 null).
+function dfsBuildCtxMenuEl(items, parentMenu, parentRow) {
   const menu = document.createElement("div");
   menu.className = "ctx-menu";
+  menu._items = items;
+  menu._rows = [];
+  menu._focusIndex = -1;
+  menu._parentMenu = parentMenu || null;
+  menu._parentRow = parentRow || null;
   items.forEach(it => {
     const row = document.createElement("div");
     row.className = "ctx-item";
@@ -23,18 +68,7 @@ function dfsBuildCtxMenuEl(items) {
       row.onmouseenter = () => {
         if (activeCtxSubmenu && activeCtxSubmenu._forRow === row) return;
         closeCtxSubmenu();
-        const sub = dfsBuildCtxMenuEl(it.items);
-        sub._forRow = row;
-        document.body.appendChild(sub);
-        const r = row.getBoundingClientRect();
-        const w = sub.offsetWidth, h = sub.offsetHeight;
-        let left = r.right - 2;
-        if (left + w > window.innerWidth) left = Math.max(4, r.left - w + 2);
-        let top = r.top;
-        if (top + h > window.innerHeight) top = window.innerHeight - h - 4;
-        sub.style.left = Math.max(4, left) + "px";
-        sub.style.top = Math.max(4, top) + "px";
-        activeCtxSubmenu = sub;
+        ctxOpenSubmenuForRow(row, it, menu);
       };
       row.onclick = (e) => { e.stopPropagation(); }; // 하위 메뉴가 있는 항목 자체는 열기만 하고 닫지 않는다
     } else {
@@ -48,6 +82,7 @@ function dfsBuildCtxMenuEl(items) {
       row.onmouseenter = () => { if (menu !== activeCtxSubmenu) closeCtxSubmenu(); };
       row.onclick = (e) => { e.stopPropagation(); closeContextMenu(); it.action(); };
     }
+    menu._rows.push(row);
     menu.appendChild(row);
   });
   return menu;
@@ -55,7 +90,7 @@ function dfsBuildCtxMenuEl(items) {
 function showContextMenu(x, y, items) {
   closeContextMenu();
   if (!items.length) return;
-  const menu = dfsBuildCtxMenuEl(items);
+  const menu = dfsBuildCtxMenuEl(items, null, null);
   document.body.appendChild(menu);
   const w = menu.offsetWidth, h = menu.offsetHeight;
   let left = x, top = y;
@@ -65,6 +100,63 @@ function showContextMenu(x, y, items) {
   menu.style.top = Math.max(4, top) + "px";
   activeCtxMenu = menu;
 }
+/* ============ 방향키로 컨텍스트 메뉴 안 이동 ============
+   열려 있는 우클릭 메뉴가 하나라도 있으면(activeCtxMenu) 위/아래/왼쪽/오른쪽·Enter/Space를 여기서
+   가로채 메뉴 탐색으로만 쓴다 - 캡처 단계에서 stopPropagation까지 해서, 같은 방향키를 듣고 있는
+   바탕화면 아이콘층/내용창/트리(desktop-fs.js·content-pane.js·tree-pane.js)의 자체 방향키 이동이
+   메뉴가 떠 있는 동안 같이 움직여버리는 것을 막는다.
+     - 위/아래: 지금 레벨(최상위 또는 열려 있는 하위 메뉴) 안에서 한 칸씩 이동, 끝에서는 반대쪽으로.
+     - 오른쪽: 포커스가 하위 메뉴가 있는 항목 위에 있으면 그 하위 메뉴를 열고 첫 항목으로 포커스를 옮긴다.
+     - 왼쪽: 지금 레벨이 하위 메뉴면 그 메뉴를 닫고 포커스를 열었던 부모 항목으로 되돌린다(최상위
+       메뉴에서는 아무 동작도 하지 않는다 - 메뉴 자체를 닫아버리면 실제 윈도우 동작과 다르다).
+     - Enter/Space: 포커스된 항목을 실행(하위 메뉴면 열기, leaf면 클릭과 동일). */
+document.addEventListener("keydown", (e) => {
+  if (!activeCtxMenu) return;
+  if (!["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Enter", " "].includes(e.key)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const menu = ctxFocusMenu || activeCtxSubmenu || activeCtxMenu;
+  ctxFocusMenu = menu;
+  // 아직 아무 항목도 포커스되어 있지 않으면(-1) 아래는 첫 항목, 위는 마지막 항목으로 바로
+  // 이동한다 - 그냥 -1에서 1을 빼고/더해 일반 wrap 계산에 맡기면 위쪽 첫 시도가 마지막 바로
+  // 앞 항목으로 어긋나 버린다(끝에서 하나 모자라게 도는 계산 오차).
+  if (e.key === "ArrowDown") { ctxSetRowFocus(menu, menu._focusIndex < 0 ? 0 : menu._focusIndex + 1); return; }
+  if (e.key === "ArrowUp") { ctxSetRowFocus(menu, menu._focusIndex < 0 ? menu._rows.length - 1 : menu._focusIndex - 1); return; }
+  if (e.key === "ArrowRight") {
+    if (menu._focusIndex < 0) { ctxSetRowFocus(menu, 0); return; }
+    const it = menu._items[menu._focusIndex];
+    if (!it || !it.items) return; // 하위 메뉴가 없는 항목에서는 오른쪽 화살표가 할 일이 없다
+    const row = menu._rows[menu._focusIndex];
+    let sub = (activeCtxSubmenu && activeCtxSubmenu._forRow === row) ? activeCtxSubmenu : null;
+    if (!sub) { closeCtxSubmenu(); sub = ctxOpenSubmenuForRow(row, it, menu); }
+    ctxFocusMenu = sub;
+    ctxSetRowFocus(sub, 0);
+    return;
+  }
+  if (e.key === "ArrowLeft") {
+    if (!menu._parentMenu) return; // 최상위 메뉴에서는 왼쪽 화살표로 메뉴 자체를 닫지 않는다(ESC의 역할)
+    const parentMenu = menu._parentMenu, parentRow = menu._parentRow;
+    closeCtxSubmenu();
+    ctxFocusMenu = parentMenu;
+    const pIdx = parentRow && parentMenu._rows ? parentMenu._rows.indexOf(parentRow) : -1;
+    ctxSetRowFocus(parentMenu, pIdx >= 0 ? pIdx : parentMenu._focusIndex);
+    return;
+  }
+  // Enter / Space
+  if (menu._focusIndex < 0) return;
+  const it = menu._items[menu._focusIndex];
+  if (!it) return;
+  if (it.items) {
+    const row = menu._rows[menu._focusIndex];
+    let sub = (activeCtxSubmenu && activeCtxSubmenu._forRow === row) ? activeCtxSubmenu : null;
+    if (!sub) { closeCtxSubmenu(); sub = ctxOpenSubmenuForRow(row, it, menu); }
+    ctxFocusMenu = sub;
+    ctxSetRowFocus(sub, 0);
+  } else {
+    closeContextMenu();
+    it.action();
+  }
+}, true);
 function buildFileMenuItems(it) {
   // 요청 #113: 휴지통 안의 항목(파일/폴더 모두)은 CRUD 메뉴 대신 복원/영구 삭제 두 개만 제공한다
   // (실제 윈도우 휴지통과 동일 - 이름 변경/새 폴더/복사 등은 휴지통 안에서는 의미가 없음).
@@ -79,6 +171,8 @@ function buildFileMenuItems(it) {
     // 메뉴만으로 그 폴더 안으로 들어갈 수 있도록 "열기"도 맨 앞에 넣는다(사용자 지시 - "이런
     // 주소도 가능하다, 그러므로 열기 메뉴가 필요하다").
     const items = [{ label: "열기", action: () => navigate(it.path) }, { label: "다운로드", action: () => downloadFolderRecursive(it) }];
+    // 요청: 저장소 폴더도 우클릭 메뉴에서 바로 바탕 화면에 바로가기를 만들 수 있어야 한다.
+    items.push({ label: "바탕 화면에 바로가기 만들기", action: () => dfsCreateDesktopShortcutFromRepoItem(it) });
     if (settings.githubLinksEnabled) items.push({ label: "저장소에서 보기", action: () => openFolderInRepo(it) });
     // 요청 #140: 하위 pages.json을 실시간으로 재귀 집계해서 파일 개수/전체 크기를 보여준다.
     items.push({ label: "속성", action: () => showRepoFolderProperties(it.path, { kind: "폴더" }) });
@@ -105,6 +199,10 @@ function buildFileMenuItems(it) {
   // 실제 저장소 파일은 원본에는 쓸 수 없지만(GitHub에 직접 못 씀), 에디터 자체는 수정 가능하다 -
   // 저장하면 이 가짜 OS의 바탕화면(가상 파일시스템)에 새 파일로 저장된다(사용자 지시).
   items.push({ label: "에디터로 열기", action: () => dfsOpenRepoFileInEditor(it) });
+  // 요청: 저장소 파일도 우클릭 메뉴에서 바로 바탕 화면에 바로가기를 만들 수 있어야 한다(.sc
+  // 바로가기 파일 자기 자신을 우클릭했을 때도 예외 없이 그대로 제공 - "그 .sc 파일을 가리키는
+  // 또 다른 바로가기"를 만드는 것도 유효한 시나리오이기 때문).
+  items.push({ label: "바탕 화면에 바로가기 만들기", action: () => dfsCreateDesktopShortcutFromRepoItem(it) });
   if (settings.githubLinksEnabled) {
     items.push({ label: "브라우저에서 보기", action: () => viewOnPages(it) });
     items.push({ label: "저장소에서 보기", action: () => openInRepo(it) });
@@ -210,13 +308,11 @@ function dfsDesktopFileMenuItems(it) {
       { label: "열기", action: () => dfsActivate(node) },
       { label: "이름 변경", action: async () => dfsPromptRename(node, refresh) },
     ];
-    // 요청 #141: 사용자가 직접 주소를 입력해 만든 바로가기(url 방식)만 편집/파일로 다운로드할 수
-    // 있다 - 기존 항목을 가리키는 바로가기(targetId 방식)는 "주소"가 아니라 대상 id라서 이 편집
-    // UI(showShortcutDialog)로 고칠 게 없고, 다른 곳(저장소 등)에서 다시 쓸 수도 없기 때문이다.
-    if (!node.targetId) {
-      shortcutItems.push({ label: "편집", action: () => dfsEditShortcut(node, refresh) });
-      shortcutItems.push({ label: "다운로드(.sc)", action: () => dfsDownloadShortcutFile(node) });
-    }
+    // 요청 #153: targetId 방식(기존 항목을 가리키는 바로가기)도 이제 편집/다운로드가 가능하다 -
+    // dfsEditShortcut/dfsDownloadShortcutFile이 dfsShortcutTargetUrl로 지금 가리키는 위치를
+    // 딥링크 주소로 즉석 변환해서 처리해준다(편집해서 저장하면 그 순간부터 url 방식으로 바뀐다).
+    shortcutItems.push({ label: "편집", action: () => dfsEditShortcut(node, refresh) });
+    shortcutItems.push({ label: "다운로드(.sc)", action: () => dfsDownloadShortcutFile(node) });
     shortcutItems.push(
       { label: "복사", action: () => { dfsClipboard = { id: node.id, mode: "copy" }; showToast(`"${node.name}"을(를) 복사했습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`, { sound: "copy_to_clipboard" }); } },
       { label: "잘라내기", action: () => { dfsClipboard = { id: node.id, mode: "cut" }; showToast(`"${node.name}"을(를) 잘라냈습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`, { sound: "copy_to_clipboard" }); } },

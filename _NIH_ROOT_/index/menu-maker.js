@@ -114,7 +114,11 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   // 들고 있다가 저장할 때 다시 객체로 합친다(serializeIconSet 참고).
   var rawIcons = (RAW.icons && typeof RAW.icons === "object") ? RAW.icons : {};
   DATA.iconRepoRoot = typeof rawIcons.repoRoot === "string" ? rawIcons.repoRoot : "";
-  DATA.iconRecycleBin = typeof rawIcons.recycleBin === "string" ? rawIcons.recycleBin : "";
+  // 휴지통 아이콘은 "비어있음"/"참" 두 상태를 따로 입력받는다 - 옛 데이터(recycleBin 한 필드)만
+  // 있으면 두 상태 모두의 기본값으로 채운다(state.js의 applyCustomIconConfig와 같은 마이그레이션).
+  var rawIconRecycleBinLegacy = typeof rawIcons.recycleBin === "string" ? rawIcons.recycleBin : "";
+  DATA.iconRecycleBinEmpty = typeof rawIcons.recycleBinEmpty === "string" && rawIcons.recycleBinEmpty ? rawIcons.recycleBinEmpty : rawIconRecycleBinLegacy;
+  DATA.iconRecycleBinFull = typeof rawIcons.recycleBinFull === "string" && rawIcons.recycleBinFull ? rawIcons.recycleBinFull : rawIconRecycleBinLegacy;
   // 요청 #144: 바탕화면(트리의 "바탕 화면" 항목) / 환경설정(창 타이틀바) 아이콘 - repoRoot/
   // recycleBin과 완전히 같은 고정 슬롯 패턴이다.
   DATA.iconDesktop = typeof rawIcons.desktop === "string" ? rawIcons.desktop : "";
@@ -130,7 +134,9 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   var rawSkinIcons = (RAW.skinIcons && typeof RAW.skinIcons === "object") ? RAW.skinIcons : {};
   DATA.skinName = typeof RAW.skinName === "string" && RAW.skinName ? RAW.skinName : "win7";
   DATA.skinIconRepoRoot = typeof rawSkinIcons.repoRoot === "string" ? rawSkinIcons.repoRoot : "";
-  DATA.skinIconRecycleBin = typeof rawSkinIcons.recycleBin === "string" ? rawSkinIcons.recycleBin : "";
+  var rawSkinIconRecycleBinLegacy = typeof rawSkinIcons.recycleBin === "string" ? rawSkinIcons.recycleBin : "";
+  DATA.skinIconRecycleBinEmpty = typeof rawSkinIcons.recycleBinEmpty === "string" && rawSkinIcons.recycleBinEmpty ? rawSkinIcons.recycleBinEmpty : rawSkinIconRecycleBinLegacy;
+  DATA.skinIconRecycleBinFull = typeof rawSkinIcons.recycleBinFull === "string" && rawSkinIcons.recycleBinFull ? rawSkinIcons.recycleBinFull : rawSkinIconRecycleBinLegacy;
   DATA.skinIconDesktop = typeof rawSkinIcons.desktop === "string" ? rawSkinIcons.desktop : "";
   DATA.skinIconSettings = typeof rawSkinIcons.settings === "string" ? rawSkinIcons.settings : "";
   DATA.skinIconFolders = (rawSkinIcons.folders && typeof rawSkinIcons.folders === "object")
@@ -160,17 +166,21 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     if (flag === DATA.iconForSkin) return;
     if (flag) {
       DATA.baseIconFolders = DATA.iconFolders; DATA.baseIconExts = DATA.iconExts;
-      DATA.baseIconRepoRoot = DATA.iconRepoRoot; DATA.baseIconRecycleBin = DATA.iconRecycleBin;
+      DATA.baseIconRepoRoot = DATA.iconRepoRoot;
+      DATA.baseIconRecycleBinEmpty = DATA.iconRecycleBinEmpty; DATA.baseIconRecycleBinFull = DATA.iconRecycleBinFull;
       DATA.baseIconDesktop = DATA.iconDesktop; DATA.baseIconSettings = DATA.iconSettings;
       DATA.iconFolders = DATA.skinIconFolders; DATA.iconExts = DATA.skinIconExts;
-      DATA.iconRepoRoot = DATA.skinIconRepoRoot; DATA.iconRecycleBin = DATA.skinIconRecycleBin;
+      DATA.iconRepoRoot = DATA.skinIconRepoRoot;
+      DATA.iconRecycleBinEmpty = DATA.skinIconRecycleBinEmpty; DATA.iconRecycleBinFull = DATA.skinIconRecycleBinFull;
       DATA.iconDesktop = DATA.skinIconDesktop; DATA.iconSettings = DATA.skinIconSettings;
     } else {
       DATA.skinIconFolders = DATA.iconFolders; DATA.skinIconExts = DATA.iconExts;
-      DATA.skinIconRepoRoot = DATA.iconRepoRoot; DATA.skinIconRecycleBin = DATA.iconRecycleBin;
+      DATA.skinIconRepoRoot = DATA.iconRepoRoot;
+      DATA.skinIconRecycleBinEmpty = DATA.iconRecycleBinEmpty; DATA.skinIconRecycleBinFull = DATA.iconRecycleBinFull;
       DATA.skinIconDesktop = DATA.iconDesktop; DATA.skinIconSettings = DATA.iconSettings;
       DATA.iconFolders = DATA.baseIconFolders; DATA.iconExts = DATA.baseIconExts;
-      DATA.iconRepoRoot = DATA.baseIconRepoRoot; DATA.iconRecycleBin = DATA.baseIconRecycleBin;
+      DATA.iconRepoRoot = DATA.baseIconRepoRoot;
+      DATA.iconRecycleBinEmpty = DATA.baseIconRecycleBinEmpty; DATA.iconRecycleBinFull = DATA.baseIconRecycleBinFull;
       DATA.iconDesktop = DATA.baseIconDesktop; DATA.iconSettings = DATA.baseIconSettings;
     }
     DATA.iconForSkin = flag;
@@ -387,7 +397,9 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     container.innerHTML = "";
     [
       { section: "iconRepoRoot", label: "저장소 루트 아이콘", get: function() { return DATA.iconRepoRoot; } },
-      { section: "iconRecycleBin", label: "휴지통 아이콘", get: function() { return DATA.iconRecycleBin; } },
+      // 휴지통은 "비어있음"/"참" 두 상태를 각각 다른 아이콘으로 지정할 수 있게 슬롯을 둘로 나눈다.
+      { section: "iconRecycleBinEmpty", label: "휴지통 아이콘 (비어있음)", get: function() { return DATA.iconRecycleBinEmpty; } },
+      { section: "iconRecycleBinFull", label: "휴지통 아이콘 (참)", get: function() { return DATA.iconRecycleBinFull; } },
       // 요청 #144
       { section: "iconDesktop", label: "바탕화면 아이콘", get: function() { return DATA.iconDesktop; } },
       { section: "iconSettings", label: "환경설정 아이콘", get: function() { return DATA.iconSettings; } }
@@ -718,7 +730,8 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   // 편집 패널(요청 #144로 2개에서 4개로 늘어나면서, 분기 대신 표 하나로 정리했다).
   var SPECIAL_ICON_SPECS = {
     iconRepoRoot: { label: "저장소 루트 아이콘", hint: "바탕 화면과 트리 맨 위의 저장소 루트 폴더에 쓰이는 아이콘입니다." },
-    iconRecycleBin: { label: "휴지통 아이콘", hint: "바탕 화면과 트리의 휴지통에 쓰이는 아이콘입니다." },
+    iconRecycleBinEmpty: { label: "휴지통 아이콘 (비어있음)", hint: "바탕 화면과 트리의 휴지통이 비어있을 때 쓰이는 아이콘입니다." },
+    iconRecycleBinFull: { label: "휴지통 아이콘 (참)", hint: "바탕 화면과 트리의 휴지통에 항목이 하나라도 있을 때 쓰이는 아이콘입니다." },
     iconDesktop: { label: "바탕화면 아이콘", hint: "트리의 \"바탕 화면\" 항목에 쓰이는 아이콘입니다." },
     iconSettings: { label: "환경설정 아이콘", hint: "환경설정 창 타이틀바에 쓰이는 아이콘입니다." }
   };
@@ -992,7 +1005,9 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
       DATA.tray = Array.isArray(parsed.tray) ? parsed.tray : [];
     } else if (currentTab === "icon") {
       DATA.iconRepoRoot = typeof parsed.repoRoot === "string" ? parsed.repoRoot : "";
-      DATA.iconRecycleBin = typeof parsed.recycleBin === "string" ? parsed.recycleBin : "";
+      var importedRecycleBinLegacy = typeof parsed.recycleBin === "string" ? parsed.recycleBin : "";
+      DATA.iconRecycleBinEmpty = typeof parsed.recycleBinEmpty === "string" && parsed.recycleBinEmpty ? parsed.recycleBinEmpty : importedRecycleBinLegacy;
+      DATA.iconRecycleBinFull = typeof parsed.recycleBinFull === "string" && parsed.recycleBinFull ? parsed.recycleBinFull : importedRecycleBinLegacy;
       DATA.iconDesktop = typeof parsed.desktop === "string" ? parsed.desktop : ""; // 요청 #144
       DATA.iconSettings = typeof parsed.settings === "string" ? parsed.settings : "";
       DATA.iconFolders = (parsed.folders && typeof parsed.folders === "object")
@@ -1084,7 +1099,10 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
       folders: serializeIconMap(DATA.iconFolders, function(k) { return k.replace(/^\/+|\/+$/g, ""); }),
       extensions: serializeIconMap(DATA.iconExts, function(k) { return k.replace(/^\.+/, "").toLowerCase(); }),
       repoRoot: DATA.iconRepoRoot || "",
-      recycleBin: DATA.iconRecycleBin || "",
+      // 옛 recycleBin 필드는 더 이상 쓰지 않는다(새 두 필드로 완전히 대체) - 구버전 앱이 이 파일을
+      // 읽을 일은 없으므로 굳이 같이 채워 넣지 않는다.
+      recycleBinEmpty: DATA.iconRecycleBinEmpty || "",
+      recycleBinFull: DATA.iconRecycleBinFull || "",
       desktop: DATA.iconDesktop || "", // 요청 #144
       settings: DATA.iconSettings || ""
     }, null, 2);

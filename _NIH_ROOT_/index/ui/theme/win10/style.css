@@ -383,7 +383,7 @@
     padding: 4px; z-index: 2030;
   }
   .ctx-item { padding: 7px 10px; font-size: 12.5px; color: #202020; border-radius: 2px; cursor: var(--cur-link); }
-  .ctx-item:hover { background: #E5E5E5; }
+  .ctx-item:hover, .ctx-item.ctx-focused { background: #E5E5E5; }
 
   /* ---------- "에어로" 토글 옵션 ----------
      버그 리포트: Win10도 (98/2000/XP를 뺀) "에어로가 될 만한 스킨"에 포함되는데 블러/유리 효과

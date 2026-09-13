@@ -502,11 +502,18 @@ function mergeIconSingle(baseVal, skinVal, skinPriority) {
 }
 function mergeIconSetConfigs(base, skin, skinPriority) {
   const b = base || {}, s = skin || {};
+  // 휴지통은 비어있음/참 두 필드로 나뉜다 - 각 쪽이 새 필드를 안 갖고 있으면(구버전 icon_set.json)
+  // 그쪽의 옛 recycleBin 한 필드를 대신 쓴다(state.js의 applyCustomIconConfig와 같은 마이그레이션).
+  const bRecycleEmpty = b.recycleBinEmpty || b.recycleBin || "";
+  const bRecycleFull = b.recycleBinFull || b.recycleBin || "";
+  const sRecycleEmpty = s.recycleBinEmpty || s.recycleBin || "";
+  const sRecycleFull = s.recycleBinFull || s.recycleBin || "";
   return {
     folders: mergeIconMap(b.folders, s.folders, skinPriority),
     extensions: mergeIconMap(b.extensions, s.extensions, skinPriority),
     repoRoot: mergeIconSingle(b.repoRoot, s.repoRoot, skinPriority),
-    recycleBin: mergeIconSingle(b.recycleBin, s.recycleBin, skinPriority),
+    recycleBinEmpty: mergeIconSingle(bRecycleEmpty, sRecycleEmpty, skinPriority),
+    recycleBinFull: mergeIconSingle(bRecycleFull, sRecycleFull, skinPriority),
     // 요청 #144: 바탕화면/환경설정 아이콘도 저장소 루트/휴지통과 같은 규칙으로 병합한다.
     desktop: mergeIconSingle(b.desktop, s.desktop, skinPriority),
     settings: mergeIconSingle(b.settings, s.settings, skinPriority)

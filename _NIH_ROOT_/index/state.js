@@ -155,14 +155,21 @@ async function downloadFromGithub(it) {
 // repoRoot/recycleBin과 같은 방식으로 고정 슬롯 2개(desktop/settings)를 더 추가한다. desktop은
 // 트리의 "바탕 화면" 항목 아이콘(tree-pane.js), settings는 환경설정 창의 타이틀바 아이콘
 // (settings-startmenu.js가 app-window.js의 dfCreateAppWindow에 넘기는 icon)에 쓰인다.
-let customIconConfig = { folders: {}, extensions: {}, repoRoot: "", recycleBin: "", desktop: "", settings: "" };
+let customIconConfig = { folders: {}, extensions: {}, repoRoot: "", recycleBinEmpty: "", recycleBinFull: "", desktop: "", settings: "" };
+// 요청: 휴지통 커스텀 아이콘을 "비어있음"/"참" 두 장으로 따로 지정할 수 있어야 한다는 지적 -
+// 예전엔 recycleBin 한 필드로 상태와 무관하게 아이콘 하나만 고정됐다(그래서 비어있음/참을 커스텀
+// 아이콘에서는 구분할 수 없었다). 기존 icon_set.json에 옛 필드(recycleBin)만 있는 경우와도 호환
+// 되도록, 새 필드(recycleBinEmpty/recycleBinFull)가 없으면 옛 필드 값을 두 상태 모두의 기본값으로
+// 채워 넣는다(마이그레이션 - 저장하는 순간부터는 새 필드로만 저장된다).
 function applyCustomIconConfig(icons) {
   const src = icons || {};
+  const legacy = typeof src.recycleBin === "string" ? src.recycleBin : "";
   customIconConfig = {
     folders: (src.folders && typeof src.folders === "object") ? src.folders : {},
     extensions: (src.extensions && typeof src.extensions === "object") ? src.extensions : {},
     repoRoot: typeof src.repoRoot === "string" ? src.repoRoot : "",
-    recycleBin: typeof src.recycleBin === "string" ? src.recycleBin : "",
+    recycleBinEmpty: typeof src.recycleBinEmpty === "string" && src.recycleBinEmpty ? src.recycleBinEmpty : legacy,
+    recycleBinFull: typeof src.recycleBinFull === "string" && src.recycleBinFull ? src.recycleBinFull : legacy,
     desktop: typeof src.desktop === "string" ? src.desktop : "",
     settings: typeof src.settings === "string" ? src.settings : ""
   };
@@ -206,7 +213,8 @@ function resolveRepoRootIcon(size) {
 // 고정한다(커스텀 아이콘까지 상태별 두 장으로 나누는 건 이번 요청 범위를 넘어서므로 스키마는
 // 그대로 둔다) - isEmpty는 호출하는 쪽(desktop-fs.js/tree-pane.js)이 실제 휴지통 항목 수를 보고 넘긴다.
 function resolveRecycleBinIcon(size, isEmpty) {
-  if (customIconConfig.recycleBin) return customImgIcon(customIconConfig.recycleBin, size);
+  const custom = isEmpty ? customIconConfig.recycleBinEmpty : customIconConfig.recycleBinFull;
+  if (custom) return customImgIcon(custom, size);
   const src = "_NIH_ROOT_/index/ui/icon/desktop/" + (isEmpty ? "recyclebin1" : "recyclebin2") + ".ico";
   return `<img src="${src}" width="${size}" height="${size}" style="object-fit:contain;" alt="">`;
 }

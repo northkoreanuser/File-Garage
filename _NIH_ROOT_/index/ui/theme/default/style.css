@@ -381,7 +381,7 @@
     padding: 4px; z-index: 2030; /* 가상 탐색기 창(.df-window, z-index 100+)보다 항상 위에 떠야 함 */
   }
   .ctx-item { padding: 7px 10px; font-size: 12.5px; color: #222; border-radius: 5px; cursor: var(--cur-link); }
-  .ctx-item:hover { background: rgba(0,0,0,.06); }
+  .ctx-item:hover, .ctx-item.ctx-focused { background: rgba(0,0,0,.06); }
 
   /* ---------- 에어로(반투명 블러) 끄기 옵션 - 환경설정에서 토글, 기본 켜짐 ---------- */
   body.no-aero .taskbar { background: #f5f5f5; backdrop-filter: none; }

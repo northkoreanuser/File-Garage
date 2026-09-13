@@ -103,14 +103,19 @@ function showPromptDialog(message, defaultValue = "") {
    (confirm-overlay/confirm-panel/confirm-input/settings-button 등)만 재사용해서 테마 8종의
    style.css를 전부 건드리지 않고, 레이아웃은 인라인 스타일로만 처리한다.
    반환: 확인 -> {name, url, icon}, 취소(배경 클릭/취소 버튼/Esc) -> null. */
-function showShortcutDialog(defaults = {}) {
+function showShortcutDialog(defaults = {}, opts = {}) {
   return new Promise(resolve => {
     const previouslyFocused = document.activeElement;
     const overlay = document.createElement("div");
     overlay.className = "confirm-overlay";
+    // 요청 #141: dfsEditShortcut(desktop-fs.js)이 편집 모드에서 title/okLabel을 넘겨주지만,
+    // 예전엔 이 함수가 그 두 번째 인자(opts) 자체를 받지 않아서 항상 "바로가기 생성"/"만들기"로만
+    // 떠 있었다 - 편집할 때도 그렇게 보여서 혼란스럽다는 지적에 맞춰 이제 실제로 반영한다.
+    const titleText = opts.title || "바로가기 생성";
+    const okLabelText = opts.okLabel || "만들기";
     overlay.innerHTML = `
       <div class="confirm-panel">
-        <div class="confirm-message">바로가기 생성</div>
+        <div class="confirm-message">${escapeHtml(titleText)}</div>
         <input type="text" class="confirm-input sc-name-input" placeholder="이름" spellcheck="false">
         <input type="text" class="confirm-input sc-url-input" placeholder="주소(URL, 예: https://...)" spellcheck="false">
         <div style="display:flex;gap:8px;align-items:center;">
@@ -121,9 +126,13 @@ function showShortcutDialog(defaults = {}) {
           <button class="settings-button settings-button-neutral sc-icon-file-btn">이미지 파일 선택</button>
         </div>
         <input type="file" accept="image/*" class="sc-icon-file-input" style="display:none">
+        <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;cursor:pointer;">
+          <input type="checkbox" class="sc-popup-input">
+          <span>새 탭 대신 작은 팝업 창으로 열기</span>
+        </label>
         <div class="confirm-buttons">
           <button class="settings-button settings-button-neutral confirm-cancel">취소</button>
-          <button class="settings-button confirm-ok">만들기</button>
+          <button class="settings-button confirm-ok">${escapeHtml(okLabelText)}</button>
         </div>
       </div>`;
     const nameInput = overlay.querySelector(".sc-name-input");
@@ -131,8 +140,10 @@ function showShortcutDialog(defaults = {}) {
     const iconInput = overlay.querySelector(".sc-icon-input");
     const iconPreview = overlay.querySelector(".sc-icon-preview");
     const fileInput = overlay.querySelector(".sc-icon-file-input");
+    const popupInput = overlay.querySelector(".sc-popup-input");
     nameInput.value = defaults.name || "";
     urlInput.value = defaults.url || "";
+    popupInput.checked = !!defaults.popup;
     let currentIcon = defaults.icon || "";
     function refreshPreview() { iconPreview.style.backgroundImage = currentIcon ? `url("${currentIcon}")` : "none"; }
     function setIcon(v) { currentIcon = v; iconInput.value = v; refreshPreview(); }
@@ -152,7 +163,7 @@ function showShortcutDialog(defaults = {}) {
       const url = urlInput.value.trim();
       if (!url) { showToast("주소(URL)를 입력하세요.", { kind: "warn", sound: "error_generic" }); urlInput.focus(); return; }
       const name = nameInput.value.trim() || "새 바로가기";
-      cleanup({ name, url, icon: currentIcon });
+      cleanup({ name, url, icon: currentIcon, popup: popupInput.checked });
     }
     overlay.querySelector(".confirm-cancel").onclick = () => cleanup(null);
     overlay.querySelector(".confirm-ok").onclick = submit;

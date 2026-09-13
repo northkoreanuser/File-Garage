@@ -415,20 +415,69 @@ async function dfsCreateUrlShortcut(parentId, info) {
   const id = await dfsDb.nodes.add({ parentId, type: "shortcut", name, url: info.url, icon: info.icon || "", popup: !!info.popup, x: pos.x, y: pos.y, createdAt: now, updatedAt: now });
   return dfsDb.nodes.get(id);
 }
-/* ---------------- 요청 #141: 바로가기 편집 ----------------
+// 요청: 저장소(진짜 파일/폴더) 우클릭 메뉴에서도 바탕 화면에 바로가기를 바로 만들 수 있어야 한다는
+// 지시 - 저장소 항목은 dexie 안에 있는 게 아니라서(targetId 방식이 불가능) 이 앱 자신의 해시 기반
+// 딥링크(pathToHash, data-and-hash.js)를 주소로 쓰는 url 방식 바로가기로 만든다. 이렇게 만든 바로
+// 가기는 dfsDownloadShortcutFile로 .sc 파일로 받아 저장소에 다시 올려도(activateScShortcut) 같은
+// 위치가 그대로 다시 열리므로, 바탕화면과 저장소 양쪽에서 재사용 가능한 진짜 바로가기가 된다.
+async function dfsCreateDesktopShortcutFromRepoItem(it) {
+  const url = location.origin + location.pathname + "#" + pathToHash(it.path);
+  await dfsCreateUrlShortcut(DFS_DESKTOP_ROOT, { name: it.name, url, icon: "", popup: false });
+  await dfsBroadcastChange();
+  showToast(`"${it.name}" 바로가기를 바탕 화면에 만들었습니다.`, { sound: "move_or_copy" });
+}
+// 요청: targetId 방식(기존 바탕화면 항목을 가리키는) 바로가기도 편집/다운로드(.sc)가 가능해야
+// 한다는 지시 - dfsCreateDesktopShortcutFromRepoItem이 저장소 항목을 가리킬 때 쓰는 것과 같은
+// 방법(pathToHash 딥링크)으로, targetId가 가리키는 dexie 노드의 현재 경로를 거슬러 올라가며
+// 구해서 그 자리에서 즉석으로 url을 만들어준다. 대상이 삭제됐거나(휴지통 포함) 찾을 수 없으면
+// null을 반환한다.
+async function dfsPathForNodeId(id) {
+  if (!dfsDb) return null;
+  let node = await dfsDb.nodes.get(id);
+  if (!node) return null;
+  const names = [node.name];
+  let cur = node.parentId;
+  while (cur !== DFS_DESKTOP_ROOT && cur !== DFS_RECYCLEBIN_ROOT) {
+    const parent = await dfsDb.nodes.get(cur);
+    if (!parent) return null;
+    names.unshift(parent.name);
+    cur = parent.parentId;
+  }
+  names.unshift(cur === DFS_RECYCLEBIN_ROOT ? RECYCLEBIN_TREE_NAME : DESKTOP_TREE_NAME);
+  return names;
+}
+// 바로가기가 실제로 가리키는 주소를 구한다 - url 방식은 그대로, targetId 방식은 위 함수로 경로를
+// 구해 이 앱의 딥링크로 즉석 변환한다(노드 자체를 바꾸지는 않는다 - 편집/다운로드 쪽에서 필요할
+// 때만 호출해서 쓰는 "조회용" 함수).
+async function dfsShortcutTargetUrl(node) {
+  if (node.url) return node.url;
+  if (!node.targetId) return null;
+  const path = await dfsPathForNodeId(node.targetId);
+  if (!path) return null;
+  return location.origin + location.pathname + "#" + pathToHash(path);
+}
+/* ---------------- 요청 #141/#153: 바로가기 편집 ----------------
    showShortcutDialog를 "편집" 모드(defaults에 지금 값을 채우고 title/okLabel만 바꿈)로 다시 띄워서
-   이름/주소/아이콘/팝업옵션을 한꺼번에 고친다. targetId 방식(기존 항목을 가리키는 바로가기)은
-   가리키는 대상 자체를 편집할 방법이 없으므로(주소가 아니라 대상 id라 편집 UI가 다름) 이 함수의
-   대상이 아니다 - 호출하는 쪽(context-menu.js)이 애초에 url 방식 바로가기에만 "편집"을 붙인다.
-   이름이 바뀌면 dfsRename과 같은 중복 검사를 거친다(다른 이름을 쓰던 항목과 새 이름이 겹칠 수
-   있으므로) - 아니면 그냥 자기 자신과 "겹치는" 걸로 오판해서 항상 거부될 수 있기 때문이다. */
+   이름/주소/아이콘/팝업옵션을 한꺼번에 고친다. targetId 방식(기존 항목을 가리키는 바로가기)도
+   이제 편집할 수 있다 - dfsShortcutTargetUrl로 지금 가리키는 위치를 딥링크 주소로 즉석 변환해서
+   주소 칸에 미리 채워주고, 저장하면 그 주소를 진짜 url로 저장하며 targetId는 지운다(그 순간부터는
+   "주소가 있는" 보통 바로가기가 되어 다음부터는 편집/다운로드 모두 이 함수 하나로 동작한다 - 대상
+   항목이 이름 바뀌거나 이동해도 더는 자동으로 따라가지 않는 대신, 저장소에 올리거나 다른 곳에서도
+   재사용할 수 있게 된다). 이름이 바뀌면 dfsRename과 같은 중복 검사를 거친다(다른 이름을 쓰던
+   항목과 새 이름이 겹칠 수 있으므로) - 아니면 그냥 자기 자신과 "겹치는" 걸로 오판해서 항상 거부될
+   수 있기 때문이다. */
 async function dfsEditShortcut(node, refresh) {
+  const currentUrl = await dfsShortcutTargetUrl(node);
+  if (node.targetId && !currentUrl) {
+    showToast("바로가기가 가리키던 대상을 찾을 수 없어(삭제되었거나 이동됨) 주소를 만들 수 없습니다.", { kind: "warn", sound: "error_generic" });
+    return;
+  }
   const info = await showShortcutDialog(
-    { name: node.name, url: node.url || "", icon: node.icon || "", popup: !!node.popup },
+    { name: node.name, url: currentUrl || "", icon: node.icon || "", popup: !!node.popup },
     { title: "바로가기 편집", okLabel: "저장" }
   );
   if (!info) return;
-  const patch = { url: info.url, icon: info.icon || "", popup: !!info.popup, updatedAt: Date.now() };
+  const patch = { url: info.url, icon: info.icon || "", popup: !!info.popup, targetId: null, updatedAt: Date.now() };
   const newName = info.name.trim() || "새 바로가기";
   if (newName !== node.name) {
     const err = dfsValidateName(newName);
@@ -441,18 +490,20 @@ async function dfsEditShortcut(node, refresh) {
   showToast(`"${patch.name || node.name}"을(를) 저장했습니다.`, { sound: "move_or_copy" });
   await refresh();
 }
-/* ---------------- 요청 #141: 바로가기를 실제 파일(.sc)로 다운로드 ----------------
+/* ---------------- 요청 #141/#153: 바로가기를 실제 파일(.sc)로 다운로드 ----------------
    이 앱만 이해하는 아주 단순한 JSON 텍스트 형식이다 - 이걸 저장소(GitHub)에 올려두면, 다음에
    저장소 탐색기(진짜 리포 파일 목록)에서 그 .sc 파일을 다시 만났을 때도 activateScShortcut
    (keyboard-and-activate.js)이 그대로 읽어서 "바로가기"처럼 동작시킨다(재사용 목적 - 사용자
-   지시). targetId 방식(기존 항목을 가리키는 바로가기)은 그 대상이 이 브라우저의 로컬 dexie
-   안에만 있어서 다른 곳에서는 의미가 없으므로, url이 있는 바로가기만 다운로드할 수 있다. */
-function dfsDownloadShortcutFile(node) {
-  if (!node.url) {
-    showToast("이 바로가기는 내부 항목을 가리키고 있어 파일로 받을 수 없습니다(주소가 있는 바로가기만 가능).", { kind: "warn", sound: "error_generic" });
+   지시). targetId 방식(기존 항목을 가리키는 바로가기)도 dfsShortcutTargetUrl로 지금 위치를
+   딥링크 주소로 즉석 변환해서 담아 내보낸다(노드 자체는 targetId 방식 그대로 유지 - 다운로드는
+   그냥 "지금 이 순간 가리키는 곳"의 스냅샷 파일 한 장을 만드는 것뿐이다). */
+async function dfsDownloadShortcutFile(node) {
+  const url = await dfsShortcutTargetUrl(node);
+  if (!url) {
+    showToast("바로가기가 가리키는 대상을 찾을 수 없어(삭제되었거나 이동됨) 파일로 받을 수 없습니다.", { kind: "warn", sound: "error_generic" });
     return;
   }
-  const payload = JSON.stringify({ nihShortcut: 1, name: node.name, url: node.url, icon: node.icon || "", popup: !!node.popup }, null, 2);
+  const payload = JSON.stringify({ nihShortcut: 1, name: node.name, url, icon: node.icon || "", popup: !!node.popup }, null, 2);
   const blob = new Blob([payload], { type: "application/json;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -1408,6 +1459,11 @@ function dfsBuildIconMenuItems(node, opts = {}) {
     items.push({ label: "다운로드", action: () => dfsDownloadFolderChoice(node) });
   } else if (node.type === "shortcut") {
     items.push({ label: "열기", action: () => dfsActivate(node) });
+    // 요청 #153: 통합 탐색기 창(dfsDesktopFileMenuItems)에만 있던 편집/다운로드(.sc)를 실제
+    // 데스크탑 아이콘 우클릭 메뉴에도 똑같이 붙인다 - targetId 방식이든 url 방식이든 이제 둘 다
+    // 가능하다(dfsEditShortcut/dfsDownloadShortcutFile이 알아서 처리).
+    items.push({ label: "편집", action: () => dfsEditShortcut(node, refresh) });
+    items.push({ label: "다운로드(.sc)", action: () => dfsDownloadShortcutFile(node) });
   } else {
     // 요청 #145: 이진 파일은 에디터로 열 수 없다 - 이미지만 "미리보기(새 탭)"를 대신 보여주고,
     // 그 외 이진 파일은 아래 다운로드 항목들만으로 충분하다(더블클릭도 다운로드로 동작).

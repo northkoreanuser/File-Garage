@@ -14,5 +14,6 @@
     "ini": "/File-Garage/_NIH_ROOT_/index/ui/icon/txt.ico"
   },
   "repoRoot": "/File-Garage/_NIH_ROOT_/index/ui/icon/desktop/drive.ico",
-  "recycleBin": "/File-Garage/_NIH_ROOT_/index/ui/icon/desktop/recyclebin1.ico"
+  "recycleBinEmpty": "/File-Garage/_NIH_ROOT_/index/ui/icon/desktop/recyclebin1.ico",
+  "recycleBinFull": "/File-Garage/_NIH_ROOT_/index/ui/icon/desktop/recyclebin2.ico"
 }

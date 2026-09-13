@@ -417,7 +417,7 @@
     padding: 2px; z-index: 2030;
   }
   .ctx-item { padding: 4px 10px; font-size: 12px; color: #000; cursor: var(--cur-link); }
-  .ctx-item:hover { background: #000080; color: #fff; }
+  .ctx-item:hover, .ctx-item.ctx-focused { background: #000080; color: #fff; }
 
   /* ---------- 에어로(반투명) 옵션 - Win98에는 애초에 블러가 없으므로 켜져 있어도 항상 불투명하다 ---------- */
   body.no-aero .taskbar, .taskbar { background: #c0c0c0; backdrop-filter: none; }

@@ -423,7 +423,7 @@
     padding: 2px; z-index: 2030; /* 가상 탐색기 창(.df-window, z-index 100+)보다 항상 위에 떠야 함 */
   }
   .ctx-item { padding: 4px 10px; font-size: 12px; color: #000; cursor: var(--cur-link); }
-  .ctx-item:hover { background: #0a246a; color: #fff; }
+  .ctx-item:hover, .ctx-item.ctx-focused { background: #0a246a; color: #fff; }
 
   /* ---------- 에어로(반투명) 옵션 - Win2000에는 애초에 블러가 없으므로 켜져 있어도 항상 불투명하다 ---------- */
   body.no-aero .taskbar, .taskbar { background: #c0c0c0; backdrop-filter: none; }

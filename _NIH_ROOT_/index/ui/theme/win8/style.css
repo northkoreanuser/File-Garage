@@ -396,7 +396,7 @@
     padding: 4px; z-index: 2030;
   }
   .ctx-item { padding: 7px 10px; font-size: 12.5px; color: #fff; cursor: var(--cur-link); }
-  .ctx-item:hover { background: #1BA1E2; }
+  .ctx-item:hover, .ctx-item.ctx-focused { background: #1BA1E2; }
 
   /* ---------- 에어로(반투명 블러) 옵션 ----------
      버그 리포트: Win8도 (98/2000/XP를 뺀) "에어로가 될 만한 스킨"에 포함되는데, 예전엔 이 블록이
