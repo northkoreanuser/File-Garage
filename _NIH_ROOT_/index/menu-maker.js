@@ -90,7 +90,7 @@ function dfsBuildMenuMakerBodyHtml() {
         <span class="mm-spacer"></span>
         <button id="mmImport">가져오기</button>
         <input type="file" id="mmImportFile" accept=".json,application/json" style="display:none;">
-        <button id="mmSave">저장/다운로드(전체)</button>
+        <button id="mmSave">저장/다운로드</button>
       </div>
       <div class="mm-body">
         <div class="mm-lists" id="mmListsBody"></div>
@@ -220,6 +220,15 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
 
   function tabLabel(t) { return t === "menu" ? "메뉴" : t === "icon" ? "아이콘" : t === "sound" ? "사운드" : "확장자"; }
   function tabFileName(t) { return t === "menu" ? "menu_set.json" : t === "icon" ? "icon_set.json" : t === "sound" ? "sound_set.json" : "extension_run_set.json"; }
+  // 요청: "URL에서 가져오기를 누르면 항상 그 탭이 참조하는 기본 json 주소가 미리 입력돼 있어야
+  // 한다(템플릿처럼)." - settings-startmenu.js에 정의된 실제 경로 상수(MENU_SET_JSON_PATH 등,
+  // 부팅 시 로딩과 완전히 같은 경로)를 그대로 절대 URL로 바꿔서 돌려준다.
+  function tabJsonAbsUrl(t) {
+    var relPath = t === "menu" ? MENU_SET_JSON_PATH : t === "icon" ? ICON_SET_JSON_PATH : t === "sound" ? SOUND_SET_JSON_PATH : EXTENSION_RUN_SET_JSON_PATH;
+    try { return new URL(relPath, location.href).href; } catch (e) { return relPath; }
+  }
+  // 요청: "전체 저장 제거, 탭마다 저장" - 저장 버튼 라벨에 지금 저장될 대상(현재 탭)을 항상 밝힌다.
+  function saveBtnLabel() { return "저장/다운로드(" + tabLabel(currentTab) + ")"; }
 
   function blankItem() { return { name: "새 항목", url: "", icon: "", popup: false, width: 900, height: 640 }; }
   // 요청 #155: 예전엔 여기서도 매번 상단 텍스트를 "저장 안 됨"으로 갈아치웠는데, setDirty는
@@ -977,6 +986,9 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
       btns[i].classList.toggle("active", btns[i].getAttribute("data-tab") === currentTab);
     }
     importBtn.title = "현재 탭(" + tabLabel(currentTab) + ")에 해당하는 " + tabFileName(currentTab) + " 파일을 불러와 이 탭의 내용을 덮어씁니다";
+    // 요청: "전체 저장 제거, 탭마다 저장" - 버튼 하나를 계속 재사용하되, 지금 보고 있는 탭의
+    // 파일만 저장한다는 걸 라벨에서 항상 알 수 있게 탭을 바꿀 때마다 갱신한다.
+    if (saveBtn && !saveBtn.disabled) saveBtn.textContent = saveBtnLabel();
   }
   var tabBtns = document.querySelectorAll(".mm-tab");
   for (var ti = 0; ti < tabBtns.length; ti++) {
@@ -1128,7 +1140,10 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
       importFileInput.click();
       return;
     }
-    const url = await showPromptDialog("가져올 JSON 파일의 주소(URL)를 입력하세요.", "");
+    // 요청: "URL에서 가져오기를 누르면 항상 그 탭이 참조하는 기본 json 주소가 미리 입력돼
+    // 있어야 한다" - 두 번째 인자(기본값)로 지금 탭의 실제 로딩 경로를 절대 URL로 채워준다.
+    // 그대로 확인해도 되고, 다른 주소로 고쳐 써도 된다.
+    const url = await showPromptDialog("가져올 JSON 파일의 주소(URL)를 입력하세요.", tabJsonAbsUrl(currentTab));
     if (!url) return;
     let text;
     try {
@@ -1152,12 +1167,15 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
 
   // 저장/다운로드: 에디터(editor.js)의 다운로드 버튼과 완전히 같은 패턴 - 로컬 헬퍼(웹훅)가 켜져
   // 있으면 웹훅으로 저장 대화상자, 아니면 브라우저 자체 blob 다운로드로 떨어진다. 저장 위치는 항상
-  // 사용자가 직접 고르므로(정적 사이트라 저장소에 바로 쓸 수 없음), 받은 세 파일을 저장소의
+  // 사용자가 직접 고르므로(정적 사이트라 저장소에 바로 쓸 수 없음), 받은 파일을 저장소의
   // _NIH_ROOT_/index/ 안 같은 이름 위치에 덮어써야 실제로 반영된다(환경설정의 안내 문구 참고).
-  // 요청 #122: 탭이 3개로 나뉘어도 저장 버튼은 하나로 - 항상 세 파일을 한꺼번에 저장한다
-  // (다른 탭에서 손댄 내용을 안 저장하고 놓치는 실수를 막기 위함).
-  // 요청 #121: 단, 아이콘 탭에서 "스킨용으로 저장"이 체크돼 있으면 예외 - icon_set.json
-  // 하나만 그 스킨용으로 저장하고 menu_set.json/sound_set.json은 건너뛴다(filesToSave 참고).
+  // 요청: 전엔 탭이 몇 개든 저장 버튼 하나가 매번 파일 전부(최대 4개)를 한꺼번에 다운로드해서,
+  // 브라우저의 "여러 파일 다운로드 허용" 확인을 눌러야 하는 게 귀찮다는 지적 - 이제 저장 버튼은
+  // 항상 "지금 보고 있는 탭" 파일 하나만 저장한다(currentTabSaveFile). 다른 탭에 손댄 내용을
+  // 놓치지 않으려면 탭을 옮겨 다니며 그때그때 저장하면 된다 - 로컬 스토리지 즉시 반영(요청 #123)
+  // 덕분에 아직 저장 안 한 탭의 편집 내용도 이 브라우저에서는 바로 테스트할 수 있다.
+  // 요청 #121: 아이콘/사운드 탭에서 "스킨용으로 저장"이 체크돼 있으면 그 탭의 파일만 스킨
+  // 폴더용으로 저장된다(currentTabSaveFile의 skinDir 참고).
   // 요청 #131: newTab(새 탭/현재 탭 선택)은 더 이상 UI에 없다 - 항상 새 탭이 기본이고, popup만
   // 선택 사항이다. 예전 menu_set.json에 newTab:false가 남아있어도 다음 저장부터는 사라진다.
   function cleanItem(it) {
@@ -1211,84 +1229,58 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     });
     return JSON.stringify(out, null, 2);
   }
-  // 아이콘 탭과 사운드 탭 둘 다 "스킨용으로 저장"이 있을 수 있으므로, 둘 중 하나라도 체크돼
-  // 있으면 체크된 파일들만(스킨 폴더용으로) 저장하고 나머지(체크 안 된 것 포함, menu_set.json/
-  // extension_run_set.json은 애초에 스킨 개념이 없으므로 항상 제외)는 저장하지 않는다. 둘 다
-  // 체크돼 있으면 icon_set.json + sound_set.json 두 개를 한 번에 그 스킨 폴더용으로 저장한다.
-  function skinOnlySaveFiles() {
-    var out = [];
-    if (DATA.iconForSkin) out.push({ name: "icon_set.json", text: serializeIconSet() });
-    if (DATA.soundForSkin) out.push({ name: "sound_set.json", text: serializeSoundSet() });
-    return out;
+  // 요청: "전체 저장 하면 다운로드 여러 개라 브라우저의 '다중 다운로드 허용'을 눌러야 해서
+  // 귀찮다 - 하나씩 하는 게 편하니 전체 저장은 없애고 탭마다 저장해라." - 그래서 이제 저장
+  // 버튼은 항상 "지금 보고 있는 탭" 파일 하나만 만든다(스킨용 체크박스는 아이콘/사운드 탭
+  // 자기 자신에만 있으므로 그 탭을 볼 때만 반영됨 - 다른 탭까지 건드릴 일이 없어 로직이
+  // 단순해졌다). 파일이 항상 하나뿐이라 다운로드도 항상 하나뿐이고, 다중 다운로드 허용
+  // 프롬프트 자체가 뜰 일이 없다.
+  function currentTabSaveFile() {
+    if (currentTab === "menu") return { name: "menu_set.json", text: serializeMenuSet(), skinDir: false };
+    if (currentTab === "icon") return { name: "icon_set.json", text: serializeIconSet(), skinDir: !!DATA.iconForSkin };
+    if (currentTab === "sound") return { name: "sound_set.json", text: serializeSoundSet(), skinDir: !!DATA.soundForSkin };
+    return { name: "extension_run_set.json", text: serializeExtRunSet(), skinDir: false };
   }
-  // 저장 성공 토스트 문구를 스킨용 저장 여부에 맞춰 만든다 - 체크된 게 하나면 그 파일 이름만,
-  // 둘 다면 두 파일 다, 아무 것도 스킨용이 아니면 기존처럼 네 파일 전체를 언급한다.
-  function skinSaveNoticeText(methodLabel) {
-    if (!DATA.iconForSkin && !DATA.soundForSkin) {
-      return methodLabel + "(menu_set/icon_set/sound_set/extension_run_set.json) - 저장소의 _NIH_ROOT_/index/ 안에 덮어써 주세요";
+  // 저장 성공 토스트 문구 - 스킨용 체크가 돼 있으면 그 스킨 폴더 경로를, 아니면 기본 경로를 안내한다.
+  function skinSaveNoticeText(methodLabel, file) {
+    if (!file.skinDir) {
+      return methodLabel + "(" + file.name + ") - 저장소의 _NIH_ROOT_/index/ 안에 덮어써 주세요";
     }
-    var names = [];
-    if (DATA.iconForSkin) names.push("icon_set.json");
-    if (DATA.soundForSkin) names.push("sound_set.json");
-    return methodLabel + "(" + names.join(", ") + ', "' + DATA.skinName + '" 스킨용) - 저장소의 _NIH_ROOT_/index/ui/theme/' + DATA.skinName + '/ 안에 덮어써 주세요';
-  }
-  function filesToSave() {
-    // 요청 #121: "스킨용으로 저장"이 체크된 상태면(아이콘/사운드 둘 중 하나라도) 그 파일(들)만
-    // 저장하고(그 스킨 폴더용), 시작 메뉴/트레이(menu_set.json)/확장자(extension_run_set.json)와
-    // 체크 안 된 나머지 탭은 아예 저장하지 않는다.
-    if (DATA.iconForSkin || DATA.soundForSkin) return skinOnlySaveFiles();
-    return [
-      { name: "menu_set.json", text: serializeMenuSet() },
-      { name: "icon_set.json", text: serializeIconSet() },
-      { name: "sound_set.json", text: serializeSoundSet() },
-      { name: "extension_run_set.json", text: serializeExtRunSet() }
-    ];
+    return methodLabel + "(" + file.name + ', "' + DATA.skinName + '" 스킨용) - 저장소의 _NIH_ROOT_/index/ui/theme/' + DATA.skinName + '/ 안에 덮어써 주세요';
   }
   // 포트 탐색은 이 파일 안에서 다시 구현하지 않고 local-helper.js의 ensureHelperPort를 그대로
   // 쓴다(요청 #135 - 에디터와 같은 이유: 포트 캐싱을 공유하고, 처음 찾았을 때 dfNoteWebhookConnected
   // (#134 자동 활성화)도 자연히 같이 탄다).
-  function blobDownloadOne(file, delayMs) {
+  function blobSaveOne(file) {
     return new Promise(function(resolve) {
-      setTimeout(function() {
-        var blob = new Blob([file.text], { type: "application/json;charset=utf-8" });
-        var a = document.createElement("a");
-        a.href = URL.createObjectURL(blob); a.download = file.name; a.click();
-        URL.revokeObjectURL(a.href);
-        resolve();
-      }, delayMs);
-    });
-  }
-  function blobDownloadAll(files) {
-    // 연속으로 너무 빨리 여러 개를 내려받으면 브라우저가 일부를 막을 수 있어(다중 다운로드 차단),
-    // 다른 곳(폴더 다중 다운로드 등)과 같은 습관으로 살짝 간격을 두고 순서대로 내려받는다.
-    return files.reduce(function(chain, file, idx) {
-      return chain.then(function() { return blobDownloadOne(file, idx === 0 ? 0 : 150); });
-    }, Promise.resolve()).then(function() {
-      showToast(skinSaveNoticeText("브라우저로 다운로드됨"), { sticky: true });
+      var blob = new Blob([file.text], { type: "application/json;charset=utf-8" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = file.name; a.click();
+      URL.revokeObjectURL(a.href);
+      resolve();
+    }).then(function() {
+      showToast(skinSaveNoticeText("브라우저로 다운로드됨", file), { sticky: true });
       state.dirty = false;
     });
   }
-  function webhookSaveAll(port, files) {
-    return files.reduce(function(chain, file) {
-      return chain.then(function() {
-        return fetch("http://127.0.0.1:" + port + "/savecontent?name=" + encodeURIComponent(file.name), {
-          method: "POST",
-          body: file.text
-        }).then(function(res) {
-          return res.text().then(function(t) {
-            if (!res.ok) throw new Error(String(res.status));
-            return t.indexOf("CANCELLED") !== -1;
-          });
-        });
+  function webhookSaveOne(port, file) {
+    return fetch("http://127.0.0.1:" + port + "/savecontent?name=" + encodeURIComponent(file.name), {
+      method: "POST",
+      body: file.text
+    }).then(function(res) {
+      return res.text().then(function(t) {
+        if (!res.ok) throw new Error(String(res.status));
+        return t.indexOf("CANCELLED") !== -1;
       });
-    }, Promise.resolve(false)).then(function(lastCancelled) {
-      if (lastCancelled) { showToast("다운로드가 취소되었습니다."); return; }
+    }).then(function(cancelled) {
+      if (cancelled) { showToast("다운로드가 취소되었습니다."); return; }
       dfNoteWebhookDownloadSucceeded(); // 요청 #152
-      showToast(skinSaveNoticeText("웹훅으로 다운로드됨"), { sticky: true });
+      showToast(skinSaveNoticeText("웹훅으로 다운로드됨", file), { sticky: true });
       state.dirty = false;
     });
   }
   var saveBtn = document.getElementById("mmSave");
+  saveBtn.textContent = saveBtnLabel();
   // 요청 #155: 예전엔 이 버튼 하나가 "웹훅이 켜져 있으면 웹훅으로, 아니면 브라우저로"를 조용히
   // 알아서 정해버려서 사용자가 고를 수 없었다(웹훅이 켜져 있어도 그냥 빨리 브라우저로 받고 싶을
   // 수 있음) - 요청 #149의 가져오기 로컬/웹 분리와 같은 습관으로, 누르면 먼저 방법을 물어본다.
@@ -1300,23 +1292,22 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     ]);
     if (!choice) return;
     saveBtn.disabled = true;
-    var oldLabel = saveBtn.textContent;
     saveBtn.textContent = "확인 중...";
-    var files = filesToSave();
+    var file = currentTabSaveFile();
     try {
-      if (choice === "blob") { await blobDownloadAll(files); return; }
+      if (choice === "blob") { await blobSaveOne(file); return; }
       var port = await ensureHelperPort();
       if (port === null) {
         showToast('로컬 헬퍼(웹훅)를 찾지 못해 대신 브라우저로 다운로드합니다. 환경설정에서 "웹훅 받기"로 받아서 실행해두면 다음부터 웹훅으로 저장할 수 있습니다.', { kind: "warn" });
-        await blobDownloadAll(files);
+        await blobSaveOne(file);
         return;
       }
-      await webhookSaveAll(port, files);
+      await webhookSaveOne(port, file);
     } catch (e) {
-      await blobDownloadAll(files);
+      await blobSaveOne(file);
     } finally {
       saveBtn.disabled = false;
-      saveBtn.textContent = oldLabel;
+      saveBtn.textContent = saveBtnLabel();
     }
   };
   // 저장 안 한 내용이 있는지는 이제 이 창 전체의 beforeunload(app-window.js의 공용 리스너, 이

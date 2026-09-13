@@ -308,7 +308,12 @@ function runDoubleClickAction(action, it) {
     // 작은 별도 창으로 연다.
     case "popup": viewAsHostedPage(it, true); break;
     case "editor": dfsOpenRepoFileInEditor(it); break;
-    case "hls": dfsOpenRepoFileInHlsPlayer(it); break;
+    case "hls": dfsOpenRepoFileInMediaViewer(it, "video"); break;
+    // 요청: hls 재생기 창을 음악/사진 모드로 돌려쓴다 - mp3/png는 raw 주소를 그대로 물리면
+    // 재생/로드되므로 창 이름/아이콘만 다르게 열면 된다(hls-player.js의
+    // dfsOpenMediaViewerWindow 참고).
+    case "music": dfsOpenRepoFileInMediaViewer(it, "music"); break;
+    case "photo": dfsOpenRepoFileInMediaViewer(it, "photo"); break;
     case "helper":
     default: localHelperOpen(it); break;
   }
