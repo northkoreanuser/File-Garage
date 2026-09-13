@@ -76,7 +76,7 @@ function dfsOpenMediaViewerWindow(it, mode, url) {
     : '<video controls autoplay playsinline></video>';
   const handle = dfCreateAppWindow({
     title: it.name || (mode === "music" ? "음악 플레이어" : mode === "photo" ? "사진 뷰어" : mode === "pdf" ? "PDF 뷰어" : "HLS 재생기"),
-    icon: "\u{25B6}\u{FE0F}", // dfCreateAppWindow는 textContent로만 넣으므로 임시값 - 아래서 innerHTML로 덮어씀
+    icon: resolveMediaViewerIconHtml(it.name, mode),
     width: mode === "music" ? 480 : 900,
     height: mode === "music" ? 180 : 560,
     bodyHtml:
@@ -86,10 +86,6 @@ function dfsOpenMediaViewerWindow(it, mode, url) {
       '</div>',
     onClose: () => { if (hlsInstance) { try { hlsInstance.destroy(); } catch (e) { /* 무시 */ } } }
   });
-  // 요청 #144의 환경설정 타이틀바 아이콘(resolveSettingsIconHtml)과 같은 패턴 - opts.icon은
-  // textContent라 <img> HTML을 못 받으므로, 만든 직후 .tb-icon.innerHTML을 직접 덮어쓴다.
-  const tbIcon = handle.el.querySelector(".tb-icon");
-  if (tbIcon) tbIcon.innerHTML = resolveMediaViewerIconHtml(it.name, mode);
 
   const statusEl = handle.bodyEl.querySelector(".hls-status");
   statusEl.textContent = url;

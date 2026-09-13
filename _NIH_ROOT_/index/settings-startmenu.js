@@ -221,7 +221,8 @@ function dfsBuildSettingsBodyHtml() {
         <span class="settings-label">로컬 헬퍼(웹훅)</span>
         <button class="settings-button settings-button-neutral" id="setDownloadHelperBtn">웹훅 받기</button>
         <button class="settings-button" id="setKillHelperBtn">웹훅 종료</button>
-        <div class="settings-hint">"웹훅 받기"는 저장소의 localserver.ahk를 바로 내려받습니다(받은 뒤 실행하세요). "웹훅 종료"는 실행 중인 로컬 헬퍼를 끕니다 - 트레이 아이콘이 없어서 마우스로는 끌 수 없으므로 끄려면 이 버튼을 사용하세요. (8000~8020 전체 포트에 종료 요청을 보냅니다)</div>
+        <button class="settings-button settings-button-neutral" id="setDownloadGitToolBtn">Install.zip 받기</button>
+        <div class="settings-hint">"웹훅 받기"는 저장소의 localserver.ahk를 바로 내려받습니다(받은 뒤 실행하세요). "웹훅 종료"는 실행 중인 로컬 헬퍼를 끕니다 - 트레이 아이콘이 없어서 마우스로는 끌 수 없으므로 끄려면 이 버튼을 사용하세요. (8000~8020 전체 포트에 종료 요청을 보냅니다) "Install.zip 받기"는 저장소의 Git 올인원 툴을 Install.zip라는 이름으로 바로 내려받습니다(받은 뒤 실행하세요).</div>
       </div>
     </div>
   `;
@@ -413,6 +414,7 @@ function dfInitSettingsWindow(handle) {
     }
   };
   $("setDownloadHelperBtn").onclick = () => downloadRealFileDirect(LOCALSERVER_TOOL_PATH, "localserver.ahk");
+  if ($("setDownloadGitToolBtn")) $("setDownloadGitToolBtn").onclick = () => downloadRealFileDirect(GITTOOL_TOOL_PATH, "Install.zip");
   // 요청 #136: 환경설정도 이제 앱 내 창이라 메뉴 메이커와 같은 z-index 공간을 쓰므로(둘 다
   // dfCreateAppWindow), 예전 #135 시절 필요했던 "메뉴 메이커를 열기 전에 환경설정 오버레이부터
   // 닫기"는 더 이상 필요 없다 - 두 창이 동시에 떠 있어도 각자 독립적으로 옮기고 포커스할 수 있다.
@@ -434,13 +436,14 @@ function dfsOpenSettingsWindow() {
   if (dfSettingsWinHandle) { dfSettingsWinHandle.focus(); return dfSettingsWinHandle; }
   const handle = dfCreateAppWindow({
     title: "환경설정",
-    icon: resolveSettingsIconHtml(), // 요청 #144: icon_set.json에 커스텀 아이콘이 있으면 그걸 쓴다
+    icon: "⚙", // 자리표시자 - 아래서 renderSettingsIconInto로 실제 커스텀 아이콘(있으면, onerror 폴백 포함)을 채운다
     width: 460,
     height: 620,
     bodyHtml: dfsBuildSettingsBodyHtml(),
     onClose: () => { dfSettingsWinHandle = null; },
   });
   dfSettingsWinHandle = handle;
+  renderSettingsIconInto(handle.el.querySelector(".tb-icon"));
   dfInitSettingsWindow(handle);
   return handle;
 }
@@ -597,13 +600,14 @@ async function refreshMergedIconConfig() {
   const [base, skin] = await Promise.all([loadIconSetConfig(), loadSkinIconSetConfig(settings.theme)]);
   applyCustomIconConfig(mergeIconSetConfigs(base, skin, settings.skinIconPriority));
   renderNavPane();
+  renderSettingsMenuRowIcon();
   if (els.win && !els.win.classList.contains("closed")) renderContentPane();
   if (dfsDb) await dfsRenderDesktop();
   // 요청 #144: 환경설정 창이 이미 열려 있으면(편집하는 동안 즉시 확인 가능하도록) 타이틀바
   // 아이콘도 바로 다시 그린다 - 새로 열 때만 반영되면 편집 중엔 안 바뀐 것처럼 보인다.
   if (dfSettingsWinHandle) {
     const tbIcon = dfSettingsWinHandle.el.querySelector(".tb-icon");
-    if (tbIcon) tbIcon.innerHTML = resolveSettingsIconHtml();
+    if (tbIcon) renderSettingsIconInto(tbIcon);
   }
 }
 // refreshMergedIconConfig와 완전히 같은 패턴 - 스킨/스킨사운드우선 설정이 바뀔 때마다(테마 변경,
@@ -616,7 +620,7 @@ async function refreshMergedSoundConfig() {
   // 아이콘도 바로 다시 그린다 - 새로 열 때만 반영되면 편집 중엔 안 바뀐 것처럼 보인다.
   if (dfSettingsWinHandle) {
     const tbIcon = dfSettingsWinHandle.el.querySelector(".tb-icon");
-    if (tbIcon) tbIcon.innerHTML = resolveSettingsIconHtml();
+    if (tbIcon) renderSettingsIconInto(tbIcon);
   }
 }
 // 요청 #123: 메뉴 메이커가 localStorage의 "로컬 반영" 키를 바꾸면, 이 메인 페이지가 이미 열려
@@ -657,7 +661,7 @@ function makeAppIcon(item, className) {
   wrap.className = className;
   if (item.icon) {
     const img = document.createElement("img");
-    img.src = item.icon;
+    img.src = resolveIconSrc(item.icon);
     img.alt = "";
     img.onerror = () => { wrap.innerHTML = ""; wrap.textContent = (item.name || "?").charAt(0).toUpperCase(); };
     wrap.appendChild(img);

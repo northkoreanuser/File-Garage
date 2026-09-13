@@ -3,7 +3,7 @@
     {
       "name": "WebTools",
       "url": "",
-      "icon": "/File-Garage/_NIH_ROOT_/index/ui/icon/menu/startmenu/toolbox.svg",
+      "icon": "/_NIH_ROOT_/index/ui/icon/menu/startmenu/toolbox.svg",
       "items": [
         {
           "name": "svgviewer",
@@ -28,7 +28,7 @@
     {
       "name": "새 항목",
       "url": "https://www.autohotkey.com/download/ahk-v2.exe",
-      "icon": "/File-Garage/_NIH_ROOT_/index/ui/icon/menu/traybar/autohotkey.svg"
+      "icon": "/_NIH_ROOT_/index/ui/icon/menu/traybar/autohotkey.svg"
     }
   ]
 }

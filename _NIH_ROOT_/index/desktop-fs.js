@@ -945,7 +945,7 @@ function dfsIconGlyphFor(node, size) {
   // 요청 #133: 사용자가 직접 주소/아이콘을 입력해 만든 바로가기는 그 아이콘(URL 또는 붙여넣은
   // base64 이미지)이 있으면 그대로 그린다 - 기존 항목을 가리키는 바로가기(아이콘 지정 없음)는
   // 예전처럼 기본 파일 아이콘을 쓴다.
-  else if (node.type === "shortcut") inner = node.icon ? `<img src="${escapeHtml(node.icon)}" style="width:${size}px;height:${size}px;object-fit:contain;">` : fileIcon(size);
+  else if (node.type === "shortcut") inner = node.icon ? `<img src="${escapeHtml(resolveIconSrc(node.icon))}" style="width:${size}px;height:${size}px;object-fit:contain;">` : fileIcon(size);
   else {
     // 요청 #146: "확장자 아이콘을 바꾸면 저장소 파일에는 적용되는데 바탕화면에 만든 파일에는
     // 적용이 안 됨" - state.js의 resolveFileIcon(진짜 저장소 파일용)과 같은 순서로, 먼저

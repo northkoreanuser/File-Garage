@@ -67,6 +67,7 @@ function dfNoteWebhookDownloadSucceeded() { dfNoteWebhookInUse(); }
    저장소의 모든 실제 파일을 그대로 서빙하므로, 경로만 알면(absoluteFileUrl) 내려받는 데
    아무 문제가 없다. ============ */
 const LOCALSERVER_TOOL_PATH = ["_NIH_ROOT_", "tools", "localserver.ahk"];
+const GITTOOL_TOOL_PATH = ["_NIH_ROOT_", "tools", "Git 올인원.cmd"];
 // 로컬 헬퍼 없이(당연히 - 헬퍼가 없어서 이 함수를 부르는 상황이므로) 브라우저 자체 다운로드로
 // 저장소의 실제 파일을 바로 내려받는다. localHelperDownload를 거치면 헬퍼가 없을 때 다시
 // offerHelperDownload를 부르는 순환에 빠지므로, 일부러 별도 경로로 둔다(닭과 달걀 문제 회피).

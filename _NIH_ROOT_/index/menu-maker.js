@@ -301,7 +301,7 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   }
 
   function iconThumbHtml(icon, name) {
-    if (icon) return '<img src="' + escapeHtml(icon) + '" alt="">';
+    if (icon) return '<img src="' + escapeHtml(resolveIconSrc(icon)) + '" alt="">';
     return escapeHtml(((name || "?").trim().charAt(0) || "?").toUpperCase());
   }
 

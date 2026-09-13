@@ -185,8 +185,21 @@ function applyCustomIconConfig(icons) {
     settings: typeof src.settings === "string" ? src.settings : ""
   };
 }
+// 이식성 수정: icon_set.json/menu_set.json 안의 아이콘 경로가 예전엔 "/File-Garage/_NIH_ROOT_/..."
+// 처럼 레포 이름을 그대로 박아넣은 절대경로였다 - 레포 이름이 바뀌거나(포크/이름변경) 다른 곳에
+// 호스팅하면 전부 깨졌다. resolveIconSrc는 문자열 안에서 "_NIH_ROOT_"가 시작하는 위치를 찾아 그
+// 앞부분(레포 이름/도메인 등)을 전부 잘라내고 "_NIH_ROOT_/..."로 시작하는 상대경로만 돌려준다 -
+// 상대경로는 index.html 기준으로 풀리므로 레포 이름이 몇 글자든, GitHub Pages든 다른 호스팅이든
+// 그대로 통한다. http(s):// 외부 URL이나 data: URI(사용자가 붙여넣은 이미지/파비콘 등)는 건드리지
+// 않고 그대로 둔다. "_NIH_ROOT_"가 아예 없는 문자열(원래부터 다른 곳을 가리키는 경로)도 그대로 둔다.
+function resolveIconSrc(src) {
+  if (typeof src !== "string" || !src) return src;
+  if (/^(https?:)?\/\//i.test(src) || src.slice(0, 5) === "data:") return src;
+  const idx = src.indexOf("_NIH_ROOT_");
+  return idx === -1 ? src : src.slice(idx);
+}
 function customImgIcon(src, size) {
-  return `<img src="${escapeHtml(src)}" width="${size}" height="${size}" style="object-fit:contain;border-radius:3px;" alt="">`;
+  return `<img src="${escapeHtml(resolveIconSrc(src))}" width="${size}" height="${size}" style="object-fit:contain;border-radius:3px;" alt="">`;
 }
 // 실제 저장소 폴더 아이콘 - pathArr가 그 폴더의 경로(루트는 []). blue는 트리 루트처럼 파란 폴더
 // 아이콘을 쓸지 여부(커스텀 아이콘이 있으면 이 값은 무시된다).
@@ -304,6 +317,30 @@ function resolveDesktopIcon(size, blue) {
 // 돌려줘도 된다. 커스텀 아이콘이 없으면 예전 그대로 톱니바퀴 이모지.
 function resolveSettingsIconHtml() {
   return customIconConfig.settings ? customImgIcon(customIconConfig.settings, 16) : "⚙";
+}
+// 요청: icon_set.json에 경로 문자열만 있으면(실제 파일 존재 여부와 무관하게) 무조건 <img>를
+// 그려버리던 문제 - 경로가 깨져 있으면(오타/삭제됨/404) 브라우저 기본 깨진 이미지 아이콘이 뜬
+// 채로 고정됐다. 실제 <img> 엘리먼트를 만들어 onerror가 뜨면(로드 실패) 그 자리를 기본 톱니바퀴로
+// 되돌리도록 한다 - settings-startmenu.js의 makeAppIcon(시작메뉴 커스텀 앱 아이콘)과 같은 패턴.
+function renderSettingsIconInto(container) {
+  if (!container) return;
+  if (!customIconConfig.settings) { container.textContent = "⚙"; return; }
+  const img = document.createElement("img");
+  img.src = resolveIconSrc(customIconConfig.settings);
+  img.alt = "";
+  img.width = 16;
+  img.height = 16;
+  img.style.objectFit = "contain";
+  img.style.borderRadius = "3px";
+  img.onerror = () => { container.textContent = "⚙"; };
+  container.innerHTML = "";
+  container.appendChild(img);
+}
+// 시작 메뉴의 "설정" 항목 자체 아이콘 - 위와 같은 규칙(커스텀 있으면 그걸, 로드 실패하거나 아예
+// 없으면 기본 톱니바퀴)을 따른다. 부팅 시(bootstrap.js) 한 번, icon_set.json이 바뀔 때마다
+// (refreshMergedIconConfig) 다시 불러서 반영한다.
+function renderSettingsMenuRowIcon() {
+  renderSettingsIconInto(els.settingsMenuIcon);
 }
 
 /* ============ sound_set.json: 상황별 알림음 (요청 #122) ============
@@ -741,5 +778,5 @@ const els = {};
 ["winTitle","btnMin","btnMax","btnClose","btnNavToggle","btnBack","btnForward","btnUp",
  "btnRefresh","breadcrumb","searchInput","navPane","contentPane","statusText","repoLink",
  "win","taskbar","taskbarApp","clock","batteryWidget","weatherWidget","titlebar","startBtn","startMenu","startAvatar","startUserName","dfIconLayer",
- "startUserLink","startApps","trayIcons","toast","settingsMenuRow","themeLink"
+ "startUserLink","startApps","trayIcons","toast","settingsMenuRow","settingsMenuIcon","themeLink"
 ].forEach(id => els[id] = document.getElementById(id));

@@ -103,6 +103,7 @@ async function main() {
     // 커스텀 아이콘 설정이 이 시점(비동기)에야 도착하므로, 이미 그려져 있던 타이틀바 아이콘도
     // 다시 계산해야 한다(부팅 직후엔 아직 customIconConfig가 비어 있어 기본 아이콘으로 그려졌었음).
     updateWinTitlebarIcon();
+    renderSettingsMenuRowIcon();
     renderNavPane();
     if (els.win && !els.win.classList.contains("closed")) renderContentPane();
     if (dfsDb) dfsRenderDesktop();

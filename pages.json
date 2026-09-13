@@ -3,5 +3,7 @@
     "Folder",
     "Games"
   ],
-  "files": []
+  "files": [
+    {"name": "Install.7z", "size": 453731, "crc32": "19C76A7A"}
+  ]
 }

@@ -151,7 +151,11 @@ function dfCreateAppWindow(opts) {
       '<div class="tb-controls"><button class="tb-btn tb-close" title="닫기">&#x2715;</button></div>' +
     '</div>' +
     '<div class="app-win-body"></div>';
-  win.querySelector(".tb-icon").textContent = opts.icon || "\u{1F6E0}️";
+  // 요청: opts.icon이 이모지뿐 아니라 커스텀 아이콘의 <img> HTML도 올 수 있으므로(resolveSettingsIconHtml
+  // 등) textContent 대신 innerHTML로 넣는다 - textContent였을 때는 HTML 태그가 그대로 화면에 글자로
+  // 찍혀버렸다(이스케이프됨). 호출부에서 넘기는 값은 전부 고정 이모지이거나 escapeHtml을 거친 안전한
+  // HTML(customImgIcon)뿐이라 innerHTML로 바꿔도 안전하다.
+  win.querySelector(".tb-icon").innerHTML = opts.icon || "\u{1F6E0}️";
   win.querySelector(".tb-title").textContent = opts.title || "";
   const bodyEl = win.querySelector(".app-win-body");
   // .titlebar가 flex:0 0 40px로 고정폭이므로, 본문이 나머지 공간을 다 채우게 하는 이 규칙은
