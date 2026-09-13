@@ -5,9 +5,13 @@
    리스트에 태그를 붙일 수 있다. 태그는 그 폴더 자신에 "#hashtag.json"이라는 이름으로 저장되고
    (같은 폴더 안에 있어야 함 - pages.json처럼 폴더별로 하나씩). 실제 저장소 파일이라 브라우저가
    직접 쓸 수는 없으므로:
-   - 로컬 헬퍼(localserver.ahk)가 있으면 진짜 디스크의 같은 폴더 위치에 바로 저장
-   - 헬퍼가 없거나 실패하면 브라우저로 #hashtag.json을 다운로드해서 사용자가 직접 넣도록 한다
-   (헬퍼는 필수가 아님).
+
+   태그 json 저장 규칙 (사용자 지시):
+   - 웹훅(로컬 헬퍼)이 켜져 있으면 웹훅으로만 저장 (폴더 선택 취소해도 브라우저로 안 넘어감)
+   - 헬퍼가 아예 없을 때만 브라우저 다운로드로 고정
+
+   로컬 헬퍼가 있으면 진짜 디스크의 같은 폴더 위치에 바로 저장한다.
+   헬퍼가 없을 때만 브라우저로 #hashtag.json을 다운로드해서 사용자가 직접 넣도록 한다.
 
    #hashtag.json 형식: { "파일이름": ["태그1", "태그2"], "폴더이름": ["태그3"] }
 
@@ -85,9 +89,10 @@ async function ensureTagBaseRoot(port) {
   return base;
 }
 // pathArr 폴더의 #hashtag.json을 저장한다.
-// 1) 로컬 헬퍼가 있으면 실제 디스크 경로에 바로 저장 시도
-// 2) 헬퍼가 없거나 실패하면 브라우저 다운로드로 #hashtag.json 파일을 받아 사용자가 직접
-//    해당 폴더에 넣도록 한다 (헬퍼 필수가 아님).
+// 사용자 지시: 웹훅(로컬 헬퍼)이 켜져 있으면 웹훅으로만, 없으면 브라우저 다운로드로 고정.
+// - 헬퍼가 있으면: 폴더 선택(한 번 기억) → /savecontentto로 저장. 폴더 선택 취소나 저장 실패 시
+//   브라우저로 떨어지지 않고 그냥 취소/실패 처리.
+// - 헬퍼가 아예 없을 때만: 브라우저로 #hashtag.json 다운로드.
 // 호출하는 쪽은 이미 브라우저 캐시(tagDirCache/localStorage)를 먼저 갱신해두므로,
 // 이 함수가 실패해도 지금 이 브라우저에서의 검색/표시는 정상 동작한다.
 function downloadTagJsonInBrowser(pathArr, data) {
@@ -107,31 +112,38 @@ function downloadTagJsonInBrowser(pathArr, data) {
   showToast(`"#hashtag.json"을(를) 다운로드했습니다. 저장소의 "${where}" 폴더에 넣어 주세요.`, { sound: "download_complete" });
 }
 async function saveFolderTagsViaHelper(pathArr, data) {
+  // 사용자 지시: 웹훅(헬퍼)이 켜져 있으면 웹훅으로만, 없으면 브라우저 다운로드로 고정.
+  // 폴더 선택 창을 취소해도 브라우저로 넘어가지 않는다. (취소 = 그냥 저장 취소)
   const port = await ensureHelperPort();
-  if (port !== null) {
-    const base = await ensureTagBaseRoot(port);
-    if (base) {
-      const rel = (pathArr.length ? pathArr.join("/") + "/" : "") + "#hashtag.json";
-      try {
-        const body = JSON.stringify(data, null, 2);
-        const res = await fetch(`http://127.0.0.1:${port}/savecontentto?base=${encodeURIComponent(base)}&rel=${encodeURIComponent(rel)}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json;charset=utf-8" },
-          body
-        });
-        if (!res.ok) throw new Error(String(res.status));
-        showToast(`"#hashtag.json"을(를) 저장했습니다. (${pathArr.join("/") || "루트"})`, { sound: "download_complete" });
-        return true;
-      } catch (e) {
-        showToast(`헬퍼 저장 실패 (${e.message}). 브라우저 다운로드로 대체합니다.`, { kind: "warn", sound: "download_error" });
-      }
-    } else {
-      showToast("저장 위치 선택이 취소되었습니다. 브라우저 다운로드로 대체합니다.", { sound: "download_cancel" });
-    }
+  if (port === null) {
+    // 헬퍼가 아예 없을 때만 브라우저 다운로드
+    downloadTagJsonInBrowser(pathArr, data);
+    return false;
   }
-  // 헬퍼 없거나 실패/취소 → 브라우저로 #hashtag.json 다운로드
-  downloadTagJsonInBrowser(pathArr, data);
-  return false;
+
+  const base = await ensureTagBaseRoot(port);
+  if (!base) {
+    // 폴더 선택 취소 → 저장 자체를 취소 (브라우저로 떨어지지 않음)
+    showToast("저장 위치 선택이 취소되었습니다.", { sound: "download_cancel" });
+    return false;
+  }
+
+  const rel = (pathArr.length ? pathArr.join("/") + "/" : "") + "#hashtag.json";
+  try {
+    const body = JSON.stringify(data, null, 2);
+    const res = await fetch(`http://127.0.0.1:${port}/savecontentto?base=${encodeURIComponent(base)}&rel=${encodeURIComponent(rel)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json;charset=utf-8" },
+      body
+    });
+    if (!res.ok) throw new Error(String(res.status));
+    showToast(`"#hashtag.json"을(를) 저장했습니다. (${pathArr.join("/") || "루트"})`, { sound: "download_complete" });
+    return true;
+  } catch (e) {
+    // 헬퍼는 살아 있는데 저장만 실패한 경우 → 브라우저로 대체하지 않고 실패만 알림
+    showToast(`헬퍼 저장 실패 (${e.message}).`, { kind: "warn", sound: "download_error" });
+    return false;
+  }
 }
 
 /* ---------------- 태그 문자열 <-> 배열 ---------------- */

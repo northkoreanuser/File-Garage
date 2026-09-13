@@ -494,6 +494,66 @@ function dfToggleEmphasis(ta, bit) {
   ta.selectionEnd = rangeStart + next + core.length;
 }
 
+/* ---------------- 텍스트 뷰어 (사진/음악 뷰어와 같은 방식) ----------------
+   사용자 지시: "텍스트 뷰어로 열기 사진 뷰어나 음악 뷰어와 같은 방식으로 구현해.
+   우클릭 메뉴에는 추가하지 말고 더블클릭 메이커 메뉴에만 추가해"
+   - 메뉴 메이커 > 확장자 탭의 EXTENSION_RUN_ACTIONS에 "textviewer"로만 노출
+   - 우클릭 메뉴에는 넣지 않음
+   - 앱 내 창으로 읽기 전용 텍스트를 보여준다 (에디터와 달리 편집/저장 UI 없음) */
+const DF_TEXT_VIEWER_CSS = `
+  .df-text-viewer-root { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; background: var(--bg, #1e1e1e); color: var(--fg, #ddd); }
+  .df-text-viewer-pre { flex: 1; min-height: 0; margin: 0; padding: 12px 14px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-family: Consolas, "Courier New", monospace; font-size: 13px; line-height: 1.45; background: transparent; border: none; color: inherit; }
+  .df-text-viewer-status { flex: 0 0 auto; padding: 4px 10px; font-size: 11.5px; opacity: .75; border-top: 1px solid rgba(127,127,127,.25); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+`;
+function resolveTextViewerIconHtml(name) {
+  const dot = (name || "").lastIndexOf(".");
+  const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
+  const custom = ext && customIconConfig.extensions[ext];
+  if (custom) return customImgIcon(custom, 16);
+  return "\u{1F4C4}"; // 📄
+}
+function dfsOpenTextViewerWindow(it, text, statusUrl) {
+  dfInjectStyleOnce("dfTextViewerStyle", DF_TEXT_VIEWER_CSS);
+  const handle = dfCreateAppWindow({
+    title: it.name || "텍스트 뷰어",
+    icon: "\u{1F4C4}",
+    width: 720,
+    height: 520,
+    bodyHtml:
+      '<div class="df-text-viewer-root">' +
+        '<pre class="df-text-viewer-pre"></pre>' +
+        '<div class="df-text-viewer-status"></div>' +
+      '</div>'
+  });
+  const tbIcon = handle.el.querySelector(".tb-icon");
+  if (tbIcon) tbIcon.innerHTML = resolveTextViewerIconHtml(it.name);
+  const pre = handle.bodyEl.querySelector(".df-text-viewer-pre");
+  const statusEl = handle.bodyEl.querySelector(".df-text-viewer-status");
+  pre.textContent = text;
+  statusEl.textContent = statusUrl || "";
+  return handle;
+}
+async function dfsOpenRepoFileInTextViewer(it) {
+  showToast(`"${it.name}" 여는 중...`);
+  let text;
+  let statusUrl = "";
+  try {
+    const url = await githubRawUrl(it);
+    statusUrl = url;
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error(String(res.status));
+    text = await res.text();
+  } catch (e) {
+    showToast(`파일을 불러오지 못했습니다: ${e.message}`, { kind: "warn", sound: "error_generic" });
+    return;
+  }
+  if (!dfLooksLikeText(text.slice(0, 8000))) {
+    const proceed = await showConfirmDialog(`"${it.name}"은(는) 텍스트가 아닌 파일일 수 있습니다.\n그래도 텍스트 뷰어로 열까요? (내용이 깨져 보일 수 있습니다)`);
+    if (!proceed) return;
+  }
+  dfsOpenTextViewerWindow(it, text, statusUrl);
+}
+
 /* ---------------- 실제 GitHub 리포 파일을 "에디터로 열기"(앱 내 창, 수정 가능) ----------------
    원본(GitHub)에는 이 페이지가 직접 쓸 수 없지만, 그렇다고 에디터 자체를 읽기 전용으로 만들
    필요는 없다(사용자 지시) - 수정 후 저장하면 이 가짜 OS의 바탕화면에 새 파일로 저장된다

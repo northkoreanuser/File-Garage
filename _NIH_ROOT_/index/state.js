@@ -427,7 +427,11 @@ const EXTENSION_RUN_ACTIONS = [
   { key: "photo", label: "사진 뷰어로 열기" },
   // music/photo와 완전히 같은 논리 - pdf도 raw 주소를 <iframe>에 그대로 물리면 브라우저가
   // 알아서 렌더링하므로(hls.js 같은 조립 불필요) dfsOpenMediaViewerWindow에 mode만 추가.
-  { key: "pdf", label: "PDF 뷰어로 열기" }
+  { key: "pdf", label: "PDF 뷰어로 열기" },
+  // 사용자 지시: "텍스트 뷰어로 열기 사진 뷰어나 음악 뷰어와 같은 방식으로 구현해.
+  // 우클릭 메뉴에는 추가하지 말고 더블클릭 메이커 메뉴에만 추가해" - 앱 내 읽기 전용 창
+  // (editor.js의 dfsOpenRepoFileInTextViewer). 기존 "text"(브라우저 raw 열기)와 별개.
+  { key: "textviewer", label: "텍스트 뷰어로 열기" }
 ];
 function fileExtOf(name) {
   const dot = (name || "").lastIndexOf(".");

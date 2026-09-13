@@ -317,6 +317,8 @@ async function activate(it) {
 //               하드코딩돼 있던 동작을 확장자별 개별 설정에서 고를 수 있는 선택지로 꺼냈다(전역
 //               더블클릭 기본값 목록에는 넣지 않는다 - state.js의 EXTENSION_RUN_ACTIONS 주석 참고).
 //   text     -> 텍스트로 열기(우클릭의 "브라우저에서 보기"와 동일, viewOnPages)
+//   textviewer -> 텍스트 뷰어로 열기(앱 내 읽기 전용 창, editor.js의 dfsOpenRepoFileInTextViewer)
+//               사진/음악 뷰어와 같은 방식. 우클릭 메뉴에는 없음(사용자 지시).
 //   download -> 헬퍼의 다운로드 기능(localHelperDownload)
 //   repo     -> 저장소에서 보기(GitHub의 blob 화면, openInRepo) - GitHub 바로가기 표시가 꺼져
 //               있으면(settings.githubLinksEnabled=false) 우클릭 메뉴에서도 안 보이는 기능이므로
@@ -342,6 +344,8 @@ function runDoubleClickAction(action, it) {
     case "music": dfsOpenRepoFileInMediaViewer(it, "music"); break;
     case "photo": dfsOpenRepoFileInMediaViewer(it, "photo"); break;
     case "pdf": dfsOpenRepoFileInMediaViewer(it, "pdf"); break;
+    // 사용자 지시: 텍스트 뷰어(사진/음악 뷰어와 같은 앱 내 창). 우클릭 메뉴에는 없음.
+    case "textviewer": dfsOpenRepoFileInTextViewer(it); break;
     case "helper":
     default: localHelperOpen(it); break;
   }
