@@ -46,15 +46,6 @@ function imageFileIcon(size) {
   </span>`;
 }
 
-// 휴지통(바탕화면 + 트리) 기본 아이콘 - 커스텀 아이콘(icon_set.json의 recycleBin)이 없을 때 쓴다.
-function trashIcon(size) {
-  return `<svg width="${size}" height="${size}" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-    <path d="M9 11h14l-1.2 15.5A2 2 0 0 1 19.8 28H12.2a2 2 0 0 1-2-1.5L9 11z" fill="#d7dbe1" stroke="#8b929c" stroke-width="1"/>
-    <path d="M6.5 11h19" stroke="#8b929c" stroke-width="1.6" stroke-linecap="round"/>
-    <path d="M12.5 8.2A1.5 1.5 0 0 1 14 6.7h4A1.5 1.5 0 0 1 19.5 8.2V11h-7V8.2z" fill="#eef1f4" stroke="#8b929c" stroke-width="1"/>
-    <path d="M13 14.5v9M16 14.5v9M19 14.5v9" stroke="#8b929c" stroke-width="1.4" stroke-linecap="round"/>
-  </svg>`;
-}
 
 /* ============ owner/repo 추출 (하드코딩 금지) ============ */
 function getOwnerRepo() {
@@ -209,8 +200,15 @@ function resolveFileIcon(name, size) {
 function resolveRepoRootIcon(size) {
   return customIconConfig.repoRoot ? customImgIcon(customIconConfig.repoRoot, size) : folderIcon(size, true);
 }
-function resolveRecycleBinIcon(size) {
-  return customIconConfig.recycleBin ? customImgIcon(customIconConfig.recycleBin, size) : trashIcon(size);
+// 요청 #167: 실제 윈도우처럼 휴지통이 비어있을 때/차 있을 때 서로 다른 그림이어야 한다는 지적 -
+// ui/icon/desktop/recyclebin1.ico(비어있음)·recyclebin2.ico(참) 두 아이콘을 기본으로 쓴다. 커스텀
+// 아이콘(icon_set.json의 recycleBin)이 지정돼 있으면 예전처럼 상태와 무관하게 그 아이콘 하나로
+// 고정한다(커스텀 아이콘까지 상태별 두 장으로 나누는 건 이번 요청 범위를 넘어서므로 스키마는
+// 그대로 둔다) - isEmpty는 호출하는 쪽(desktop-fs.js/tree-pane.js)이 실제 휴지통 항목 수를 보고 넘긴다.
+function resolveRecycleBinIcon(size, isEmpty) {
+  if (customIconConfig.recycleBin) return customImgIcon(customIconConfig.recycleBin, size);
+  const src = "_NIH_ROOT_/index/ui/icon/desktop/" + (isEmpty ? "recyclebin1" : "recyclebin2") + ".ico";
+  return `<img src="${src}" width="${size}" height="${size}" style="object-fit:contain;" alt="">`;
 }
 // 요청 #144: 트리의 "바탕 화면" 항목 아이콘 - 커스텀 아이콘이 없으면 예전 그대로 파란 폴더.
 function resolveDesktopIcon(size, blue) {
@@ -551,6 +549,6 @@ const els = {};
 // settingsMenuRow(시작 메뉴의 "설정" 항목 자체)는 항상 고정으로 있으므로 그대로 둔다.
 ["winTitle","btnMin","btnMax","btnClose","btnNavToggle","btnBack","btnForward","btnUp",
  "btnRefresh","breadcrumb","searchInput","navPane","contentPane","statusText","repoLink",
- "win","taskbarApp","clock","batteryWidget","weatherWidget","titlebar","startBtn","startMenu","startAvatar","startUserName","dfIconLayer",
+ "win","taskbar","taskbarApp","clock","batteryWidget","weatherWidget","titlebar","startBtn","startMenu","startAvatar","startUserName","dfIconLayer",
  "startUserLink","startApps","trayIcons","toast","settingsMenuRow","themeLink"
 ].forEach(id => els[id] = document.getElementById(id));

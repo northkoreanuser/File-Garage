@@ -221,6 +221,33 @@ els.taskbarApp.oncontextmenu = (e) => {
     { label: "닫기", action: () => els.btnClose.onclick() }
   ]);
 };
+// 요청 #167: 작업표시줄의 빈 자리(시작 버튼/탐색기 아이콘/트레이 그 어디도 아닌 곳)를 우클릭해도
+// 여태 아무 메뉴가 없어서 밋밋했다는 지적 - 실제 윈도우 작업표시줄 우클릭 메뉴에서 이 앱에 실제로
+// 대응되는 기능이 있는 항목만 골라 넣는다("창 계단식/세로/가로 정렬"처럼 창이 하나뿐이라 의미
+// 없는 항목, "작업 표시줄 잠금"처럼 이 앱에서는 아무 효과도 없을 항목은 일부러 뺐다 - 눌러도 아무
+// 일도 안 일어나는 가짜 메뉴를 넣는 것보단 낫다는 판단). "아이콘 편집기"는 사용자 지시로 별도 추가.
+els.taskbar.oncontextmenu = (e) => {
+  e.preventDefault();
+  const items = [
+    // 실제 윈도우의 "바탕 화면 보기"처럼, 다시 누르면 원래대로 되돌아오는 토글이다(창이 없으면
+    // 이미 바탕화면만 보이는 상태이므로 할 일이 없다 - 항목 자체를 흐리게 하기보다 조용히 무시).
+    { label: "바탕 화면 보기", action: () => {
+      if (els.win.classList.contains("closed")) return;
+      if (els.win.classList.contains("minimized")) els.taskbarApp.onclick();
+      else els.btnMin.onclick();
+    } },
+  ];
+  if (typeof dfsOpenMenuMakerInWindow === "function") {
+    // 사용자 지시: 작업표시줄 우클릭 메뉴에 아이콘 편집기(메뉴 메이커의 아이콘 탭)도 넣기.
+    items.push({ label: "아이콘 편집기", action: () => dfsOpenMenuMakerInWindow({ initialTab: "icon" }) });
+    // 요청 #137과 같은 맥락(시작 메뉴/트레이 우클릭에도 있음) - 메뉴 메이커 전체로도 바로 갈 수 있게.
+    items.push({ label: "메뉴 메이커", action: () => dfsOpenMenuMakerInWindow() });
+  }
+  if (typeof dfsOpenSettingsWindow === "function") {
+    items.push({ label: "작업 표시줄 설정", action: () => dfsOpenSettingsWindow() });
+  }
+  showContextMenu(e.clientX, e.clientY, items);
+};
 /* 바탕화면(가상 파일시스템)에서 폴더를 열 때도 더는 별도의 팝업 창이 아니라 이 "진짜" 탐색기
    창(#win) 하나로 통합해서 보여준다(탐색기 통합 - 사용자 지시). 창이 닫혀있었으면 taskbarApp을
    누른 것과 똑같이 다시 열어준다. */

@@ -681,6 +681,10 @@ function renderTrayIcons(items) {
     // (설정된 크기)나 "새 탭으로 열기" 중 그 자리에서 골라 한 번만 강제로 열 수 있다.
     btn.oncontextmenu = (e) => {
       e.preventDefault();
+      // 요청 #167: 트레이 아이콘 영역은 작업표시줄(#taskbar)의 자식이라, stopPropagation을 안 하면
+      // 이 클릭이 그대로 위로 버블돼서 새로 추가된 작업표시줄 자체 우클릭 메뉴(window-chrome.js)까지
+      // 같이 열려고 해서 방금 연 이 메뉴를 곧바로 덮어써버린다.
+      e.stopPropagation();
       showContextMenu(e.clientX, e.clientY, [
         { label: "팝업으로 열기", action: () => activateExternalItem(item, "popup") },
         { label: "새 탭으로 열기", action: () => activateExternalItem(item, "newtab") },

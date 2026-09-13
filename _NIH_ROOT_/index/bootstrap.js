@@ -115,5 +115,9 @@ async function main() {
   }
 
   // 바탕화면 가상 파일시스템(dexie) 아이콘 렌더링 - 진짜 탐색기 창(#win)과는 완전히 독립적이다.
-  dfsRenderDesktop().catch(e => console.error("바탕화면 로드 오류:", e));
+  // 요청 #167: 트리의 휴지통 행은 이 함수가 계산해두는 dfsRecycleBinHasItems 캐시를 읽어서 비었는지/
+  // 찬 아이콘인지 정하는데, 위의 renderNavPane()은 이보다 먼저 실행돼서 아직 기본값(false)만 보고
+  // 그렸다 - 부팅 시점에 휴지통이 이미 차 있었을 수 있으므로, 여기서 다 읽고 나면 트리를 한 번 더
+  // 그려서 정확한 상태로 바로잡는다.
+  dfsRenderDesktop().then(() => { if (dfsDb) renderNavPane(); }).catch(e => console.error("바탕화면 로드 오류:", e));
 }

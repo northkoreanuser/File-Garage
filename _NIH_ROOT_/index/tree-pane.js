@@ -26,7 +26,7 @@ function renderNavPane() {
     const dtKey = DESKTOP_TREE_NAME;
     const dtRow = document.createElement("div");
     dtRow.className = "nav-root" + (!treeFileHighlightKey && currentPath.join("/") === dtKey ? " selected" : "") + (treeFocusKey === dtKey ? " kbd-focus" : "");
-    dtRow.innerHTML = `${folderIcon(16, true)}<span>${escapeHtml(DESKTOP_TREE_NAME)}</span>`;
+    dtRow.innerHTML = `${resolveDesktopIcon(16, true)}<span>${escapeHtml(DESKTOP_TREE_NAME)}</span>`;
     dtRow.onclick = () => { els.navPane.focus(); navigate([DESKTOP_TREE_NAME]); closeNavPaneIfNarrow(); };
     dtRow.ondblclick = () => navigate([DESKTOP_TREE_NAME]);
     attachTreeDropTarget(dtRow, [DESKTOP_TREE_NAME]);
@@ -42,7 +42,9 @@ function renderNavPane() {
     const rbKey = RECYCLEBIN_TREE_NAME;
     const rbRow = document.createElement("div");
     rbRow.className = "nav-root" + (!treeFileHighlightKey && currentPath.join("/") === rbKey ? " selected" : "") + (treeFocusKey === rbKey ? " kbd-focus" : "");
-    rbRow.innerHTML = `${resolveRecycleBinIcon(16)}<span>${escapeHtml(RECYCLEBIN_TREE_NAME)}</span>`;
+    // 요청 #167: renderNavPane()은 동기 함수라 여기서 dexie를 다시 조회하지 못하므로,
+    // dfsRenderDesktop()이 가장 최근에 계산해둔 dfsRecycleBinHasItems 캐시를 그대로 쓴다.
+    rbRow.innerHTML = `${resolveRecycleBinIcon(16, !dfsRecycleBinHasItems)}<span>${escapeHtml(RECYCLEBIN_TREE_NAME)}</span>`;
     rbRow.onclick = () => { els.navPane.focus(); navigate([RECYCLEBIN_TREE_NAME]); closeNavPaneIfNarrow(); };
     rbRow.ondblclick = () => navigate([RECYCLEBIN_TREE_NAME]);
     rbRow.oncontextmenu = (e) => {
@@ -228,7 +230,7 @@ function buildTreeDom(entry, pathArr) {
     row.appendChild(spacer);
     row.insertAdjacentHTML("beforeend", it.dfsNode ? dfsIconGlyphFor(it.dfsNode, 15) : resolveFileIcon(f.name, 15));
     const label = document.createElement("span");
-    label.textContent = f.name;
+    label.textContent = displayName(f.name); // 요청 #141: .sc는 트리에서도 확장자를 숨긴다
     row.appendChild(label);
     row.onclick = () => { els.navPane.focus(); selectTreeFile(it); };
     row.ondblclick = () => activate(it);

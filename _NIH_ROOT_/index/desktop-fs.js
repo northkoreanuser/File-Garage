@@ -821,6 +821,10 @@ async function dfsSelectAllIcons() {
 // (dfsDb.nodes.get(id)가 문자열 id에 대해 undefined를 돌려주므로 자연히 무시됨).
 const DFS_REPOROOT_ICON_ID = "repo-root";
 const DFS_RECYCLEBIN_ICON_ID = "recycle-bin";
+// 요청 #167: 휴지통 아이콘이 비었는지 여부 - dfsRenderDesktop()이 매번 실제 항목 수를 확인해서
+// 갱신해두는 캐시다. tree-pane.js의 renderNavPane()은 동기 함수라 그 자리에서 dexie를 다시 조회할
+// 수 없어서, 가장 최근에 dfsRenderDesktop()이 계산해둔 이 값을 그대로 읽어 쓴다.
+let dfsRecycleBinHasItems = false;
 // 요청 #112 - 사용자 지시: "레포 폴더와, 휴지통도 이동 가능하게". 이 둘은 dexie 노드가 아니라서
 // (x,y)를 dfsDb.nodes에 저장할 수 없으므로, 다른 저장소별 UI 상태(설정/트리 펼침 등)와 같은
 // 방식으로 localStorage에 따로 둔다: idx:<repo>:specialIconPos = { [specialId]: {x,y} }.
@@ -955,6 +959,9 @@ function dfsRenderSpecialIcon(id, x, y, iconHtml, label, onDblClick, buildMenu) 
 async function dfsRenderDesktop() {
   if (!dfsDb) return;
   const items = await dfsChildren(DFS_DESKTOP_ROOT);
+  // 요청 #167: 휴지통 아이콘을 그리기 전에 실제로 비어있는지 확인해서 캐시를 갱신한다(트리 쪽
+  // 휴지통 행도 같은 캐시를 읽는다 - 위 dfsRecycleBinHasItems 선언부 참고).
+  dfsRecycleBinHasItems = (await dfsRecycleBinItems()).length > 0;
   els.dfIconLayer.innerHTML = "";
   // 요청 #112: 두 특수 아이콘도 이동 가능해야 하므로, 사용자가 옮겨서 localStorage에 저장해둔
   // 위치가 있으면 그걸 쓰고, 없으면(처음 방문 등) 기존 기본 위치를 그대로 쓴다.
@@ -978,7 +985,7 @@ async function dfsRenderDesktop() {
   // 열)에 둔다 - 실제 사용자 아이콘들도 이 두 자리 다음(=idx 2)부터 같은 첫 번째 열을 계속
   // 이어서 채운다(dfsNextIconPos 참고).
   dfsRenderSpecialIcon(
-    DFS_RECYCLEBIN_ICON_ID, recycleBinPos.x, recycleBinPos.y, resolveRecycleBinIcon(40), "휴지통",
+    DFS_RECYCLEBIN_ICON_ID, recycleBinPos.x, recycleBinPos.y, resolveRecycleBinIcon(40, !dfsRecycleBinHasItems), "휴지통",
     // 요청 #113(c): 더는 별도 오버레이 패널이 아니라, 통합된 진짜 탐색기 창에서 휴지통 경로로
     // 이동한다 - 다른 폴더 아이콘을 더블클릭하는 것과 완전히 같은 방식.
     () => openRealExplorerAt([RECYCLEBIN_TREE_NAME]),

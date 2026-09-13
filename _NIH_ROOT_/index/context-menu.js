@@ -38,7 +38,14 @@ function dfsBuildCtxMenuEl(items) {
       };
       row.onclick = (e) => { e.stopPropagation(); }; // 하위 메뉴가 있는 항목 자체는 열기만 하고 닫지 않는다
     } else {
-      row.onmouseenter = () => closeCtxSubmenu();
+      // 요청 #166: dfsBuildCtxMenuEl은 하위 메뉴의 항목들도 자기 자신을 재귀 호출해서 만들기
+      // 때문에, 여기 있는 leaf 항목이 "지금 열려 있는 하위 메뉴 자기 자신 안"의 항목일 수도 있다
+      // (menu가 곧 그 하위 메뉴 자신). 예전엔 이 구분 없이 무조건 closeCtxSubmenu()를 불러서, 하위
+      // 메뉴를 연 뒤 그 안의 항목으로 마우스를 옮기는 순간 자기 자신을 즉시 닫아버리는 버그가
+      // 있었다(버그 리포트: 하위 메뉴 쪽으로 가면 닫히고 돌아오면 다시 열리고를 무한 반복해서
+      // 하위 메뉴를 사실상 전혀 쓸 수 없었음) - 이 항목이 속한 menu가 지금 열려있는 하위 메뉴가
+      // 아닐 때(=다른 형제 최상위 항목으로 옮겨간 것)만 하위 메뉴를 닫는다.
+      row.onmouseenter = () => { if (menu !== activeCtxSubmenu) closeCtxSubmenu(); };
       row.onclick = (e) => { e.stopPropagation(); closeContextMenu(); it.action(); };
     }
     menu.appendChild(row);
