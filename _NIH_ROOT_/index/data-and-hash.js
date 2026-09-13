@@ -33,10 +33,17 @@ async function loadDir(pathArr) {
     const data = await res.json();
     const folders = filterNames(Array.isArray(data.folders) ? data.folders : [], pathArr)
       .sort((a, b) => a.localeCompare(b, "ko"));
-    // indexer.ahk가 파일마다 {name, size} 객체로 저장한다(웹훅 다운로드에 크기가 필요해서).
-    // 혹시 예전 방식(순수 문자열 배열)의 pages.json이 섞여 있어도 방어적으로 처리한다.
+    // indexer.ahk가 파일마다 {name, size, crc32} 객체로 저장한다(웹훅 크기 + 속성 창 CRC).
+    // 예전 방식(문자열 배열 / size만 있는 객체) pages.json도 방어적으로 처리한다.
     const rawFiles = Array.isArray(data.files) ? data.files : [];
-    const fileObjs = rawFiles.map(f => typeof f === "string" ? { name: f, size: 0 } : { name: String(f.name || ""), size: Number(f.size) || 0 });
+    const fileObjs = rawFiles.map(f => {
+      if (typeof f === "string") return { name: f, size: 0, crc32: "" };
+      return {
+        name: String(f.name || ""),
+        size: Number(f.size) || 0,
+        crc32: (f.crc32 != null && f.crc32 !== "") ? String(f.crc32).toUpperCase() : ""
+      };
+    });
     const keptNames = new Set(filterNames(fileObjs.map(f => f.name), pathArr));
     const files = fileObjs.filter(f => keptNames.has(f.name)).sort((a, b) => a.name.localeCompare(b.name, "ko"));
     entry = { folders, files };
@@ -72,7 +79,7 @@ async function fetchGithubDirEntry(pathArr) {
   const list = Array.isArray(data) ? data : [];
   const folders = filterNames(list.filter(it => it.type === "dir").map(it => it.name), pathArr)
     .sort((a, b) => a.localeCompare(b, "ko"));
-  const fileEntries = list.filter(it => it.type === "file").map(it => ({ name: it.name, size: Number(it.size) || 0 }));
+  const fileEntries = list.filter(it => it.type === "file").map(it => ({ name: it.name, size: Number(it.size) || 0, crc32: "" }));
   const keptFileNames = new Set(filterNames(fileEntries.map(f => f.name), pathArr));
   const files = fileEntries.filter(f => keptFileNames.has(f.name)).sort((a, b) => a.name.localeCompare(b.name, "ko"));
   return { folders, files };

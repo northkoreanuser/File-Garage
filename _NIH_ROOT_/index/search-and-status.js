@@ -15,7 +15,7 @@ async function crawlAll(pathArr) {
   const tagMap = await loadFolderTags(pathArr);
   let results = [];
   entry.folders.forEach(name => results.push({ name, path: [...pathArr, name], type: "folder", tags: tagMap[name] || [] }));
-  entry.files.forEach(f => results.push({ name: f.name, size: f.size, path: [...pathArr, f.name], type: fileTypeFor(f.name), tags: tagMap[f.name] || [] }));
+  entry.files.forEach(f => results.push({ name: f.name, size: f.size, crc32: f.crc32 || "", path: [...pathArr, f.name], type: fileTypeFor(f.name), tags: tagMap[f.name] || [] }));
   for (const name of entry.folders) {
     const sub = await crawlAll([...pathArr, name]);
     results = results.concat(sub);

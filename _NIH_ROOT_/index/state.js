@@ -597,14 +597,70 @@ function escapeHtml(s) {
 
 /* ============ 요청 #140: 속성(Properties) 대화상자용 바이트 표시 ============
    실제 윈도우 속성창처럼 "12.3 MB (12,345,678 바이트)" 형태로 함께 쓰기 위해, 사람이 읽기 쉬운
-   쪽(이 함수)과 정확한 바이트 수(toLocaleString)를 호출하는 쪽에서 조합한다. */
+   쪽(이 함수)과 정확한 바이트 수(toLocaleString)를 호출하는 쪽에서 조합한다.
+   단위: 바이트 → KB → MB → GB → TB → PB (끝까지). */
 function formatBytes(n) {
   const num = Number.isFinite(n) ? Math.max(0, n) : 0;
   if (num < 1024) return `${num} 바이트`;
-  const units = ["KB", "MB", "GB", "TB"];
+  const units = ["KB", "MB", "GB", "TB", "PB"];
   let v = num, i = -1;
   do { v /= 1024; i++; } while (v >= 1024 && i < units.length - 1);
   return `${v.toFixed(v < 10 ? 2 : 1)} ${units[i]}`;
+}
+
+/* ============ 저장소(레포) 파일/폴더 속성 대화상자 ============
+   context-menu.js / content-pane.js 에서 호출한다.
+   예전에는 함수가 정의되지 않아 "속성"을 눌러도 아무 반응이 없었다.
+   - 폴더/빈 곳: 하위 전체(재귀) 파일·폴더 개수 + 총 크기
+   - 파일: 크기 + (있으면) CRC32 */
+async function showRepoFolderProperties(pathArr, opts) {
+  opts = opts || {};
+  const kind = opts.kind || (pathArr && pathArr.length ? "폴더" : "저장소 루트 폴더");
+  const titleName = opts.title || (pathArr && pathArr.length ? pathArr[pathArr.length - 1] : (repoName || "저장소"));
+  const location = pathArr && pathArr.length
+    ? ((repoName || "저장소") + "\\" + pathArr.join("\\"))
+    : (repoName || "저장소");
+  showToast("속성 계산 중...", { sound: "download_start" });
+  let files = 0, folders = 0, bytes = 0;
+  try {
+    const all = await crawlAll(pathArr || []);
+    for (const it of all) {
+      if (it.type === "folder") folders++;
+      else {
+        files++;
+        bytes += Number(it.size) || 0;
+      }
+    }
+  } catch (e) {
+    showToast(`속성을 계산하지 못했습니다: ${e.message}`, { kind: "warn", sound: "error_generic" });
+    return;
+  }
+  await showInfoDialog(
+    `${titleName} 속성\n\n` +
+    `종류: ${kind}\n` +
+    `위치: ${location}\n` +
+    `크기: ${formatBytes(bytes)} (${bytes.toLocaleString("ko-KR")} 바이트)\n` +
+    `포함: 파일 ${files.toLocaleString("ko-KR")}개, 폴더 ${folders.toLocaleString("ko-KR")}개`
+  );
+}
+
+async function showRepoFileProperties(it) {
+  if (!it) return;
+  const pathArr = it.path || [];
+  const location = pathArr.length > 1
+    ? ((repoName || "저장소") + "\\" + pathArr.slice(0, -1).join("\\"))
+    : (repoName || "저장소");
+  const size = Number(it.size) || 0;
+  const typeLabel = it.type ? String(it.type).toUpperCase() + " 파일" : "파일";
+  const lines = [
+    `${it.name} 속성`,
+    "",
+    `종류: ${typeLabel}`,
+    `위치: ${location}`,
+    `크기: ${formatBytes(size)} (${size.toLocaleString("ko-KR")} 바이트)`
+  ];
+  if (it.crc32) lines.push(`CRC32: ${it.crc32}`);
+  await showInfoDialog(lines.join("\n"));
 }
 
 /* ============ 바탕화면을 트리/경로에 포함시키기 위한 예약 세그먼트 ============

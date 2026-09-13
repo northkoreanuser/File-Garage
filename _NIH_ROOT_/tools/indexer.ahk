@@ -130,8 +130,10 @@ IndexDir(dir, isRoot) {
     {
         if ShouldExclude(A_LoopFileName, isRoot)
             continue
-        ; 웹훅(localserver.ahk)이 다운로드 전에 HEAD 요청 없이도 파일 크기를 알 수 있도록 같이 남긴다.
-        files.Push({name: A_LoopFileName, size: A_LoopFileSize})
+        ; 웹훅(localserver.ahk)이 다운로드 전에 HEAD 요청 없이도 파일 크기를 알 수 있도록 size를 남긴다.
+        ; CRC32도 같이 계산해 속성 창/무결성 확인에 쓸 수 있게 한다.
+        fullPath := dir . "\" . A_LoopFileName
+        files.Push({name: A_LoopFileName, size: A_LoopFileSize, crc32: FileCRC32Hex(fullPath)})
     }
 
     SortNamesKo(folders)
@@ -186,29 +188,29 @@ SortNamesKo(ByRef arr) {
 }
 
 ; ------------------------------------------------------------
-; files 배열은 {name, size} 객체라서 SortNamesKo를 그대로 못 쓴다.
-; "이름`t크기`n" 형태의 줄로 만들어 이름 기준으로만 정렬한 다음(탭 뒤의 크기는
-; 서로 다른 이름을 가진 줄들의 정렬 순서에 영향을 주지 않는다) 다시 객체로 되돌린다.
+; files 배열은 {name, size, crc32} 객체라서 SortNamesKo를 그대로 못 쓴다.
+; "이름`t크기`tcrc32`n" 형태의 줄로 만들어 이름 기준으로만 정렬한 다음 다시 객체로 되돌린다.
 ; ------------------------------------------------------------
 SortFilesKo(ByRef arr) {
     if (arr.Length() = 0)
         return
     list := ""
     for index, f in arr
-        list .= f.name . "`t" . f.size . "`n"
+        list .= f.name . "`t" . f.size . "`t" . f.crc32 . "`n"
     list := RTrim(list, "`n")
     Sort, list
     lines := StrSplit(list, "`n")
     out := []
     for index, line in lines {
         parts := StrSplit(line, "`t")
-        out.Push({name: parts[1], size: parts[2] + 0})
+        out.Push({name: parts[1], size: parts[2] + 0, crc32: parts[3]})
     }
     arr := out
 }
 
 ; ------------------------------------------------------------
-; 폴더 하나의 pages.json 작성 -> {"folders":[...], "files":[{"name":...,"size":...}, ...]}
+; 폴더 하나의 pages.json 작성
+; -> {"folders":[...], "files":[{"name":...,"size":...,"crc32":"..."}, ...]}
 ; 파일 목록이 이전과 동일하면 덮어쓰지 않는다(수정 시간이 바뀌어 불필요한 커밋이 생기지 않도록).
 ; ------------------------------------------------------------
 WritePagesJson(dir, folders, files) {
@@ -244,7 +246,10 @@ BuildFilesJsonArray(arr) {
     out := "["
     first := true
     for index, f in arr {
-        out .= (first ? "" : ",") . "`n    {""name"": """ . JsonEscape(f.name) . """, ""size"": " . f.size . "}"
+        crc := f.crc32
+        if (crc = "")
+            crc := "00000000"
+        out .= (first ? "" : ",") . "`n    {""name"": """ . JsonEscape(f.name) . """, ""size"": " . f.size . ", ""crc32"": """ . crc . """}"
         first := false
     }
     out .= "`n  ]"
@@ -255,4 +260,52 @@ JsonEscape(str) {
     str := StrReplace(str, "\", "\\")
     str := StrReplace(str, """", "\""")
     return str
+}
+
+; ------------------------------------------------------------
+; CRC32 (IEEE) - 파일 경로를 받아 8자리 대문자 16진 문자열로 돌려준다.
+; 큰 파일도 메모리에 통째로 올리지 않도록 64KB 단위로 읽어 누적 계산한다.
+; ------------------------------------------------------------
+FileCRC32Hex(path) {
+    crc := FileCRC32(path)
+    ; AHK v1 호환: Format() 없이 8자리 대문자 16진수로 만든다.
+    static hexDigits := "0123456789ABCDEF"
+    out := ""
+    Loop, 8 {
+        nibble := (crc >> ((8 - A_Index) * 4)) & 0xF
+        out .= SubStr(hexDigits, nibble + 1, 1)
+    }
+    return out
+}
+
+FileCRC32(path) {
+    static table := ""
+    if (table = "") {
+        table := []
+        Loop, 256 {
+            c := A_Index - 1
+            Loop, 8
+                c := (c & 1) ? ((c >> 1) ^ 0xEDB88320) : (c >> 1)
+            table[A_Index] := c
+        }
+    }
+    f := FileOpen(path, "r")
+    if !IsObject(f)
+        return 0
+    crc := 0xFFFFFFFF
+    chunkSize := 65536
+    VarSetCapacity(buf, chunkSize, 0)
+    while !f.AtEOF {
+        bytesRead := f.RawRead(buf, chunkSize)
+        if (bytesRead <= 0)
+            break
+        i := 0
+        while (i < bytesRead) {
+            b := NumGet(buf, i, "UChar")
+            crc := (crc >> 8) ^ table[((crc ^ b) & 0xFF) + 1]
+            i++
+        }
+    }
+    f.Close()
+    return crc ^ 0xFFFFFFFF
 }
