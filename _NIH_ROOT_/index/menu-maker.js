@@ -53,8 +53,10 @@ const DF_MENUMAKER_PAGE_CSS = `
   .mm-add-row { width: 100%; margin-top: 2px; text-align: left; color: var(--mm-muted); }
   .mm-field { margin-bottom: 14px; }
   .mm-field label { display: block; font-size: 11.5px; color: var(--mm-muted); margin-bottom: 4px; }
-  .mm-field input[type=text], .mm-field input[type=number], .mm-field input[type=url] { width: 100%; background: var(--mm-panel2); border: 1px solid var(--mm-border); color: var(--mm-text); border-radius: 6px; padding: 7px 9px; font: inherit; font-size: 12.5px; }
-  .mm-field input[type=text]:focus, .mm-field input[type=number]:focus, .mm-field input[type=url]:focus { outline: 1px solid var(--mm-accent); }
+  .mm-field input[type=text], .mm-field input[type=number], .mm-field input[type=url], .mm-field select { width: 100%; background: var(--mm-panel2); border: 1px solid var(--mm-border); color: var(--mm-text); border-radius: 6px; padding: 7px 9px; font: inherit; font-size: 12.5px; }
+  .mm-field input[type=text]:focus, .mm-field input[type=number]:focus, .mm-field input[type=url]:focus, .mm-field select:focus { outline: 1px solid var(--mm-accent); }
+  .mm-tool-legend { font-size: 11px; color: var(--mm-muted); background: var(--mm-panel2); border: 1px solid var(--mm-border); border-radius: 6px; padding: 6px 8px; margin-bottom: 10px; line-height: 1.6; }
+  .mm-tool-legend b { color: var(--mm-text); font-family: "SFMono-Regular",Consolas,monospace; font-weight: 700; }
   .mm-check-row { display: flex; align-items: center; gap: 6px; font-size: 12.5px; margin-bottom: 10px; }
   .mm-dims { display: flex; gap: 10px; }
   .mm-dims .mm-field { flex: 1; }
@@ -83,10 +85,9 @@ function dfsBuildMenuMakerBodyHtml() {
           <button class="mm-tab" data-tab="menu">메뉴</button>
           <button class="mm-tab" data-tab="icon">아이콘</button>
           <button class="mm-tab" data-tab="sound">사운드</button>
+          <button class="mm-tab" data-tab="ext">확장자</button>
         </div>
         <span class="mm-spacer"></span>
-        <span class="mm-save-state" id="mmSaveState"></span>
-        <button id="mmClearLocal" title="편집 중 계속 반영해온 로컬 미리보기를 지우고, 다음에 열 때부터 다시 실제 저장소 파일 내용을 씀">로컬 미리보기 초기화</button>
         <button id="mmImport">가져오기</button>
         <input type="file" id="mmImportFile" accept=".json,application/json" style="display:none;">
         <button id="mmSave">저장/다운로드(전체)</button>
@@ -114,6 +115,10 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   var rawIcons = (RAW.icons && typeof RAW.icons === "object") ? RAW.icons : {};
   DATA.iconRepoRoot = typeof rawIcons.repoRoot === "string" ? rawIcons.repoRoot : "";
   DATA.iconRecycleBin = typeof rawIcons.recycleBin === "string" ? rawIcons.recycleBin : "";
+  // 요청 #144: 바탕화면(트리의 "바탕 화면" 항목) / 환경설정(창 타이틀바) 아이콘 - repoRoot/
+  // recycleBin과 완전히 같은 고정 슬롯 패턴이다.
+  DATA.iconDesktop = typeof rawIcons.desktop === "string" ? rawIcons.desktop : "";
+  DATA.iconSettings = typeof rawIcons.settings === "string" ? rawIcons.settings : "";
   DATA.iconFolders = (rawIcons.folders && typeof rawIcons.folders === "object")
     ? Object.keys(rawIcons.folders).map(function(k) { return { key: k, icon: rawIcons.folders[k] }; }) : [];
   DATA.iconExts = (rawIcons.extensions && typeof rawIcons.extensions === "object")
@@ -126,6 +131,8 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   DATA.skinName = typeof RAW.skinName === "string" && RAW.skinName ? RAW.skinName : "win7";
   DATA.skinIconRepoRoot = typeof rawSkinIcons.repoRoot === "string" ? rawSkinIcons.repoRoot : "";
   DATA.skinIconRecycleBin = typeof rawSkinIcons.recycleBin === "string" ? rawSkinIcons.recycleBin : "";
+  DATA.skinIconDesktop = typeof rawSkinIcons.desktop === "string" ? rawSkinIcons.desktop : "";
+  DATA.skinIconSettings = typeof rawSkinIcons.settings === "string" ? rawSkinIcons.settings : "";
   DATA.skinIconFolders = (rawSkinIcons.folders && typeof rawSkinIcons.folders === "object")
     ? Object.keys(rawSkinIcons.folders).map(function(k) { return { key: k, icon: rawSkinIcons.folders[k] }; }) : [];
   DATA.skinIconExts = (rawSkinIcons.extensions && typeof rawSkinIcons.extensions === "object")
@@ -136,6 +143,13 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   var rawSounds = (RAW.sounds && typeof RAW.sounds === "object") ? RAW.sounds : {};
   DATA.sounds = {};
   SOUND_SCENARIOS.forEach(function(s) { DATA.sounds[s.key] = typeof rawSounds[s.key] === "string" ? rawSounds[s.key] : ""; });
+  // 요청 #143: extension_run_set.json - { "확장자": "이니셜" } 객체를 {key: 확장자, action: 이니셜}
+  // 배열로 풀어서 목록으로 다루다가(다른 탭들과 같은 습관), 저장할 때 다시 객체로 합친다
+  // (serializeExtRunSet 참고). EXTENSION_RUN_ACTIONS(state.js)에 없는 값은 무시한다.
+  var rawExtRun = (RAW.extRun && typeof RAW.extRun === "object") ? RAW.extRun : {};
+  DATA.extRun = Object.keys(rawExtRun)
+    .filter(function(k) { return EXTENSION_RUN_ACTIONS.some(function(a) { return a.key === rawExtRun[k]; }); })
+    .map(function(k) { return { key: k, action: rawExtRun[k] }; });
 
   // 아이콘 탭의 "스킨용으로 저장" 체크박스를 켜고 끌 때 쓴다. DATA.iconFolders/iconExts/
   // iconRepoRoot/iconRecycleBin은 항상 "지금 화면에 보이는" 데이터셋을 가리키는 필드 하나로
@@ -147,13 +161,17 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     if (flag) {
       DATA.baseIconFolders = DATA.iconFolders; DATA.baseIconExts = DATA.iconExts;
       DATA.baseIconRepoRoot = DATA.iconRepoRoot; DATA.baseIconRecycleBin = DATA.iconRecycleBin;
+      DATA.baseIconDesktop = DATA.iconDesktop; DATA.baseIconSettings = DATA.iconSettings;
       DATA.iconFolders = DATA.skinIconFolders; DATA.iconExts = DATA.skinIconExts;
       DATA.iconRepoRoot = DATA.skinIconRepoRoot; DATA.iconRecycleBin = DATA.skinIconRecycleBin;
+      DATA.iconDesktop = DATA.skinIconDesktop; DATA.iconSettings = DATA.skinIconSettings;
     } else {
       DATA.skinIconFolders = DATA.iconFolders; DATA.skinIconExts = DATA.iconExts;
       DATA.skinIconRepoRoot = DATA.iconRepoRoot; DATA.skinIconRecycleBin = DATA.iconRecycleBin;
+      DATA.skinIconDesktop = DATA.iconDesktop; DATA.skinIconSettings = DATA.iconSettings;
       DATA.iconFolders = DATA.baseIconFolders; DATA.iconExts = DATA.baseIconExts;
       DATA.iconRepoRoot = DATA.baseIconRepoRoot; DATA.iconRecycleBin = DATA.baseIconRecycleBin;
+      DATA.iconDesktop = DATA.baseIconDesktop; DATA.iconSettings = DATA.baseIconSettings;
     }
     DATA.iconForSkin = flag;
   }
@@ -161,34 +179,24 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   // 요청 #137: 우클릭 위치에 따라 메뉴 메이커를 열 때 바로 해당 탭으로 들어가야 한다(트레이/시작
   // 메뉴 우클릭 -> 메뉴 탭, 파일/폴더 우클릭 -> 아이콘 탭) - 호출부(dfsOpenMenuMakerInWindow)가
   // 넘겨주는 initialTab을 그대로 시작 탭으로 쓴다(모르는 값이거나 없으면 기존처럼 "menu").
-  var currentTab = (initialTab === "icon" || initialTab === "sound") ? initialTab : "menu"; // "menu" | "icon" | "sound"
+  var currentTab = (initialTab === "icon" || initialTab === "sound" || initialTab === "ext") ? initialTab : "menu"; // "menu" | "icon" | "sound" | "ext"
   var sel = null; // { section: "start"|"tray"|"iconFolders"|"iconExts"|"iconRepoRoot"|"iconRecycleBin"|"sound", path/idx/key: ... }
 
   var listsBodyEl = document.getElementById("mmListsBody");
   var panelEl = document.getElementById("mmPanel");
-  var saveStateEl = document.getElementById("mmSaveState");
   var importBtn = document.getElementById("mmImport");
-  // 요청 #123: 로컬 반영을 그만 쓰고(지금 켜져 있는 3가지: 메뉴/아이콘 기본/아이콘 스킨/사운드
-  // 전부) 다음에 열 때부터 다시 실제 저장소 파일 내용을 쓰게 한다. 지금 화면에 편집 중인(아직
-  // 저장 안 한) 내용은 지우지 않는다 - "저장"은 별개다.
-  document.getElementById("mmClearLocal").onclick = async function() {
-    // 앱 안에 이미 CSS 커스텀 확인창이 있으므로(같은 문서 안이 됐으니) 브라우저 native confirm()
-    // 대신 그걸 그대로 쓴다(요청 #135 - 예전엔 완전히 별개 문서였어서 native 팝업이 그나마
-    // 자연스러웠지만, 이제는 어울리지 않는다).
-    const ok = await showConfirmDialog('이 브라우저에 임시로 반영해온 로컬 미리보기(메뉴/아이콘 기본/아이콘 스킨("' + DATA.skinName + '")/사운드 전체)를 지웁니다. 다음에 열 때부터는 다시 실제 저장소 파일 내용을 쓰게 됩니다(지금 화면에서 편집 중인 내용은 지워지지 않습니다). 계속할까요?');
-    if (!ok) return;
-    dfClearLocalOverride(dfLsMenuKey());
-    dfClearLocalOverride(dfLsIconKey());
-    dfClearLocalOverride(dfLsIconSkinKey(DATA.skinName));
-    dfClearLocalOverride(dfLsSoundKey());
-    saveStateEl.textContent = "로컬 미리보기를 초기화했습니다 - 다음에 열 때부터 실제 파일 내용을 다시 씀";
-  };
+  // 요청 #158: "로컬 미리보기 초기화" 버튼 제거 - 가져오기(#149로 로컬/웹 분리됨)가 이미 원하는
+  // 내용으로 덮어써서 사실상 같은 결과를 내므로 중복이라는 지적에 따라 없앤다.
 
-  function tabLabel(t) { return t === "menu" ? "메뉴" : t === "icon" ? "아이콘" : "사운드"; }
-  function tabFileName(t) { return t === "menu" ? "menu_set.json" : t === "icon" ? "icon_set.json" : "sound_set.json"; }
+  function tabLabel(t) { return t === "menu" ? "메뉴" : t === "icon" ? "아이콘" : t === "sound" ? "사운드" : "확장자"; }
+  function tabFileName(t) { return t === "menu" ? "menu_set.json" : t === "icon" ? "icon_set.json" : t === "sound" ? "sound_set.json" : "extension_run_set.json"; }
 
   function blankItem() { return { name: "새 항목", url: "", icon: "", popup: false, width: 900, height: 640 }; }
-  function setDirty() { state.dirty = true; saveStateEl.textContent = "저장 안 됨"; persistLocalOverride(); }
+  // 요청 #155: 예전엔 여기서도 매번 상단 텍스트를 "저장 안 됨"으로 갈아치웠는데, setDirty는
+  // 타이핑 한 글자마다 불려서 토스트를 띄우면 너무 시끄럽다 - 편집 중인 필드 자체가 이미 바뀐
+  // 내용을 보여주므로 따로 알릴 필요가 없고, dirty 여부는 탭 전환/닫기 시 확인창(state.dirty)이
+  // 계속 담당한다.
+  function setDirty() { state.dirty = true; persistLocalOverride(); }
   // 요청 #123: 편집(가져오기 포함, setDirty가 불리는 모든 곳)이 있을 때마다 "지금 탭"에 해당하는
   // 내용을 localStorage에 즉시 반영한다 - 아직 실제 파일로 저장/다운로드하지 않아도 이 브라우저
   // 에서는 곧바로 테스트해볼 수 있다. 아이콘 탭은 "스킨용으로 저장" 체크 여부에 따라 base/스킨
@@ -216,6 +224,9 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     } else if (currentTab === "sound") {
       dfWriteLocalOverride(dfLsSoundKey(), serializeSoundSet());
       dfDebouncedLsRefresh("sound", () => loadSoundSetConfig().then(applySoundSetConfig));
+    } else if (currentTab === "ext") {
+      dfWriteLocalOverride(dfLsExtRunKey(), serializeExtRunSet());
+      dfDebouncedLsRefresh("extRun", () => loadExtensionRunSetConfig().then(applyExtensionRunSetConfig));
     }
   }
 
@@ -333,12 +344,53 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     });
   }
 
+  // 요청 #143: 확장자별 더블클릭 동작 목록 - {key: 확장자, action: 이니셜} 배열. 아이콘 대신
+  // 오른쪽에 지금 지정된 동작의 한글 이름을 작게 보여준다(아이콘 썸네일 자리가 필요 없어서
+  // renderIconKeyList를 그대로 재사용하지 않고 살짝 다르게 그린다).
+  function actionLabelFor(actionKey) {
+    var found = null;
+    for (var i = 0; i < EXTENSION_RUN_ACTIONS.length; i++) { if (EXTENSION_RUN_ACTIONS[i].key === actionKey) { found = EXTENSION_RUN_ACTIONS[i]; break; } }
+    return found ? found.label : "(동작 없음)";
+  }
+  function renderExtRunList(container) {
+    container.innerHTML = "";
+    DATA.extRun.forEach(function(item, idx) {
+      var row = document.createElement("div");
+      row.className = "mm-item-row" + (sel && sel.section === "extRun" && sel.idx === idx ? " selected" : "");
+      var iconEl = document.createElement("div");
+      iconEl.className = "mm-item-icon";
+      iconEl.textContent = (item.key || "?").slice(0, 2).toUpperCase();
+      row.appendChild(iconEl);
+      var nameEl = document.createElement("span");
+      nameEl.className = "mm-item-name" + (item.key ? "" : " empty");
+      nameEl.textContent = (item.key || "(확장자 없음)") + " → " + actionLabelFor(item.action);
+      row.appendChild(nameEl);
+      var btns = document.createElement("div");
+      btns.className = "mm-item-btns";
+      var delBtn = document.createElement("button"); delBtn.className = "mm-row-btn"; delBtn.title = "삭제"; delBtn.textContent = "✕";
+      delBtn.onclick = function(e) {
+        e.stopPropagation();
+        DATA.extRun.splice(idx, 1);
+        if (sel && sel.section === "extRun" && sel.idx === idx) sel = null;
+        setDirty();
+        renderAll();
+      };
+      btns.appendChild(delBtn);
+      row.appendChild(btns);
+      row.onclick = function() { sel = { section: "extRun", idx: idx }; renderAll(); };
+      container.appendChild(row);
+    });
+  }
+
   // 저장소 루트 / 휴지통 - 고정 슬롯 2개짜리 목록(추가/삭제 없이 항상 존재, 클릭하면 편집 패널로).
   function renderSpecialIconList(container) {
     container.innerHTML = "";
     [
       { section: "iconRepoRoot", label: "저장소 루트 아이콘", get: function() { return DATA.iconRepoRoot; } },
-      { section: "iconRecycleBin", label: "휴지통 아이콘", get: function() { return DATA.iconRecycleBin; } }
+      { section: "iconRecycleBin", label: "휴지통 아이콘", get: function() { return DATA.iconRecycleBin; } },
+      // 요청 #144
+      { section: "iconDesktop", label: "바탕화면 아이콘", get: function() { return DATA.iconDesktop; } },
+      { section: "iconSettings", label: "환경설정 아이콘", get: function() { return DATA.iconSettings; } }
     ].forEach(function(spec) {
       var row = document.createElement("div");
       row.className = "mm-special-row" + (sel && sel.section === spec.section ? " selected" : "");
@@ -378,6 +430,23 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   // 아이콘 편집기(미리보기 + URL 입력 + 붙여넣기(Ctrl+V) + 파일 선택 -> base64) - 시작메뉴/트레이
   // 항목뿐 아니라 아래의 폴더별/확장자별/특수(저장소 루트·휴지통) 아이콘 편집 패널에서도 그대로
   // 재사용한다(예전엔 시작메뉴/트레이 패널에만 인라인으로 있었다).
+  // 요청 #149: 확장자 아이콘을 직접 지정하지 않고 확장자만 입력했을 때, 저장소의
+  // _NIH_ROOT_/index/ui/icon/{확장자}.{ico|svg|png}가 실제로 존재하면 자동으로 찾아서 써준다
+  // (기존에 실제로 그 위치에 확장자별 기본 아이콘들이 있던 관례를 그대로 활용).
+  var MM_EXT_ICON_DIR = "_NIH_ROOT_/index/ui/icon/";
+  var MM_EXT_ICON_TRY_EXTS = ["ico", "svg", "png"];
+  function mmAutoDetectExtIconUrl(ext) {
+    var norm = String(ext || "").replace(/^\.+/, "").trim().toLowerCase();
+    if (!norm) return Promise.resolve(null);
+    function tryAt(i) {
+      if (i >= MM_EXT_ICON_TRY_EXTS.length) return Promise.resolve(null);
+      var url = MM_EXT_ICON_DIR + norm + "." + MM_EXT_ICON_TRY_EXTS[i];
+      return fetch(url, { method: "HEAD", cache: "no-store" }).then(function(res) {
+        return res.ok ? url : tryAt(i + 1);
+      }).catch(function() { return tryAt(i + 1); });
+    }
+    return tryAt(0);
+  }
   function buildIconEditorField(labelText, initialIcon, previewName, onChange) {
     var iconWrap = document.createElement("div");
     iconWrap.className = "mm-field";
@@ -438,65 +507,127 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     iconRow.appendChild(iconActions);
     iconRow.appendChild(fileInput);
     iconWrap.appendChild(iconRow);
+    iconWrap.setIconValue = setIcon; // 요청 #149: 확장자 자동 감지 등, 바깥에서 값을 채워줄 때 씀
     return iconWrap;
   }
 
   // 요청 #122: 사운드 편집기 - 아이콘 편집기와 같은 뼈대(미리보기/URL/파일선택)를 쓰되, 이미지 대신
   // 소리(URL 또는 base64)를 다루고, 미리듣기 재생 버튼과 지우기 버튼이 추가로 있다.
+  // 요청 #147: "파일/URL(base64) 말고 Web Audio API 코드로도 지정할 수 있게" - 체크박스 하나로
+  // 두 방식을 전환한다(값 자체는 여전히 문자열 하나뿐 - state.js의 DF_SOUND_WEBAUDIO_PREFIX(
+  // "webaudio:")로 시작하면 코드, 아니면 URL/base64). 모드를 바꿔도 서로의 값은 지우지 않고
+  // 각자 기억해뒀다가, 실제로 입력이 있는 쪽만 onChange로 저장한다.
   function buildSoundEditorField(labelText, initialSrc, onChange) {
     var wrap = document.createElement("div");
     wrap.className = "mm-field";
     var label = document.createElement("label");
     label.textContent = labelText;
     wrap.appendChild(label);
-    var row = document.createElement("div");
-    row.className = "mm-icon-editor";
-    var preview = document.createElement("div");
-    preview.className = "mm-icon-preview";
-    var current = initialSrc || "";
-    function refreshPreview() { preview.textContent = current ? "🔊" : "🔈"; }
-    refreshPreview();
-    var actions = document.createElement("div");
-    actions.className = "mm-icon-actions";
-    var urlInput = document.createElement("input");
-    urlInput.type = "text"; urlInput.placeholder = "소리 URL 또는 base64, 혹은 아래에서 파일 선택";
-    urlInput.value = current;
-    function setSrc(v) { current = v; urlInput.value = v; refreshPreview(); onChange(v); }
-    urlInput.oninput = function() { setSrc(urlInput.value); };
-    var fileInput = document.createElement("input");
-    fileInput.type = "file"; fileInput.accept = "audio/*"; fileInput.style.display = "none";
-    fileInput.onchange = function() {
-      var file = fileInput.files && fileInput.files[0];
-      if (!file) return;
-      var reader = new FileReader();
-      reader.onload = function() { setSrc(reader.result); };
-      reader.readAsDataURL(file);
+
+    var isCode = dfsIsWebAudioSound(initialSrc);
+    var srcValue = isCode ? "" : (initialSrc || "");
+    var codeValue = isCode ? initialSrc.slice(DF_SOUND_WEBAUDIO_PREFIX.length) : "";
+
+    var modeRow = document.createElement("label");
+    modeRow.className = "mm-check-row";
+    var modeCb = document.createElement("input");
+    modeCb.type = "checkbox"; modeCb.checked = isCode;
+    modeRow.appendChild(modeCb);
+    modeRow.appendChild(document.createTextNode(" Web Audio 코드로 지정(고급) - 체크 해제 시 파일/URL"));
+    wrap.appendChild(modeRow);
+
+    var body = document.createElement("div");
+    wrap.appendChild(body);
+
+    function buildFileModeBody() {
+      var row = document.createElement("div");
+      row.className = "mm-icon-editor";
+      var preview = document.createElement("div");
+      preview.className = "mm-icon-preview";
+      function refreshPreview() { preview.textContent = srcValue ? "🔊" : "🔈"; }
+      refreshPreview();
+      var actions = document.createElement("div");
+      actions.className = "mm-icon-actions";
+      var urlInput = document.createElement("input");
+      urlInput.type = "text"; urlInput.placeholder = "소리 URL 또는 base64, 혹은 아래에서 파일 선택";
+      urlInput.value = srcValue;
+      function setSrc(v) { srcValue = v; urlInput.value = v; refreshPreview(); onChange(v); }
+      urlInput.oninput = function() { setSrc(urlInput.value); };
+      var fileInput = document.createElement("input");
+      fileInput.type = "file"; fileInput.accept = "audio/*"; fileInput.style.display = "none";
+      fileInput.onchange = function() {
+        var file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function() { setSrc(reader.result); };
+        reader.readAsDataURL(file);
+      };
+      var fileBtn = document.createElement("button");
+      fileBtn.textContent = "소리 파일 선택";
+      fileBtn.onclick = function() { fileInput.click(); };
+      var playBtn = document.createElement("button");
+      playBtn.textContent = "▶ 미리듣기";
+      playBtn.onclick = function() {
+        if (!srcValue) return;
+        try { new Audio(srcValue).play().catch(function() {}); } catch (e) { /* 무시 */ }
+      };
+      var clearBtn = document.createElement("button");
+      clearBtn.textContent = "지우기";
+      clearBtn.onclick = function() { setSrc(""); };
+      var hint = document.createElement("div");
+      hint.className = "mm-hint";
+      hint.textContent = "짧은 알림음(mp3/wav 등) 파일의 URL을 입력하거나 파일을 선택하면 base64로 저장됩니다. 비워두면 이 상황에서는 소리가 나지 않습니다.";
+      actions.appendChild(urlInput);
+      var btnRow = document.createElement("div");
+      btnRow.style.display = "flex"; btnRow.style.gap = "6px"; btnRow.style.flexWrap = "wrap";
+      btnRow.appendChild(fileBtn); btnRow.appendChild(playBtn); btnRow.appendChild(clearBtn);
+      actions.appendChild(btnRow);
+      actions.appendChild(hint);
+      row.appendChild(preview);
+      row.appendChild(actions);
+      row.appendChild(fileInput);
+      return row;
+    }
+
+    function buildCodeModeBody() {
+      var box = document.createElement("div");
+      var hint = document.createElement("div");
+      hint.className = "mm-hint";
+      hint.style.marginBottom = "6px";
+      hint.textContent = "AudioContext를 직접 만들어 소리를 내고 끝나는 JS 코드를 작성하세요(예: 오실레이터로 짧은 비프음 합성). 저장하면 이 코드가 그 상황마다 그대로 실행됩니다 - 본인이 작성/붙여넣은 코드만 넣으세요.";
+      box.appendChild(hint);
+      var ta = document.createElement("textarea");
+      ta.value = codeValue;
+      ta.rows = 6;
+      ta.placeholder = "const ctx = new (window.AudioContext || window.webkitAudioContext)();\nconst o = ctx.createOscillator();\nconst g = ctx.createGain();\no.connect(g); g.connect(ctx.destination);\no.frequency.value = 880;\ng.gain.setValueAtTime(0.2, ctx.currentTime);\ng.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);\no.start(); o.stop(ctx.currentTime + 0.15);";
+      ta.style.cssText = "width:100%;background:var(--mm-panel2);border:1px solid var(--mm-border);color:var(--mm-text);border-radius:6px;padding:7px 9px;font:12px/1.5 \"SFMono-Regular\",Consolas,monospace;resize:vertical;";
+      ta.oninput = function() { codeValue = ta.value; onChange(codeValue ? (DF_SOUND_WEBAUDIO_PREFIX + codeValue) : ""); };
+      box.appendChild(ta);
+      var btnRow = document.createElement("div");
+      btnRow.style.cssText = "display:flex;gap:6px;margin-top:6px;";
+      var playBtn = document.createElement("button");
+      playBtn.textContent = "▶ 미리듣기";
+      playBtn.onclick = function() { dfsRunWebAudioSoundCode(codeValue); };
+      var clearBtn = document.createElement("button");
+      clearBtn.textContent = "지우기";
+      clearBtn.onclick = function() { codeValue = ""; ta.value = ""; onChange(""); };
+      btnRow.appendChild(playBtn); btnRow.appendChild(clearBtn);
+      box.appendChild(btnRow);
+      return box;
+    }
+
+    function renderBody() {
+      body.innerHTML = "";
+      body.appendChild(modeCb.checked ? buildCodeModeBody() : buildFileModeBody());
+    }
+    modeCb.onchange = function() {
+      renderBody();
+      // 모드를 바꾸는 순간에도 지금 그 모드에 든 값(없으면 빈 문자열)을 즉시 반영한다 - 예를 들어
+      // 파일/URL에 값이 있는 채로 코드 모드로 바꾸면, 코드가 비어있으니 일단 무음으로 저장된다
+      // (파일/URL 값 자체는 srcValue에 그대로 남아있어 다시 체크 해제하면 돌아온다).
+      onChange(modeCb.checked ? (codeValue ? (DF_SOUND_WEBAUDIO_PREFIX + codeValue) : "") : srcValue);
     };
-    var fileBtn = document.createElement("button");
-    fileBtn.textContent = "소리 파일 선택";
-    fileBtn.onclick = function() { fileInput.click(); };
-    var playBtn = document.createElement("button");
-    playBtn.textContent = "▶ 미리듣기";
-    playBtn.onclick = function() {
-      if (!current) return;
-      try { new Audio(current).play().catch(function() {}); } catch (e) { /* 무시 */ }
-    };
-    var clearBtn = document.createElement("button");
-    clearBtn.textContent = "지우기";
-    clearBtn.onclick = function() { setSrc(""); };
-    var hint = document.createElement("div");
-    hint.className = "mm-hint";
-    hint.textContent = "짧은 알림음(mp3/wav 등) 파일의 URL을 입력하거나 파일을 선택하면 base64로 저장됩니다. 비워두면 이 상황에서는 소리가 나지 않습니다.";
-    actions.appendChild(urlInput);
-    var btnRow = document.createElement("div");
-    btnRow.style.display = "flex"; btnRow.style.gap = "6px"; btnRow.style.flexWrap = "wrap";
-    btnRow.appendChild(fileBtn); btnRow.appendChild(playBtn); btnRow.appendChild(clearBtn);
-    actions.appendChild(btnRow);
-    actions.appendChild(hint);
-    row.appendChild(preview);
-    row.appendChild(actions);
-    row.appendChild(fileInput);
-    wrap.appendChild(row);
+    renderBody();
     return wrap;
   }
 
@@ -529,7 +660,22 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     keyInput.type = "text"; keyInput.className = "mm-key-input";
     keyInput.placeholder = isFolder ? "예: docs/images" : "예: pdf";
     keyInput.value = item.key || "";
-    keyInput.oninput = function() { item.key = keyInput.value; setDirty(); renderLists(); };
+    keyInput.oninput = function() {
+      item.key = keyInput.value; setDirty(); renderLists();
+      // 요청 #149: 확장자 탭이고 아이콘을 아직 지정하지 않았으면, 타이핑한 확장자에 맞는
+      // 기본 아이콘 파일이 저장소에 있는지 찾아서 자동으로 채워준다.
+      if (!isFolder && !item.icon) {
+        var keyAtInputTime = item.key;
+        mmAutoDetectExtIconUrl(keyAtInputTime).then(function(url) {
+          if (!url) return;
+          if (item.key !== keyAtInputTime || item.icon) return; // 그 사이 값이 바뀌었으면 무시
+          item.icon = url;
+          setDirty();
+          renderLists();
+          if (iconField.setIconValue) iconField.setIconValue(url);
+        });
+      }
+    };
     fieldInto(panelEl, isFolder ? "폴더 경로" : "확장자", keyInput);
 
     var iconField = buildIconEditorField("아이콘", item.icon, item.key || "?", function(newIcon) {
@@ -538,19 +684,53 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     panelEl.appendChild(iconField);
   }
 
-  // 저장소 루트 / 휴지통 - 목록이 아니라 고정 슬롯 2개짜리 단일 아이콘 편집 패널.
-  function renderSpecialIconPanel() {
-    var isRepoRoot = sel.section === "iconRepoRoot";
-    var label = isRepoRoot ? "저장소 루트 아이콘" : "휴지통 아이콘";
+  // 요청 #143: 확장자별 더블클릭 동작 - 한 항목(확장자 문자열 + 동작 이니셜) 편집 패널.
+  function renderExtRunPanel() {
+    var item = DATA.extRun[sel.idx];
+    if (!item) { sel = null; renderPanel(); return; }
     panelEl.innerHTML = "";
     var note = document.createElement("div");
     note.className = "mm-submenu-note";
-    note.textContent = (isRepoRoot
-      ? "바탕 화면과 트리 맨 위의 저장소 루트 폴더에 쓰이는 아이콘입니다."
-      : "바탕 화면과 트리의 휴지통에 쓰이는 아이콘입니다.") + " 비워두면 기본 아이콘을 사용합니다.";
+    note.textContent = "점(.) 없이 확장자만 입력하세요(예: txt, html). 대소문자는 구분하지 않습니다. 이 확장자의 파일을 더블클릭했을 때, 환경설정의 기본 더블클릭 동작 대신 아래에서 고른 동작을 사용합니다.";
     panelEl.appendChild(note);
-    var iconField = buildIconEditorField(label, isRepoRoot ? DATA.iconRepoRoot : DATA.iconRecycleBin, label, function(newIcon) {
-      if (isRepoRoot) DATA.iconRepoRoot = newIcon; else DATA.iconRecycleBin = newIcon;
+
+    var keyInput = document.createElement("input");
+    keyInput.type = "text"; keyInput.className = "mm-key-input";
+    keyInput.placeholder = "예: txt";
+    keyInput.value = item.key || "";
+    keyInput.oninput = function() { item.key = keyInput.value; setDirty(); renderLists(); };
+    fieldInto(panelEl, "확장자", keyInput);
+
+    var actionSelect = document.createElement("select");
+    var hasMatch = EXTENSION_RUN_ACTIONS.some(function(a) { return a.key === item.action; });
+    EXTENSION_RUN_ACTIONS.forEach(function(a, i) {
+      var opt = document.createElement("option");
+      opt.value = a.key;
+      opt.textContent = a.label + " (" + a.key + ")";
+      if (hasMatch ? item.action === a.key : i === 0) opt.selected = true;
+      actionSelect.appendChild(opt);
+    });
+    actionSelect.onchange = function() { item.action = actionSelect.value; setDirty(); renderLists(); };
+    fieldInto(panelEl, "더블클릭 동작", actionSelect);
+  }
+
+  // 저장소 루트 / 휴지통 / 바탕화면 / 환경설정 - 목록이 아니라 고정 슬롯 4개짜리 단일 아이콘
+  // 편집 패널(요청 #144로 2개에서 4개로 늘어나면서, 분기 대신 표 하나로 정리했다).
+  var SPECIAL_ICON_SPECS = {
+    iconRepoRoot: { label: "저장소 루트 아이콘", hint: "바탕 화면과 트리 맨 위의 저장소 루트 폴더에 쓰이는 아이콘입니다." },
+    iconRecycleBin: { label: "휴지통 아이콘", hint: "바탕 화면과 트리의 휴지통에 쓰이는 아이콘입니다." },
+    iconDesktop: { label: "바탕화면 아이콘", hint: "트리의 \"바탕 화면\" 항목에 쓰이는 아이콘입니다." },
+    iconSettings: { label: "환경설정 아이콘", hint: "환경설정 창 타이틀바에 쓰이는 아이콘입니다." }
+  };
+  function renderSpecialIconPanel() {
+    var spec = SPECIAL_ICON_SPECS[sel.section];
+    panelEl.innerHTML = "";
+    var note = document.createElement("div");
+    note.className = "mm-submenu-note";
+    note.textContent = spec.hint + " 비워두면 기본 아이콘을 사용합니다.";
+    panelEl.appendChild(note);
+    var iconField = buildIconEditorField(spec.label, DATA[sel.section], spec.label, function(newIcon) {
+      DATA[sel.section] = newIcon;
       setDirty(); renderLists();
     });
     panelEl.appendChild(iconField);
@@ -580,7 +760,8 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     }
     if (!sel) { panelEl.innerHTML = '<div class="mm-empty-hint">왼쪽에서 항목을 고르거나 "+ 새 항목 추가"로 새로 만드세요.</div>'; return; }
     if (sel.section === "iconFolders" || sel.section === "iconExts") { renderIconKeyPanel(); return; }
-    if (sel.section === "iconRepoRoot" || sel.section === "iconRecycleBin") { renderSpecialIconPanel(); return; }
+    if (SPECIAL_ICON_SPECS[sel.section]) { renderSpecialIconPanel(); return; }
+    if (sel.section === "extRun") { renderExtRunPanel(); return; }
     var item = getItem(sel.section, sel.path);
     if (!item) { sel = null; renderPanel(); return; }
     var hasChildren = sel.section === "start" && Array.isArray(item.items) && item.items.length > 0;
@@ -673,7 +854,7 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
       '<label class="mm-check-row"><input type="checkbox" id="mmIconForSkin"' + (DATA.iconForSkin ? ' checked' : '') + '> "' + escapeHtml(DATA.skinName) + '" 스킨용으로 저장</label>' +
       '<div class="mm-section-sub">체크하면 지금부터 아이콘 탭에서 편집/저장하는 내용이 기본 icon_set.json이 아니라 현재 스킨(' + escapeHtml(DATA.skinName) + ')만의 icon_set.json이 되고, 저장 버튼을 눌러도 시작 메뉴/트레이/사운드는 저장하지 않습니다. 체크를 풀면 다시 기본 icon_set.json으로 돌아옵니다(편집 중이던 두 내용은 서로 지워지지 않고 각자 남아있습니다).</div>' +
       '<div class="mm-section-head"><h3>특수 아이콘</h3></div>' +
-      '<div class="mm-section-sub">바탕 화면·트리에 쓰이는 고정 아이콘 2개(비워두면 기본 아이콘 사용)</div>' +
+      '<div class="mm-section-sub">바탕 화면·트리·환경설정 창에 쓰이는 고정 아이콘 4개(비워두면 기본 아이콘 사용)</div>' +
       '<div class="mm-list" id="mmSpecialIconList"></div>' +
       '<div class="mm-section-head"><h3>폴더별 아이콘</h3></div>' +
       '<div class="mm-section-sub">저장소 안의 특정 폴더 경로에 아이콘을 지정합니다 (예: docs/images)</div>' +
@@ -709,10 +890,34 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
       '<div class="mm-list" id="mmSoundList"></div>';
     renderSoundList(document.getElementById("mmSoundList"));
   }
+  // 요청 #143: "도구" 목록(이니셜) - 화면에 등록된 도구와 그 이니셜을 안내로 보여준다("도구에
+  // 이니셜을 추가, 에디터 = editor 같은 식" - 이 앱에서는 도구 자체가 고정돼 있으므로, 편집 UI
+  // 대신 이니셜을 한눈에 확인할 수 있는 목록으로 보여준다. 아래 확장자별 목록의 드롭다운도 이
+  // 이니셜들 중에서 고른다).
+  function toolLegendHtml() {
+    return '<div class="mm-tool-legend">등록된 도구(더블클릭 동작) 목록: ' +
+      EXTENSION_RUN_ACTIONS.map(function(a) { return escapeHtml(a.label) + ' = <b>' + escapeHtml(a.key) + '</b>'; }).join(', ') +
+      '</div>';
+  }
+  function renderExtTabLists() {
+    listsBodyEl.innerHTML =
+      '<div class="mm-section-head"><h3>확장자별 더블클릭 동작</h3></div>' +
+      '<div class="mm-section-sub">원하는 확장자를 적고 더블클릭했을 때 어떤 도구로 열지 고르세요(예: html은 새 탭에서 열기, txt는 더블클릭시 에디터로 열기). 여기에 없는 확장자는 환경설정의 기본 더블클릭 동작을 그대로 따릅니다.</div>' +
+      toolLegendHtml() +
+      '<div class="mm-list" id="mmExtRunList"></div>' +
+      '<button class="mm-add-row" id="mmAddExtRun">+ 확장자 규칙 추가</button>';
+    document.getElementById("mmAddExtRun").onclick = function() {
+      DATA.extRun.push({ key: "", action: EXTENSION_RUN_ACTIONS[0].key });
+      sel = { section: "extRun", idx: DATA.extRun.length - 1 };
+      setDirty(); renderAll();
+    };
+    renderExtRunList(document.getElementById("mmExtRunList"));
+  }
   function renderLists() {
     if (currentTab === "menu") renderMenuTabLists();
     else if (currentTab === "icon") renderIconTabLists();
-    else renderSoundTabLists();
+    else if (currentTab === "sound") renderSoundTabLists();
+    else renderExtTabLists();
   }
   function renderAll() { renderLists(); renderPanel(); }
 
@@ -727,6 +932,7 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   for (var ti = 0; ti < tabBtns.length; ti++) {
     tabBtns[ti].onclick = function(e) {
       currentTab = e.currentTarget.getAttribute("data-tab");
+      dfMenuMakerLastTab = currentTab; // 요청 #148: 바탕화면 우클릭 "메뉴 메이커"가 마지막 탭을 기억
       sel = null;
       updateTabButtons();
       renderAll();
@@ -738,10 +944,32 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   // 바꿀 수 있어야 한다 - 탭 버튼 클릭과 같은 로직을 handle에 얹어 외부(menu-maker.js 맨 아래의
   // dfsOpenMenuMakerInWindow)에서 부를 수 있게 한다.
   handle.switchTab = function(tab) {
-    if (tab !== "menu" && tab !== "icon" && tab !== "sound") return;
+    if (tab !== "menu" && tab !== "icon" && tab !== "sound" && tab !== "ext") return;
     currentTab = tab;
+    dfMenuMakerLastTab = currentTab; // 요청 #148
     sel = null;
     updateTabButtons();
+    renderAll();
+  };
+  // 요청 #148: "폴더/파일 우클릭 -> 메뉴 메이커(아이콘 탭), 그 확장자/폴더 설정을 자동으로 보여줌"
+  // - 이미 목록에 있으면 그 항목을 선택하고, 없으면 빈 항목을 하나 만들어(아직 저장은 안 됨 -
+  // setDirty를 부르지 않음) 바로 편집할 수 있게 선택해준다.
+  handle.focusIcon = function(spec) {
+    if (!spec || (spec.type !== "ext" && spec.type !== "folder")) return;
+    currentTab = "icon";
+    dfMenuMakerLastTab = "icon";
+    updateTabButtons();
+    var arrName = spec.type === "ext" ? "iconExts" : "iconFolders";
+    var normalize = spec.type === "ext"
+      ? function(k) { return (k || "").replace(/^\.+/, "").toLowerCase(); }
+      : function(k) { return (k || "").replace(/^\/+|\/+$/g, ""); };
+    var normKey = normalize(spec.key);
+    if (!normKey) return;
+    var arr = DATA[arrName];
+    var idx = -1;
+    for (var i = 0; i < arr.length; i++) { if (normalize(arr[i].key) === normKey) { idx = i; break; } }
+    if (idx === -1) { arr.push({ key: normKey, icon: "" }); idx = arr.length - 1; }
+    sel = { section: arrName, idx: idx };
     renderAll();
   };
 
@@ -749,43 +977,73 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   // 따로 있으므로, 탭 전환으로 어느 파일을 불러올지 정하고 이 버튼 하나만 재사용한다). 이미 편집
   // 중인 내용이 있으면 덮어쓰기 전에 한 번 확인한다.
   var importFileInput = document.getElementById("mmImportFile");
+  // 요청 #149: "가져오기"를 누르면 로컬 파일에서 가져올지, 웹사이트(URL)의 JSON에서 바로
+  // 가져올지 먼저 물어본다. 실제로 파싱해서 DATA에 반영하는 부분은 두 경로가 공유한다
+  // (applyImportedJsonText).
+  function applyImportedJsonText(text, sourceLabel) {
+    var parsed;
+    try { parsed = JSON.parse(String(text)); } catch (e) {
+      showToast("이 파일은 올바른 JSON이 아닙니다: " + e.message, { kind: "warn", sound: "error_generic" });
+      return;
+    }
+    if (!parsed || typeof parsed !== "object") { showToast("이 파일의 형식을 알아볼 수 없습니다.", { kind: "warn", sound: "error_generic" }); return; }
+    if (currentTab === "menu") {
+      DATA.start = Array.isArray(parsed.start) ? parsed.start : [];
+      DATA.tray = Array.isArray(parsed.tray) ? parsed.tray : [];
+    } else if (currentTab === "icon") {
+      DATA.iconRepoRoot = typeof parsed.repoRoot === "string" ? parsed.repoRoot : "";
+      DATA.iconRecycleBin = typeof parsed.recycleBin === "string" ? parsed.recycleBin : "";
+      DATA.iconDesktop = typeof parsed.desktop === "string" ? parsed.desktop : ""; // 요청 #144
+      DATA.iconSettings = typeof parsed.settings === "string" ? parsed.settings : "";
+      DATA.iconFolders = (parsed.folders && typeof parsed.folders === "object")
+        ? Object.keys(parsed.folders).map(function(k) { return { key: k, icon: parsed.folders[k] }; }) : [];
+      DATA.iconExts = (parsed.extensions && typeof parsed.extensions === "object")
+        ? Object.keys(parsed.extensions).map(function(k) { return { key: k, icon: parsed.extensions[k] }; }) : [];
+    } else if (currentTab === "sound") {
+      SOUND_SCENARIOS.forEach(function(s) { DATA.sounds[s.key] = typeof parsed[s.key] === "string" ? parsed[s.key] : ""; });
+    } else {
+      DATA.extRun = Object.keys(parsed)
+        .filter(function(k) { return EXTENSION_RUN_ACTIONS.some(function(a) { return a.key === parsed[k]; }); })
+        .map(function(k) { return { key: k, action: parsed[k] }; });
+    }
+    sel = null;
+    setDirty();
+    renderAll();
+    showToast(sourceLabel + " 불러옴(" + tabLabel(currentTab) + ")");
+  }
   importBtn.onclick = async function() {
     if (state.dirty) {
       const ok = await showConfirmDialog('저장하지 않은 변경 사항이 있습니다. 지금 파일을 불러오면 현재 탭("' + tabLabel(currentTab) + '")의 내용을 덮어씁니다. 계속할까요?');
       if (!ok) return;
     }
-    importFileInput.value = "";
-    importFileInput.click();
+    const choice = await showChoiceDialog("어디에서 가져올까요?", [
+      { label: "로컬 파일에서", value: "local" },
+      { label: "웹사이트(URL)에서", value: "web" }
+    ]);
+    if (!choice) return;
+    if (choice === "local") {
+      importFileInput.value = "";
+      importFileInput.click();
+      return;
+    }
+    const url = await showPromptDialog("가져올 JSON 파일의 주소(URL)를 입력하세요.", "");
+    if (!url) return;
+    let text;
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      text = await res.text();
+    } catch (e) {
+      showToast("주소에서 가져오는 중 오류가 발생했습니다: " + e.message, { kind: "warn", sound: "error_generic" });
+      return;
+    }
+    applyImportedJsonText(text, url);
   };
   importFileInput.onchange = function() {
     var file = importFileInput.files && importFileInput.files[0];
     if (!file) return;
     var reader = new FileReader();
-    reader.onload = function() {
-      var parsed;
-      try { parsed = JSON.parse(String(reader.result)); } catch (e) {
-        showToast("이 파일은 올바른 JSON이 아닙니다: " + e.message, { kind: "warn", sound: "error_generic" });
-        return;
-      }
-      if (!parsed || typeof parsed !== "object") { showToast("이 파일의 형식을 알아볼 수 없습니다.", { kind: "warn", sound: "error_generic" }); return; }
-      if (currentTab === "menu") {
-        DATA.start = Array.isArray(parsed.start) ? parsed.start : [];
-        DATA.tray = Array.isArray(parsed.tray) ? parsed.tray : [];
-      } else if (currentTab === "icon") {
-        DATA.iconRepoRoot = typeof parsed.repoRoot === "string" ? parsed.repoRoot : "";
-        DATA.iconRecycleBin = typeof parsed.recycleBin === "string" ? parsed.recycleBin : "";
-        DATA.iconFolders = (parsed.folders && typeof parsed.folders === "object")
-          ? Object.keys(parsed.folders).map(function(k) { return { key: k, icon: parsed.folders[k] }; }) : [];
-        DATA.iconExts = (parsed.extensions && typeof parsed.extensions === "object")
-          ? Object.keys(parsed.extensions).map(function(k) { return { key: k, icon: parsed.extensions[k] }; }) : [];
-      } else {
-        SOUND_SCENARIOS.forEach(function(s) { DATA.sounds[s.key] = typeof parsed[s.key] === "string" ? parsed[s.key] : ""; });
-      }
-      sel = null;
-      setDirty();
-      renderAll();
-      saveStateEl.textContent = file.name + " 불러옴(" + tabLabel(currentTab) + ") - 저장 안 됨";
-    };
+    reader.onload = function() { applyImportedJsonText(String(reader.result), file.name); };
     reader.onerror = function() { showToast("파일을 읽는 중 오류가 발생했습니다.", { kind: "warn", sound: "error_generic" }); };
     reader.readAsText(file);
   };
@@ -826,7 +1084,9 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
       folders: serializeIconMap(DATA.iconFolders, function(k) { return k.replace(/^\/+|\/+$/g, ""); }),
       extensions: serializeIconMap(DATA.iconExts, function(k) { return k.replace(/^\.+/, "").toLowerCase(); }),
       repoRoot: DATA.iconRepoRoot || "",
-      recycleBin: DATA.iconRecycleBin || ""
+      recycleBin: DATA.iconRecycleBin || "",
+      desktop: DATA.iconDesktop || "", // 요청 #144
+      settings: DATA.iconSettings || ""
     }, null, 2);
   }
   function serializeSoundSet() {
@@ -834,14 +1094,28 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     SOUND_SCENARIOS.forEach(function(s) { out[s.key] = DATA.sounds[s.key] || ""; });
     return JSON.stringify(out, null, 2);
   }
+  // 요청 #143: {key: 확장자, action: 이니셜}[] 편집용 배열을 실제 extension_run_set.json 스키마의
+  // 객체({확장자: 이니셜})로 되돌린다. 확장자는 점을 떼고 소문자로 맞춘다. key가 비어있거나
+  // action이 등록된 도구 목록에 없는 행은 저장하지 않는다.
+  function serializeExtRunSet() {
+    var out = {};
+    DATA.extRun.forEach(function(it) {
+      var key = (it.key || "").trim().replace(/^\.+/, "").toLowerCase();
+      if (!key || !EXTENSION_RUN_ACTIONS.some(function(a) { return a.key === it.action; })) return;
+      out[key] = it.action;
+    });
+    return JSON.stringify(out, null, 2);
+  }
   function filesToSave() {
     // 요청 #121: "스킨용으로 저장"이 체크된 상태면 icon_set.json 하나만 저장하고(그 스킨 폴더용),
-    // 시작 메뉴/트레이(menu_set.json)와 사운드(sound_set.json)는 아예 저장하지 않는다.
+    // 시작 메뉴/트레이(menu_set.json)/사운드(sound_set.json)/확장자(extension_run_set.json)는
+    // 아예 저장하지 않는다.
     if (DATA.iconForSkin) return [{ name: "icon_set.json", text: serializeIconSet() }];
     return [
       { name: "menu_set.json", text: serializeMenuSet() },
       { name: "icon_set.json", text: serializeIconSet() },
-      { name: "sound_set.json", text: serializeSoundSet() }
+      { name: "sound_set.json", text: serializeSoundSet() },
+      { name: "extension_run_set.json", text: serializeExtRunSet() }
     ];
   }
   // 포트 탐색은 이 파일 안에서 다시 구현하지 않고 local-helper.js의 ensureHelperPort를 그대로
@@ -864,9 +1138,9 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     return files.reduce(function(chain, file, idx) {
       return chain.then(function() { return blobDownloadOne(file, idx === 0 ? 0 : 150); });
     }, Promise.resolve()).then(function() {
-      saveStateEl.textContent = DATA.iconForSkin
+      showToast(DATA.iconForSkin
         ? ('브라우저로 다운로드됨(icon_set.json, "' + DATA.skinName + '" 스킨용) - 저장소의 _NIH_ROOT_/index/ui/theme/' + DATA.skinName + '/ 안에 덮어써 주세요')
-        : "브라우저로 다운로드됨(menu_set/icon_set/sound_set.json) - 저장소의 _NIH_ROOT_/index/ 안에 덮어써 주세요";
+        : "브라우저로 다운로드됨(menu_set/icon_set/sound_set/extension_run_set.json) - 저장소의 _NIH_ROOT_/index/ 안에 덮어써 주세요", { sticky: true });
       state.dirty = false;
     });
   }
@@ -884,30 +1158,43 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
         });
       });
     }, Promise.resolve(false)).then(function(lastCancelled) {
-      if (lastCancelled) { saveStateEl.textContent = "다운로드가 취소되었습니다"; return; }
-      saveStateEl.textContent = DATA.iconForSkin
+      if (lastCancelled) { showToast("다운로드가 취소되었습니다."); return; }
+      dfNoteWebhookDownloadSucceeded(); // 요청 #152
+      showToast(DATA.iconForSkin
         ? ('웹훅으로 다운로드됨(icon_set.json, "' + DATA.skinName + '" 스킨용) - 저장소의 _NIH_ROOT_/index/ui/theme/' + DATA.skinName + '/ 안에 덮어써 주세요')
-        : "웹훅으로 다운로드됨(menu_set/icon_set/sound_set.json) - 저장소의 _NIH_ROOT_/index/ 안에 덮어써 주세요";
+        : "웹훅으로 다운로드됨(menu_set/icon_set/sound_set/extension_run_set.json) - 저장소의 _NIH_ROOT_/index/ 안에 덮어써 주세요", { sticky: true });
       state.dirty = false;
     });
   }
   var saveBtn = document.getElementById("mmSave");
+  // 요청 #155: 예전엔 이 버튼 하나가 "웹훅이 켜져 있으면 웹훅으로, 아니면 브라우저로"를 조용히
+  // 알아서 정해버려서 사용자가 고를 수 없었다(웹훅이 켜져 있어도 그냥 빨리 브라우저로 받고 싶을
+  // 수 있음) - 요청 #149의 가져오기 로컬/웹 분리와 같은 습관으로, 누르면 먼저 방법을 물어본다.
   saveBtn.onclick = async function() {
     if (saveBtn.disabled) return;
+    var choice = await showChoiceDialog("어떻게 저장할까요?", [
+      { label: "웹훅으로 저장", value: "webhook" },
+      { label: "브라우저로 다운로드", value: "blob" }
+    ]);
+    if (!choice) return;
     saveBtn.disabled = true;
     var oldLabel = saveBtn.textContent;
     saveBtn.textContent = "확인 중...";
     var files = filesToSave();
     try {
+      if (choice === "blob") { await blobDownloadAll(files); return; }
       var port = await ensureHelperPort();
-      saveBtn.disabled = false;
-      saveBtn.textContent = oldLabel;
-      if (port === null) { await blobDownloadAll(files); return; }
+      if (port === null) {
+        showToast('로컬 헬퍼(웹훅)를 찾지 못해 대신 브라우저로 다운로드합니다. 환경설정에서 "웹훅 받기"로 받아서 실행해두면 다음부터 웹훅으로 저장할 수 있습니다.', { kind: "warn" });
+        await blobDownloadAll(files);
+        return;
+      }
       await webhookSaveAll(port, files);
     } catch (e) {
+      await blobDownloadAll(files);
+    } finally {
       saveBtn.disabled = false;
       saveBtn.textContent = oldLabel;
-      await blobDownloadAll(files);
     }
   };
   // 저장 안 한 내용이 있는지는 이제 이 창 전체의 beforeunload(app-window.js의 공용 리스너, 이
@@ -926,19 +1213,29 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
 }
 
 let dfMenuMakerWinHandle = null;
+// 요청 #148: "바탕화면 우클릭 -> 메뉴 메이커를 클릭하면 마지막으로 보던 탭을 그대로 기억해서
+// 열려야 한다"(다른 곳들처럼 특정 탭을 강제하지 않는 경우) - 탭을 바꿀 때마다(탭 버튼 클릭,
+// handle.switchTab, handle.focusIcon) 여기 갱신해두고, opts.initialTab이 없는 호출은 이 값을
+// 그대로 쓴다. 세션(새로고침 전까지) 동안만 기억하면 충분하므로 localStorage까지는 안 쓴다.
+let dfMenuMakerLastTab = "menu";
 
 // 메뉴 메이커를 앱 내 창으로 연다(요청 #135). 한 번에 하나만 떠야 하므로(싱글턴) 이미 열려있으면
 // 새로 만들지 않고 그 창을 앞으로 가져오기만 한다. loadAllMenuMakerConfigs()로 현재
 // menu_set/icon_set/sound_set.json 내용을 한 번 읽어와 초기 데이터로 건네주는 것은 그대로다.
 // 요청 #137: 우클릭 위치별로 바로 알맞은 탭이 열려야 한다(트레이/시작메뉴 우클릭 -> 메뉴 탭,
-// 파일/폴더 우클릭 -> 아이콘 탭) - opts.initialTab으로 지정한다. 이미 열려있던 창을 재사용할
-// 때도(싱글턴이라 새로 안 만듦) handle.switchTab으로 그 자리에서 탭을 옮겨준다 - 안 그러면
-// "메뉴 탭을 기대하고 우클릭했는데 아까 보던 아이콘 탭이 그대로 떠 있는" 상황이 된다.
+// 파일/폴더 우클릭 -> 아이콘 탭) - opts.initialTab으로 지정한다(생략하면 요청 #148로
+// dfMenuMakerLastTab을 대신 쓴다 - 바탕화면 우클릭의 "메뉴 메이커" 항목이 이 경로를 탄다).
+// 이미 열려있던 창을 재사용할 때도(싱글턴이라 새로 안 만듦) handle.switchTab으로 그 자리에서
+// 탭을 옮겨준다 - 안 그러면 "메뉴 탭을 기대하고 우클릭했는데 아까 보던 아이콘 탭이 그대로 떠
+// 있는" 상황이 된다. 요청 #148: opts.focusIcon({type:"ext"|"folder", key})을 주면 아이콘 탭에서
+// 그 확장자/폴더 항목까지 자동으로 선택해준다(폴더/파일 우클릭의 "아이콘 설정").
 async function dfsOpenMenuMakerInWindow(opts) {
   opts = opts || {};
+  const initialTab = opts.initialTab || dfMenuMakerLastTab;
   if (dfMenuMakerWinHandle) {
     dfMenuMakerWinHandle.focus();
-    if (opts.initialTab) dfMenuMakerWinHandle.switchTab(opts.initialTab);
+    if (opts.focusIcon) dfMenuMakerWinHandle.focusIcon(opts.focusIcon);
+    else if (opts.initialTab) dfMenuMakerWinHandle.switchTab(opts.initialTab);
     return dfMenuMakerWinHandle;
   }
   let initial = null;
@@ -959,6 +1256,7 @@ async function dfsOpenMenuMakerInWindow(opts) {
     onClose: () => { dfMenuMakerWinHandle = null; },
   });
   dfMenuMakerWinHandle = handle;
-  dfInitMenuMakerWindow(handle, initial || { menu: { start: [], tray: [] }, icons: {}, sounds: {} }, state, opts.initialTab);
+  dfInitMenuMakerWindow(handle, initial || { menu: { start: [], tray: [] }, icons: {}, sounds: {} }, state, opts.focusIcon ? "icon" : initialTab);
+  if (opts.focusIcon) handle.focusIcon(opts.focusIcon);
   return handle;
 }

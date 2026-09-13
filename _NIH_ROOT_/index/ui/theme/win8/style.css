@@ -367,7 +367,7 @@
     display: flex; align-items: center; justify-content: center; z-index: 2050;
   }
   .confirm-panel {
-    width: 340px; max-width: calc(100vw - 32px);
+    width: min(340px, calc(100vw - 32px)); min-width: 260px; max-width: calc(100vw - 32px);
     background: rgba(255,255,255,.88);
     -webkit-backdrop-filter: blur(22px);
     backdrop-filter: blur(22px);
@@ -382,7 +382,7 @@
     background: #fff;
   }
   .confirm-input:focus { border-color: #1BA1E2; }
-  .confirm-buttons { display: flex; justify-content: flex-end; gap: 8px; }
+  .confirm-buttons { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; } /* 요청 #157: 버튼이 많거나 길 때 깨지고 넘치는 대신 자연스러운 줄바꿈으로 */
   .confirm-buttons .settings-button, .confirm-buttons .settings-button-neutral { align-self: auto; }
 
   /* ---------- 우클릭 커스텀 메뉴 ---------- */

@@ -27,6 +27,25 @@ function htmlFileIcon(size) {
   </span>`;
 }
 
+// 요청 #145: 바탕화면에 드래그&드롭으로 가져온 이진 이미지 파일 아이콘 - htmlFileIcon과 같은
+// "기본 파일 아이콘 + 모서리 배지" 뼈대를 재사용하되 카메라 대신 간단한 산 그림 배지를 쓴다.
+// 이미지가 아닌 다른 이진 파일(zip/exe 등)은 구분할 결정적인 방법이 없으므로 배지 없이
+// 그냥 fileIcon을 쓴다(dfsIconGlyphFor 참고).
+function imageFileIcon(size) {
+  const badge = Math.round(size * 0.5);
+  return `<span style="position:relative;display:inline-block;width:${size}px;height:${size}px;">
+    <svg width="${size}" height="${size}" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+      <path d="M8 2h11l7 7v19a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#eef7ea" stroke="#8fca8f" stroke-width="1"/>
+      <path d="M19 2v6a1 1 0 0 0 1 1h6" fill="none" stroke="#8fca8f" stroke-width="1"/>
+    </svg>
+    <svg width="${badge}" height="${badge}" viewBox="0 0 16 16" style="position:absolute;right:-2px;bottom:-2px;">
+      <circle cx="8" cy="8" r="7" fill="#3fa34d" stroke="#fff" stroke-width="1.4"/>
+      <path d="M4.3 10.8l2.3-2.7 1.8 2 2.4-3.1 2.6 3.8" stroke="#fff" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="6" cy="5.8" r="0.9" fill="#fff"/>
+    </svg>
+  </span>`;
+}
+
 // 휴지통(바탕화면 + 트리) 기본 아이콘 - 커스텀 아이콘(icon_set.json의 recycleBin)이 없을 때 쓴다.
 function trashIcon(size) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
@@ -141,14 +160,20 @@ async function downloadFromGithub(it) {
    ("A/B"처럼 "/"로 join한 문자열, 루트는 빈 문자열)로, 파일은 확장자(점 없이, 소문자)로 키를
    삼는다. repoRoot/recycleBin은 바탕화면·트리의 "저장소 루트" 아이콘과 "휴지통" 아이콘을 각각
    따로 지정한다. */
-let customIconConfig = { folders: {}, extensions: {}, repoRoot: "", recycleBin: "" };
+// 요청 #144: "메뉴 메이커 아이콘 탭에서 바탕화면 아이콘, 환경설정 아이콘도 지정 가능하게" -
+// repoRoot/recycleBin과 같은 방식으로 고정 슬롯 2개(desktop/settings)를 더 추가한다. desktop은
+// 트리의 "바탕 화면" 항목 아이콘(tree-pane.js), settings는 환경설정 창의 타이틀바 아이콘
+// (settings-startmenu.js가 app-window.js의 dfCreateAppWindow에 넘기는 icon)에 쓰인다.
+let customIconConfig = { folders: {}, extensions: {}, repoRoot: "", recycleBin: "", desktop: "", settings: "" };
 function applyCustomIconConfig(icons) {
   const src = icons || {};
   customIconConfig = {
     folders: (src.folders && typeof src.folders === "object") ? src.folders : {},
     extensions: (src.extensions && typeof src.extensions === "object") ? src.extensions : {},
     repoRoot: typeof src.repoRoot === "string" ? src.repoRoot : "",
-    recycleBin: typeof src.recycleBin === "string" ? src.recycleBin : ""
+    recycleBin: typeof src.recycleBin === "string" ? src.recycleBin : "",
+    desktop: typeof src.desktop === "string" ? src.desktop : "",
+    settings: typeof src.settings === "string" ? src.settings : ""
   };
 }
 function customImgIcon(src, size) {
@@ -161,11 +186,24 @@ function resolveFolderIcon(pathArr, size, blue) {
   if (custom) return customImgIcon(custom, size);
   return folderIcon(size, blue);
 }
+// 요청 #141: 저장소에 올라간 .sc 바로가기 파일의 아이콘 - htmlFileIcon과 같은 방식(기본 파일
+// 아이콘 + 모서리 배지)이지만, 바탕화면 바로가기(dfsIconGlyphFor의 ↪ 배지)와 헷갈리지 않도록
+// 반대쪽 모서리에 실제 윈도우 바로가기 화살표에 가까운 모양을 그린다. 테마 CSS에 기대지 않고
+// 완전히 인라인으로 그려서, 8개 테마 style.css를 하나도 건드리지 않고 어디서든(내용창 32px/
+// 트리 15px) 항상 같은 모양으로 보이게 한다.
+function shortcutFileIcon(size) {
+  const badge = Math.max(9, Math.round(size * 0.55));
+  return `<span style="position:relative;display:inline-block;width:${size}px;height:${size}px;">
+    ${fileIcon(size)}
+    <span style="position:absolute;left:-2px;bottom:-2px;width:${badge}px;height:${badge}px;line-height:${badge}px;text-align:center;font-size:${Math.max(8, Math.round(badge * 0.72))}px;background:#fff;border-radius:3px;box-shadow:0 0 0 1px rgba(0,0,0,.25);">↪</span>
+  </span>`;
+}
 function resolveFileIcon(name, size) {
   const dot = name.lastIndexOf(".");
   const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
   const custom = ext && customIconConfig.extensions[ext];
   if (custom) return customImgIcon(custom, size);
+  if (isSc(name)) return shortcutFileIcon(size);
   return isHtml(name) ? htmlFileIcon(size) : fileIcon(size);
 }
 function resolveRepoRootIcon(size) {
@@ -173,6 +211,16 @@ function resolveRepoRootIcon(size) {
 }
 function resolveRecycleBinIcon(size) {
   return customIconConfig.recycleBin ? customImgIcon(customIconConfig.recycleBin, size) : trashIcon(size);
+}
+// 요청 #144: 트리의 "바탕 화면" 항목 아이콘 - 커스텀 아이콘이 없으면 예전 그대로 파란 폴더.
+function resolveDesktopIcon(size, blue) {
+  return customIconConfig.desktop ? customImgIcon(customIconConfig.desktop, size) : folderIcon(size, blue);
+}
+// 요청 #144: 환경설정 창 타이틀바 아이콘 - app-window.js의 .tb-icon이 textContent가 아니라
+// innerHTML로 채워지도록 함께 바꿨으므로(settings-startmenu.js 참고) 여기서 <img> HTML을 그대로
+// 돌려줘도 된다. 커스텀 아이콘이 없으면 예전 그대로 톱니바퀴 이모지.
+function resolveSettingsIconHtml() {
+  return customIconConfig.settings ? customImgIcon(customIconConfig.settings, 16) : "⚙";
 }
 
 /* ============ sound_set.json: 상황별 알림음 (요청 #122) ============
@@ -207,15 +255,70 @@ function applySoundSetConfig(sounds) {
 // 같은 소리(같은 src 문자열)를 매번 새 Audio()로 만들지 않고 재사용한다 - 짧은 시간에 반복
 // 재생되어도(연속 삭제 등) currentTime을 되돌려서 처음부터 다시 재생한다.
 const dfSoundCache = {};
+// 요청 #147: "사운드 지정 옵션에 파일/URL(base64) 말고 Web Audio API 코드로도 지정할 수 있게
+// 추가해줘" - sound_set.json의 값 형식은 그대로 문자열 하나뿐이지만(스키마를 안 바꿔도 되게),
+// 그 문자열이 "webaudio:"로 시작하면 나머지를 그 상황에서 소리를 직접 만들어 재생하는 JS 코드로
+// 취급한다(예: 오실레이터로 짧은 비프음을 합성) - 그 외(URL/base64)는 기존 그대로 <audio>로 튼다.
+// 메뉴 메이커의 사운드 탭(menu-maker.js buildSoundEditorField)이 이 접두어를 붙이고 뗀다.
+const DF_SOUND_WEBAUDIO_PREFIX = "webaudio:";
+function dfsIsWebAudioSound(src) {
+  return typeof src === "string" && src.indexOf(DF_SOUND_WEBAUDIO_PREFIX) === 0;
+}
+// 사용자 본인이 메뉴 메이커에 직접 입력/붙여넣은 코드를 그대로 실행한다(이 앱은 개인용 정적
+// 사이트이고, 이 코드는 항상 사용자 자신의 저장소에 있는 sound_set.json에서만 온다) - 코드가
+// 잘못됐어도(문법 오류/런타임 예외) 부수 기능(알림음)이므로 조용히 무시하고 넘어간다.
+function dfsRunWebAudioSoundCode(code) {
+  try {
+    const fn = new Function(code || "");
+    fn();
+  } catch (e) { /* 무시 - 알림음 하나 안 나는 것뿐이므로 앱 동작을 막지 않는다 */ }
+}
 function dfsPlaySound(scenarioKey) {
   const src = soundSetConfig[scenarioKey];
   if (!src) return; // 그 상황에 소리가 지정 안 돼 있으면(기본값) 조용히 아무것도 하지 않는다
+  if (dfsIsWebAudioSound(src)) { dfsRunWebAudioSoundCode(src.slice(DF_SOUND_WEBAUDIO_PREFIX.length)); return; }
   try {
     let audio = dfSoundCache[src];
     if (!audio) { audio = new Audio(src); dfSoundCache[src] = audio; }
     audio.currentTime = 0;
     audio.play().catch(() => {}); // 브라우저 자동재생 정책 등으로 실패해도 부수 기능이니 조용히 무시
   } catch (e) { /* 무시 */ }
+}
+
+/* ============ extension_run_set.json: 확장자별 더블클릭 동작 (요청 #143) ============
+   "메뉴 메이커에 '확장자' 네 번째 탭을 추가. 도구에 이니셜을 추가(에디터 = editor 같은 식), 원하는
+   확장자를 적고 드롭다운으로 뭘로 열지 선택(ex: html은 새 탭, txt는 에디터)." - 더블클릭했을 때
+   무엇을 할지 고를 수 있는 "도구"들을 아래 EXTENSION_RUN_ACTIONS에 고정 목록(각각 짧은
+   이니셜(key) + 한글 이름(label))으로 등록해두고, extension_run_set.json은 그 이니셜을 값으로
+   삼아 확장자(점 없이, 소문자) -> 이니셜의 단순한 맵이다: { "txt": "editor", "html": "newtab" }.
+   settings.doubleClickAction(전역 기본값)과 같은 값 집합을 그대로 쓰되, "editor"(에디터로 열기 -
+   지금까지 md 파일에만 하드코딩돼 있던 dfsOpenRepoFileInEditor)가 여기서만 고를 수 있는 선택지로
+   새로 추가된다(전역 설정에는 안 넣는다 - 모든 파일을 에디터로 강제 여는 건 잘 안 쓰일 선택이라
+   확장자별 설정에서만 의미가 있다고 판단). keyboard-and-activate.js의 activate()가 md/sc를 먼저
+   처리한 뒤, 그 외 파일은 extensionRunActionFor()로 이 설정을 먼저 확인하고, 없으면 그제서야
+   전역 settings.doubleClickAction으로 떨어진다(runDoubleClickAction 참고). */
+const EXTENSION_RUN_ACTIONS = [
+  { key: "helper", label: "로컬에서 열기(헬퍼)" },
+  { key: "newtab", label: "새 탭에서 열기" },
+  { key: "editor", label: "에디터로 열기" },
+  { key: "text", label: "텍스트(브라우저)로 열기" },
+  { key: "download", label: "다운로드" },
+  { key: "repo", label: "저장소에서 보기(GitHub)" }
+];
+function fileExtOf(name) {
+  const dot = (name || "").lastIndexOf(".");
+  return dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
+}
+let extensionRunConfig = {};
+function applyExtensionRunSetConfig(data) {
+  extensionRunConfig = (data && typeof data === "object") ? data : {};
+}
+// 이 확장자에 등록된 개별 동작이 있으면 그 이니셜을, 없으면 null을 돌려준다(activate()가 null이면
+// 전역 settings.doubleClickAction으로 대신 떨어진다).
+function extensionRunActionFor(name) {
+  const ext = fileExtOf(name);
+  const action = ext && extensionRunConfig[ext];
+  return (action && EXTENSION_RUN_ACTIONS.some(a => a.key === action)) ? action : null;
 }
 
 /* ============ 메뉴 메이커 로컬 반영(요청 #123) ============
@@ -234,6 +337,7 @@ function dfLsIconKey() { return "dfLocalIconSetV1"; }
 function dfLsIconSkinPrefix() { return "dfLocalIconSetSkinV1:"; }
 function dfLsIconSkinKey(skinName) { return dfLsIconSkinPrefix() + (skinName || "win7"); }
 function dfLsSoundKey() { return "dfLocalSoundSetV1"; }
+function dfLsExtRunKey() { return "dfLocalExtRunSetV1"; }
 function dfReadLocalOverride(key) {
   try {
     const raw = localStorage.getItem(key);
@@ -293,9 +397,21 @@ function dfExitFullscreenForNewTab() {
     if (p && p.catch) p.catch(() => { dfFsIntentionalExit = false; });
   } catch (e) { dfFsIntentionalExit = false; }
 }
+// 요청 #163: 팝업(작은 별도 창 - features에 width/height가 있는 경우, 예: 트레이 항목의 "팝업으로
+// 열기")은 전체화면 위에 떠 있어도 어색하지 않은 별도 창이라 전체화면을 풀 필요가 없다 - 진짜 새
+// "탭"(주소창이 있는 일반 브라우저 탭)만 전체화면과 겹치면 어색해서 미리 풀어준다. 또한 환경설정의
+// "새 탭을 열어도 전체화면 유지"를 켜뒀으면 새 탭이어도 풀지 않는다(사용자가 명시적으로 원한 것).
 function dfOpenNewTab(url, target, features) {
-  dfExitFullscreenForNewTab();
+  const isPopup = typeof features === "string" && /(^|,)\s*(width|height)\s*=/.test(features);
+  if (!isPopup && !settings.keepFullscreenOnNewTab) dfExitFullscreenForNewTab();
   return window.open(url, target, features);
+}
+// 요청 #141: 바로가기(가상 파일시스템의 url 방식 + 저장소에 올라간 .sc 파일 둘 다)가 공용으로 쓰는
+// "대상 열기" - popup이 참이면 새 탭이 아니라 작은 별도 창으로 띄운다(features 문자열에 width/height
+// 등 창 크기 속성이 있으면 대부분의 브라우저가 탭 대신 진짜 새 창으로 연다).
+function openShortcutUrl(url, popup) {
+  if (popup) return dfOpenNewTab(url, "_blank", "width=1000,height=700,resizable=yes,scrollbars=yes,noopener");
+  return dfOpenNewTab(url, "_blank", "noopener,noreferrer");
 }
 // fullscreenchange로 "누가" 뺐는지 구분한다: dfFsIntentionalExit가 서 있으면 우리가 새 탭을 열려고
 // 뺀 것(돌아오면 다시 넣어야 함), 아니면 사용자가 직접(Esc, F11, 브라우저 UI 등으로) 뺀 것(그
@@ -328,13 +444,35 @@ function dfSetupFullscreenAutoManagement() {
 
 function isHtml(name) { return /\.html$/i.test(name); }
 function isMd(name) { return /\.md$/i.test(name); }
+// 요청 #141: 바로가기 파일(.sc, "shortcut" 약자) - 바탕화면(가상 파일시스템)에서 만든 바로가기를
+// 다운로드해 저장소에 올려두면, 실제 저장소 파일로 다시 나타나도 여전히 "바로가기"로 동작하게
+// 하려고 만든 이 앱 전용 형식이다(내용은 JSON 텍스트 - dfsDownloadShortcutFile 참고). 실제
+// 윈도우가 .lnk 확장자를 숨기는 것처럼, 이 앱도 .sc는 표시할 때 확장자를 숨긴다(displayName).
+function isSc(name) { return /\.sc$/i.test(name); }
+// 화면에 보여줄 이름 - 실제 파일명(F2 이름 변경/속성/다운로드 등에는 항상 진짜 이름을 그대로 씀)과
+// 달리, 목록/트리/상태표시줄 등 "라벨"에서만 .sc 확장자를 숨긴다(요청 #141 - 실제 윈도우가 등록된
+// 확장자를 숨기는 것과 같은 원리).
+function displayName(name) { return isSc(name) ? name.replace(/\.sc$/i, "") : name; }
 // 내용창/트리/검색 결과가 항목의 종류(type)를 다 같은 규칙으로 정하도록 한 곳에 모아둔다 - html은
 // 기본적으로 "저장소에서 보기"(호스팅된 실제 페이지)가 아니라 다른 파일처럼 열기/다운로드 기본
 // 동작을 따르고(사용자 지시), md는 더블클릭 기본 동작이 내장 에디터로 열기가 되도록(활성화
-// 로직인 activate()에서 이 type 값으로 분기) 별도 종류로 구분해둔다.
-function fileTypeFor(name) { return isHtml(name) ? "html" : isMd(name) ? "md" : "file"; }
+// 로직인 activate()에서 이 type 값으로 분기) 별도 종류로 구분해둔다. sc(요청 #141)도 같은 이유로
+// 별도 종류 - 더블클릭하면 파일 자체가 아니라 그 안에 적힌 주소로 이동해야 한다.
+function fileTypeFor(name) { return isHtml(name) ? "html" : isMd(name) ? "md" : isSc(name) ? "sc" : "file"; }
 function escapeHtml(s) {
   return s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* ============ 요청 #140: 속성(Properties) 대화상자용 바이트 표시 ============
+   실제 윈도우 속성창처럼 "12.3 MB (12,345,678 바이트)" 형태로 함께 쓰기 위해, 사람이 읽기 쉬운
+   쪽(이 함수)과 정확한 바이트 수(toLocaleString)를 호출하는 쪽에서 조합한다. */
+function formatBytes(n) {
+  const num = Number.isFinite(n) ? Math.max(0, n) : 0;
+  if (num < 1024) return `${num} 바이트`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let v = num, i = -1;
+  do { v /= 1024; i++; } while (v >= 1024 && i < units.length - 1);
+  return `${v.toFixed(v < 10 ? 2 : 1)} ${units[i]}`;
 }
 
 /* ============ 바탕화면을 트리/경로에 포함시키기 위한 예약 세그먼트 ============

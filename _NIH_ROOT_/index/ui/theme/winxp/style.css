@@ -416,7 +416,7 @@
     display: flex; align-items: center; justify-content: center; z-index: 2050;
   }
   .confirm-panel {
-    width: 340px; max-width: calc(100vw - 32px);
+    width: min(340px, calc(100vw - 32px)); min-width: 260px; max-width: calc(100vw - 32px);
     background: #ece9e2;
     border: 1px solid #0047AB; border-radius: 9px;
     box-shadow: 0 20px 60px rgba(0,10,40,.5);
@@ -428,7 +428,7 @@
     font-size: 13px; outline: none; box-shadow: inset 0 1px 2px rgba(30,80,160,.25);
   }
   .confirm-input:focus { border-color: #2a72d8; }
-  .confirm-buttons { display: flex; justify-content: flex-end; gap: 8px; }
+  .confirm-buttons { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; } /* 요청 #157: 버튼이 많거나 길 때 깨지고 넘치는 대신 자연스러운 줄바꿈으로 */
   .confirm-buttons .settings-button, .confirm-buttons .settings-button-neutral { align-self: auto; }
   body.no-aero .confirm-panel { background: #ece9e2; }
 

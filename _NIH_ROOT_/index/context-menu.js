@@ -1,20 +1,54 @@
 /* ============ 우클릭 커스텀 메뉴 (브라우저 기본 메뉴는 막는다) ============ */
 let activeCtxMenu = null;
+// 요청 #150: 바탕화면 우클릭 메뉴가 너무 길어져서 일부 항목을 하위 메뉴로 묶는다 - 항목에
+// action 대신 items(배열)를 넣으면 자동으로 "▸" 화살표가 붙고, 마우스를 올리면 그 옆에 새
+// .ctx-menu가 하나 더 뜬다(같은 클래스를 재사용하므로 테마별 CSS를 새로 추가할 필요가 없다).
+// 하위 메뉴는 한 번에 하나만 열려 있을 수 있고, 최상위 메뉴를 닫으면 같이 정리된다.
+let activeCtxSubmenu = null;
+function closeCtxSubmenu() {
+  if (activeCtxSubmenu) { activeCtxSubmenu.remove(); activeCtxSubmenu = null; }
+}
 function closeContextMenu() {
+  closeCtxSubmenu();
   if (activeCtxMenu) { activeCtxMenu.remove(); activeCtxMenu = null; }
 }
-function showContextMenu(x, y, items) {
-  closeContextMenu();
-  if (!items.length) return;
+function dfsBuildCtxMenuEl(items) {
   const menu = document.createElement("div");
   menu.className = "ctx-menu";
   items.forEach(it => {
     const row = document.createElement("div");
     row.className = "ctx-item";
-    row.textContent = it.label;
-    row.onclick = (e) => { e.stopPropagation(); closeContextMenu(); it.action(); };
+    row.textContent = it.items ? it.label + "  ▸" : it.label;
+    if (it.items) {
+      row.onmouseenter = () => {
+        if (activeCtxSubmenu && activeCtxSubmenu._forRow === row) return;
+        closeCtxSubmenu();
+        const sub = dfsBuildCtxMenuEl(it.items);
+        sub._forRow = row;
+        document.body.appendChild(sub);
+        const r = row.getBoundingClientRect();
+        const w = sub.offsetWidth, h = sub.offsetHeight;
+        let left = r.right - 2;
+        if (left + w > window.innerWidth) left = Math.max(4, r.left - w + 2);
+        let top = r.top;
+        if (top + h > window.innerHeight) top = window.innerHeight - h - 4;
+        sub.style.left = Math.max(4, left) + "px";
+        sub.style.top = Math.max(4, top) + "px";
+        activeCtxSubmenu = sub;
+      };
+      row.onclick = (e) => { e.stopPropagation(); }; // 하위 메뉴가 있는 항목 자체는 열기만 하고 닫지 않는다
+    } else {
+      row.onmouseenter = () => closeCtxSubmenu();
+      row.onclick = (e) => { e.stopPropagation(); closeContextMenu(); it.action(); };
+    }
     menu.appendChild(row);
   });
+  return menu;
+}
+function showContextMenu(x, y, items) {
+  closeContextMenu();
+  if (!items.length) return;
+  const menu = dfsBuildCtxMenuEl(items);
   document.body.appendChild(menu);
   const w = menu.offsetWidth, h = menu.offsetHeight;
   let left = x, top = y;
@@ -39,13 +73,23 @@ function buildFileMenuItems(it) {
     // 주소도 가능하다, 그러므로 열기 메뉴가 필요하다").
     const items = [{ label: "열기", action: () => navigate(it.path) }, { label: "다운로드", action: () => downloadFolderRecursive(it) }];
     if (settings.githubLinksEnabled) items.push({ label: "저장소에서 보기", action: () => openFolderInRepo(it) });
-    dfsPushIconSettingsMenuItem(items);
+    // 요청 #140: 하위 pages.json을 실시간으로 재귀 집계해서 파일 개수/전체 크기를 보여준다.
+    items.push({ label: "속성", action: () => showRepoFolderProperties(it.path, { kind: "폴더" }) });
+    // 요청 #148: 저장소 폴더는 실제 경로가 있으니, 메뉴 메이커의 "폴더별 아이콘"에서 이 경로를 바로 연다.
+    dfsPushIconSettingsMenuItem(items, { type: "folder", key: it.path.join("/") });
     return items;
   }
   if (it.dfsNode) return dfsDesktopFileMenuItems(it);
   const items = [];
-  // "새 탭에서 열기"는 이제 더블클릭 기본 동작(newtab)과 짝을 맞춰 모든 파일 형식에 표시한다 -
-  // 예전엔 html 전용이었다(사용자 지시로 일반화됨).
+  // 요청 #141: 저장소에 올라간 .sc 바로가기 파일은 맨 위에 "바로가기 열기"를 따로 붙인다 - 그
+  // 파일 자체(JSON 텍스트)를 여는 게 아니라 그 안에 적힌 주소로 곧장 이동해야 진짜 바로가기처럼
+  // 재사용된다(activateScShortcut, keyboard-and-activate.js). 아래의 일반 파일 동작들(새 탭에서
+  // 열기/에디터로 열기 등)은 원본 .sc 파일 자체를 다루고 싶을 때(내용 확인/재다운로드 등)를 위해
+  // 그대로 남겨둔다.
+  if (it.type === "sc") items.push({ label: "바로가기 열기", action: () => activateScShortcut(it) });
+  // "새 탭에서 열기"는 더블클릭 동작 선택지 중 하나(newtab)와 짝을 맞춰 모든 파일 형식에 표시한다 -
+  // 예전엔 html 전용이었다(사용자 지시로 일반화됨). 요청 #142로 더블클릭 기본값 자체는 "helper"로
+  // 바뀌었지만, 이 우클릭 메뉴 항목은 기본값과 무관하게 항상 표시된다.
   items.push({ label: "새 탭에서 열기", action: () => viewAsHostedPage(it) });
   // 열기/다운로드는 이 사이트에서는 항상 로컬 프로그램(webhook)을 통해서만 가능하므로
   // 굳이 "로컬 프로그램으로"라고 설명을 덧붙이지 않는다.
@@ -59,15 +103,23 @@ function buildFileMenuItems(it) {
     items.push({ label: "저장소에서 보기", action: () => openInRepo(it) });
     items.push({ label: "브라우저에서 다운로드", action: () => downloadFromGithub(it) });
   }
-  dfsPushIconSettingsMenuItem(items);
+  // 요청 #140: 크기/체크섬(CRC32, indexer.ahk가 계산해뒀으면)/위치를 보여준다.
+  items.push({ label: "속성", action: () => showRepoFileProperties(it) });
+  // 요청 #148: 확장자가 있으면 메뉴 메이커의 "확장자별 아이콘"에서 그 확장자를 바로 연다(.sc
+  // 바로가기 파일도 여기서는 그냥 확장자 "sc"인 평범한 파일로 취급 - "바로가기 파일엔 필요없음"은
+  // 바탕화면의 진짜 바로가기(Dexie type:"shortcut") 항목 얘기이며, 이건 다르다).
+  const ext = fileExtOf(it.name);
+  dfsPushIconSettingsMenuItem(items, ext ? { type: "ext", key: ext } : null);
   return items;
 }
 // 요청 #137: 파일/폴더 우클릭 메뉴는(가상 바탕화면이든 실제 저장소든) 전부 이 한 줄로 끝에
 // "아이콘 설정"을 덧붙여 메뉴 메이커의 아이콘 탭으로 바로 연결한다 - 여러 메뉴 빌더 함수에서
 // 공통으로 재사용(dfsDesktopFolderMenuItems/dfsDesktopFileMenuItems/buildFileMenuItems).
-function dfsPushIconSettingsMenuItem(items) {
+// 요청 #148: focusSpec({type:"ext"|"folder", key})을 주면 아이콘 탭을 열자마자 그 확장자/폴더
+// 항목까지 자동으로 선택해준다(dfsOpenMenuMakerInWindow의 opts.focusIcon으로 그대로 전달).
+function dfsPushIconSettingsMenuItem(items, focusSpec) {
   if (typeof dfsOpenMenuMakerInWindow === "function") {
-    items.push({ label: "아이콘 설정", action: () => dfsOpenMenuMakerInWindow({ initialTab: "icon" }) });
+    items.push({ label: "아이콘 설정", action: () => dfsOpenMenuMakerInWindow(focusSpec ? { focusIcon: focusSpec } : { initialTab: "icon" }) });
   }
 }
 /* ---------------- 바탕화면(가상 파일시스템) 항목의 우클릭 메뉴 (통합된 진짜 탐색기 창용) ----------------
@@ -80,10 +132,13 @@ function dfsDesktopFolderMenuItems(it) {
   const refresh = () => dfsBroadcastChange();
   const items = [
     { label: "열기", action: () => navigate(it.path) },
+    // 요청 #157: 이 통합 탐색기 창 안(가상 폴더 하위)에서 폴더를 다운로드할 때도, 실제 바탕화면
+    // 아이콘의 폴더 우클릭(dfsBuildIconMenuItems)과 똑같이 zip/헬퍼 중 방식을 물어봐야 한다 -
+    // 예전엔 여기만 묻지 않고 그냥 zip으로 내려받아서 두 곳의 동작이 서로 달랐다(버그 리포트).
     { label: "다운로드", action: async () => {
       const folderId = await dfsDesktopResolveFolderId(it);
       const node = folderId != null ? await dfsDb.nodes.get(folderId) : null;
-      if (node) await dfsDownloadFolderRecursive(node);
+      if (node) await dfsDownloadFolderChoice(node);
     } },
     { label: "이름 변경", action: async () => {
       const folderId = await dfsDesktopResolveFolderId(it);
@@ -106,6 +161,11 @@ function dfsDesktopFolderMenuItems(it) {
       if (!ok) return;
       await dfsDelete(node);
       await refresh();
+    } },
+    // 요청 #140: 바탕화면(가상 파일시스템) 폴더도 dexie 하위 트리를 재귀 집계해서 속성을 보여준다.
+    { label: "속성", action: async () => {
+      const folderId = await dfsDesktopResolveFolderId(it);
+      if (folderId != null) await dfsShowDesktopFolderProperties(folderId, it.path);
     } }
   ];
   dfsPushIconSettingsMenuItem(items);
@@ -142,6 +202,15 @@ function dfsDesktopFileMenuItems(it) {
     const shortcutItems = [
       { label: "열기", action: () => dfsActivate(node) },
       { label: "이름 변경", action: async () => dfsPromptRename(node, refresh) },
+    ];
+    // 요청 #141: 사용자가 직접 주소를 입력해 만든 바로가기(url 방식)만 편집/파일로 다운로드할 수
+    // 있다 - 기존 항목을 가리키는 바로가기(targetId 방식)는 "주소"가 아니라 대상 id라서 이 편집
+    // UI(showShortcutDialog)로 고칠 게 없고, 다른 곳(저장소 등)에서 다시 쓸 수도 없기 때문이다.
+    if (!node.targetId) {
+      shortcutItems.push({ label: "편집", action: () => dfsEditShortcut(node, refresh) });
+      shortcutItems.push({ label: "다운로드(.sc)", action: () => dfsDownloadShortcutFile(node) });
+    }
+    shortcutItems.push(
       { label: "복사", action: () => { dfsClipboard = { id: node.id, mode: "copy" }; showToast(`"${node.name}"을(를) 복사했습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`, { sound: "copy_to_clipboard" }); } },
       { label: "잘라내기", action: () => { dfsClipboard = { id: node.id, mode: "cut" }; showToast(`"${node.name}"을(를) 잘라냈습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`, { sound: "copy_to_clipboard" }); } },
       { label: "삭제", action: async () => {
@@ -149,16 +218,28 @@ function dfsDesktopFileMenuItems(it) {
         if (!ok) return;
         await dfsDelete(node);
         await refresh();
-      } }
-    ];
-    dfsPushIconSettingsMenuItem(shortcutItems);
+      } },
+      // 요청 #140: 바로가기는 재귀 집계가 필요 없으니(대상 하나뿐) 간단히 대상/이름만 보여준다.
+      { label: "속성", action: () => dfsShowDesktopFileProperties(node, it.path) }
+    );
+    // 요청 #148: 바로가기는 "아이콘 설정"(확장자별 아이콘)이 필요 없다 - 아이콘은 이미 이 바로가기
+    // 자신의 icon 필드(위 "편집")로 지정하므로, 여기서는 dfsPushIconSettingsMenuItem을 부르지 않는다.
     return shortcutItems;
   }
-  const fileItems = [
-    { label: "에디터로 열기", action: () => dfsActivate(node) },
+  // 요청 #145: 이진 파일은 에디터로 열 수 없다 - 이미지만 "미리보기(새 탭)"를 대신 넣고, 그 외
+  // 이진 파일은 아래 다운로드 항목들만으로 충분하다(더블클릭도 다운로드로 동작 - dfsActivate).
+  const fileItems = node.binary
+    ? ((node.mime || "").indexOf("image/") === 0 ? [{ label: "미리보기(새 탭)", action: () => dfsActivate(node) }] : [])
+    : [{ label: "에디터로 열기", action: () => dfsActivate(node) }];
+  // 요청 #162: 바탕화면에 저장된 HTML 파일은 에디터의 미리보기(스크립트 미실행)와 별개로, 실제
+  // 웹페이지처럼 스크립트도 실행되는 새 탭으로 바로 볼 수 있게 한다(blob: URL 뷰어).
+  if (!node.binary && it.type === "html") {
+    fileItems.push({ label: "새 탭에서 보기(뷰어)", action: () => dfsOpenHtmlAsViewerTab(node) });
+  }
+  fileItems.push(
     // 실제 탐색기 파일 메뉴와 순서를 맞춘다: 다운로드(웹훅으로 로컬 헬퍼가 저장) 다음
     // 브라우저에서 다운로드(강제 blob 다운로드).
-    { label: "다운로드", action: () => localHelperSaveContent(node.name, node.content || "") },
+    { label: "다운로드", action: () => localHelperSaveContent(node.name, node.binary ? node.blob : (node.content || "")) },
     { label: "브라우저에서 다운로드", action: () => dfsDownloadVirtualFile(node) },
     { label: "이름 변경", action: async () => dfsPromptRename(node, refresh) },
     { label: "복사", action: () => { dfsClipboard = { id: node.id, mode: "copy" }; showToast(`"${node.name}"을(를) 복사했습니다. 붙여넣을 위치에서 붙여넣기를 선택하세요.`, { sound: "copy_to_clipboard" }); } },
@@ -169,9 +250,13 @@ function dfsDesktopFileMenuItems(it) {
       if (!ok) return;
       await dfsDelete(node);
       await refresh();
-    } }
-  ];
-  dfsPushIconSettingsMenuItem(fileItems);
+    } },
+    // 요청 #140
+    { label: "속성", action: () => dfsShowDesktopFileProperties(node, it.path) }
+  );
+  // 요청 #148: 바탕화면 파일도 확장자별 아이콘 항목을 바로 열 수 있게.
+  const dfsFileExt = fileExtOf(node.name);
+  dfsPushIconSettingsMenuItem(fileItems, dfsFileExt ? { type: "ext", key: dfsFileExt } : null);
   return fileItems;
 }
 /* ============ 브라우저 기본 우클릭 메뉴/드래그 선택 우회 방지 (강화판) ============

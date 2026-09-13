@@ -19,6 +19,16 @@ document.addEventListener("keydown", (e) => {
     selectAllContentPane();
     return;
   }
+  // 요청 #164: Ctrl+Win(윈도우 키) = 시작 메뉴 열기/닫기(시작 버튼 클릭과 동일). 두 키 중 나중에
+  // 눌리는 쪽이 실제 keydown의 e.key로 찍히므로(둘 다 순수 modifier라 각자 keydown을 낸다), Ctrl을
+  // 먼저 누르고 Win을 눌렀을 때(e.key === "Meta" + e.ctrlKey)와 그 반대 순서(e.key === "Control" +
+  // e.metaKey) 둘 다 확인한다. 다만 Win 키는 OS가 먼저 가로채 자체 시작 메뉴를 띄우는 경우가 많아
+  // 브라우저까지 이벤트가 안 올 수도 있다 - 그런 경우는 이 페이지에서 어떻게 할 수 있는 방법이 없다.
+  if ((e.key === "Meta" && e.ctrlKey) || (e.key === "Control" && e.metaKey)) {
+    e.preventDefault();
+    toggleStartMenu();
+    return;
+  }
   // 요청 #126: Ctrl+E = 루트 탐색기 열기(단, 지금 "닫혀 있을 때만" - 이미 열려 있으면 사용자가
   // 보고 있던 위치를 그대로 두고 아무 일도 하지 않는다. 실제 윈도우의 Win+E는 매번 새 탐색기를
   // 열지만, 이 앱은 통합 창이 하나뿐이라 이미 열려 있으면 굳이 루트로 되돌리지 않는 게 더 자연스럽다).
@@ -58,10 +68,11 @@ document.addEventListener("keydown", (e) => {
   }
   // Delete = 지금 선택된 항목 삭제. 실제 저장소 파일/폴더는 애초에 "삭제" 메뉴 자체가 없으므로
   // (읽기 전용) 자동으로 아무 일도 일어나지 않는다 - 바탕화면(가상 파일시스템) 항목에서만 동작한다.
+  // 요청 #159: Shift+Delete는 실제 윈도우처럼 휴지통을 거치지 않고 곧바로 영구 삭제한다.
   if (e.key === "Delete") {
     const tag = (e.target && e.target.tagName || "").toLowerCase();
     const isEditable = tag === "input" || tag === "textarea" || (e.target && e.target.isContentEditable);
-    if (!isEditable) { e.preventDefault(); triggerDeleteSelected(); }
+    if (!isEditable) { e.preventDefault(); triggerDeleteSelected(e.shiftKey); }
   }
 }, true);
 /* F2 = 지금 선택된 항목 이름 변경(실제 윈도우 탐색기와 동일) - 바탕화면 아이콘에 포커스가 있으면
@@ -98,32 +109,63 @@ function triggerF2Rename() {
    그대로 재사용하고 찾는 메뉴 라벨만 "삭제"로 바꿨다. 단, F2(이름 변경)는 여러 개를 한 번에
    바꿀 수 없어 단일 선택일 때만 동작하는 게 맞지만, 삭제는 바탕화면 아이콘처럼 내용창(트리 통합)
    쪽에서도 드래그로 여러 개를 선택한 뒤 한 번에(확인 대화상자 하나로) 지울 수 있어야 한다
-   (버그 리포트: 탐색기에서 드래그로 2개 이상 선택 후 Delete가 안 먹었음) - handleMultiDelete로 위임. */
-function triggerDeleteSelected() {
-  if (document.activeElement === els.dfIconLayer) { dfsDeleteSelectedIcons(); return; }
+   (버그 리포트: 탐색기에서 드래그로 2개 이상 선택 후 Delete가 안 먹었음) - handleMultiDelete로 위임.
+   요청 #159: permanent(Shift+Delete)이면 휴지통을 거치지 않고 곧바로 영구 삭제한다(실제 윈도우와 동일). */
+function triggerDeleteSelected(permanent) {
+  if (document.activeElement === els.dfIconLayer) { dfsDeleteSelectedIcons(permanent); return; }
   // 휴지통 안 항목은 buildFileMenuItems가 "삭제" 대신 "영구 삭제"를 내놓으므로(요청 #113) 둘 다 인식한다.
   const findDeleteAction = (items) => { const found = items.find(it => it.label === "삭제" || it.label === "영구 삭제"); return found ? found.action : null; };
   const navFocused = document.activeElement === els.navPane;
   if (!navFocused && multiSelected.size > 1) {
-    handleMultiDelete(itemsFromKeys([...multiSelected]));
+    handleMultiDelete(itemsFromKeys([...multiSelected]), permanent);
     return;
   }
   if (!navFocused && selected && multiSelected.size <= 1) {
     const it = currentItems.find(i => i.path.join("/") === selected.path.join("/"));
-    if (it) { const action = findDeleteAction(buildFileMenuItems(it)); if (action) action(); }
+    if (it) triggerSingleDelete(it, permanent, findDeleteAction);
     return;
   }
   if (treeFileHighlightKey !== null) {
     const entry = flattenVisibleTree().find(en => en.key === treeFileHighlightKey);
-    if (entry && entry.item) { const action = findDeleteAction(buildFileMenuItems(entry.item)); if (action) action(); }
+    if (entry && entry.item) triggerSingleDelete(entry.item, permanent, findDeleteAction);
   }
+}
+// 요청 #159: buildFileMenuItems가 만드는 "삭제" 액션은 항상 dfsDelete(휴지통 이동)만 호출하므로
+// (컨텍스트 메뉴 클릭에는 Shift 여부가 없어 굳이 permanent 인자를 받게 바꾸지 않았다), Shift+Delete로
+// 영구 삭제가 필요할 때는 그 액션을 그대로 쓰지 않고 dfsDesktopFolderMenuItems/dfsDesktopFileMenuItems가
+// 쓰는 것과 같은 방식으로 노드를 직접 찾아 dfsDelete(node, true)를 호출한다. 이미 휴지통 안에 있는
+// 항목은 원래도 "영구 삭제"뿐이므로(요청 #113) Shift 여부와 무관하게 기존 메뉴 액션을 그대로 쓴다.
+async function triggerSingleDelete(it, permanent, findDeleteAction) {
+  if (!permanent || isRecycleBinPath(it.path)) {
+    const action = findDeleteAction(buildFileMenuItems(it));
+    if (action) action();
+    return;
+  }
+  let node = null;
+  if (it.type === "folder") {
+    if (!isDesktopPath(it.path)) return; // 실제 저장소 폴더는 삭제 메뉴 자체가 없다(읽기 전용)
+    const folderId = await dfsDesktopResolveFolderId(it);
+    node = folderId != null ? await dfsDb.nodes.get(folderId) : null;
+  } else if (it.dfsNode) {
+    node = it.dfsNode;
+  } else {
+    return; // 실제 저장소 파일 - 삭제 메뉴 자체가 없다
+  }
+  if (!node) return;
+  const ok = await showConfirmDialog(`"${node.name}"을(를) 완전히 삭제할까요? (휴지통을 거치지 않고 바로 삭제되며 되돌릴 수 없습니다)`);
+  if (!ok) return;
+  await dfsDelete(node, true);
+  await dfsBroadcastChange();
 }
 
 /* 요청 #126/#127: Ctrl+W/Alt+W로 탐색기 창을 닫기 전에 확인창을 띄운다 - 실제 닫기 동작
    자체는 window-chrome.js의 btnClose.onclick이 이미 갖고 있는 로직(작업표시줄 비활성화, 해시/
-   마지막 경로 초기화 등)을 그대로 재사용한다(중복 구현 방지). */
+   마지막 경로 초기화 등)을 그대로 재사용한다(중복 구현 방지).
+   요청 #160: 환경설정에서 "확인창 없이 바로 닫기"를 켜뒀으면 이 확인창 자체를 건너뛴다(기본은 꺼짐 -
+   원래 취지인 실수 방지를 유지). */
 async function triggerCloseWindowWithConfirm() {
   if (els.win.classList.contains("closed")) return; // 이미 닫혀 있으면 할 일 없음
+  if (settings.closeWindowWithoutConfirm) { els.btnClose.onclick(); return; }
   const ok = await showConfirmDialog("탐색기 창을 닫을까요?");
   if (ok) els.btnClose.onclick();
 }
@@ -229,18 +271,37 @@ async function activate(it) {
     dfsOpenRepoFileInEditor(it);
     return;
   }
-  // 일반 파일(html 포함): 환경설정에서 고른 더블클릭 동작 4가지 중 하나를 따른다(사용자 지시로
-  // 재설계됨) - 기본값은 "newtab"(새 탭에서 열기).
-  //   newtab   -> 이 사이트 자체의 배포된 주소로 새 탭에서 열기(viewAsHostedPage)
-  //   helper   -> 로컬 헬퍼로 열기(예전 "open" 동작, localHelperOpen)
-  //   text     -> 텍스트로 열기(우클릭의 "브라우저에서 보기"와 동일, viewOnPages)
-  //   download -> 헬퍼의 다운로드 기능(localHelperDownload)
-  switch (settings.doubleClickAction) {
-    case "helper": localHelperOpen(it); break;
+  // 요청 #141: 저장소에 올라간 .sc 바로가기 파일 - 더블클릭하면 파일 자체가 아니라 그 안에 적힌
+  // 주소로 곧장 이동한다(바탕화면에서 다운로드해 저장소에 올린 바로가기를 그대로 재사용).
+  if (type === "sc") {
+    activateScShortcut(it);
+    return;
+  }
+  // 일반 파일(html 포함): 요청 #143 - 먼저 extension_run_set.json에 이 확장자만의 개별 설정이
+  // 있는지 확인하고, 있으면 전역 설정보다 그걸 우선한다(예: html은 항상 새 탭, txt는 항상 에디터
+  // 처럼). 없으면 기존처럼 환경설정에서 고른 더블클릭 동작 중 하나를 따른다(요청 #142: 기본값이
+  // "helper"(로컬 열기)로 바뀌고, 깃허브 메뉴("저장소에서 보기")도 선택지에 추가됐다).
+  runDoubleClickAction(extensionRunActionFor(it.name) || settings.doubleClickAction, it);
+}
+//   helper   -> 로컬 헬퍼로 열기(예전 "open" 동작, localHelperOpen) - 전역 기본값
+//   newtab   -> 이 사이트 자체의 배포된 주소로 새 탭에서 열기(viewAsHostedPage)
+//   editor   -> 요청 #143: 내장 에디터로 열기(dfsOpenRepoFileInEditor) - 지금까지 md 파일에만
+//               하드코딩돼 있던 동작을 확장자별 개별 설정에서 고를 수 있는 선택지로 꺼냈다(전역
+//               더블클릭 기본값 목록에는 넣지 않는다 - state.js의 EXTENSION_RUN_ACTIONS 주석 참고).
+//   text     -> 텍스트로 열기(우클릭의 "브라우저에서 보기"와 동일, viewOnPages)
+//   download -> 헬퍼의 다운로드 기능(localHelperDownload)
+//   repo     -> 저장소에서 보기(GitHub의 blob 화면, openInRepo) - GitHub 바로가기 표시가 꺼져
+//               있으면(settings.githubLinksEnabled=false) 우클릭 메뉴에서도 안 보이는 기능이므로
+//               새 탭에서 열기로 대신 동작한다.
+function runDoubleClickAction(action, it) {
+  switch (action) {
     case "text": viewOnPages(it); break;
     case "download": localHelperDownload(it); break;
-    case "newtab":
-    default: viewAsHostedPage(it); break;
+    case "repo": settings.githubLinksEnabled ? openInRepo(it) : viewAsHostedPage(it); break;
+    case "newtab": viewAsHostedPage(it); break;
+    case "editor": dfsOpenRepoFileInEditor(it); break;
+    case "helper":
+    default: localHelperOpen(it); break;
   }
 }
 // 이 사이트 자체의 배포된 주소("호스팅된 페이지")로 새 탭에서 연다 - html의 index.html은 폴더
@@ -258,6 +319,29 @@ function viewAsHostedPage(it) {
     url = path.map(encodeURIComponent).join("/");
   }
   dfOpenNewTab(url, "_blank", "noopener,noreferrer");
+}
+// 요청 #141: 저장소에 올라간 .sc 파일의 실제 내용(JSON 텍스트)을 읽어서 그 안의 주소로 이동한다 -
+// 이 사이트 자체와 같은 오리진(GitHub Pages)이므로 CORS 걱정 없이 상대경로로 그냥 fetch할 수
+// 있다(githubRawUrl처럼 API를 거칠 필요 없음). dfsDownloadShortcutFile이 만든 형식이 아니거나
+// (수동으로 잘못 만든 .sc, 혹은 우연히 확장자만 같은 파일) JSON 파싱이 실패하면, 바로가기로
+// 취급하지 않고 평범한 파일처럼 새 탭에서 열어 보여준다(사용자가 직접 내용을 확인할 수 있게).
+async function activateScShortcut(it) {
+  const url = it.path.map(encodeURIComponent).join("/");
+  let data;
+  try {
+    const res = await fetchWithTimeout(url, 5000);
+    if (!res.ok) throw new Error(String(res.status));
+    data = await res.json();
+  } catch (e) {
+    showToast(`바로가기 파일을 읽지 못했습니다: ${e.message}`, { kind: "warn", sound: "error_generic" });
+    return;
+  }
+  if (!data || typeof data.url !== "string" || !data.url) {
+    showToast("이 .sc 파일은 이 앱이 만든 바로가기 형식이 아닌 것 같아 그냥 파일로 엽니다.", { kind: "warn", sound: "error_generic" });
+    viewAsHostedPage(it);
+    return;
+  }
+  openShortcutUrl(data.url, !!data.popup);
 }
 function flashStatus(msg) {
   clearTimeout(statusFlashTimer);

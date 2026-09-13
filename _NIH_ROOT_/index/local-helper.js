@@ -39,6 +39,18 @@ function dfNoteWebhookConnected() {
   dfsPlaySound("webhook_connected");
   dfAutoActivateHelperSetting();
 }
+// 요청 #152: "로컬 웹훅 검사(페이지를 열 때마다 자동으로 헬퍼가 켜져 있는지 미리 확인하는 것)"는
+// 기본 꺼짐이지만(브라우저 로컬 네트워크 접근 팝업 등이 번거로울 수 있어서), 웹훅으로 실제 다운로드가
+// 한 번이라도 성공하면 - "이 사람은 이미 헬퍼를 쓰고 있구나"로 보고 - 그때부터는 자동으로 켜준다.
+// 요청 #134(더블클릭 동작 자동 전환)와는 완전히 별개 기능이라 서로 건드리지 않는다. 이 함수는
+// 세션마다 매번이 아니라 실제로 설정이 꺼져 있을 때만 의미가 있고, 한 번 켜지면 계속 켜진 채로
+// 저장되므로 다음에 또 다운로드해도 조용히 아무 일도 안 한다.
+function dfNoteWebhookDownloadSucceeded() {
+  if (settings.checkHelperOnLoad) return;
+  settings.checkHelperOnLoad = true;
+  saveSettings();
+  if (typeof dfSettingsReflectCheckHelperOnLoad === "function") dfSettingsReflectCheckHelperOnLoad(true);
+}
 
 /* ============ 도구 파일 실제 위치 (base64 내장 대신 저장소의 진짜 파일을 그대로 가리킴) ============
    예전엔 index.html 안에 localserver.ahk/indexer.ahk를 base64로 통째로 내장해서(VIRTUAL_FILES)
@@ -159,7 +171,9 @@ async function localHelperDownload(it) {
     const res = await fetch(`http://127.0.0.1:${port}/download?url=${encodeURIComponent(url)}${sizeQueryParam(it)}`);
     const text = await res.text();
     if (!res.ok) throw new Error(String(res.status));
-    showToast(text.includes("CANCELLED") ? "다운로드가 취소되었습니다." : `다운로드 완료: ${it.name}`, { sound: text.includes("CANCELLED") ? "download_cancel" : "download_complete" });
+    const cancelled = text.includes("CANCELLED");
+    if (!cancelled) dfNoteWebhookDownloadSucceeded(); // 요청 #152
+    showToast(cancelled ? "다운로드가 취소되었습니다." : `다운로드 완료: ${it.name}`, { sound: cancelled ? "download_cancel" : "download_complete" });
   } catch (e) {
     showToast(`다운로드 오류: ${e.message}`, { kind: "warn", sound: "download_error" });
   }
@@ -219,6 +233,7 @@ async function downloadFolderRecursive(it) {
         ok++;
       } catch (e) { fail++; }
     }
+    if (ok > 0) dfNoteWebhookDownloadSucceeded(); // 요청 #152
     showToast(`"${it.name}" 폴더 다운로드 완료: ${ok}개${fail ? `, 실패 ${fail}개` : ""}`, fail ? { kind: "warn", sound: "download_error" } : { sound: "download_complete" });
   } finally {
     dlg.close();
@@ -278,6 +293,7 @@ async function dfsDownloadFolderViaHelper(node) {
         ok++;
       } catch (e) { fail++; }
     }
+    if (ok > 0) dfNoteWebhookDownloadSucceeded(); // 요청 #152
     showToast(`"${node.name}" 폴더 다운로드 완료: ${ok}개${fail ? `, 실패 ${fail}개` : ""}`, fail ? { kind: "warn", sound: "download_error" } : { sound: "download_complete" });
   } finally {
     dlg.close();
@@ -362,7 +378,9 @@ async function localHelperSaveContent(name, content) {
     });
     const text = await res.text();
     if (!res.ok) throw new Error(String(res.status));
-    showToast(text.includes("CANCELLED") ? "다운로드가 취소되었습니다." : `다운로드 완료: ${name}`, { sound: text.includes("CANCELLED") ? "download_cancel" : "download_complete" });
+    const cancelled = text.includes("CANCELLED");
+    if (!cancelled) dfNoteWebhookDownloadSucceeded(); // 요청 #152
+    showToast(cancelled ? "다운로드가 취소되었습니다." : `다운로드 완료: ${name}`, { sound: cancelled ? "download_cancel" : "download_complete" });
   } catch (e) {
     showToast(`다운로드 오류: ${e.message}`, { kind: "warn", sound: "download_error" });
   }

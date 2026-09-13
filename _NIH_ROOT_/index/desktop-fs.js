@@ -97,6 +97,14 @@ async function dfsFindNameConflict(parentId, name, excludeId) {
   return siblings.find(s => s.id !== excludeId && s.name.toLowerCase() === name.toLowerCase()) || null;
 }
 
+// 요청 #145: "드래그&드롭 바탕화면 업로드가 텍스트 파일만 지원 - 다른 파일도 지원해줘" - 파일
+// 노드가 이제 텍스트(content, 기존 방식)와 이진(binary:true + blob, 신규) 두 가지일 수 있어서,
+// 크기 계산도 두 갈래를 다 처리하는 이 함수 하나로 통일한다(속성/폴더 집계/목록 크기열 전부 재사용).
+function dfsFileByteSize(node) {
+  if (node && node.binary && node.blob) return node.blob.size;
+  return new Blob([(node && node.content) || ""]).size;
+}
+
 /* ---------------- CRUD ---------------- */
 async function dfsChildren(parentId) {
   const rows = await dfsDb.nodes.where("parentId").equals(parentId).toArray();
@@ -257,21 +265,26 @@ async function dfsCreateFile(parentId, kind) {
   return dfsDb.nodes.get(id);
 }
 // ---------------- OS(진짜 컴퓨터)에서 파일을 드래그해서 떨어뜨렸을 때 즉시 가져오기 ----------------
-// 텍스트형 파일(ini/json/xml/cmd/vbs/ps1/ahk/txt/md/html 등)만 지원한다 - 이 앱의 가상 파일시스템은
-// 애초에 텍스트 내용만 저장할 수 있기 때문에, 바이너리 파일은 읽어봐도 저장할 방법이 없다.
+// 요청 #145: "텍스트 파일만 지원하던 것을 다른 파일 형식도 지원하게" - 이 앱의 가상 파일시스템은
+// 원래 텍스트만 저장했지만(에디터로 열어 수정 가능해야 하므로), 이제 텍스트로 보이지 않는 파일은
+// 내용을 억지로 텍스트로 바꾸지 않고 File 객체(Blob) 그대로 dexie에 저장한다(IndexedDB는 Blob을
+// 직접 저장할 수 있어 base64로 부풀릴 필요가 없다) - 노드에 binary:true + blob(파일 그대로) +
+// mime(file.type)을 추가로 들고, 기존 content 필드는 비워둔다. 이런 파일은 에디터로 열 수
+// 없으므로(dfsActivate가 binary를 먼저 확인해 분기), 더블클릭하면 이미지는 새 탭 미리보기,
+// 그 외에는 그냥 다운로드된다(dfsActivateBinaryFile 참고) - 다른 모든 기능(이름변경/복사/이동/
+// 삭제/속성/폴더 다운로드 등)은 dfsFileByteSize 등을 통해 문자열 content든 Blob이든 구분 없이
+// 그대로 동작한다.
 async function dfsImportOsFile(parentId, file) {
-  let text;
+  // 파일 전체를 텍스트로 읽기 전에, 앞부분만 살짝 떼어 읽어서 텍스트인지 먼저 가늠한다(큰
+  // 이진 파일 전체를 문자열로 디코딩하는 낭비/깨짐을 피한다).
+  let sample = "";
   try {
-    text = await file.text();
+    sample = await file.slice(0, 8000).text();
   } catch (e) {
-    showToast(`"${file.name}"을(를) 읽지 못했습니다: ${e.message}`, { kind: "warn", sound: "error_generic" });
-    return null;
+    sample = ""; // 못 읽으면 이진으로 취급
   }
-  if (!dfLooksLikeText(text.slice(0, 8000))) {
-    showToast(`"${file.name}"은(는) 텍스트 파일이 아닌 것 같아 가져오지 않았습니다.`, { kind: "warn", sound: "error_generic" });
-    return null;
-  }
-  const desiredName = file.name || "새 파일.txt";
+  const looksText = dfLooksLikeText(sample);
+  const desiredName = file.name || (looksText ? "새 파일.txt" : "새 파일");
   // 실제 컴퓨터에서 드롭한 파일이 이미 있는 이름과 겹치면 조용히 번호를 붙이는 대신 덮어쓸지
   // 물어본다(버그 리포트: 확인창 없이 그냥 처리되던 문제 - dfsMove/dfsCopyInto와 같은 방식).
   const conflict = await dfsFindNameConflict(parentId, desiredName, null);
@@ -283,7 +296,27 @@ async function dfsImportOsFile(parentId, file) {
   const name = desiredName;
   const now = Date.now();
   const pos = await dfsNextIconPos(parentId);
-  const id = await dfsDb.nodes.add({ parentId, type: "file", name, content: text, fileType: dfDetectFileType(name), x: pos.x, y: pos.y, createdAt: now, updatedAt: now });
+  const base = { parentId, type: "file", name, x: pos.x, y: pos.y, createdAt: now, updatedAt: now };
+  let record;
+  if (looksText) {
+    let text;
+    try {
+      text = await file.text();
+    } catch (e) {
+      showToast(`"${file.name}"을(를) 읽지 못했습니다: ${e.message}`, { kind: "warn", sound: "error_generic" });
+      return null;
+    }
+    record = { ...base, content: text, fileType: dfDetectFileType(name) };
+  } else {
+    // 이진 파일 - 4MB(로컬 헬퍼의 /savecontent 상한과 맞춤)보다 크면 dexie/IndexedDB 저장 자체는
+    // 되지만 나중에 헬퍼로 다시 내려받을 때 서버 쪽 상한에 걸릴 수 있어 미리 안내만 해준다(막지는
+    // 않음 - 브라우저 자체 다운로드(dfsDownloadVirtualFile)는 크기 제한이 없으므로).
+    if (file.size > 4 * 1024 * 1024) {
+      showToast(`"${file.name}"은(는) 4MB보다 커서, 나중에 "다운로드"(로컬 헬퍼)로 저장할 때 실패할 수 있습니다. "브라우저에서 다운로드"는 그대로 됩니다.`, { kind: "warn", sound: "error_generic" });
+    }
+    record = { ...base, content: "", binary: true, blob: file, mime: file.type || "", fileType: dfDetectFileType(name) };
+  }
+  const id = await dfsDb.nodes.add(record);
   return dfsDb.nodes.get(id);
 }
 async function dfsImportOsFileList(parentId, fileList, refresh) {
@@ -304,7 +337,11 @@ async function dfsDeepCopyChildren(fromId, toId) {
   for (const kid of kids) {
     const now = Date.now();
     const copy = { parentId: toId, type: kid.type, name: kid.name, createdAt: now, updatedAt: now };
-    if (kid.type === "file") { copy.content = kid.content; copy.fileType = kid.fileType; }
+    if (kid.type === "file") {
+      copy.content = kid.content; copy.fileType = kid.fileType;
+      // 요청 #145: 이진 파일 복사 시 blob/mime도 같이 옮겨야 사본도 정상적으로 열린다/받아진다.
+      if (kid.binary) { copy.binary = true; copy.blob = kid.blob; copy.mime = kid.mime; }
+    }
     // 요청 #133: targetId가 있으면(기존 방식) 내부 항목을 가리키는 바로가기, 없고 url이 있으면
     // 사용자가 직접 주소/아이콘을 입력해 만든 바로가기 - 둘 다 복사 시 그대로 유지해야 한다.
     if (kid.type === "shortcut") { copy.targetId = kid.targetId; copy.url = kid.url; copy.icon = kid.icon; }
@@ -347,7 +384,10 @@ async function dfsCopyInto(node, parentId, desiredName) {
   const now = Date.now();
   const pos = await dfsNextIconPos(parentId);
   const copy = { parentId, type: node.type, name, x: pos.x, y: pos.y, createdAt: now, updatedAt: now };
-  if (node.type === "file") { copy.content = node.content; copy.fileType = node.fileType; }
+  if (node.type === "file") {
+    copy.content = node.content; copy.fileType = node.fileType;
+    if (node.binary) { copy.binary = true; copy.blob = node.blob; copy.mime = node.mime; } // 요청 #145
+  }
   if (node.type === "shortcut") { copy.targetId = node.targetId; copy.url = node.url; copy.icon = node.icon; } // 요청 #133
   const id = await dfsDb.nodes.add(copy);
   if (node.type === "folder") await dfsDeepCopyChildren(node.id, id);
@@ -371,8 +411,55 @@ async function dfsCreateUrlShortcut(parentId, info) {
   const name = await dfsUniqueName(parentId, info.name || "새 바로가기");
   const now = Date.now();
   const pos = await dfsNextIconPos(parentId);
-  const id = await dfsDb.nodes.add({ parentId, type: "shortcut", name, url: info.url, icon: info.icon || "", x: pos.x, y: pos.y, createdAt: now, updatedAt: now });
+  // 요청 #141: popup - 활성화(더블클릭/열기)할 때 새 탭 대신 작은 팝업 창으로 열지 여부.
+  const id = await dfsDb.nodes.add({ parentId, type: "shortcut", name, url: info.url, icon: info.icon || "", popup: !!info.popup, x: pos.x, y: pos.y, createdAt: now, updatedAt: now });
   return dfsDb.nodes.get(id);
+}
+/* ---------------- 요청 #141: 바로가기 편집 ----------------
+   showShortcutDialog를 "편집" 모드(defaults에 지금 값을 채우고 title/okLabel만 바꿈)로 다시 띄워서
+   이름/주소/아이콘/팝업옵션을 한꺼번에 고친다. targetId 방식(기존 항목을 가리키는 바로가기)은
+   가리키는 대상 자체를 편집할 방법이 없으므로(주소가 아니라 대상 id라 편집 UI가 다름) 이 함수의
+   대상이 아니다 - 호출하는 쪽(context-menu.js)이 애초에 url 방식 바로가기에만 "편집"을 붙인다.
+   이름이 바뀌면 dfsRename과 같은 중복 검사를 거친다(다른 이름을 쓰던 항목과 새 이름이 겹칠 수
+   있으므로) - 아니면 그냥 자기 자신과 "겹치는" 걸로 오판해서 항상 거부될 수 있기 때문이다. */
+async function dfsEditShortcut(node, refresh) {
+  const info = await showShortcutDialog(
+    { name: node.name, url: node.url || "", icon: node.icon || "", popup: !!node.popup },
+    { title: "바로가기 편집", okLabel: "저장" }
+  );
+  if (!info) return;
+  const patch = { url: info.url, icon: info.icon || "", popup: !!info.popup, updatedAt: Date.now() };
+  const newName = info.name.trim() || "새 바로가기";
+  if (newName !== node.name) {
+    const err = dfsValidateName(newName);
+    if (err) { showToast(err, { kind: "warn", sound: "error_generic" }); return; }
+    const clash = await dfsFindNameConflict(node.parentId, newName, node.id);
+    if (clash) { showToast(`"${newName}" 이름이 이미 있습니다.`, { kind: "warn", sound: "error_generic" }); return; }
+    patch.name = newName;
+  }
+  await dfsDb.nodes.update(node.id, patch);
+  showToast(`"${patch.name || node.name}"을(를) 저장했습니다.`, { sound: "move_or_copy" });
+  await refresh();
+}
+/* ---------------- 요청 #141: 바로가기를 실제 파일(.sc)로 다운로드 ----------------
+   이 앱만 이해하는 아주 단순한 JSON 텍스트 형식이다 - 이걸 저장소(GitHub)에 올려두면, 다음에
+   저장소 탐색기(진짜 리포 파일 목록)에서 그 .sc 파일을 다시 만났을 때도 activateScShortcut
+   (keyboard-and-activate.js)이 그대로 읽어서 "바로가기"처럼 동작시킨다(재사용 목적 - 사용자
+   지시). targetId 방식(기존 항목을 가리키는 바로가기)은 그 대상이 이 브라우저의 로컬 dexie
+   안에만 있어서 다른 곳에서는 의미가 없으므로, url이 있는 바로가기만 다운로드할 수 있다. */
+function dfsDownloadShortcutFile(node) {
+  if (!node.url) {
+    showToast("이 바로가기는 내부 항목을 가리키고 있어 파일로 받을 수 없습니다(주소가 있는 바로가기만 가능).", { kind: "warn", sound: "error_generic" });
+    return;
+  }
+  const payload = JSON.stringify({ nihShortcut: 1, name: node.name, url: node.url, icon: node.icon || "", popup: !!node.popup }, null, 2);
+  const blob = new Blob([payload], { type: "application/json;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `${node.name}.sc`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast(`"${node.name}.sc"로 받았습니다. 저장소에 올려두면 그 파일에서도 바로가기로 동작합니다.`, { sound: "download_complete" });
 }
 async function dfsRename(node, newNameRaw) {
   const err = dfsValidateName(newNameRaw);
@@ -391,7 +478,12 @@ async function dfsDeleteDeep(id) {
 }
 // "삭제"는 이제 영구 삭제가 아니라 휴지통으로 옮기는 것이다(완전한 휴지통 기능 - 사용자 지시).
 // 폴더는 그 안의 내용을 통째로 데리고 이동한다(하위 항목들의 parentId는 그대로라서 구조가 유지됨).
-async function dfsDelete(node) {
+// 요청 #159: Shift+Delete는 실제 윈도우처럼 휴지통을 거치지 않고 곧바로 영구 삭제해야 한다 -
+// dfsDelete를 호출하는 기존 ~13곳(드래그앤드롭 덮어쓰기 충돌 정리, 폴더 병합 정리 등 내부 동작)은
+// 전부 이 두 번째 인자를 안 넘기므로(undefined = false) 그대로 휴지통行 동작을 유지하고, Delete
+// 키/삭제 메뉴 쪽에서만 Shift 여부를 넘겨 실제로 영구 삭제가 필요한 경우에만 켠다.
+async function dfsDelete(node, permanent) {
+  if (permanent) { await dfsPermanentlyDelete(node); return; }
   await dfsDb.nodes.update(node.id, {
     originalParentId: node.parentId,
     deletedAt: Date.now(),
@@ -445,7 +537,55 @@ async function dfsEmptyRecycleBin() {
 async function dfsShowRecycleBinProperties() {
   const items = await dfsRecycleBinItems();
   const path = `${repoName || "이 PC"}\\${RECYCLEBIN_TREE_NAME}`;
-  await showInfoDialog(`휴지통 속성\n\n종류: 시스템 폴더\n위치: ${path}\n항목: ${items.length}개`);
+  // 요청 #140: 휴지통에 든 폴더 안의 내용까지(재귀) 포함한 전체 크기/개수도 같이 보여준다.
+  const stats = await computeDesktopFolderStats(DFS_RECYCLEBIN_ROOT);
+  await showInfoDialog(`휴지통 속성\n\n종류: 시스템 폴더\n위치: ${path}\n크기: ${formatBytes(stats.bytes)} (${stats.bytes.toLocaleString("ko-KR")} 바이트)\n항목: ${items.length}개 (하위 포함 파일 ${stats.files}개, 폴더 ${stats.folders}개)`);
+}
+/* ---------------- 요청 #140: 바탕화면(가상 파일시스템) 폴더의 속성 ----------------
+   실제 저장소 폴더와 달리 네트워크 왕복이 없는 로컬 dexie 조회라, 진행 대화상자 없이 재귀
+   집계해도 체감상 즉시 끝난다. 바로가기(shortcut)는 실제 저장 공간을 거의 차지하지 않고
+   "무엇을 담고 있는 폴더인가"의 답도 아니므로, dfsCollectFolderFiles(폴더 통째로 다운로드)와
+   같은 규칙으로 개수/크기 집계에서 제외한다 - 자기 자신을 가리키는 폴더 속성에 굳이
+   바로가기까지 파일처럼 세면 오히려 혼동을 준다. */
+async function computeDesktopFolderStats(folderId) {
+  let files = 0, folders = 0, bytes = 0;
+  const kids = await dfsChildren(folderId);
+  for (const kid of kids) {
+    if (kid.type === "folder") {
+      folders++;
+      const sub = await computeDesktopFolderStats(kid.id);
+      files += sub.files; folders += sub.folders; bytes += sub.bytes;
+    } else if (kid.type === "file") {
+      files++;
+      bytes += dfsFileByteSize(kid); // 요청 #145: 이진 파일은 blob.size로
+    }
+    // shortcut은 위 주석 이유로 집계에서 제외
+  }
+  return { files, folders, bytes };
+}
+async function dfsShowDesktopFolderProperties(folderId, pathArr) {
+  const stats = await computeDesktopFolderStats(folderId);
+  const label = (pathArr && pathArr.length) ? pathArr[pathArr.length - 1] : DESKTOP_TREE_NAME;
+  const location = (pathArr && pathArr.length) ? pathArr.join("\\") : DESKTOP_TREE_NAME;
+  await showInfoDialog(
+    `${label} 속성\n\n종류: 폴더\n위치: ${location}\n크기: ${formatBytes(stats.bytes)} (${stats.bytes.toLocaleString("ko-KR")} 바이트)\n포함: 파일 ${stats.files}개, 폴더 ${stats.folders}개`
+  );
+}
+// 바탕화면 파일/바로가기 속성 - 재귀가 필요 없으므로 간단하게 그 자리에서 바로 보여준다.
+async function dfsShowDesktopFileProperties(node, pathArr) {
+  const location = (pathArr && pathArr.length > 1) ? pathArr.slice(0, -1).join("\\") : DESKTOP_TREE_NAME;
+  const lines = [`${node.name} 속성`, ""];
+  if (node.type === "shortcut") {
+    lines.push("종류: 바로가기");
+    lines.push(`위치: ${location}`);
+    lines.push(`대상: ${node.url || "(내부 항목을 가리키는 바로가기)"}`);
+  } else {
+    const size = dfsFileByteSize(node); // 요청 #145: 이진 파일은 blob.size로
+    lines.push(`종류: ${node.binary ? (node.mime || "이진 파일") : (node.fileType ? node.fileType.toUpperCase() + " 파일" : "파일")}`);
+    lines.push(`위치: ${location}`);
+    lines.push(`크기: ${formatBytes(size)} (${size.toLocaleString("ko-KR")} 바이트)`);
+  }
+  await showInfoDialog(lines.join("\n"));
 }
 // 요청 #113(a): 파일/폴더를 휴지통 위로 드래그해서 놓으면 확인 없이 곧바로 삭제한다(실제 윈도우도
 // 휴지통에 끌어다 놓을 때는 확인창 없이 바로 지운다) - 바탕화면의 휴지통 특수 아이콘(el이 그
@@ -631,7 +771,18 @@ function dfsIconGlyphFor(node, size) {
   // base64 이미지)이 있으면 그대로 그린다 - 기존 항목을 가리키는 바로가기(아이콘 지정 없음)는
   // 예전처럼 기본 파일 아이콘을 쓴다.
   else if (node.type === "shortcut") inner = node.icon ? `<img src="${escapeHtml(node.icon)}" style="width:${size}px;height:${size}px;object-fit:contain;">` : fileIcon(size);
-  else inner = node.fileType === "html" ? htmlFileIcon(size) : fileIcon(size);
+  else {
+    // 요청 #146: "확장자 아이콘을 바꾸면 저장소 파일에는 적용되는데 바탕화면에 만든 파일에는
+    // 적용이 안 됨" - state.js의 resolveFileIcon(진짜 저장소 파일용)과 같은 순서로, 먼저
+    // icon_set.json의 확장자별 커스텀 아이콘부터 확인한다. 없을 때만 기존 규칙(이진 이미지 배지 /
+    // html 배지 / 기본 파일 아이콘)으로 떨어진다.
+    const ext = fileExtOf(node.name);
+    const custom = ext && customIconConfig.extensions[ext];
+    if (custom) inner = customImgIcon(custom, size);
+    // 요청 #145: 이진 파일 중 이미지는 별도 배지 아이콘, 그 외 이진/텍스트는 기존 그대로.
+    else if (node.binary) inner = (node.mime || "").indexOf("image/") === 0 ? imageFileIcon(size) : fileIcon(size);
+    else inner = node.fileType === "html" ? htmlFileIcon(size) : fileIcon(size);
+  }
   const badge = node.type === "shortcut" ? '<span class="df-icon-shortcut-badge">↪</span>' : "";
   return `<span style="position:relative;display:inline-block;">${inner}${badge}</span>`;
 }
@@ -646,6 +797,15 @@ let dfsMultiSelected = new Set();
 // 항목 위에 열림), "drag"면 러버밴드로 한 번에 잡은 선택(이 경우 동시에 잡힌 것으로 보고 가장
 // 오른쪽 위 항목 위에 열림) - dfsFindContextMenuKeyIcon 참고.
 let dfsLastSelectionOrigin = "click";
+// 요청 #151: Shift+방향키 범위 선택용 상태 - dfIconLayer의 keydown 리스너(방향키 처리) 참고.
+let dfsArrowAnchorId = null;
+let dfsArrowPath = [];
+let dfsArrowStateFingerprint = null;
+function dfsCurrentSelectionFingerprint() {
+  if (dfsMultiSelected.size > 1) return "m:" + [...dfsMultiSelected].map(String).sort().join(",");
+  if (dfsSelectedIconId !== null) return "s:" + String(dfsSelectedIconId);
+  return "s:";
+}
 // Ctrl+A = 바탕화면 아이콘 전체 선택 (dfIconLayer의 keydown 리스너에서 호출됨).
 async function dfsSelectAllIcons() {
   if (!dfsDb) return;
@@ -770,6 +930,11 @@ function dfsRenderSpecialIcon(id, x, y, iconHtml, label, onDblClick, buildMenu) 
   icon.innerHTML = `<div class="df-icon-glyph">${iconHtml}</div><div class="df-icon-label">${escapeHtml(label)}</div>`;
   icon.addEventListener("click", (e) => {
     e.stopPropagation();
+    // 요청 #154: 드래그로 옮긴 직후에도 마우스를 뗀 자리가 여전히 이 아이콘 위라 브라우저가 뒤이어
+    // click 이벤트를 하나 더 보낸다 - 그걸 그냥 두면 다중 선택 중이던 나머지가 전부 풀리고 이
+    // 아이콘 하나로 좁혀져 버린다(버그 리포트). dfsSetupIconDrag가 실제로 움직인 드래그였을 때만
+    // 세워두는 dfsSuppressNextDesktopClick으로 이 한 번의 click만 무시한다.
+    if (dfsSuppressNextDesktopClick) { dfsSuppressNextDesktopClick = false; els.dfIconLayer.focus(); return; }
     els.dfIconLayer.focus();
     dfsMultiSelected.clear();
     dfsSelectedIconId = id;
@@ -803,6 +968,8 @@ async function dfsRenderDesktop() {
     () => {
       const menu = [{ label: "열기", action: () => openRealExplorerAt([]) }];
       if (settings.githubLinksEnabled) menu.push({ label: "저장소에서 보기", action: () => openFolderInRepo({ path: [] }) });
+      // 요청 #140: 바탕화면의 "레포 폴더" 특수 아이콘도 저장소 루트 기준으로 실시간 집계된 속성을 보여준다.
+      menu.push({ label: "속성", action: () => showRepoFolderProperties([], { kind: "저장소 루트 폴더", title: repoName || "저장소" }) });
       return menu;
     }
   );
@@ -831,6 +998,9 @@ async function dfsRenderDesktop() {
     icon.innerHTML = `<div class="df-icon-glyph">${dfsIconGlyphFor(node, 40)}</div><div class="df-icon-label">${escapeHtml(node.name)}</div>`;
     icon.addEventListener("click", (e) => {
       e.stopPropagation();
+      // 요청 #154: 위 특수 아이콘 click 핸들러와 같은 이유 - 드래그로 실제 이동이 있었으면 뒤이은
+      // click 이벤트 한 번은 무시해서 다중 선택이 풀리지 않게 한다.
+      if (dfsSuppressNextDesktopClick) { dfsSuppressNextDesktopClick = false; els.dfIconLayer.focus(); return; }
       // 아이콘층에 키보드 포커스를 줘야 이동(방향키)/F2/Delete가 먹는다(사용자 지시로 추가된
       // 바탕화면 키보드 지원 - 아래 dfIconLayer의 keydown 리스너와 triggerF2Rename/
       // triggerDeleteSelected 참고).
@@ -879,8 +1049,13 @@ document.addEventListener("click", () => {
 });
 // 요청 #119/#120: 바탕화면 빈 곳 우클릭 메뉴 - 마우스 우클릭 리스너와 컨텍스트 메뉴 키(아무것도
 // 선택 안 된 상태에서 누른 경우의 대체 동작) 양쪽에서 재사용하기 위해 이름 있는 함수로 뺐다.
+// 요청 #150: "바탕화면 우클릭 메뉴가 너무 길고 불편하다" - 최상위에는 새 폴더/새로 만들기만
+// 남기고, 그 외(붙여넣기·새로고침·속성·탐색기로 열기·아이콘 격자 정렬·환경설정·메뉴 메이커)는
+// 전부 "더 보기" 하위 메뉴 하나로 묶는다.
 function dfsBuildDesktopBackgroundMenuItems() {
-  const items = [
+  const items = [...dfsBuildNewItemMenuItems(DFS_DESKTOP_ROOT, () => dfsBroadcastChange())];
+  const moreItems = [
+    ...dfsBuildEmptyAreaExtraMenuItems(DFS_DESKTOP_ROOT, () => dfsBroadcastChange(), [DESKTOP_TREE_NAME]),
     { label: "탐색기로 열기", action: () => openRealExplorerAt([DESKTOP_TREE_NAME]) },
     // 요청 #110: 자유모드/격자모드 전환(체크 표시로 지금 모드를 보여줌 - 실제 윈도우의 "아이콘을
     // 격자에 맞춤"과 같은 자리).
@@ -891,13 +1066,19 @@ function dfsBuildDesktopBackgroundMenuItems() {
       if (next === "grid") await dfsSnapAllIconsToGrid();
       await dfsRenderDesktop();
     } },
-    ...dfsBuildEmptyAreaMenuItems(DFS_DESKTOP_ROOT, () => dfsBroadcastChange())
   ];
   // 요청 #137: 실제 윈도우 바탕화면 우클릭 메뉴 맨 끝에 "디스플레이 설정" 같은 항목이 있는 것처럼,
   // 이 앱도 바탕화면 빈 곳 우클릭에서 바로 환경설정을 열 수 있게 한다.
   if (typeof dfsOpenSettingsWindow === "function") {
-    items.push({ label: "환경설정", action: () => dfsOpenSettingsWindow() });
+    moreItems.push({ label: "환경설정", action: () => dfsOpenSettingsWindow() });
   }
+  // 요청 #148: "바탕화면 우클릭 -> 메뉴 메이커를 클릭하면 바로 열리고, 마지막으로 보던 탭을
+  // 기억해야 한다" - 특정 탭을 강제하지 않고 그냥 연다(dfsOpenMenuMakerInWindow가 opts.initialTab이
+  // 없으면 dfMenuMakerLastTab을 대신 쓴다).
+  if (typeof dfsOpenMenuMakerInWindow === "function") {
+    moreItems.push({ label: "메뉴 메이커", action: () => dfsOpenMenuMakerInWindow() });
+  }
+  items.push({ label: "더 보기", items: moreItems });
   return items;
 }
 // 요청 #120: 컨텍스트 메뉴 키를 눌렀을 때 지금 선택된 아이콘(들) 중 메뉴를 열 기준이 되는 요소를
@@ -932,8 +1113,9 @@ document.querySelector(".desktop").addEventListener("contextmenu", (e) => {
   const items = dfsBuildDesktopBackgroundMenuItems();
   showContextMenu(e.clientX, e.clientY, items);
 });
-// 진짜 컴퓨터(OS)에서 파일을 드래그해서 바탕화면에 떨어뜨리면 텍스트 파일에 한해 즉시 가져온다.
-// 폴더 아이콘 위에 놓으면 그 폴더 안으로, 빈 바탕화면에 놓으면 바탕화면 자체로 들어간다.
+// 진짜 컴퓨터(OS)에서 파일을 드래그해서 바탕화면에 떨어뜨리면 즉시 가져온다 - 요청 #145로
+// 텍스트 파일뿐 아니라 그 외 모든 형식(이미지 등)도 이진 그대로 가져올 수 있다(dfsImportOsFile
+// 참고). 폴더 아이콘 위에 놓으면 그 폴더 안으로, 빈 바탕화면에 놓으면 바탕화면 자체로 들어간다.
 // 어떤 창(.window) 위로 떨어진 경우는 그 창 자신의 drop 핸들러가 처리하므로 여기서는 무시한다.
 // text/plain(내용창 grid-item이나 트리 행에서 네이티브 HTML5 드래그로 끌려온 가상 파일시스템 노드
 // id)도 같은 자리에서 받는다 - 버그 리포트: "폴더 창에서... 바탕화면으로" 끌어다 놓아도 빼낼 수
@@ -1120,6 +1302,10 @@ function dfsSetupIconDrag(iconEl, node) {
     dragGroup = null;
     if (group) group.forEach(g => { g.el.style.zIndex = ""; });
     if (!moved) return;
+    // 요청 #154: 실제로 움직인 드래그였다 - 마우스를 뗀 자리가 여전히 이 아이콘 위라 브라우저가
+    // 뒤이어 click 이벤트를 하나 더 보내는데, 그걸 그냥 두면 (특히 다중 선택을 끌어서 옮겼을 때)
+    // 이 아이콘 하나로 선택이 좁혀져 버린다(버그 리포트) - 그 한 번의 click만 무시하게 표시해둔다.
+    dfsSuppressNextDesktopClick = true;
     // 그룹(다중 선택) 드래그면 실제 노드(숫자 id, 특수 아이콘 제외)들을 한꺼번에 옮기거나 지운다.
     // 단일 아이콘 드래그면 이 배열이 그 아이콘 하나뿐이라 기존 동작과 완전히 같다.
     const realIds = group ? group.filter(g => !g.isSpecial).map(g => g.id) : [];
@@ -1216,10 +1402,16 @@ function dfsBuildIconMenuItems(node, opts = {}) {
   } else if (node.type === "shortcut") {
     items.push({ label: "열기", action: () => dfsActivate(node) });
   } else {
-    items.push({ label: "에디터로 열기", action: () => dfsActivate(node) });
+    // 요청 #145: 이진 파일은 에디터로 열 수 없다 - 이미지만 "미리보기(새 탭)"를 대신 보여주고,
+    // 그 외 이진 파일은 아래 다운로드 항목들만으로 충분하다(더블클릭도 다운로드로 동작).
+    if (node.binary) {
+      if ((node.mime || "").indexOf("image/") === 0) items.push({ label: "미리보기(새 탭)", action: () => dfsActivate(node) });
+    } else {
+      items.push({ label: "에디터로 열기", action: () => dfsActivate(node) });
+    }
     // 실제 탐색기 파일 메뉴와 순서를 맞춘다: 다운로드(웹훅으로 로컬 헬퍼가 저장) 다음
     // 브라우저에서 다운로드(강제 blob 다운로드).
-    items.push({ label: "다운로드", action: () => localHelperSaveContent(node.name, node.content || "") });
+    items.push({ label: "다운로드", action: () => localHelperSaveContent(node.name, node.binary ? node.blob : (node.content || "")) });
     items.push({ label: "브라우저에서 다운로드", action: () => dfsDownloadVirtualFile(node) });
   }
   items.push({ label: "이름 변경", action: () => dfsPromptRename(node, refresh) });
@@ -1234,26 +1426,52 @@ function dfsBuildIconMenuItems(node, opts = {}) {
     await dfsDelete(node);
     await refresh();
   } });
+  // 요청 #148: 실제 데스크탑 아이콘 레이어의 폴더/파일 우클릭에도 메뉴 메이커 "아이콘 설정"을
+  // 붙인다(지금까지 이 메뉴에는 없었다 - 통합 탐색기 창의 dfsDesktopFileMenuItems/
+  // dfsDesktopFolderMenuItems에만 있었음). 바로가기는 자신의 icon 필드로 지정하므로 제외.
+  if (node.type !== "shortcut" && typeof dfsPushIconSettingsMenuItem === "function") {
+    const ext = node.type === "file" ? fileExtOf(node.name) : "";
+    dfsPushIconSettingsMenuItem(items, ext ? { type: "ext", key: ext } : null);
+  }
   return items;
 }
-function dfsBuildEmptyAreaMenuItems(parentId, refresh) {
-  const items = [
+// 요청 #140: pathArr은 "속성" 메뉴가 위치/이름을 표시하는 데 필요해서 추가된 선택 인자다(생략하면
+// 바탕화면 최상위로 취급) - dfsBuildDesktopBackgroundMenuItems(바탕화면 자체)와 content-pane.js의
+// contentPaneOpenBackgroundMenu(바탕화면 안의 가상 폴더) 양쪽에서 이미 알고 있는 currentPath를
+// 그대로 넘겨준다.
+// 요청 #150: 빈 곳 우클릭 메뉴가 너무 길어졌다는 지적으로, "새 폴더"(가장 자주 씀)만 최상위에
+// 남기고 나머지 새 항목 종류는 실제 윈도우처럼 "새로 만들기" 하위 메뉴 하나로 묶는다.
+function dfsBuildNewItemMenuItems(parentId, refresh) {
+  return [
     { label: "새 폴더", action: async () => { await dfsCreateFolder(parentId); await refresh(); } },
-    { label: "새 텍스트 문서", action: async () => { await dfsCreateFile(parentId, "txt"); await refresh(); } },
-    { label: "새 Markdown 문서", action: async () => { await dfsCreateFile(parentId, "md"); await refresh(); } },
-    { label: "새 HTML 문서", action: async () => { await dfsCreateFile(parentId, "html"); await refresh(); } },
-    // 요청 #133: 기존 항목을 가리키는 "바로가기 만들기"(dfsCreateShortcut)와 달리, 여기서는 처음부터
-    // 이름/주소(URL)/아이콘을 직접 입력해서 새 바로가기를 만든다(showShortcutDialog).
-    { label: "바로가기 생성", action: async () => {
-      const info = await showShortcutDialog();
-      if (!info) return;
-      await dfsCreateUrlShortcut(parentId, info);
-      await refresh();
-    } },
+    { label: "새로 만들기", items: [
+      { label: "텍스트 문서", action: async () => { await dfsCreateFile(parentId, "txt"); await refresh(); } },
+      { label: "Markdown 문서", action: async () => { await dfsCreateFile(parentId, "md"); await refresh(); } },
+      { label: "HTML 문서", action: async () => { await dfsCreateFile(parentId, "html"); await refresh(); } },
+      // 요청 #133: 기존 항목을 가리키는 "바로가기 만들기"(dfsCreateShortcut)와 달리, 여기서는 처음부터
+      // 이름/주소(URL)/아이콘을 직접 입력해서 새 바로가기를 만든다(showShortcutDialog).
+      { label: "바로가기", action: async () => {
+        const info = await showShortcutDialog();
+        if (!info) return;
+        await dfsCreateUrlShortcut(parentId, info);
+        await refresh();
+      } },
+    ] },
   ];
+}
+// 새 항목 만들기 이외의 나머지(붙여넣기/새로고침/속성) - 요청 #150으로 바탕화면 배경 메뉴에서는
+// 이것도 "더 보기" 하위 메뉴로 옮겨지지만(dfsBuildDesktopBackgroundMenuItems 참고), 탐색기 안
+// 가상 폴더의 빈 곳 우클릭(content-pane.js)에서는 여전히 dfsBuildEmptyAreaMenuItems를 통해
+// 예전처럼 평평하게 보여준다(그쪽은 항목 수가 적어 굳이 더 묶을 필요가 없음).
+function dfsBuildEmptyAreaExtraMenuItems(parentId, refresh, pathArr) {
+  const items = [];
   if (dfsClipboard) items.push({ label: "붙여넣기", action: async () => { await dfsPasteInto(parentId); await refresh(); } });
   items.push({ label: "새로고침", action: () => refresh() });
+  items.push({ label: "속성", action: () => dfsShowDesktopFolderProperties(parentId, pathArr && pathArr.length ? pathArr : [DESKTOP_TREE_NAME]) });
   return items;
+}
+function dfsBuildEmptyAreaMenuItems(parentId, refresh, pathArr) {
+  return [...dfsBuildNewItemMenuItems(parentId, refresh), ...dfsBuildEmptyAreaExtraMenuItems(parentId, refresh, pathArr)];
 }
 async function dfsPromptRename(node, refresh) {
   const next = await showPromptDialog("새 이름", node.name);
@@ -1270,7 +1488,8 @@ async function dfsCollectFolderFiles(node, prefix, out) {
     if (kid.type === "folder") {
       await dfsCollectFolderFiles(kid, prefix + kid.name + "/", out);
     } else if (kid.type === "file") {
-      out.push({ path: prefix + kid.name, content: kid.content || "" });
+      // 요청 #145: 이진 파일은 Blob 그대로 넘긴다 - JSZip의 .file()도 Blob을 그대로 받아들인다.
+      out.push({ path: prefix + kid.name, content: (kid.binary && kid.blob) ? kid.blob : (kid.content || "") });
     }
     // 바로가기(shortcut)는 가리키는 대상이 폴더 안/밖 어디에도 있을 수 있어 애매하므로 제외한다.
   }
@@ -1287,7 +1506,8 @@ async function dfsCollectFolderTree(node, prefix, files, folders) {
       folders.push(rel);
       await dfsCollectFolderTree(kid, rel + "/", files, folders);
     } else if (kid.type === "file") {
-      files.push({ path: prefix + kid.name, content: kid.content || "" });
+      // 요청 #145: 이진 파일은 Blob 그대로 - fetch의 body로도 Blob을 그대로 넘길 수 있다.
+      files.push({ path: prefix + kid.name, content: (kid.binary && kid.blob) ? kid.blob : (kid.content || "") });
     }
     // 바로가기(shortcut)는 dfsCollectFolderFiles와 같은 이유로 제외한다.
   }
@@ -1337,12 +1557,29 @@ async function dfsDownloadFolderRecursive(node) {
   showToast(`"${node.name}" 폴더를 zip으로 다운로드했습니다.`, { sound: "download_complete" });
 }
 async function dfsDownloadVirtualFile(node) {
-  const blob = new Blob([node.content || ""], { type: "text/plain;charset=utf-8" });
+  // 요청 #145: 이진 파일은 저장해둔 Blob을 그대로 쓴다(문자열로 다시 만들면 깨짐).
+  const blob = (node.binary && node.blob) ? node.blob : new Blob([node.content || ""], { type: "text/plain;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = node.name;
   a.click();
   URL.revokeObjectURL(a.href);
+}
+// 요청 #145: 이진 파일(binary:true) 더블클릭 - 에디터로 열 수 없으므로, 이미지는 새 탭에서 바로
+// 미리보고(브라우저가 img를 알아서 렌더링), 그 외에는 그냥 다운로드한다. blob URL은 새 탭이 열려
+// 있는 동안만 유효하면 되므로(에디터의 blob URL처럼 새로고침 뒤까지 남길 필요 없음) 넉넉히
+// 시간을 두고 회수한다.
+async function dfsActivateBinaryFile(node) {
+  if (!node.blob) { showToast(`"${node.name}" 내용을 찾을 수 없습니다.`, { kind: "warn", sound: "error_generic" }); return; }
+  const url = URL.createObjectURL(node.blob);
+  if ((node.mime || "").indexOf("image/") === 0) {
+    dfOpenNewTab(url, "_blank", "noopener,noreferrer");
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    return;
+  }
+  const a = document.createElement("a");
+  a.href = url; a.download = node.name; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
 /* ---------------- 활성화(더블클릭) ----------------
@@ -1363,14 +1600,44 @@ async function dfsActivate(node) {
     // 연다(dfOpenNewTab이 전체화면을 먼저 풀어주는 것까지 동일하게 재사용).
     if (!node.targetId) {
       if (!node.url) { showToast("바로가기에 주소가 없습니다.", { kind: "warn", sound: "error_generic" }); return; }
-      dfOpenNewTab(node.url, "_blank", "noopener,noreferrer");
+      openShortcutUrl(node.url, node.popup);
       return;
     }
     const target = await dfsDb.nodes.get(node.targetId);
     if (!target) { showToast("바로가기 대상을 찾을 수 없습니다(삭제된 항목).", { kind: "warn", sound: "error_generic" }); return; }
     return dfsActivate(target);
   }
+  // 요청 #145: 이진 파일(binary:true)은 에디터로 열 수 없으므로 먼저 걸러서 dfsActivateBinaryFile로.
+  if (node.binary) { return dfsActivateBinaryFile(node); }
   dfsOpenFileInWindow(node);
+}
+
+// 요청 #162: 바탕화면(가상 파일시스템)에 저장된 HTML 파일을 진짜 웹페이지처럼(스크립트도 실행되게)
+// 새 탭에서 보고 싶다는 요청 - 에디터의 미리보기(요청 #156으로 innerHTML 주입 방식으로 바뀜, 스크립트
+// 미실행)와는 다른 별도 기능이다. blob: URL로 새 탭을 연다 - URL.revokeObjectURL을 부르지 않고 이
+// 메인 탭(만든 쪽 문서)이 계속 살아있는 한 브라우저가 그 blob URL을 계속 유효하게 유지해주므로, 새로
+// 연 탭에서 새로고침(F5)해도 깨지지 않는다(버그 리포트 - 예전에 다른 방식에서 새로고침하면 깨졌음).
+// 같은 노드를 여러 번 열 때 매번 새 URL을 만들면 blob이 계속 쌓이므로(메모리 누수), 노드 id별로
+// URL을 캐시해두고 내용이 그대로면 재사용하고, 내용이 바뀌었으면(에디터에서 저장 등) 그때만 이전
+// 것을 해제(revoke)하고 새로 만든다.
+const dfsHtmlViewerUrlCache = new Map(); // nodeId -> { content, url }
+function dfsOpenHtmlAsViewerTab(node) {
+  const content = node.content || "";
+  const cached = dfsHtmlViewerUrlCache.get(node.id);
+  let url;
+  if (cached && cached.content === content) {
+    url = cached.url;
+  } else {
+    if (cached) { try { URL.revokeObjectURL(cached.url); } catch (e) {} }
+    const blob = new Blob([content], { type: "text/html;charset=utf-8" });
+    url = URL.createObjectURL(blob);
+    dfsHtmlViewerUrlCache.set(node.id, { content, url });
+  }
+  // 주의: blob: URL은 "noopener"를 주고 새 탭을 열면 일부 브라우저(크롬 계열)에서 새 탭이 다른
+  // 프로세스로 뜨면서 이 탭이 만든 blob을 못 찾아 로드에 실패하는 경우가 있다(알려진 문제) - 그래서
+  // 여기서는 다른 새 탭 열기들과 달리 noopener/noreferrer를 주지 않는다(외부 사이트가 아니라 우리가
+  // 직접 만든 내용이라 window.opener 보안 문제도 없음).
+  dfOpenNewTab(url, "_blank");
 }
 
 /* ============================================================================
@@ -1410,7 +1677,7 @@ async function dfsRenameSelectedIcon() {
   const node = await dfsDb.nodes.get(id);
   if (node) await dfsPromptRename(node, () => dfsBroadcastChange());
 }
-async function dfsDeleteSelectedIcons() {
+async function dfsDeleteSelectedIcons(permanent) {
   // Delete는 여러 개 선택돼 있어도 확인 대화상자 하나로 한꺼번에 지운다(다중 선택된 상태에서
   // 하나씩 확인창이 겹쳐 뜨는 걸 피하기 위함). 특수 아이콘(문자열 id)은 지울 수 없으므로 제외한다.
   const ids = (dfsMultiSelected.size ? [...dfsMultiSelected] : (dfsSelectedIconId !== null ? [dfsSelectedIconId] : []))
@@ -1418,12 +1685,17 @@ async function dfsDeleteSelectedIcons() {
   if (!ids.length) return;
   const nodes = (await Promise.all(ids.map(id => dfsDb.nodes.get(id)))).filter(Boolean);
   if (!nodes.length) return;
-  const msg = nodes.length === 1
-    ? `"${nodes[0].name}"을(를) 삭제할까요?${nodes[0].type === "folder" ? " (안에 있는 것도 모두 삭제됩니다)" : ""}`
-    : `선택한 ${nodes.length}개 항목을 삭제할까요? (폴더 안의 내용도 모두 삭제됩니다)`;
+  // 요청 #159: Shift+Delete로 눌렀으면(permanent) 휴지통을 거치지 않는다는 걸 확인창 문구로 확실히 알린다.
+  const msg = permanent
+    ? (nodes.length === 1
+        ? `"${nodes[0].name}"을(를) 완전히 삭제할까요? (휴지통을 거치지 않고 바로 삭제되며 되돌릴 수 없습니다)`
+        : `선택한 ${nodes.length}개 항목을 완전히 삭제할까요? (휴지통을 거치지 않고 바로 삭제되며 되돌릴 수 없습니다)`)
+    : (nodes.length === 1
+        ? `"${nodes[0].name}"을(를) 삭제할까요?${nodes[0].type === "folder" ? " (안에 있는 것도 모두 삭제됩니다)" : ""}`
+        : `선택한 ${nodes.length}개 항목을 삭제할까요? (폴더 안의 내용도 모두 삭제됩니다)`);
   const ok = await showConfirmDialog(msg);
   if (!ok) return;
-  for (const node of nodes) await dfsDelete(node);
+  for (const node of nodes) await dfsDelete(node, permanent);
   dfsSelectedIconId = null;
   dfsMultiSelected.clear();
   await dfsBroadcastChange();
@@ -1469,12 +1741,25 @@ els.dfIconLayer.addEventListener("keydown", async (e) => {
   e.preventDefault();
   e.stopPropagation(); // 전역 Alt+방향키(뒤로/앞으로 가기) 캡처 리스너와 뒤섞이지 않도록
   if (!dfsDb) return;
-  const items = await dfsChildren(DFS_DESKTOP_ROOT);
+  // 요청 #153: 저장소 루트/휴지통 특수 아이콘(id가 문자열)도 방향키로 선택할 수 있어야 하므로,
+  // dfsChildren(진짜 dexie 노드만)이 아니라 격자 스냅과 같은 통합 목록(dfsAllDesktopIconPositions -
+  // 진짜 노드 + 특수 아이콘 2개, {id, isSpecial, x, y})을 그대로 쓴다.
+  const items = await dfsAllDesktopIconPositions();
   if (!items.length) return;
+  // 요청 #151: Shift+방향키 범위 선택 - 자유 배치(격자가 아님)라 인덱스 구간이 없으므로, 앵커에서
+  // 지금까지 "지나온 아이콘들"의 경로를 기억해뒀다가 그대로 선택한다(이미 지나온 아이콘으로
+  // 되돌아가면 그 지점까지만 남기고 뒤쪽은 잘라내 자연히 줄어든다 - 실제 윈도우의 앵커 넘어가면
+  // 해제되는 동작과 같은 효과). 화살표가 아닌 다른 방법으로 선택이 바뀐 다음이면(지문이 다르면)
+  // 앵커를 새로 잡는다.
+  if (dfsCurrentSelectionFingerprint() !== dfsArrowStateFingerprint) {
+    dfsArrowAnchorId = null;
+    dfsArrowPath = [];
+  }
   const centerOf = (n) => ({ x: (n.x ?? 24) + 36, y: (n.y ?? 24) + 40 }); // 아이콘 박스 대략 중심
-  const currentId = dfsSelectedIconId !== null ? dfsSelectedIconId
-    : (dfsMultiSelected.size ? [...dfsMultiSelected][dfsMultiSelected.size - 1] : null);
-  let next = currentId != null ? items.find(n => n.id === currentId) : null;
+  const focusId = dfsArrowPath.length ? dfsArrowPath[dfsArrowPath.length - 1]
+    : (dfsSelectedIconId !== null ? dfsSelectedIconId
+      : (dfsMultiSelected.size ? [...dfsMultiSelected][dfsMultiSelected.size - 1] : null));
+  let next = focusId != null ? items.find(n => n.id === focusId) : null;
   if (!next) {
     next = items.slice().sort((a, b) => (a.y ?? 0) - (b.y ?? 0) || (a.x ?? 0) - (b.x ?? 0))[0];
   } else {
@@ -1494,8 +1779,25 @@ els.dfIconLayer.addEventListener("keydown", async (e) => {
     });
     if (best) next = best;
   }
-  dfsSelectedIconId = next.id;
-  dfsMultiSelected.clear();
+  if (e.shiftKey) {
+    if (dfsArrowAnchorId == null) { dfsArrowAnchorId = focusId != null ? focusId : next.id; dfsArrowPath = [dfsArrowAnchorId]; }
+    const already = dfsArrowPath.indexOf(next.id);
+    if (already !== -1) dfsArrowPath = dfsArrowPath.slice(0, already + 1);
+    else dfsArrowPath.push(next.id);
+    if (dfsArrowPath.length > 1) {
+      dfsMultiSelected = new Set(dfsArrowPath);
+      dfsSelectedIconId = null;
+    } else {
+      dfsMultiSelected.clear();
+      dfsSelectedIconId = next.id;
+    }
+  } else {
+    dfsArrowAnchorId = next.id;
+    dfsArrowPath = [next.id];
+    dfsSelectedIconId = next.id;
+    dfsMultiSelected.clear();
+  }
+  dfsArrowStateFingerprint = dfsCurrentSelectionFingerprint();
   dfsRenderDesktop();
 });
 

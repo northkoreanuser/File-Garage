@@ -1,8 +1,11 @@
 /* ============ 창 조작 (최소화/최대화/닫기) ============
    - 최소화: 닫기처럼 창이 사라지지만, 작업표시줄 아이콘의 활성 표시는 그대로 유지된다(실제 윈도우처럼).
    - 닫기: 창이 사라지고 작업표시줄 아이콘의 활성 표시도 꺼진다.
-   - 닫은 뒤 작업표시줄에서 다시 열면(최소화 상태에서 복구하는 것과 달리) 최상위 경로 + 트리 완전히 접힌
-     상태로 초기화된다(실제 윈도우 탐색기도 창을 닫았다 새로 열면 이전 상태를 기억하지 않는다).
+   - 닫은 뒤 작업표시줄에서 다시 열면(최소화 상태에서 복구하는 것과 달리) 기본은 최상위 경로 + 트리
+     완전히 접힌 상태로 초기화된다(실제 윈도우 탐색기도 창을 닫았다 새로 열면 이전 상태를 기억하지
+     않는다). 요청 #161: 단, 닫기 전 위치/트리 펼침 상태 자체는 그대로 기억해두고 있어서, 환경설정의
+     "이전 위치에서 시작"을 켜거나 작업표시줄 아이콘을 우클릭해 "이전 위치 열기"를 고르면 그 상태로
+     이어서 열 수 있다.
 ================================================================== */
 els.btnMin.onclick = () => { els.win.classList.add("minimized"); dfsPlaySound("window_minimize"); };
 // 드래그로 옮긴 위치(position:fixed의 left/top 인라인 스타일)는 최대화하면 잠깐 지워야
@@ -137,17 +140,44 @@ els.btnClose.onclick = () => {
   els.win.classList.add("closed");
   dfsPlaySound("window_close");
   els.taskbarApp.classList.remove("active");
-  // 실제 윈도우 탐색기처럼, 창을 닫으면 주소창 플래그먼트와 "마지막 위치 기억"이 함께 사라져야
-  // 다음에 다시 열었을 때(또는 GitHub Pages 링크로 새로 들어왔을 때) 완전히 처음 상태(탐색창 닫힘 +
-  // 루트 경로)로 돌아간다. 새로고침 시의 복원 기능(탭을 유지한 채 F5)과는 다른 동작이다. "창을
-  // 닫아뒀었다"는 사실 자체도 기억해서(persistWindowOpen(false)), 다음 로드 때 아예 창을
-  // 띄우지 않는다(사용자 지시 - "진짜 윈도우 바이브").
+  // 요청 #161 이전에는 창을 닫으면 "마지막 위치 기억"(lastPathKey/expandedStorageKey)까지 함께
+  // 지워서 다음에 열면 항상 루트+트리 접힘으로 돌아갔다. 이제는 닫아도 그 기록을 그대로 남겨둔다 -
+  // 작업표시줄 아이콘을 우클릭하면 "이전 위치 열기"로 되살릴 수 있고(아래 oncontextmenu), 환경설정의
+  // "탐색기를 열 때 이전 위치에서 시작"을 켜두면 그냥 열기(taskbarApp.onclick)로도 복원된다.
+  // 주소창 플래그먼트는 여전히 지운다 - 지금 창을 닫았다는 사실 자체는 주소로 남을 이유가 없다.
+  // "창을 닫아뒀었다"는 사실도 기억해서(persistWindowOpen(false)), 다음 페이지 로드 때는 아예
+  // 창을 띄우지 않는다(사용자 지시 - "진짜 윈도우 바이브").
   closeNavPane();
   clearHashFragment();
-  try { localStorage.removeItem(lastPathKey()); } catch (e) {}
-  try { localStorage.removeItem(expandedStorageKey()); } catch (e) {}
   persistWindowOpen(false);
 };
+// 요청 #161: 닫혀 있던 창을 다시 열 때 루트로 갈지, 닫기 전 마지막 위치(+트리 펼침 상태)로
+// 돌아갈지 - bootstrap.js의 main()이 "창이 열려 있던 채로 새로고침"할 때 쓰는 것과 같은 복원
+// 로직을 재사용한다(중복 구현 방지).
+async function reopenExplorerAtLastLocation() {
+  const hashExpanded = hashToExpandedSet(location.hash);
+  expanded = (hashExpanded && hashExpanded.size) ? hashExpanded : loadExpandedFromStorage();
+  await Promise.all([...expanded].map(key => loadDir(key.split("/").filter(Boolean)).catch(() => {})));
+  if (dfsDb) await Promise.all([loadDir([DESKTOP_TREE_NAME]).catch(() => {}), loadDir([RECYCLEBIN_TREE_NAME]).catch(() => {})]);
+  openNavPaneRespectingHash();
+  let initialPath = hashToPath(location.hash);
+  if (!initialPath) {
+    try {
+      const remembered = JSON.parse(localStorage.getItem(lastPathKey()) || "null");
+      if (Array.isArray(remembered)) initialPath = remembered;
+    } catch (e) { /* 무시 */ }
+  }
+  const resolved = await resolveInitialPath(initialPath || []);
+  await navigate(resolved);
+}
+function reopenExplorerAtRoot() {
+  expanded.clear();
+  navigate([]);
+  // 버그 리포트: "탐색기 열면 기본으로 트리 칸 열려있게" - 창을 닫았다 다시 열면(작업표시줄
+  // 클릭) 트리 칸이 이전에 닫혀있던 그대로 남아있어서 매번 수동으로 열어야 했다. 새로 여는
+  // 시점이니 해시에 명시적으로 닫힘(|nav=0)이 적혀있지 않은 한 기본으로 열어준다.
+  openNavPaneRespectingHash();
+}
 els.taskbarApp.onclick = () => {
   const wasClosed = els.win.classList.contains("closed");
   const wasHidden = wasClosed || els.win.classList.contains("minimized");
@@ -156,23 +186,34 @@ els.taskbarApp.onclick = () => {
   persistWindowOpen(true);
   if (wasHidden) dfsPlaySound("window_open");
   if (wasClosed) {
-    expanded.clear();
-    navigate([]);
-    // 버그 리포트: "탐색기 열면 기본으로 트리 칸 열려있게" - 창을 닫았다 다시 열면(작업표시줄
-    // 클릭) 트리 칸이 이전에 닫혀있던 그대로 남아있어서 매번 수동으로 열어야 했다. 새로 여는
-    // 시점이니 해시에 명시적으로 닫힘(|nav=0)이 적혀있지 않은 한 기본으로 열어준다.
-    openNavPaneRespectingHash();
+    // 요청 #161: 환경설정의 "탐색기를 열 때 이전 위치에서 시작"에 따라 갈림 - 기본(꺼짐)은 예전과
+    // 똑같이 항상 루트에서 시작한다.
+    if (settings.reopenAtLastLocation) reopenExplorerAtLastLocation();
+    else reopenExplorerAtRoot();
   }
 };
 // 요청 #130: 작업표시줄의 탐색기 아이콘을 우클릭하면 실제 윈도우처럼 최소화/최대화(또는 복원)/
-// 닫기를 제공한다(소소한 디테일 흉내). 창이 이미 닫혀 있으면(=실행 중이 아님) 조작할 대상이
-// 없으므로 메뉴를 띄우지 않는다. "닫기"는 실제 X 버튼과 똑같이 곧바로 닫는다 - 확인창(요청 #127)은
+// 닫기를 제공한다(소소한 디테일 흉내). "닫기"는 실제 X 버튼과 똑같이 곧바로 닫는다 - 확인창(요청 #127)은
 // 실수로 눌리기 쉬운 키보드 단축키(Ctrl+W/Alt+W)에만 필요한 안전장치이고, 메뉴에서 명시적으로
 // "닫기"를 고르는 것은 X 버튼 클릭과 같은 성격의 의도적인 동작이라 그대로 즉시 닫는다.
+// 요청 #161: 창이 닫혀 있을 때도(예전엔 메뉴 자체를 안 띄웠음) 우클릭하면 "열기"(환경설정을 따름)와
+// "이전 위치 열기"(설정과 무관하게 항상 닫기 전 마지막 위치로) 둘 중 고를 수 있게 한다.
 els.taskbarApp.oncontextmenu = (e) => {
   e.preventDefault();
   e.stopPropagation();
-  if (els.win.classList.contains("closed")) return;
+  if (els.win.classList.contains("closed")) {
+    showContextMenu(e.clientX, e.clientY, [
+      { label: "열기", action: () => els.taskbarApp.onclick() },
+      { label: "이전 위치 열기", action: () => {
+        els.win.classList.remove("closed", "minimized");
+        els.taskbarApp.classList.add("active");
+        persistWindowOpen(true);
+        dfsPlaySound("window_open");
+        reopenExplorerAtLastLocation();
+      } }
+    ]);
+    return;
+  }
   const isMax = els.win.classList.contains("maximized");
   showContextMenu(e.clientX, e.clientY, [
     { label: "최소화", action: () => els.btnMin.onclick() },

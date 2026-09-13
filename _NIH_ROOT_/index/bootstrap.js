@@ -55,7 +55,10 @@ async function main() {
   // 페이지 로드시 로컬 헬퍼가 켜져 있는지 조용히 한 번 확인해둔다 (다운로드 안내 등 아무것도 띄우지 않음 -
   // 그냥 나중에 열기/다운로드를 누를 때 바로 쓸 수 있도록 미리 캐싱만 해두는 것).
   // 동시에, 실수로 두 번 실행됐을 수 있는 중복 웹훅도 감지해서 가장 낮은 포트만 남기고 정리한다.
-  initHelperPortAndCollapseDuplicates();
+  // 요청 #152: 이 검사 자체가 브라우저의 로컬 네트워크 접근 권한 팝업을 띄울 수 있어서 기본은
+  // 꺼져 있다(환경설정의 "페이지를 열 때 로컬 웹훅 자동 확인") - 웹훅으로 실제 다운로드가 한 번이라도
+  // 성공하면 그 설정이 자동으로 켜져서, 그다음부터는 이 검사도 자동으로 실행된다.
+  if (settings.checkHelperOnLoad) initHelperPortAndCollapseDuplicates();
 
   window.addEventListener("hashchange", () => {
     const hasHash = !!location.hash && location.hash !== "#";
@@ -90,6 +93,9 @@ async function main() {
     applyCustomIconConfig(mergeIconSetConfigs(cfg.icons, cfg.skinIcons, settings.skinIconPriority));
     // 상황별 알림음(sound_set.json) 반영 - state.js의 dfsPlaySound가 이 설정을 참조한다.
     applySoundSetConfig(cfg.sounds);
+    // 요청 #143: 확장자별 더블클릭 개별 설정(extension_run_set.json) 반영 - keyboard-and-activate.js의
+    // activate()가 extensionRunActionFor()로 이 설정을 참조한다.
+    applyExtensionRunSetConfig(cfg.extRun);
     renderNavPane();
     if (els.win && !els.win.classList.contains("closed")) renderContentPane();
     if (dfsDb) dfsRenderDesktop();

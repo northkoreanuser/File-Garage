@@ -277,17 +277,16 @@ function dfInitEditorWindow(handle, NODE, state) {
   // 가로막음). iframe을 .df-e-preview(오른쪽 뷰어 칸) 안으로 옮겨서(dfsBuildEditorBodyHtml 참고) 그
   // 칸 안에서만 absolute로 채워지게 하고, 왼쪽 textarea(ta)는 마크다운/HTML/텍스트 어느 모드든
   // 항상 그대로 편집 가능하게 둔다.
+  // 요청 #156, 버그 리포트: "에디터 HTML 모드 렌더링이 안 됨(뷰어에 아무것도 안 뜸)" - 위 두 차례의 iframe
+  // 수정(샌드박스 권한/배치)에도 여전히 안 뜨는 경우가 있어서, 아예 iframe(srcdoc)을 걷어내고
+  // 마크다운 뷰어와 완전히 같은 방식(previewInner.innerHTML에 그대로 꽂아 넣기)으로 통일한다 -
+  // 마크다운처럼 파싱하지 않고 원본 HTML을 그대로 넣는 것만 다르다. 대신 innerHTML로 넣은
+  // <script>는 브라우저가 실행하지 않으므로(HTML 표준 동작), 스크립트로 화면을 그리는 페이지는
+  // 여전히 정적으로만 보인다 - 그런 페이지는 "새 탭에서 열기"로 실제 페이지 그대로 확인해야 한다.
   function renderContent() {
-    if (renderMode === "html") {
-      previewInner.style.display = "none";
-      htmlFrame.style.display = "";
-      htmlFrame.srcdoc = ta.value;
-    } else {
-      htmlFrame.style.display = "none";
-      htmlFrame.srcdoc = "";
-      previewInner.style.display = "";
-      previewInner.innerHTML = dfMarkdown(ta.value);
-    }
+    htmlFrame.style.display = "none";
+    previewInner.style.display = "";
+    previewInner.innerHTML = renderMode === "html" ? ta.value : dfMarkdown(ta.value);
     updateStatus();
   }
   function setSaveState(text) { if (saveStateEl) saveStateEl.textContent = text; }
@@ -365,7 +364,9 @@ function dfInitEditorWindow(handle, NODE, state) {
       });
       const text = await res.text();
       if (!res.ok) throw new Error(String(res.status));
-      setSaveState(text.indexOf("CANCELLED") !== -1 ? "다운로드가 취소되었습니다" : "웹훅으로 다운로드됨");
+      const cancelled = text.indexOf("CANCELLED") !== -1;
+      if (!cancelled) dfNoteWebhookDownloadSucceeded(); // 요청 #152
+      setSaveState(cancelled ? "다운로드가 취소되었습니다" : "웹훅으로 다운로드됨");
     } catch (e) {
       downloadBtn.disabled = false;
       downloadBtn.textContent = oldLabel;
@@ -416,6 +417,13 @@ function dfInitEditorWindow(handle, NODE, state) {
 // 파일을 앱 내 창으로 연다(요청 #135). 에디터는 여러 개 동시에 열 수 있으므로(멀티 인스턴스)
 // 매번 새 dfCreateAppWindow 인스턴스를 만든다 - 메뉴 메이커와 달리 싱글턴 체크가 없다.
 function dfsOpenFileInWindow(node, opts = {}) {
+  // 요청 #145: 이진 파일(binary:true)은 애초에 dfsActivate가 여기 대신 dfsActivateBinaryFile로
+  // 보내지만, 혹시 다른 경로에서 실수로 이 함수가 직접 불려도 텍스트로 뭉개 열지 않도록 안전망을
+  // 둔다.
+  if (node.binary) {
+    showToast(`"${node.name}"은(는) 이진 파일이라 에디터로 열 수 없습니다. 다운로드를 이용하세요.`, { kind: "warn", sound: "error_generic" });
+    return;
+  }
   const fileType = node.fileType || dfDetectFileType(node.name);
   const theme = (settings && settings.dfEditorTheme) || "dark";
   // 실제 저장소 파일(원본에는 쓸 수 없음)도 이제 읽기 전용이 아니라 자유롭게 수정할 수 있다

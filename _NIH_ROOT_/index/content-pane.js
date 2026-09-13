@@ -13,7 +13,7 @@ async function renderContentPane() {
   }
   currentItems = [
     ...entry.folders.map(name => ({ name, path: [...currentPath, name], type: "folder", dfsFolderId: entry.folderNodes ? entry.folderNodes.get(name)?.id : undefined })),
-    ...entry.files.map(f => ({ name: f.name, size: f.size, path: [...currentPath, f.name], type: fileTypeFor(f.name), dfsNode: f.dfsNode }))
+    ...entry.files.map(f => ({ name: f.name, size: f.size, crc32: f.crc32, path: [...currentPath, f.name], type: fileTypeFor(f.name), dfsNode: f.dfsNode }))
   ];
   currentOpts = { emptyText: "이 폴더는 비어 있습니다." };
   paintContentPane();
@@ -65,7 +65,9 @@ function buildGrid(items, opts) {
     cell.dataset.key = key;
     const icon = it.dfsNode ? dfsIconGlyphFor(it.dfsNode, 32) : (it.type === "folder" ? resolveFolderIcon(it.path, 32, false) : resolveFileIcon(it.name, 32));
     const subHtml = opts.flat ? `<div class="sub">${escapeHtml(dirLabelFor(it, opts))}</div>` : "";
-    cell.innerHTML = `<div class="icon">${icon}</div><div class="label">${escapeHtml(it.name)}</div>${subHtml}`;
+    // 요청 #141: .sc 바로가기 파일은 실제 윈도우가 .lnk 확장자를 숨기는 것처럼 목록에는 확장자를 뺀
+    // 이름으로 보여준다(실제 파일명 자체는 그대로라서 다운로드/속성 등은 전혀 영향받지 않는다).
+    cell.innerHTML = `<div class="icon">${icon}</div><div class="label">${escapeHtml(displayName(it.name))}</div>${subHtml}`;
     cell.onclick = () => {
       els.contentPane.focus();
       multiSelected.clear();
@@ -282,12 +284,14 @@ els.contentPane.addEventListener("drop", async (e) => {
 // (가상 파일시스템) 모두 각자의 빈 영역 메뉴를 갖는다.
 function contentPaneOpenBackgroundMenu(x, y) {
   if (!isDfsPath(currentPath)) {
-    // 요청 #129: 실제 저장소 폴더는 CRUD가 없으니 "새로고침"/"경로 복사"만 제공한다. 위 툴바의
-    // 새로고침 버튼과 완전히 같은 함수(refreshCurrentFolder)를 그대로 호출하므로 결과 토스트도
-    // 항상 똑같이 나온다.
+    // 요청 #129: 실제 저장소 폴더는 CRUD가 없으니 "새로고침"/"경로 복사"/"속성"만 제공한다. 위
+    // 툴바의 새로고침 버튼과 완전히 같은 함수(refreshCurrentFolder)를 그대로 호출하므로 결과
+    // 토스트도 항상 똑같이 나온다. 요청 #140: "속성"은 지금 폴더(currentPath) 기준으로 하위
+    // pages.json을 실시간으로 재귀 집계해서 파일 개수/전체 크기를 보여준다.
     showContextMenu(x, y, [
       { label: "새로고침", action: () => refreshCurrentFolder() },
-      { label: "경로 복사", action: () => copyCurrentUrlToClipboard() }
+      { label: "경로 복사", action: () => copyCurrentUrlToClipboard() },
+      { label: "속성", action: () => showRepoFolderProperties(currentPath, { kind: currentPath.length ? "폴더" : "저장소 루트 폴더" }) }
     ]);
     return;
   }
@@ -301,7 +305,7 @@ function contentPaneOpenBackgroundMenu(x, y) {
   }
   dfsResolvePathToFolderId(currentPath).then(folderId => {
     if (folderId == null) return;
-    showContextMenu(x, y, dfsBuildEmptyAreaMenuItems(folderId, () => dfsBroadcastChange()));
+    showContextMenu(x, y, dfsBuildEmptyAreaMenuItems(folderId, () => dfsBroadcastChange(), currentPath));
   });
 }
 els.contentPane.addEventListener("contextmenu", (e) => {
@@ -334,6 +338,19 @@ function findContentPaneContextMenuKeyCell() {
 
 /* ============ 내용창(오른쪽) 방향키 내비게이션: 상하좌우 = 그리드 이동, 엔터 = 폴더 진입/파일 열기 시도.
    다중 선택 상태(2개 이상)에서 엔터는 "다중 열기"(위험함) 대신 순차 다운로드로 대체한다. ============ */
+// 요청 #151: Shift+방향키로 실제 윈도우 탐색기처럼 범위 선택 - 앵커(범위 시작점)의 인덱스를
+// 기억해뒀다가, 매번 "앵커~지금 커서" 사이 구간 전체를 새로 계산해서 선택한다(어느 방향으로
+// 움직여도 항상 연속 구간이 되고, 앵커 쪽으로 되돌아가면 자연히 줄어든다). 화살표 핸들러가 아닌
+// 다른 방법(마우스 클릭/드래그/Ctrl+A 등)으로 그 사이에 선택이 바뀌면 지문(fingerprint)이 달라져
+// 다음 Shift+화살표에서 앵커를 새로 잡는다 - 굳이 그 모든 곳마다 리셋 코드를 넣지 않아도 된다.
+let cpArrowAnchorIdx = null;
+let cpArrowFocusIdx = null;
+let cpArrowStateFingerprint = null;
+function cpCurrentSelectionFingerprint() {
+  if (multiSelected.size > 1) return "m:" + [...multiSelected].sort().join(",");
+  if (selected) return "s:" + selected.path.join("/");
+  return "s:";
+}
 els.contentPane.tabIndex = 0;
 els.contentPane.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
@@ -351,20 +368,47 @@ els.contentPane.addEventListener("keydown", (e) => {
   if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) return;
   e.preventDefault();
   if (currentItems.length === 0) return;
+  if (cpCurrentSelectionFingerprint() !== cpArrowStateFingerprint) {
+    // 이 핸들러가 마지막으로 만들어둔 선택 상태와 지금이 다르면(다른 방법으로 선택이 바뀜) 앵커를 버린다.
+    cpArrowAnchorIdx = null;
+    cpArrowFocusIdx = null;
+  }
   const cellW = currentOpts.flat ? 132 : 96;
   const gap = 4;
   const containerW = els.contentPane.clientWidth - 28; // padding 14px * 2
   const columns = Math.max(1, Math.floor((containerW + gap) / (cellW + gap)));
-  let idx = selected ? currentItems.findIndex(it => it.path.join("/") === selected.path.join("/")) : -1;
-  if (idx === -1) idx = 0;
+  let baseIdx;
+  if (cpArrowFocusIdx != null && cpArrowFocusIdx >= 0 && cpArrowFocusIdx < currentItems.length) {
+    baseIdx = cpArrowFocusIdx;
+  } else {
+    baseIdx = selected ? currentItems.findIndex(it => it.path.join("/") === selected.path.join("/")) : -1;
+    if (baseIdx === -1) baseIdx = 0;
+  }
+  let idx = baseIdx;
   if (e.key === "ArrowRight") idx = Math.min(currentItems.length - 1, idx + 1);
   else if (e.key === "ArrowLeft") idx = Math.max(0, idx - 1);
   else if (e.key === "ArrowDown") idx = Math.min(currentItems.length - 1, idx + columns);
   else if (e.key === "ArrowUp") idx = Math.max(0, idx - columns);
   const it = currentItems[idx];
   if (!it) return;
-  multiSelected.clear();
-  selected = { path: it.path, name: it.name, type: it.type };
+  if (e.shiftKey) {
+    if (cpArrowAnchorIdx == null) cpArrowAnchorIdx = baseIdx;
+    cpArrowFocusIdx = idx;
+    const lo = Math.min(cpArrowAnchorIdx, idx), hi = Math.max(cpArrowAnchorIdx, idx);
+    if (lo === hi) {
+      multiSelected.clear();
+      selected = { path: it.path, name: it.name, type: it.type };
+    } else {
+      multiSelected = new Set(currentItems.slice(lo, hi + 1).map(x => x.path.join("/")));
+      selected = null;
+    }
+  } else {
+    cpArrowAnchorIdx = idx;
+    cpArrowFocusIdx = idx;
+    multiSelected.clear();
+    selected = { path: it.path, name: it.name, type: it.type };
+  }
+  cpArrowStateFingerprint = cpCurrentSelectionFingerprint();
   paintContentPane();
   updateStatus();
   const cell = els.contentPane.querySelector(`[data-key="${CSS.escape(it.path.join("/"))}"]`);
@@ -443,7 +487,8 @@ async function handleMultiDownload(items) {
         } else if (it.dfsNode) {
           const res = await fetch(`http://127.0.0.1:${port}/savecontentto?base=${encodeURIComponent(baseRoot)}&rel=${encodeURIComponent(it.name)}`, {
             method: "POST",
-            body: it.dfsNode.content || ""
+            // 요청 #145: 이진 파일은 Blob 그대로 보낸다.
+            body: (it.dfsNode.binary && it.dfsNode.blob) ? it.dfsNode.blob : (it.dfsNode.content || "")
           });
           if (!res.ok) throw new Error(String(res.status));
           okCount++;
@@ -457,6 +502,7 @@ async function handleMultiDownload(items) {
         failCount++;
       }
     }
+    if (okCount > 0) dfNoteWebhookDownloadSucceeded(); // 요청 #152
     let msg = `다중 다운로드 완료: ${okCount}개`;
     if (failCount) msg += `, 실패 ${failCount}개`;
     showToast(msg, failCount ? { kind: "warn", sound: "download_error" } : { sound: "download_complete" });
@@ -469,7 +515,7 @@ async function handleMultiDownload(items) {
    애초에 "삭제" 메뉴 자체가 없는 읽기 전용). 드래그로 여러 개를 선택한 뒤 Delete 키를 누르거나
    우클릭 메뉴에서 선택하면 여기로 온다 - 확인 대화상자 하나로 한꺼번에 지운다(바탕화면 아이콘의
    다중 삭제, dfsDeleteSelectedIcons와 동일한 방식). ============ */
-async function handleMultiDelete(items) {
+async function handleMultiDelete(items, permanent) {
   const inBin = isRecycleBinPath(currentPath);
   const resolved = [];
   for (const it of items) {
@@ -485,12 +531,15 @@ async function handleMultiDelete(items) {
   }
   if (!resolved.length) return;
   // 요청 #113: 휴지통 안에서의 "삭제"는 영구 삭제다(다시 휴지통으로 옮길 곳이 없음) - 복구 불가 경고로 바꾼다.
+  // 요청 #159: 휴지통 밖에서 Shift+Delete로 눌렀으면(permanent) 마찬가지로 영구 삭제 + 강한 경고 문구로 바꾼다.
   const msg = inBin
     ? (resolved.length === 1 ? `"${resolved[0].name}"을(를) 영구적으로 삭제할까요? (복구할 수 없습니다)` : `선택한 ${resolved.length}개 항목을 영구적으로 삭제할까요? (복구할 수 없습니다)`)
-    : (resolved.length === 1 ? `"${resolved[0].name}"을(를) 삭제할까요?${resolved[0].type === "folder" ? " (안에 있는 것도 모두 삭제됩니다)" : ""}` : `선택한 ${resolved.length}개 항목을 삭제할까요? (폴더 안의 내용도 모두 삭제됩니다)`);
+    : permanent
+      ? (resolved.length === 1 ? `"${resolved[0].name}"을(를) 완전히 삭제할까요? (휴지통을 거치지 않고 바로 삭제되며 되돌릴 수 없습니다)` : `선택한 ${resolved.length}개 항목을 완전히 삭제할까요? (휴지통을 거치지 않고 바로 삭제되며 되돌릴 수 없습니다)`)
+      : (resolved.length === 1 ? `"${resolved[0].name}"을(를) 삭제할까요?${resolved[0].type === "folder" ? " (안에 있는 것도 모두 삭제됩니다)" : ""}` : `선택한 ${resolved.length}개 항목을 삭제할까요? (폴더 안의 내용도 모두 삭제됩니다)`);
   const ok = await showConfirmDialog(msg);
   if (!ok) return;
-  for (const node of resolved) await (inBin ? dfsPermanentlyDelete(node) : dfsDelete(node));
+  for (const node of resolved) await (inBin || permanent ? dfsPermanentlyDelete(node) : dfsDelete(node));
   multiSelected.clear();
   selected = null;
   await dfsBroadcastChange();

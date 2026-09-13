@@ -6,10 +6,11 @@
 ================================================================== */
 const DEFAULT_SETTINGS = {
   githubLinksEnabled: true,
-  // "newtab"(새 탭에서 열기 - 이 사이트 자체의 배포된 주소로 열기, 기본값) | "helper"(로컬 헬퍼로
-  // 열기 - 예전의 "open") | "text"(텍스트로 열기 - 우클릭의 "브라우저에서 보기"와 동일, GitHub raw
-  // 주소) | "download"(헬퍼의 다운로드 기능) - 사용자 지시로 4가지로 재설계됨
-  doubleClickAction: "newtab",
+  // "helper"(로컬 헬퍼로 열기 - 예전의 "open", 요청 #142로 기본값이 됨) | "newtab"(새 탭에서 열기 -
+  // 이 사이트 자체의 배포된 주소로 열기) | "text"(텍스트로 열기 - 우클릭의 "브라우저에서 보기"와
+  // 동일, GitHub raw 주소) | "download"(헬퍼의 다운로드 기능) | "repo"(저장소에서 보기 - GitHub의
+  // blob 화면, 요청 #142로 추가 - settings.githubLinksEnabled가 꺼져 있으면 newtab처럼 동작)
+  doubleClickAction: "helper",
   searchScope: "subtree",    // "subtree"(현재 폴더의 하위만) | "all"(전체 저장소)
   searchRelativePath: true,  // 검색 결과 위치를 현재 폴더 기준 상대 경로로 표시할지
   aeroEnabled: true,         // 반투명 블러("에어로") 효과 - 기본 활성화
@@ -17,14 +18,31 @@ const DEFAULT_SETTINGS = {
   dfEditorTheme: "dark",     // 내장 에디터(옵시디언 스타일) 테마
   theme: "win7",             // 창 스킨: "default"(win11) | "win98" | ... (_NIH_ROOT_/index/ui/theme/<이름>/style.css)
   // 요청 #121: 스킨 폴더 안에도 icon_set.json이 있을 수 있다(메뉴 메이커에서 "스킨용으로 저장"한
-  // 것). 기본은 기본(공용) icon_set.json이 겹치는 항목에서 우선하고, 이 값을 켜면 지금 스킨의
-  // icon_set.json이 겹치는 항목에서 우선한다(둘 다 없는 쪽은 있는 쪽 그대로 씀 - mergeIconMap 참고).
-  skinIconPriority: false,
+  // 것). 이 값을 켜면 지금 스킨의 icon_set.json이 겹치는 항목에서 기본(공용) icon_set.json보다
+  // 우선한다(둘 다 없는 쪽은 있는 쪽 그대로 씀 - mergeIconMap 참고). 요청 #163: 스킨별로 아이콘을
+  // 따로 꾸며두는 게 보통은 의도한 커스터마이징이므로 기본값을 켬으로 바꾼다(예전엔 꺼짐이 기본).
+  skinIconPriority: true,
+  // 요청 #152: "페이지를 열 때마다 로컬 헬퍼(웹훅)가 켜져 있는지 미리 조용히 확인해두는 것" -
+  // 브라우저의 로컬 네트워크 접근 권한 팝업이 뜰 수 있어 기본은 꺼둔다. 웹훅으로 실제 다운로드가
+  // 한 번이라도 성공하면(local-helper.js의 dfNoteWebhookDownloadSucceeded) 자동으로 켜진다.
+  checkHelperOnLoad: false,
   // 요청 #128: "페이지 로드시 전체화면" - 기본 켬. 실제로는 브라우저 정책상 사용자 동작(클릭) 없이
   // 전체화면 API를 부를 수 없어서, 로드 후 첫 클릭에 자동으로 들어간다(dfArmFullscreenOnNextClick
   // 참고). 새 탭/링크를 여는 모든 곳은 열기 직전에 전체화면을 풀고(dfOpenNewTab), 그 탭에서 돌아오면
   // (visibilitychange) 다시 자동으로 들어간다 - 단, 사용자가 직접(Esc 등으로) 풀었을 때는 제외.
-  fullscreenOnLoad: true
+  fullscreenOnLoad: true,
+  // 요청 #160: Ctrl+W/Alt+W로 탐색기 창을 닫을 때마다 뜨는 확인창(요청 #127)이 매번 번거롭다는
+  // 의견에 따라, 이 확인창을 아예 건너뛸 수 있는 옵션을 추가한다 - 기본은 꺼짐(기존과 동일하게
+  // 항상 확인창을 띄움, 실수로 닫는 것 방지가 원래 목적이었으므로).
+  closeWindowWithoutConfirm: false,
+  // 요청 #161: 닫혀 있던 탐색기 창을 작업표시줄 클릭으로 다시 열 때, 예전처럼 항상 루트에서
+  // 시작할지 닫기 전 마지막 위치(+트리 펼침 상태)에서 이어갈지 - 기본은 꺼짐(기존 동작 그대로
+  // 항상 루트). 켜져 있어도 작업표시줄 아이콘 우클릭의 "이전 위치 열기"는 이 설정과 무관하게
+  // 항상 마지막 위치로 연다.
+  reopenAtLastLocation: false,
+  // 요청 #163: 기본은 꺼짐(예전과 동일하게 새 탭을 열면 전체화면을 먼저 풂) - 켜두면 새 "탭"을 열
+  // 때도(팝업은 원래도 항상 유지) 전체화면을 풀지 않는다.
+  keepFullscreenOnNewTab: false
 };
 // "default"는 Windows 11 스타일 폴더명이고, 기본으로 적용되는 스킨은 "win7"이다(사용자 지시 -
 // "스킨 기본을 7을 기본으로"). 나머지는 각 버전의 폴더명(win2000, winxp, winvista, win7, win8,
@@ -48,9 +66,9 @@ function loadSettings() {
     const raw = localStorage.getItem(settingsKey());
     if (raw) s = { ...s, ...JSON.parse(raw) };
   } catch (e) { /* 무시 */ }
-  // 예전 저장값 마이그레이션: "open"은 새 기본값인 "newtab"으로, 그 외 알 수 없는 값도 "newtab"으로.
-  if (s.doubleClickAction === "open" || !["newtab", "helper", "text", "download"].includes(s.doubleClickAction)) {
-    s.doubleClickAction = "newtab";
+  // 예전 저장값 마이그레이션: "open"과 그 외 알 수 없는 값은 지금 기본값인 "helper"로.
+  if (s.doubleClickAction === "open" || !["newtab", "helper", "text", "download", "repo"].includes(s.doubleClickAction)) {
+    s.doubleClickAction = "helper";
   }
   if (s.searchScope !== "all") s.searchScope = "subtree";
   s.searchRelativePath = s.searchRelativePath !== false;
@@ -60,6 +78,10 @@ function loadSettings() {
   if (!AVAILABLE_THEMES.has(s.theme)) s.theme = "win7";
   s.skinIconPriority = s.skinIconPriority === true;
   s.fullscreenOnLoad = s.fullscreenOnLoad !== false;
+  s.checkHelperOnLoad = s.checkHelperOnLoad === true;
+  s.closeWindowWithoutConfirm = s.closeWindowWithoutConfirm === true;
+  s.reopenAtLastLocation = s.reopenAtLastLocation === true;
+  s.keepFullscreenOnNewTab = s.keepFullscreenOnNewTab === true;
   return s;
 }
 function applyAeroToDocument() {
@@ -107,7 +129,12 @@ function dfsBuildSettingsBodyHtml() {
       <div class="settings-divider"></div>
       <div class="settings-row">
         <label class="settings-check"><input type="checkbox" id="setFullscreenOnLoad"> 페이지 로드시 전체화면</label>
-        <div class="settings-hint">브라우저 정책상 클릭 등 사용자 동작이 있어야 전체화면으로 들어갈 수 있어서, 실제로는 페이지를 연 뒤 처음 클릭할 때 전체화면이 됩니다. 새 탭이나 링크를 여는 동작을 하면 먼저 전체화면을 풀고 열며, 그 탭에서 돌아오면 다시 자동으로 전체화면이 됩니다(Esc 등으로 직접 전체화면을 풀었을 때는 그 뒤로 자동으로 다시 들어가지 않습니다).</div>
+        <div class="settings-hint">브라우저 정책상 클릭 등 사용자 동작이 있어야 전체화면으로 들어갈 수 있어서, 실제로는 페이지를 연 뒤 처음 클릭할 때 전체화면이 됩니다. 팝업(작은 별도 창)은 전체화면을 풀지 않고 그대로 유지하며, 새 탭을 여는 동작을 하면(아래 옵션이 꺼져 있는 한) 먼저 전체화면을 풀고 열고, 그 탭에서 돌아오면 다시 자동으로 전체화면이 됩니다(Esc 등으로 직접 전체화면을 풀었을 때는 그 뒤로 자동으로 다시 들어가지 않습니다).</div>
+        <button class="settings-button settings-button-neutral" id="setForceFullscreenBtn" style="margin-top:6px;">지금 바로 전체화면으로 전환</button>
+      </div>
+      <div class="settings-row">
+        <label class="settings-check"><input type="checkbox" id="setKeepFullscreenOnNewTab"> 새 탭을 열어도 전체화면 유지</label>
+        <div class="settings-hint">기본은 꺼짐입니다 - 새 탭을 열 때마다 전체화면을 풀었다가 돌아오면 다시 들어갑니다. 켜두면 새 탭을 열어도 전체화면을 풀지 않습니다(팝업은 이 설정과 무관하게 항상 전체화면을 유지합니다).</div>
       </div>
       <div class="settings-divider"></div>
       <div class="settings-row">
@@ -118,11 +145,13 @@ function dfsBuildSettingsBodyHtml() {
       <div class="settings-row">
         <span class="settings-label">파일 더블클릭 시 동작 (폴더 · md 파일 제외, html 포함)</span>
         <select class="settings-select" id="setDoubleClick">
+          <option value="helper">열기(로컬, 기본값)</option>
           <option value="newtab">열기(새 탭에서 열기)</option>
-          <option value="helper">열기(로컬)</option>
           <option value="text">텍스트로 열기</option>
           <option value="download">다운로드</option>
+          <option value="repo">저장소에서 보기(GitHub)</option>
         </select>
+        <div class="settings-hint">"저장소에서 보기"는 GitHub 바로가기 표시(위 설정)가 꺼져 있으면 새 탭에서 열기로 대신 동작합니다.</div>
       </div>
       <div class="settings-divider"></div>
       <div class="settings-row">
@@ -159,6 +188,21 @@ function dfsBuildSettingsBodyHtml() {
       </div>
       <div class="settings-divider"></div>
       <div class="settings-row">
+        <label class="settings-check"><input type="checkbox" id="setCheckHelperOnLoad"> 페이지를 열 때 로컬 웹훅 자동 확인</label>
+        <div class="settings-hint">기본은 꺼짐입니다(브라우저의 로컬 네트워크 접근 권한 팝업이 뜰 수 있음) - 켜두면 페이지를 열 때마다 로컬 헬퍼가 실행 중인지 조용히 미리 확인해둡니다. 웹훅으로 다운로드를 한 번이라도 성공하면 이후로는 자동으로 켜집니다.</div>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-row">
+        <label class="settings-check"><input type="checkbox" id="setCloseWithoutConfirm"> 탐색기 창을 닫을 때 확인창 없이 바로 닫기</label>
+        <div class="settings-hint">기본은 꺼짐입니다 - Ctrl+W/Alt+W나 닫기 버튼을 누르면 실수 방지를 위해 항상 확인창을 먼저 띄웁니다. 켜두면 확인 없이 바로 닫힙니다.</div>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-row">
+        <label class="settings-check"><input type="checkbox" id="setReopenAtLastLocation"> 닫았던 탐색기를 다시 열 때 이전 위치에서 시작</label>
+        <div class="settings-hint">기본은 꺼짐입니다 - 닫혀 있던 탐색기를 작업표시줄에서 다시 열면 항상 루트에서 시작합니다. 켜두면 닫기 전 마지막으로 보고 있던 위치와 트리 펼침 상태를 그대로 이어갑니다. (작업표시줄 아이콘을 우클릭하면 이 설정과 무관하게 "이전 위치 열기"를 바로 고를 수 있습니다.)</div>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-row">
         <span class="settings-label">로컬 헬퍼(웹훅)</span>
         <button class="settings-button settings-button-neutral" id="setDownloadHelperBtn">웹훅 받기</button>
         <button class="settings-button" id="setKillHelperBtn">웹훅 종료</button>
@@ -180,6 +224,10 @@ function dfApplySettingsToPanel(root) {
   if ($("setTrayIconCount")) $("setTrayIconCount").value = settings.trayIconCount;
   if ($("setSkinIconPriority")) $("setSkinIconPriority").checked = settings.skinIconPriority;
   if ($("setFullscreenOnLoad")) $("setFullscreenOnLoad").checked = settings.fullscreenOnLoad;
+  if ($("setCheckHelperOnLoad")) $("setCheckHelperOnLoad").checked = settings.checkHelperOnLoad;
+  if ($("setCloseWithoutConfirm")) $("setCloseWithoutConfirm").checked = settings.closeWindowWithoutConfirm;
+  if ($("setReopenAtLastLocation")) $("setReopenAtLastLocation").checked = settings.reopenAtLastLocation;
+  if ($("setKeepFullscreenOnNewTab")) $("setKeepFullscreenOnNewTab").checked = settings.keepFullscreenOnNewTab;
 }
 function applySearchPlaceholder() {
   els.searchInput.placeholder = settings.searchScope === "all" ? "전체 검색" : "현재 폴더 검색";
@@ -192,6 +240,13 @@ function dfSettingsReflectDoubleClick(value) {
   if (!dfSettingsWinHandle) return;
   const sel = dfSettingsWinHandle.bodyEl.querySelector("#setDoubleClick");
   if (sel) sel.value = value;
+}
+// 요청 #152: 웹훅 다운로드가 처음 성공해서 "페이지를 열 때 로컬 웹훅 자동 확인"이 자동으로 켜질 때,
+// 환경설정 창이 열려 있었다면 체크박스에도 바로 반영한다(dfNoteWebhookDownloadSucceeded에서 호출).
+function dfSettingsReflectCheckHelperOnLoad(value) {
+  if (!dfSettingsWinHandle) return;
+  const cb = dfSettingsWinHandle.bodyEl.querySelector("#setCheckHelperOnLoad");
+  if (cb) cb.checked = value;
 }
 
 function dfInitSettingsWindow(handle) {
@@ -236,6 +291,38 @@ function dfInitSettingsWindow(handle) {
     };
   }
   $("setGithubLinks").onchange = () => { settings.githubLinksEnabled = $("setGithubLinks").checked; saveSettings(); };
+  if ($("setCheckHelperOnLoad")) {
+    $("setCheckHelperOnLoad").onchange = () => {
+      settings.checkHelperOnLoad = $("setCheckHelperOnLoad").checked;
+      saveSettings();
+    };
+  }
+  if ($("setCloseWithoutConfirm")) {
+    $("setCloseWithoutConfirm").onchange = () => {
+      settings.closeWindowWithoutConfirm = $("setCloseWithoutConfirm").checked;
+      saveSettings();
+    };
+  }
+  if ($("setReopenAtLastLocation")) {
+    $("setReopenAtLastLocation").onchange = () => {
+      settings.reopenAtLastLocation = $("setReopenAtLastLocation").checked;
+      saveSettings();
+    };
+  }
+  if ($("setKeepFullscreenOnNewTab")) {
+    $("setKeepFullscreenOnNewTab").onchange = () => {
+      settings.keepFullscreenOnNewTab = $("setKeepFullscreenOnNewTab").checked;
+      saveSettings();
+    };
+  }
+  // 요청 #163: "F11을 누르세요"라고 안내하는 것보다, 버튼 하나로 바로 전체화면에 들어가게 하는 게
+  // 더 자연스럽다는 지적 - 토글이 아니라 지금 이 클릭(사용자 동작으로 인정됨)에 바로 실행하는
+  // 일회성 버튼이다. 이미 전체화면이면 조용히 아무 일도 하지 않는다.
+  if ($("setForceFullscreenBtn")) {
+    $("setForceFullscreenBtn").onclick = () => {
+      if (!dfIsFullscreen()) dfRequestFullscreenQuiet();
+    };
+  }
   $("setDoubleClick").onchange = () => {
     settings.doubleClickAction = $("setDoubleClick").value;
     saveSettings();
@@ -303,7 +390,7 @@ function dfsOpenSettingsWindow() {
   if (dfSettingsWinHandle) { dfSettingsWinHandle.focus(); return dfSettingsWinHandle; }
   const handle = dfCreateAppWindow({
     title: "환경설정",
-    icon: "⚙",
+    icon: resolveSettingsIconHtml(), // 요청 #144: icon_set.json에 커스텀 아이콘이 있으면 그걸 쓴다
     width: 460,
     height: 620,
     bodyHtml: dfsBuildSettingsBodyHtml(),
@@ -331,10 +418,13 @@ function setupStartMenu(owner) {
     els.startUserLink.style.display = "none";
     els.startAvatar.textContent = "?";
   }
-  els.startBtn.onclick = (e) => { e.stopPropagation(); els.startMenu.classList.toggle("open"); };
+  els.startBtn.onclick = (e) => { e.stopPropagation(); toggleStartMenu(); };
   els.startMenu.addEventListener("click", e => e.stopPropagation());
   document.addEventListener("click", () => { els.startMenu.classList.remove("open"); closeAllSubmenus(); });
 }
+// 요청 #164: Ctrl+Win(윈도우 키) 단축키로도 시작 메뉴를 열고 닫을 수 있게 - keyboard-and-activate.js의
+// 전역 keydown 리스너에서 호출한다(시작 버튼 클릭과 완전히 같은 동작).
+function toggleStartMenu() { els.startMenu.classList.toggle("open"); }
 
 /* ============ menu_set.json / icon_set.json / sound_set.json (요청 #122) ============
    예전엔 _NIH_ROOT_/menu/ 아래 start.json+tray.json 두 파일 -> 그 다음엔 메뉴 메이커가 다루기
@@ -349,6 +439,8 @@ function setupStartMenu(owner) {
 const MENU_SET_JSON_PATH = "_NIH_ROOT_/index/menu_set.json";
 const ICON_SET_JSON_PATH = "_NIH_ROOT_/index/icon_set.json";
 const SOUND_SET_JSON_PATH = "_NIH_ROOT_/index/sound_set.json";
+// 요청 #143: 메뉴 메이커 4번째 탭("확장자")이 다루는 파일 - { "확장자(점 없음,소문자)": "이니셜" }.
+const EXTENSION_RUN_SET_JSON_PATH = "_NIH_ROOT_/index/extension_run_set.json";
 async function fetchJsonQuiet(path) {
   try {
     const res = await fetch(path, { cache: "no-store" });
@@ -377,6 +469,12 @@ async function loadSoundSetConfig() {
   const local = dfReadLocalOverride(dfLsSoundKey());
   if (local) return local;
   const data = await fetchJsonQuiet(SOUND_SET_JSON_PATH);
+  return data || {};
+}
+async function loadExtensionRunSetConfig() {
+  const local = dfReadLocalOverride(dfLsExtRunKey());
+  if (local) return local;
+  const data = await fetchJsonQuiet(EXTENSION_RUN_SET_JSON_PATH);
   return data || {};
 }
 // 요청 #121: 스킨 폴더(_NIH_ROOT_/index/ui/theme/<스킨>/) 안에도 icon_set.json이 있을 수 있다
@@ -408,7 +506,10 @@ function mergeIconSetConfigs(base, skin, skinPriority) {
     folders: mergeIconMap(b.folders, s.folders, skinPriority),
     extensions: mergeIconMap(b.extensions, s.extensions, skinPriority),
     repoRoot: mergeIconSingle(b.repoRoot, s.repoRoot, skinPriority),
-    recycleBin: mergeIconSingle(b.recycleBin, s.recycleBin, skinPriority)
+    recycleBin: mergeIconSingle(b.recycleBin, s.recycleBin, skinPriority),
+    // 요청 #144: 바탕화면/환경설정 아이콘도 저장소 루트/휴지통과 같은 규칙으로 병합한다.
+    desktop: mergeIconSingle(b.desktop, s.desktop, skinPriority),
+    settings: mergeIconSingle(b.settings, s.settings, skinPriority)
   };
 }
 // 부팅 시(bootstrap.js)와 메뉴 메이커를 열 때(menu-maker.js) 둘 다 필요로 하므로, 병렬로 같이
@@ -416,10 +517,10 @@ function mergeIconSetConfigs(base, skin, skinPriority) {
 // icon_set.json도 미리 같이 읽어와 skinIcons/skinName으로 함께 건네준다(dfsOpenMenuMakerInWindow가
 // 창을 만들기 전에 한 번 호출해서 초기 데이터로 넘겨준다).
 async function loadAllMenuMakerConfigs() {
-  const [menu, icons, sounds, skinIcons] = await Promise.all([
-    loadMenuSetConfig(), loadIconSetConfig(), loadSoundSetConfig(), loadSkinIconSetConfig(settings.theme)
+  const [menu, icons, sounds, skinIcons, extRun] = await Promise.all([
+    loadMenuSetConfig(), loadIconSetConfig(), loadSoundSetConfig(), loadSkinIconSetConfig(settings.theme), loadExtensionRunSetConfig()
   ]);
-  return { menu: menu || { start: [], tray: [] }, icons: icons || {}, sounds: sounds || {}, skinIcons: skinIcons || {}, skinName: settings.theme };
+  return { menu: menu || { start: [], tray: [] }, icons: icons || {}, sounds: sounds || {}, skinIcons: skinIcons || {}, skinName: settings.theme, extRun: extRun || {} };
 }
 // 부팅 시 + 스킨/스킨아이콘우선 설정이 바뀔 때마다 다시 불러서 화면에 반영한다(applyCustomIconConfig
 // 이후 화면들을 다시 그려야 실제로 아이콘이 바뀐 게 보인다).
@@ -429,6 +530,12 @@ async function refreshMergedIconConfig() {
   renderNavPane();
   if (els.win && !els.win.classList.contains("closed")) renderContentPane();
   if (dfsDb) await dfsRenderDesktop();
+  // 요청 #144: 환경설정 창이 이미 열려 있으면(편집하는 동안 즉시 확인 가능하도록) 타이틀바
+  // 아이콘도 바로 다시 그린다 - 새로 열 때만 반영되면 편집 중엔 안 바뀐 것처럼 보인다.
+  if (dfSettingsWinHandle) {
+    const tbIcon = dfSettingsWinHandle.el.querySelector(".tb-icon");
+    if (tbIcon) tbIcon.innerHTML = resolveSettingsIconHtml();
+  }
 }
 // 요청 #123: 메뉴 메이커가 localStorage의 "로컬 반영" 키를 바꾸면, 이 메인 페이지가 이미 열려
 // 있어도 새로고침 없이 바로 다시 그린다. 요청 #135로 메뉴 메이커가 이 문서 자신 안의 앱 내
@@ -459,6 +566,8 @@ window.addEventListener("storage", (e) => {
     dfDebouncedLsRefresh("icon", refreshMergedIconConfig);
   } else if (e.key === dfLsSoundKey()) {
     dfDebouncedLsRefresh("sound", () => loadSoundSetConfig().then(applySoundSetConfig));
+  } else if (e.key === dfLsExtRunKey()) {
+    dfDebouncedLsRefresh("extRun", () => loadExtensionRunSetConfig().then(applyExtensionRunSetConfig));
   }
 });
 function makeAppIcon(item, className) {
