@@ -1,9 +1,7 @@
 {
   "folders": [
-    "Code",
-    "Games",
-    "ShortCut",
-    "Tools"
+    "Folder",
+    "Games"
   ],
   "files": [
     {"name": "사용설명서.pdf", "size": 3380004}
