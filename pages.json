@@ -4,6 +4,7 @@
     "Games"
   ],
   "files": [
-    {"name": "사용설명서.pdf", "size": 3380004}
+    {"name": "사용설명서.pdf", "size": 3380004},
+    {"name": "새 AutoHotkey Script.ahk", "size": 114}
   ]
 }
