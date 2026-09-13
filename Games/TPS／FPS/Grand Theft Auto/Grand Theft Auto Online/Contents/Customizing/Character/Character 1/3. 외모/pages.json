@@ -1,17 +1,17 @@
 {
   "folders": [],
   "files": [
-    {"name": "01.png", "size": 288099},
-    {"name": "02.png", "size": 328526},
-    {"name": "03.png", "size": 241248},
-    {"name": "04.png", "size": 239172},
-    {"name": "05.png", "size": 284980},
-    {"name": "06.png", "size": 240241},
-    {"name": "07.png", "size": 239023},
-    {"name": "08.png", "size": 237987},
-    {"name": "09.png", "size": 286600},
-    {"name": "10.png", "size": 330221},
-    {"name": "11.png", "size": 333610},
-    {"name": "order.json", "size": 689}
+    {"name": "01.png", "size": 288099, "crc32": "68AC78F9"},
+    {"name": "02.png", "size": 328526, "crc32": "CA044573"},
+    {"name": "03.png", "size": 241248, "crc32": "8C85AEB0"},
+    {"name": "04.png", "size": 239172, "crc32": "A4564171"},
+    {"name": "05.png", "size": 284980, "crc32": "E400C004"},
+    {"name": "06.png", "size": 240241, "crc32": "3302CC5D"},
+    {"name": "07.png", "size": 239023, "crc32": "D34F3868"},
+    {"name": "08.png", "size": 237987, "crc32": "83D5E235"},
+    {"name": "09.png", "size": 286600, "crc32": "D4D890A7"},
+    {"name": "10.png", "size": 330221, "crc32": "F86E07D2"},
+    {"name": "11.png", "size": 333610, "crc32": "52F66273"},
+    {"name": "order.json", "size": 689, "crc32": "4302A9EE"}
   ]
 }

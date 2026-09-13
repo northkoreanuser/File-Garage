@@ -10,10 +10,10 @@
     "7. 의상 - 흰색 교복 2"
   ],
   "files": [
-    {"name": "favicon.ico", "size": 89346},
-    {"name": "folders.json", "size": 429},
-    {"name": "index.html", "size": 31134},
-    {"name": "previewer.ahk", "size": 31336},
-    {"name": "WebView2Loader.dll", "size": 135056}
+    {"name": "favicon.ico", "size": 89346, "crc32": "69AEB42E"},
+    {"name": "folders.json", "size": 429, "crc32": "79EF91BE"},
+    {"name": "index.html", "size": 31134, "crc32": "64DC3DFC"},
+    {"name": "previewer.ahk", "size": 31336, "crc32": "3E0E46C9"},
+    {"name": "WebView2Loader.dll", "size": 135056, "crc32": "E4106859"}
   ]
 }

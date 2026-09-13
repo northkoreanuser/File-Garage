@@ -8,11 +8,11 @@
     "자동 텔포"
   ],
   "files": [
-    {"name": "GTA 5 플레이어 킥.exe", "size": 1297408},
-    {"name": "GTA V Racing 1st.exe", "size": 1296896},
-    {"name": "GTAOMap.exe", "size": 1476608},
-    {"name": "스톱워치.exe", "size": 1284608},
-    {"name": "스톱워치.ini", "size": 70},
-    {"name": "자동 텔포(지도 미션 위 Alt+T).exe", "size": 1309184}
+    {"name": "GTA 5 플레이어 킥.exe", "size": 1297408, "crc32": "B4F04FED"},
+    {"name": "GTA V Racing 1st.exe", "size": 1296896, "crc32": "142F1BAF"},
+    {"name": "GTAOMap.exe", "size": 1476608, "crc32": "551F2E71"},
+    {"name": "스톱워치.exe", "size": 1284608, "crc32": "E1C7F465"},
+    {"name": "스톱워치.ini", "size": 70, "crc32": "057A88B1"},
+    {"name": "자동 텔포(지도 미션 위 Alt+T).exe", "size": 1309184, "crc32": "29B6EDEE"}
   ]
 }

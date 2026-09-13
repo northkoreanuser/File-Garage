@@ -1,13 +1,13 @@
 {
   "folders": [],
   "files": [
-    {"name": "01.png", "size": 4362829},
-    {"name": "02.png", "size": 519289},
-    {"name": "03.png", "size": 512952},
-    {"name": "04.png", "size": 494523},
-    {"name": "05.png", "size": 374457},
-    {"name": "06.png", "size": 514554},
-    {"name": "07.png", "size": 418312},
-    {"name": "order.json", "size": 488}
+    {"name": "01.png", "size": 4362829, "crc32": "464D0178"},
+    {"name": "02.png", "size": 519289, "crc32": "1CB0C2F4"},
+    {"name": "03.png", "size": 512952, "crc32": "83D018A5"},
+    {"name": "04.png", "size": 494523, "crc32": "3E9202AC"},
+    {"name": "05.png", "size": 374457, "crc32": "6BEC280A"},
+    {"name": "06.png", "size": 514554, "crc32": "2F104A76"},
+    {"name": "07.png", "size": 418312, "crc32": "4E86366D"},
+    {"name": "order.json", "size": 488, "crc32": "712B4936"}
   ]
 }

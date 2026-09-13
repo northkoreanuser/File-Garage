@@ -1,7 +1,7 @@
 {
   "folders": [],
   "files": [
-    {"name": "01.png", "size": 6666881},
-    {"name": "order.json", "size": 128}
+    {"name": "01.png", "size": 6666881, "crc32": "1C562DEB"},
+    {"name": "order.json", "size": 128, "crc32": "CCC80E5F"}
   ]
 }

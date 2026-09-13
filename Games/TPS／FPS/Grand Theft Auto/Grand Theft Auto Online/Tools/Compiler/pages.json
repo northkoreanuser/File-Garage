@@ -1,7 +1,7 @@
 {
   "folders": [],
   "files": [
-    {"name": "Ahk2Exe.exe", "size": 995328},
-    {"name": "AutoHotkeySC.bin", "size": 1226752}
+    {"name": "Ahk2Exe.exe", "size": 995328, "crc32": "768E3A94"},
+    {"name": "AutoHotkeySC.bin", "size": 1226752, "crc32": "D96DD666"}
   ]
 }

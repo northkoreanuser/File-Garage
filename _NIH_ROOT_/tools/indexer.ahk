@@ -264,7 +264,7 @@ JsonEscape(str) {
 
 ; ------------------------------------------------------------
 ; CRC32 (IEEE) - 파일 경로를 받아 8자리 대문자 16진 문자열로 돌려준다.
-; 큰 파일도 메모리에 통째로 올리지 않도록 64KB 단위로 읽어 누적 계산한다.
+; ntdll\RtlComputeCrc32 사용 (순수 AHK 바이트 루프보다 훨씬 빠름).
 ; ------------------------------------------------------------
 FileCRC32Hex(path) {
     crc := FileCRC32(path)
@@ -279,33 +279,27 @@ FileCRC32Hex(path) {
 }
 
 FileCRC32(path) {
-    static table := ""
-    if (table = "") {
-        table := []
-        Loop, 256 {
-            c := A_Index - 1
-            Loop, 8
-                c := (c & 1) ? ((c >> 1) ^ 0xEDB88320) : (c >> 1)
-            table[A_Index] := c
-        }
-    }
     f := FileOpen(path, "r")
     if !IsObject(f)
         return 0
-    crc := 0xFFFFFFFF
-    chunkSize := 65536
+
+    ; 파일 포인터를 확실히 처음으로
+    f.Seek(0)
+
+    crc := 0
+    chunkSize := 65536          ; 64KB (필요하면 262144 등으로 키워도 됨)
     VarSetCapacity(buf, chunkSize, 0)
-    while !f.AtEOF {
-        bytesRead := f.RawRead(buf, chunkSize)
+
+    ; RawRead가 0을 반환하면 EOF → 루프 종료 (AtEOF 의존 제거)
+    while (bytesRead := f.RawRead(buf, chunkSize)) {
         if (bytesRead <= 0)
             break
-        i := 0
-        while (i < bytesRead) {
-            b := NumGet(buf, i, "UChar")
-            crc := (crc >> 8) ^ table[((crc ^ b) & 0xFF) + 1]
-            i++
-        }
+        crc := DllCall("ntdll\RtlComputeCrc32"
+            , "UInt", crc
+            , "Ptr", &buf
+            , "UInt", bytesRead
+            , "UInt")
     }
     f.Close()
-    return crc ^ 0xFFFFFFFF
+    return crc
 }

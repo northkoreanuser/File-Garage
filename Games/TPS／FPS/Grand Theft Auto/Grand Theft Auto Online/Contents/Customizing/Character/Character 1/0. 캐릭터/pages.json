@@ -1,9 +1,9 @@
 {
   "folders": [],
   "files": [
-    {"name": "01.png", "size": 4691643},
-    {"name": "02.png", "size": 4506641},
-    {"name": "03.png", "size": 4148626},
-    {"name": "order.json", "size": 299}
+    {"name": "01.png", "size": 4691643, "crc32": "433CE0E0"},
+    {"name": "02.png", "size": 4506641, "crc32": "8043B030"},
+    {"name": "03.png", "size": 4148626, "crc32": "8BD645B4"},
+    {"name": "order.json", "size": 299, "crc32": "F9E623E3"}
   ]
 }
