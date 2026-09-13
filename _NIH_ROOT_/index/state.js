@@ -200,19 +200,85 @@ function resolveFolderIcon(pathArr, size, blue) {
 // 반대쪽 모서리에 실제 윈도우 바로가기 화살표에 가까운 모양을 그린다. 테마 CSS에 기대지 않고
 // 완전히 인라인으로 그려서, 8개 테마 style.css를 하나도 건드리지 않고 어디서든(내용창 32px/
 // 트리 15px) 항상 같은 모양으로 보이게 한다.
-function shortcutFileIcon(size) {
+// 요청: "sc 파일 처음 조우하면 파비콘 렌더링하고, 한 번 되면 로컬 저장소에 캐시. 새로고침시엔
+// 캐시 유무와 무관하게 sc 파일을 다시 읽어 갱신 후 재저장" - faviconHtml이 있으면(캐시 히트,
+// 혹은 갱신 완료 후 패치) 기본 파일 아이콘 자리를 파비콘 <img>로 바꿔치기한다. path/size를
+// data-* 속성에 남겨둬서 dfEnsureScFaviconFresh가 나중에 이 자리를 찾아 patchScFaviconDom으로
+// 다시 바꿔칠 수 있게 한다(내용창 그리드/트리 양쪽 다 같은 .sc-icon-face 클래스로 통일).
+function shortcutFileIcon(size, path, faviconHtml) {
   const badge = Math.max(9, Math.round(size * 0.55));
-  return `<span style="position:relative;display:inline-block;width:${size}px;height:${size}px;">
-    ${fileIcon(size)}
+  const key = path ? path.join("/") : "";
+  const face = faviconHtml || fileIcon(size);
+  return `<span class="sc-icon" data-sc-icon-path="${escapeHtml(key)}" data-sc-icon-size="${size}" style="position:relative;display:inline-block;width:${size}px;height:${size}px;">
+    <span class="sc-icon-face" style="display:inline-block;width:${size}px;height:${size}px;">${face}</span>
     <span style="position:absolute;left:-2px;bottom:-2px;width:${badge}px;height:${badge}px;line-height:${badge}px;text-align:center;font-size:${Math.max(8, Math.round(badge * 0.72))}px;background:#fff;border-radius:3px;box-shadow:0 0 0 1px rgba(0,0,0,.25);">↪</span>
   </span>`;
 }
-function resolveFileIcon(name, size) {
+function scFaviconImgHtml(src, size) {
+  return `<img src="${escapeHtml(src)}" width="${size}" height="${size}" style="object-fit:contain;border-radius:3px;" alt="">`;
+}
+function dfScFaviconCacheKey(path) { return "dfScFaviconV1:" + path.join("/"); }
+function dfReadScFaviconCache(path) {
+  try {
+    const raw = localStorage.getItem(dfScFaviconCacheKey(path));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return (parsed && typeof parsed.favicon === "string" && typeof parsed.url === "string") ? parsed : null;
+  } catch (e) { return null; } // 캐시가 깨졌어도 조용히 무시하고 기본 아이콘 + 새 fetch로 떨어진다
+}
+function dfWriteScFaviconCache(path, url, favicon) {
+  try { localStorage.setItem(dfScFaviconCacheKey(path), JSON.stringify({ url, favicon })); } catch (e) { /* 저장공간 부족 등은 조용히 무시(부수 기능) */ }
+}
+// google s2 파비콘 서비스 - 대상 사이트가 favicon.ico를 루트에 안 두거나 manifest로만 아이콘을
+// 지정해도 대부분 잡아준다. <img src>는 CORS 제약이 없어(화면 표시만 할 뿐 픽셀을 읽지 않음)
+// 대상 사이트가 크로스오리진이어도 그냥 붙여 쓸 수 있다.
+function dfFaviconUrlForTarget(targetUrl) {
+  try { return `https://www.google.com/s2/favicons?sz=64&domain=${encodeURIComponent(new URL(targetUrl).hostname)}`; }
+  catch (e) { return null; } // url이 상대경로 등 파싱 불가한 형태면 파비콘 없이 기본 아이콘 유지
+}
+// 이번 페이지 로드에서 이미 한 번 갱신을 마친 .sc 경로 - content-pane.js의 dfRepoTextSniffCache와
+// 같은 목적(같은 폴더를 여러 번 다시 그릴 때 매번 네트워크를 타지 않게). 페이지를 새로고침하면
+// 이 Set도 함께 비므로 "새로고침시엔 캐시 유무와 무관하게 다시 읽는다"는 요구가 자연히 만족된다.
+const dfScFaviconFreshPaths = new Set();
+// activateScShortcut(keyboard-and-activate.js)과 완전히 같은 방식으로 .sc 내용을 읽어(같은
+// 오리진 상대경로라 CORS 걱정 없음) 그 안의 url로 파비콘 주소를 만들고, 캐시에 없거나 값이
+// 바뀌었으면 화면에 이미 그려진 자리(들)를 patchScFaviconDom으로 바꿔치고 캐시를 재저장한다.
+async function dfEnsureScFaviconFresh(path) {
+  const key = path.join("/");
+  if (dfScFaviconFreshPaths.has(key)) return;
+  dfScFaviconFreshPaths.add(key);
+  try {
+    const res = await fetchWithTimeout(path.map(encodeURIComponent).join("/"), 5000);
+    if (!res.ok) throw new Error(String(res.status));
+    const data = await res.json();
+    if (!data || typeof data.url !== "string" || !data.url) return; // 이 앱 형식이 아니면 기본 아이콘 그대로 둔다
+    const favicon = dfFaviconUrlForTarget(data.url);
+    if (!favicon) return;
+    const cached = dfReadScFaviconCache(path);
+    dfWriteScFaviconCache(path, data.url, favicon); // 요청: 갱신했으면 항상 재저장(값이 같아도)
+    if (!cached || cached.favicon !== favicon) patchScFaviconDom(key, favicon);
+  } catch (e) {
+    // 네트워크 오류 등은 조용히 무시 - 배경 작업이라 매번 토스트로 알릴 필요는 없다. freshPaths에는
+    // 이미 넣어뒀으므로 이 페이지 로드 중 같은 항목을 또 다시 시도하진 않는다(무한 재시도 방지).
+  }
+}
+// 내용창 그리드/트리 양쪽에 동시에 떠 있을 수 있는 같은 .sc 파일의 아이콘 자리를 전부 찾아 바꿔친다.
+function patchScFaviconDom(key, faviconUrl) {
+  document.querySelectorAll(`.sc-icon[data-sc-icon-path="${CSS.escape(key)}"] .sc-icon-face`).forEach(face => {
+    const size = Number(face.parentElement.dataset.scIconSize) || 16;
+    face.innerHTML = scFaviconImgHtml(faviconUrl, size);
+  });
+}
+function resolveFileIcon(name, size, path) {
   const dot = name.lastIndexOf(".");
   const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
   const custom = ext && customIconConfig.extensions[ext];
   if (custom) return customImgIcon(custom, size);
-  if (isSc(name)) return shortcutFileIcon(size);
+  if (isSc(name)) {
+    const cached = path ? dfReadScFaviconCache(path) : null;
+    if (path) dfEnsureScFaviconFresh(path); // 그려지자마자 백그라운드로 갱신 시도(dfSniffRepoFileIsText와 같은 패턴)
+    return shortcutFileIcon(size, path, cached ? scFaviconImgHtml(cached.favicon, size) : null);
+  }
   return isHtml(name) ? htmlFileIcon(size) : fileIcon(size);
 }
 function resolveRepoRootIcon(size) {

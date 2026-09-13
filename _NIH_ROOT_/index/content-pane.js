@@ -103,7 +103,7 @@ function buildGrid(items, opts) {
     const cell = document.createElement("div");
     cell.className = "grid-item" + (opts.flat ? " flat" : "") + ((isMultiSel || isSingleSel) ? " selected" : "");
     cell.dataset.key = key;
-    const icon = it.dfsNode ? dfsIconGlyphFor(it.dfsNode, 32) : (it.type === "folder" ? resolveFolderIcon(it.path, 32, false) : resolveFileIcon(it.name, 32));
+    const icon = it.dfsNode ? dfsIconGlyphFor(it.dfsNode, 32) : (it.type === "folder" ? resolveFolderIcon(it.path, 32, false) : resolveFileIcon(it.name, 32, it.path));
     // 요청: 검색 결과(flat)에서 태그가 있는 항목은 위치 아래에 태그도 같이 보여준다(어떤 태그로
     // 걸렸는지 바로 알 수 있게) - 태그가 없는 항목은 예전 그대로 위치만 보여준다.
     const tagsHtml = (opts.flat && it.tags && it.tags.length) ? `<div class="sub tag-sub">${it.tags.map(t => "#" + escapeHtml(t)).join(" ")}</div>` : "";

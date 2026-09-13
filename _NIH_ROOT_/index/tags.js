@@ -155,7 +155,7 @@ async function openTagEditorForFolder(pathArr) {
   items.forEach(it => {
     const row = document.createElement("div");
     row.style.cssText = "display:flex;align-items:center;gap:8px;";
-    const icon = it.type === "folder" ? resolveFolderIcon([...pathArr, it.name], 18, false) : resolveFileIcon(it.name, 18);
+    const icon = it.type === "folder" ? resolveFolderIcon([...pathArr, it.name], 18, false) : resolveFileIcon(it.name, 18, [...pathArr, it.name]);
     row.innerHTML = `
       <span style="flex:0 0 auto;display:inline-flex;">${icon}</span>
       <span style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(it.name)}">${escapeHtml(it.name)}</span>

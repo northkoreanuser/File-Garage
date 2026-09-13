@@ -233,7 +233,7 @@ function buildTreeDom(entry, pathArr) {
     const spacer = document.createElement("span");
     spacer.className = "tree-arrow empty";
     row.appendChild(spacer);
-    row.insertAdjacentHTML("beforeend", it.dfsNode ? dfsIconGlyphFor(it.dfsNode, 15) : resolveFileIcon(f.name, 15));
+    row.insertAdjacentHTML("beforeend", it.dfsNode ? dfsIconGlyphFor(it.dfsNode, 15) : resolveFileIcon(f.name, 15, childPath));
     const label = document.createElement("span");
     label.textContent = displayName(f.name); // 요청 #141: .sc는 트리에서도 확장자를 숨긴다
     row.appendChild(label);

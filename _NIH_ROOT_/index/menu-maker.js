@@ -20,8 +20,9 @@ const DF_MENUMAKER_PAGE_CSS = `
   html, body { margin: 0; height: 100%; }
   * { box-sizing: border-box; }
   body { font: 13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
-  .mm-root { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; background: var(--mm-bg,#14161b); color: var(--mm-text,#d7dae0); }
+  .mm-root { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; background: var(--mm-bg,#14161b); color: var(--mm-text,#d7dae0); user-select: none; -webkit-user-select: none; -webkit-user-drag: none; }
   .mm-root { --mm-bg:#14161b; --mm-panel:#181b21; --mm-panel2:#1d2129; --mm-border:#2b3039; --mm-text:#d7dae0; --mm-muted:#858c99; --mm-accent:#8b7cf6; --mm-accent2:#a89dff; --mm-hover:#ffffff08; --mm-sel:#8b7cf633; }
+  .mm-root input, .mm-root textarea, .mm-root select { user-select: text; -webkit-user-select: text; -webkit-user-drag: auto; }
   .mm-top { height: 44px; flex: 0 0 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--mm-panel); border-bottom: 1px solid var(--mm-border); }
   .mm-top .mm-title { font-size: 13.5px; font-weight: 700; }
   .mm-top .mm-spacer { flex: 1; }
@@ -31,6 +32,8 @@ const DF_MENUMAKER_PAGE_CSS = `
   .mm-tab.active { background: var(--mm-sel); border-color: var(--mm-accent); color: var(--mm-text); }
   .mm-top button, .mm-panel button, .mm-row-btn { border: 1px solid var(--mm-border); background: transparent; color: var(--mm-muted); height: 28px; padding: 0 10px; border-radius: 6px; cursor: pointer; font: inherit; font-size: 12.5px; }
   .mm-top button:hover, .mm-panel button:hover, .mm-row-btn:hover { background: var(--mm-hover); color: var(--mm-text); }
+  .mm-top button.mm-save-dirty { color: #e55; border-color: #c44; }
+  .mm-top button.mm-save-dirty:hover { color: #f66; border-color: #e55; background: #e55a; }
   .mm-top .mm-save-state { font-size: 11px; color: var(--mm-muted); font-family: "SFMono-Regular",Consolas,monospace; }
   .mm-body { flex: 1; min-height: 0; display: flex; }
   .mm-lists { width: 320px; flex: 0 0 320px; border-right: 1px solid var(--mm-border); overflow: auto; padding: 12px; }
@@ -46,6 +49,7 @@ const DF_MENUMAKER_PAGE_CSS = `
   .mm-item-icon img { width: 100%; height: 100%; object-fit: cover; }
   .mm-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
   .mm-item-name.empty { color: var(--mm-muted); font-style: italic; }
+  .mm-item-conflict-badge { flex: 0 0 auto; font-size: 12px; cursor: help; }
   .mm-item-btns { display: none; gap: 2px; }
   .mm-item-row:hover .mm-item-btns, .mm-item-row.selected .mm-item-btns { display: flex; }
   .mm-item-btns .mm-row-btn { height: 20px; width: 20px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; line-height: 1; }
@@ -67,6 +71,7 @@ const DF_MENUMAKER_PAGE_CSS = `
   .mm-icon-actions .mm-hint { font-size: 10.5px; color: var(--mm-muted); }
   .mm-empty-hint { color: var(--mm-muted); font-size: 12.5px; padding: 40px 0; text-align: center; }
   .mm-submenu-note { font-size: 11.5px; color: var(--mm-muted); background: var(--mm-panel2); border: 1px solid var(--mm-border); border-radius: 6px; padding: 8px 10px; margin-bottom: 14px; }
+  .mm-conflict-note { font-size: 11.5px; color: #a33; background: #fff0f0; border: 1px solid #e0a0a0; border-radius: 6px; padding: 8px 10px; margin-bottom: 14px; }
   .mm-section-sub { font-size: 10.5px; color: var(--mm-muted); margin: 2px 0 6px; }
   .mm-special-row { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; }
   .mm-special-row:hover { background: var(--mm-hover); }
@@ -234,8 +239,15 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   // 요청 #155: 예전엔 여기서도 매번 상단 텍스트를 "저장 안 됨"으로 갈아치웠는데, setDirty는
   // 타이핑 한 글자마다 불려서 토스트를 띄우면 너무 시끄럽다 - 편집 중인 필드 자체가 이미 바뀐
   // 내용을 보여주므로 따로 알릴 필요가 없고, dirty 여부는 탭 전환/닫기 시 확인창(state.dirty)이
-  // 계속 담당한다.
-  function setDirty() { state.dirty = true; persistLocalOverride(); }
+  // 계속 담당한다. 저장 안 된 상태면 저장 버튼을 빨간색으로 표시한다.
+  function updateSaveBtnAppearance() {
+    var btn = document.getElementById("mmSave");
+    if (!btn) return;
+    if (state.dirty) btn.classList.add("mm-save-dirty");
+    else btn.classList.remove("mm-save-dirty");
+  }
+  function setDirty() { state.dirty = true; updateSaveBtnAppearance(); persistLocalOverride(); }
+  function clearDirty() { state.dirty = false; updateSaveBtnAppearance(); }
   // 요청 #123: 편집(가져오기 포함, setDirty가 불리는 모든 곳)이 있을 때마다 "지금 탭"에 해당하는
   // 내용을 localStorage에 즉시 반영한다 - 아직 실제 파일로 저장/다운로드하지 않아도 이 브라우저
   // 에서는 곧바로 테스트해볼 수 있다. 아이콘/사운드 탭은 "스킨용으로 저장" 체크 여부에 따라
@@ -352,9 +364,11 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   }
 
   // 폴더별/확장자별 아이콘 목록(각각 {key, icon} 배열) - 시작메뉴/트레이의 renderList와 달리
-  // 하위 메뉴나 순서 바꾸기가 없는 단순 평면 목록이라 별도 렌더 함수로 뺐다.
+  // 하위 메뉴는 없지만, 자리 위치 이동(▲/▼)은 메뉴 탭과 같이 지원한다.
   function renderIconKeyList(section, arr, container, placeholder) {
     container.innerHTML = "";
+    // 폴더 경로는 콤마 문법 대상이 아니므로(요청은 "확장자"만) iconExts일 때만 충돌 검사한다.
+    var conflicts = section === "iconExts" ? findExtKeyConflicts(arr) : {};
     arr.forEach(function(item, idx) {
       var row = document.createElement("div");
       row.className = "mm-item-row" + (sel && sel.section === section && sel.idx === idx ? " selected" : "");
@@ -366,8 +380,20 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
       nameEl.className = "mm-item-name" + (item.key ? "" : " empty");
       nameEl.textContent = item.key || placeholder;
       row.appendChild(nameEl);
+      var mine = section === "iconExts" ? rowConflictExts(item, conflicts) : [];
+      if (mine.length) {
+        var warnEl = document.createElement("span");
+        warnEl.className = "mm-item-conflict-badge";
+        warnEl.title = conflictWarningFor(arr, idx, conflicts);
+        warnEl.textContent = "⚠";
+        row.appendChild(warnEl);
+      }
       var btns = document.createElement("div");
       btns.className = "mm-item-btns";
+      var upBtn = document.createElement("button"); upBtn.className = "mm-row-btn"; upBtn.title = "위로"; upBtn.textContent = "▲";
+      upBtn.onclick = function(e) { e.stopPropagation(); if (idx > 0) { var t = arr[idx - 1]; arr[idx - 1] = arr[idx]; arr[idx] = t; if (sel && sel.section === section) sel = { section: section, idx: idx - 1 }; setDirty(); renderAll(); } };
+      var downBtn = document.createElement("button"); downBtn.className = "mm-row-btn"; downBtn.title = "아래로"; downBtn.textContent = "▼";
+      downBtn.onclick = function(e) { e.stopPropagation(); if (idx < arr.length - 1) { var t = arr[idx + 1]; arr[idx + 1] = arr[idx]; arr[idx] = t; if (sel && sel.section === section) sel = { section: section, idx: idx + 1 }; setDirty(); renderAll(); } };
       var delBtn = document.createElement("button"); delBtn.className = "mm-row-btn"; delBtn.title = "삭제"; delBtn.textContent = "✕";
       delBtn.onclick = function(e) {
         e.stopPropagation();
@@ -376,7 +402,7 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
         setDirty();
         renderAll();
       };
-      btns.appendChild(delBtn);
+      btns.appendChild(upBtn); btns.appendChild(downBtn); btns.appendChild(delBtn);
       row.appendChild(btns);
       row.onclick = function() { sel = { section: section, idx: idx }; renderAll(); };
       container.appendChild(row);
@@ -386,6 +412,46 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   // 요청 #143: 확장자별 더블클릭 동작 목록 - {key: 확장자, action: 이니셜} 배열. 아이콘 대신
   // 오른쪽에 지금 지정된 동작의 한글 이름을 작게 보여준다(아이콘 썸네일 자리가 필요 없어서
   // renderIconKeyList를 그대로 재사용하지 않고 살짝 다르게 그린다).
+  // 요청: "아이콘 하나로 여러 확장자를 다 기록하는 것은 미친짓이다" - 확장자 하나당 행을 하나씩
+  // 새로 만들어야 했던 걸, 콤마(,)로 한 행에 여러 확장자를 같이 적어도 되게 한다(예: "mp3,wav").
+  // 점을 떼고 소문자로 맞추는 정규화는 항상 여기서 한 번에 처리해서, serialize/충돌검사 양쪽이
+  // 같은 결과를 보게 한다.
+  function splitExtKeyList(raw) {
+    return (raw || "").split(",")
+      .map(function(s) { return s.trim().replace(/^\.+/, "").toLowerCase(); })
+      .filter(function(s) { return s; });
+  }
+  // 아이콘 탭(iconExts)과 확장자 탭(extRun) 각각 자기 배열 안에서만 검사한다(요청: "아이콘 탭이랑
+  // 확장자 탭에 중복 검사도 구현"). {정규화된 확장자: [그 확장자가 나타난 행 인덱스...]}를
+  // 돌려주되, 2개 미만(=충돌 아님)인 확장자는 아예 뺀다. 한 행 안에서 콤마로 같은 확장자를 두 번
+  // 적은 경우도 같은 인덱스가 두 번 쌓여 길이 2가 되므로 자연히 충돌로 잡힌다.
+  function findExtKeyConflicts(arr) {
+    var byExt = {};
+    arr.forEach(function(item, idx) {
+      splitExtKeyList(item.key).forEach(function(ext) {
+        (byExt[ext] = byExt[ext] || []).push(idx);
+      });
+    });
+    var conflicts = {};
+    Object.keys(byExt).forEach(function(ext) { if (byExt[ext].length > 1) conflicts[ext] = byExt[ext]; });
+    return conflicts;
+  }
+  // 어떤 행이 걸려있는 충돌 확장자만 골라낸다(그 행의 콤마 목록 중 conflicts에 있는 것들).
+  function rowConflictExts(item, conflicts) {
+    return splitExtKeyList(item.key).filter(function(ext) { return conflicts.hasOwnProperty(ext); });
+  }
+  // 목록/패널에 보여줄 사람이 읽는 충돌 문구 - "이 확장자가 어느 행과 겹치는지"까지 짚어준다.
+  // 겹치는 확장자는 이 문구가 있는 한(=충돌이 해소되기 전까지) serializeExtIconMap/
+  // serializeExtRunSet에서 통째로 빠져 저장에 반영되지 않는다(요청: "겹치는 것은 그 어떤 설정도
+  // 반영 안 됨 - 한 쪽을 처리하기 전까지").
+  function conflictWarningFor(arr, idx, conflicts) {
+    var mine = rowConflictExts(arr[idx], conflicts);
+    if (!mine.length) return "";
+    var otherIdx = {};
+    mine.forEach(function(ext) { conflicts[ext].forEach(function(i) { if (i !== idx) otherIdx[i] = true; }); });
+    var otherLabels = Object.keys(otherIdx).map(function(i) { return '"' + (arr[i].key || "") + '"'; });
+    return "⚠ " + mine.join(", ") + "이(가) 다른 행과 겹칩니다" + (otherLabels.length ? " (" + otherLabels.join(", ") + ")" : "") + " - 해소하기 전까지 이 확장자는 저장 시 반영되지 않습니다.";
+  }
   function actionLabelFor(actionKey) {
     var found = null;
     for (var i = 0; i < EXTENSION_RUN_ACTIONS.length; i++) { if (EXTENSION_RUN_ACTIONS[i].key === actionKey) { found = EXTENSION_RUN_ACTIONS[i]; break; } }
@@ -393,6 +459,7 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   }
   function renderExtRunList(container) {
     container.innerHTML = "";
+    var conflicts = findExtKeyConflicts(DATA.extRun);
     DATA.extRun.forEach(function(item, idx) {
       var row = document.createElement("div");
       row.className = "mm-item-row" + (sel && sel.section === "extRun" && sel.idx === idx ? " selected" : "");
@@ -404,8 +471,19 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
       nameEl.className = "mm-item-name" + (item.key ? "" : " empty");
       nameEl.textContent = (item.key || "(확장자 없음)") + " → " + actionLabelFor(item.action);
       row.appendChild(nameEl);
+      if (rowConflictExts(item, conflicts).length) {
+        var warnEl = document.createElement("span");
+        warnEl.className = "mm-item-conflict-badge";
+        warnEl.title = conflictWarningFor(DATA.extRun, idx, conflicts);
+        warnEl.textContent = "⚠";
+        row.appendChild(warnEl);
+      }
       var btns = document.createElement("div");
       btns.className = "mm-item-btns";
+      var upBtn = document.createElement("button"); upBtn.className = "mm-row-btn"; upBtn.title = "위로"; upBtn.textContent = "▲";
+      upBtn.onclick = function(e) { e.stopPropagation(); if (idx > 0) { var t = DATA.extRun[idx - 1]; DATA.extRun[idx - 1] = DATA.extRun[idx]; DATA.extRun[idx] = t; if (sel && sel.section === "extRun") sel = { section: "extRun", idx: idx - 1 }; setDirty(); renderAll(); } };
+      var downBtn = document.createElement("button"); downBtn.className = "mm-row-btn"; downBtn.title = "아래로"; downBtn.textContent = "▼";
+      downBtn.onclick = function(e) { e.stopPropagation(); if (idx < DATA.extRun.length - 1) { var t = DATA.extRun[idx + 1]; DATA.extRun[idx + 1] = DATA.extRun[idx]; DATA.extRun[idx] = t; if (sel && sel.section === "extRun") sel = { section: "extRun", idx: idx + 1 }; setDirty(); renderAll(); } };
       var delBtn = document.createElement("button"); delBtn.className = "mm-row-btn"; delBtn.title = "삭제"; delBtn.textContent = "✕";
       delBtn.onclick = function(e) {
         e.stopPropagation();
@@ -414,7 +492,7 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
         setDirty();
         renderAll();
       };
-      btns.appendChild(delBtn);
+      btns.appendChild(upBtn); btns.appendChild(downBtn); btns.appendChild(delBtn);
       row.appendChild(btns);
       row.onclick = function() { sel = { section: "extRun", idx: idx }; renderAll(); };
       container.appendChild(row);
@@ -703,20 +781,39 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     note.className = "mm-submenu-note";
     note.textContent = isFolder
       ? "저장소 루트 기준 폴더 경로를 입력하세요(예: docs/images). 대소문자를 구분합니다."
-      : "점(.) 없이 확장자만 입력하세요(예: pdf, png). 대소문자는 구분하지 않습니다.";
+      : "점(.) 없이 확장자만 입력하세요(예: pdf). 콤마(,)로 구분해 여러 확장자를 한 행에 같이 적을 수 있습니다(예: mp3,wav). 대소문자는 구분하지 않습니다.";
     panelEl.appendChild(note);
+
+    // 확장자 탭에서만: 같은 확장자가 다른 행에도 있으면 여기서 실시간으로 경고한다(요청 -
+    // 겹치는 확장자는 해소 전까지 저장에 반영 안 됨). renderPanel()을 다시 부르면 입력 커서가
+    // 날아가므로, 이 div만 직접 갱신한다(아래 keyInput.oninput 참고).
+    var conflictWarn = null;
+    if (!isFolder) {
+      conflictWarn = document.createElement("div");
+      conflictWarn.className = "mm-conflict-note";
+      panelEl.appendChild(conflictWarn);
+    }
+    function refreshConflictWarn() {
+      if (!conflictWarn) return;
+      var msg = conflictWarningFor(arr, sel.idx, findExtKeyConflicts(arr));
+      conflictWarn.textContent = msg;
+      conflictWarn.style.display = msg ? "" : "none";
+    }
+    refreshConflictWarn();
 
     var keyInput = document.createElement("input");
     keyInput.type = "text"; keyInput.className = "mm-key-input";
-    keyInput.placeholder = isFolder ? "예: docs/images" : "예: pdf";
+    keyInput.placeholder = isFolder ? "예: docs/images" : "예: pdf 또는 mp3,wav";
     keyInput.value = item.key || "";
     keyInput.oninput = function() {
       item.key = keyInput.value; setDirty(); renderLists();
+      refreshConflictWarn();
       // 요청 #149: 확장자 탭이고 아이콘을 아직 지정하지 않았으면, 타이핑한 확장자에 맞는
       // 기본 아이콘 파일이 저장소에 있는지 찾아서 자동으로 채워준다.
       if (!isFolder && !item.icon) {
         var keyAtInputTime = item.key;
-        mmAutoDetectExtIconUrl(keyAtInputTime).then(function(url) {
+        var firstExt = splitExtKeyList(keyAtInputTime)[0] || "";
+        mmAutoDetectExtIconUrl(firstExt).then(function(url) {
           if (!url) return;
           if (item.key !== keyAtInputTime || item.icon) return; // 그 사이 값이 바뀌었으면 무시
           item.icon = url;
@@ -741,14 +838,25 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     panelEl.innerHTML = "";
     var note = document.createElement("div");
     note.className = "mm-submenu-note";
-    note.textContent = "점(.) 없이 확장자만 입력하세요(예: txt, html). 대소문자는 구분하지 않습니다. 이 확장자의 파일을 더블클릭했을 때, 환경설정의 기본 더블클릭 동작 대신 아래에서 고른 동작을 사용합니다.";
+    note.textContent = "점(.) 없이 확장자만 입력하세요(예: txt). 콤마(,)로 구분해 여러 확장자를 한 행에 같이 적을 수 있습니다(예: jpg,jpeg,png). 대소문자는 구분하지 않습니다. 이 확장자의 파일을 더블클릭했을 때, 환경설정의 기본 더블클릭 동작 대신 아래에서 고른 동작을 사용합니다.";
     panelEl.appendChild(note);
+
+    // iconExts 패널과 같은 패턴 - 다른 행과 겹치는 확장자가 있으면 여기서 실시간 경고.
+    var conflictWarn = document.createElement("div");
+    conflictWarn.className = "mm-conflict-note";
+    panelEl.appendChild(conflictWarn);
+    function refreshConflictWarn() {
+      var msg = conflictWarningFor(DATA.extRun, sel.idx, findExtKeyConflicts(DATA.extRun));
+      conflictWarn.textContent = msg;
+      conflictWarn.style.display = msg ? "" : "none";
+    }
+    refreshConflictWarn();
 
     var keyInput = document.createElement("input");
     keyInput.type = "text"; keyInput.className = "mm-key-input";
-    keyInput.placeholder = "예: txt";
+    keyInput.placeholder = "예: txt 또는 jpg,jpeg,png";
     keyInput.value = item.key || "";
-    keyInput.oninput = function() { item.key = keyInput.value; setDirty(); renderLists(); };
+    keyInput.oninput = function() { item.key = keyInput.value; setDirty(); renderLists(); refreshConflictWarn(); };
     fieldInto(panelEl, "확장자", keyInput);
 
     var actionSelect = document.createElement("select");
@@ -1121,7 +1229,10 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
         .map(function(k) { return { key: k, action: parsed[k] }; });
     }
     sel = null;
-    setDirty();
+    // JSON을 불러오면 그게 새 원본이므로 dirty를 켠 게 아니라 끈다(저장 버튼 빨간색 해제).
+    // 로컬 미리보기용 override는 그대로 반영한다.
+    clearDirty();
+    persistLocalOverride();
     renderAll();
     showToast(sourceLabel + " 불러옴(" + tabLabel(currentTab) + ")");
   }
@@ -1196,13 +1307,28 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     });
     return out;
   }
+  // 확장자별 아이콘 전용 직렬화 - serializeIconMap과 달리 콤마로 여러 확장자를 한 행에 적을 수
+  // 있게 splitExtKeyList로 풀어내고, findExtKeyConflicts에 걸린(다른 행과 겹치는) 확장자는
+  // 통째로 제외한다(요청: "겹치는 것은 그 어떤 설정도 반영 안 됨").
+  function serializeExtIconMap(arr) {
+    var conflicts = findExtKeyConflicts(arr);
+    var out = {};
+    arr.forEach(function(it) {
+      if (!it.icon) return;
+      splitExtKeyList(it.key).forEach(function(ext) {
+        if (conflicts.hasOwnProperty(ext)) return;
+        out[ext] = it.icon;
+      });
+    });
+    return out;
+  }
   function serializeMenuSet() {
     return JSON.stringify({ start: DATA.start.map(cleanItem), tray: DATA.tray.map(cleanItem) }, null, 2);
   }
   function serializeIconSet() {
     return JSON.stringify({
       folders: serializeIconMap(DATA.iconFolders, function(k) { return k.replace(/^\/+|\/+$/g, ""); }),
-      extensions: serializeIconMap(DATA.iconExts, function(k) { return k.replace(/^\.+/, "").toLowerCase(); }),
+      extensions: serializeExtIconMap(DATA.iconExts),
       repoRoot: DATA.iconRepoRoot || "",
       // 옛 recycleBin 필드는 더 이상 쓰지 않는다(새 두 필드로 완전히 대체) - 구버전 앱이 이 파일을
       // 읽을 일은 없으므로 굳이 같이 채워 넣지 않는다.
@@ -1221,11 +1347,14 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   // 객체({확장자: 이니셜})로 되돌린다. 확장자는 점을 떼고 소문자로 맞춘다. key가 비어있거나
   // action이 등록된 도구 목록에 없는 행은 저장하지 않는다.
   function serializeExtRunSet() {
+    var conflicts = findExtKeyConflicts(DATA.extRun);
     var out = {};
     DATA.extRun.forEach(function(it) {
-      var key = (it.key || "").trim().replace(/^\.+/, "").toLowerCase();
-      if (!key || !EXTENSION_RUN_ACTIONS.some(function(a) { return a.key === it.action; })) return;
-      out[key] = it.action;
+      if (!EXTENSION_RUN_ACTIONS.some(function(a) { return a.key === it.action; })) return;
+      splitExtKeyList(it.key).forEach(function(ext) {
+        if (conflicts.hasOwnProperty(ext)) return; // 요청: 겹치는 확장자는 해소 전까지 저장 반영 안 됨
+        out[ext] = it.action;
+      });
     });
     return JSON.stringify(out, null, 2);
   }
@@ -1260,7 +1389,7 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
       resolve();
     }).then(function() {
       showToast(skinSaveNoticeText("브라우저로 다운로드됨", file), { sticky: true });
-      state.dirty = false;
+      clearDirty();
     });
   }
   function webhookSaveOne(port, file) {
@@ -1276,11 +1405,12 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
       if (cancelled) { showToast("다운로드가 취소되었습니다."); return; }
       dfNoteWebhookDownloadSucceeded(); // 요청 #152
       showToast(skinSaveNoticeText("웹훅으로 다운로드됨", file), { sticky: true });
-      state.dirty = false;
+      clearDirty();
     });
   }
   var saveBtn = document.getElementById("mmSave");
   saveBtn.textContent = saveBtnLabel();
+  updateSaveBtnAppearance();
   // 요청 #155: 예전엔 이 버튼 하나가 "웹훅이 켜져 있으면 웹훅으로, 아니면 브라우저로"를 조용히
   // 알아서 정해버려서 사용자가 고를 수 없었다(웹훅이 켜져 있어도 그냥 빨리 브라우저로 받고 싶을
   // 수 있음) - 요청 #149의 가져오기 로컬/웹 분리와 같은 습관으로, 누르면 먼저 방법을 물어본다.
@@ -1321,6 +1451,21 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
       saveBtn.click();
     }
   });
+  // 입력 박스(input/textarea/select) 밖에서는 드래그로 텍스트가 파란 선택되는 걸 막는다.
+  // CSS user-select:none 이 기본 방어이고, 여기선 드래그 시작 자체도 차단한다.
+  var mmRootEl = document.getElementById("mmRoot");
+  if (mmRootEl) {
+    mmRootEl.addEventListener("dragstart", function(e) {
+      var t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || (t.isContentEditable))) return;
+      e.preventDefault();
+    });
+    mmRootEl.addEventListener("selectstart", function(e) {
+      var t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || (t.isContentEditable))) return;
+      e.preventDefault();
+    });
+  }
 
   renderAll();
 }
