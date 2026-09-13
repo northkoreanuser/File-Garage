@@ -207,8 +207,35 @@ els.btnRefresh.onclick = refreshCurrentFolder;
 // 요청 #129: "경로 복사" - 라벨은 경로 복사지만 실제로는 지금 보고 있는 페이지의 URL을 그대로
 // 클립보드에 복사한다(이 앱은 해시 라우팅이라 window.location.href 자체가 지금 경로를 포함함).
 // editor.js의 dfCopyText(클립보드 API + execCommand 폴백)를 그대로 재사용한다.
+// 경로/트리 이름에 한글 등이 있으면 encodeURIComponent 때문에 URL이 과도하게 길어지므로,
+// 복사 직전에 해시의 path·tree 부분을 URL Decode해서 짧고 읽기 쉬운 형태로 만든다.
+// (다시 열 때 hashToPath/hashToExpandedSet이 decodeURIComponent를 한 번 더 호출해도
+// 이미 디코드된 문자열에는 영향이 없고, 특수문자가 없는 일반 경로에서는 문제 없다.)
 function copyCurrentUrlToClipboard() {
-  dfCopyText(window.location.href, () => showToast("주소를 복사했습니다.", { sound: "copy_to_clipboard" }));
+  let url = window.location.href;
+  try {
+    const hashIdx = url.indexOf("#");
+    if (hashIdx >= 0) {
+      const base = url.slice(0, hashIdx + 1);
+      const hash = url.slice(hashIdx + 1);
+      const parts = hash.split("|");
+      const decodedParts = parts.map(part => {
+        if (part.startsWith("tree=")) {
+          const vals = part.slice(5).split(",").map(s => {
+            try { return decodeURIComponent(s); } catch (e) { return s; }
+          });
+          return "tree=" + vals.join(",");
+        }
+        if (part.startsWith("nav=")) return part;
+        // path part: 각 세그먼트 디코드
+        return part.split("/").map(s => {
+          try { return decodeURIComponent(s); } catch (e) { return s; }
+        }).join("/");
+      });
+      url = base + decodedParts.join("|");
+    }
+  } catch (e) { /* 디코드 실패 시 원본 그대로 */ }
+  dfCopyText(url, () => showToast("주소를 복사했습니다.", { sound: "copy_to_clipboard" }));
 }
 
 async function fetchGithubListing(pathArr) {
