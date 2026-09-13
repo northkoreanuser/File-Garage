@@ -190,6 +190,7 @@ async function refreshCurrentFolder() {
     return;
   }
   clearCache(path);
+  clearTagCache(path); // #hashtag.json도 새로고침 때 다시 읽어오게 한다(외부에서 직접 고쳤을 수 있으므로)
   const [, ghResult] = await Promise.allSettled([
     renderContentPane(),
     fetchGithubListing(path)

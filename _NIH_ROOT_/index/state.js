@@ -525,6 +525,7 @@ function filterNames(names, pathArr) {
   return names.filter(name => {
     if (/_NIH_/i.test(name)) return false;
     if (name === "pages.json") return false;
+    if (name === "#hashtag.json") return false; // 요청: 폴더별 태그 저장 파일 - 색인/탐색기 어디에도 안 보여야 함
     if (isRoot && rootOnly.has(name.toLowerCase())) return false;
     return true;
   });

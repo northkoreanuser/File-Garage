@@ -96,6 +96,9 @@ async function main() {
     // 요청 #143: 확장자별 더블클릭 개별 설정(extension_run_set.json) 반영 - keyboard-and-activate.js의
     // activate()가 extensionRunActionFor()로 이 설정을 참조한다.
     applyExtensionRunSetConfig(cfg.extRun);
+    // 커스텀 아이콘 설정이 이 시점(비동기)에야 도착하므로, 이미 그려져 있던 타이틀바 아이콘도
+    // 다시 계산해야 한다(부팅 직후엔 아직 customIconConfig가 비어 있어 기본 아이콘으로 그려졌었음).
+    updateWinTitlebarIcon();
     renderNavPane();
     if (els.win && !els.win.classList.contains("closed")) renderContentPane();
     if (dfsDb) dfsRenderDesktop();
@@ -119,5 +122,7 @@ async function main() {
   // 찬 아이콘인지 정하는데, 위의 renderNavPane()은 이보다 먼저 실행돼서 아직 기본값(false)만 보고
   // 그렸다 - 부팅 시점에 휴지통이 이미 차 있었을 수 있으므로, 여기서 다 읽고 나면 트리를 한 번 더
   // 그려서 정확한 상태로 바로잡는다.
-  dfsRenderDesktop().then(() => { if (dfsDb) renderNavPane(); }).catch(e => console.error("바탕화면 로드 오류:", e));
+  // dfsRenderDesktop()이 dfsRecycleBinHasItems를 다시 계산하므로, 지금 휴지통을 보고 있었다면
+  // 타이틀바 아이콘(비어있음/참 두 상태)도 함께 다시 맞춰준다.
+  dfsRenderDesktop().then(() => { if (dfsDb) { renderNavPane(); updateWinTitlebarIcon(); } }).catch(e => console.error("바탕화면 로드 오류:", e));
 }

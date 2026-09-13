@@ -9,9 +9,13 @@ function ensureIndexFor(rootPath) {
 }
 async function crawlAll(pathArr) {
   const entry = await loadDir(pathArr);
+  // 요청: 태그 검색을 위해 이 폴더의 #hashtag.json도 같이 읽어서(로컬 스토리지 캐시 사용 -
+  // tags.js의 loadFolderTags) 그 안의 파일/폴더 각각에 태그를 붙여둔다. 바탕화면/휴지통은
+  // isDfsPath라 loadFolderTags가 항상 빈 객체를 돌려주므로 자연스럽게 대상에서 빠진다.
+  const tagMap = await loadFolderTags(pathArr);
   let results = [];
-  entry.folders.forEach(name => results.push({ name, path: [...pathArr, name], type: "folder" }));
-  entry.files.forEach(f => results.push({ name: f.name, size: f.size, path: [...pathArr, f.name], type: fileTypeFor(f.name) }));
+  entry.folders.forEach(name => results.push({ name, path: [...pathArr, name], type: "folder", tags: tagMap[name] || [] }));
+  entry.files.forEach(f => results.push({ name: f.name, size: f.size, path: [...pathArr, f.name], type: fileTypeFor(f.name), tags: tagMap[f.name] || [] }));
   for (const name of entry.folders) {
     const sub = await crawlAll([...pathArr, name]);
     results = results.concat(sub);
@@ -38,7 +42,9 @@ async function runSearch() {
     return;
   }
   if (els.searchInput.value.trim().toLowerCase() !== q) return; // 그 사이 검색어가 바뀌었으면 무시
-  const matches = all.filter(it => it.name.toLowerCase().includes(q));
+  // 요청: 이름뿐 아니라 #hashtag.json으로 붙여둔 태그와도 일치하면 검색 결과에 포함한다(부분
+  // 일치 - "html"을 검색하면 태그가 "웹, html, js"인 test.html도 걸린다).
+  const matches = all.filter(it => it.name.toLowerCase().includes(q) || (it.tags || []).some(t => t.toLowerCase().includes(q)));
   currentItems = matches;
   currentOpts = {
     flat: true,
@@ -70,10 +76,34 @@ async function preloadAllToCache() {
   }
 }
 
+/* ============ 타이틀바 왼쪽 아이콘(요청) ============
+   버그 리포트: "아이콘이 설정된 경로인데도 좌측 상단 창 이름 표시줄 왼쪽 아이콘은 반영 안됨" -
+   index.html의 .tb-icon이 고정 이모지(📁)로 박혀 있어서, 메뉴 메이커에서 저장소 루트/바탕화면/
+   휴지통/폴더별로 커스텀 아이콘을 지정해도 트리·바탕화면에만 반영되고 타이틀바 자체는 그대로였다.
+   현재 보고 있는 경로(currentPath)의 종류에 따라 이미 있는 resolve*Icon 함수들과 같은 규칙으로
+   타이틀바 아이콘도 맞춰 그린다 - 실제 저장소 폴더는 폴더별 커스텀 아이콘(icon_set.json의
+   folders), 바탕화면/휴지통 루트는 각각의 전용 커스텀 아이콘, 그 안의 하위 폴더는(가상 파일시스템
+   폴더는 폴더별 커스텀 아이콘 개념이 없으므로) 기본 폴더 아이콘을 쓴다. */
+function updateWinTitlebarIcon() {
+  const iconEl = els.titlebar && els.titlebar.querySelector(".tb-icon");
+  if (!iconEl) return;
+  let html;
+  if (currentPath.length === 0) {
+    html = resolveRepoRootIcon(16);
+  } else if (isRecycleBinPath(currentPath)) {
+    html = currentPath.length === 1 ? resolveRecycleBinIcon(16, !dfsRecycleBinHasItems) : folderIcon(16, false);
+  } else if (isDesktopPath(currentPath)) {
+    html = currentPath.length === 1 ? resolveDesktopIcon(16, true) : folderIcon(16, false);
+  } else {
+    html = resolveFolderIcon(currentPath, 16, false);
+  }
+  iconEl.innerHTML = html;
+}
 /* ============ 주소표시줄(브레드크럼) ============ */
 function renderBreadcrumb() {
   // 탐색기 상단 타이틀바 = 현재 폴더 이름 (윈도우 탐색기가 이렇게 동작함). 루트면 저장소 이름.
   els.winTitle.textContent = currentPath.length ? currentPath[currentPath.length - 1] : (repoName || "Repo Index");
+  updateWinTitlebarIcon();
   els.breadcrumb.innerHTML = "";
   const rootCrumb = document.createElement("span");
   rootCrumb.className = "crumb";

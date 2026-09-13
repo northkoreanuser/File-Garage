@@ -275,6 +275,15 @@ async function dfsCreateFile(parentId, kind) {
 // 삭제/속성/폴더 다운로드 등)은 dfsFileByteSize 등을 통해 문자열 content든 Blob이든 구분 없이
 // 그대로 동작한다.
 async function dfsImportOsFile(parentId, file) {
+  // 요청 #154: 저장소 등에서 .sc로 받아둔 바로가기 파일을 데스크탑으로 다시 끌어다 놓으면, 그냥
+  // 텍스트 파일로 가져가지 말고 진짜 바로가기(type:"shortcut")로 되살려야 한다는 지시 - 다른 곳의
+  // activateScShortcut(keyboard-and-activate.js)과 똑같은 기준(JSON을 파싱해서 url 필드가 있는지)
+  // 으로 판단한다. 이 앱이 만든 형식이 아니면(false 반환) 그냥 아래 일반 텍스트 파일 가져오기로
+  // 자연스럽게 이어진다.
+  if (isSc(file.name)) {
+    const result = await dfsImportScFile(parentId, file);
+    if (result !== false) return result; // 진짜 바로가기 형식이었다면 성공/취소 어느 쪽이든 여기서 끝(일반 파일로 안 떨어짐)
+  }
   // 파일 전체를 텍스트로 읽기 전에, 앞부분만 살짝 떼어 읽어서 텍스트인지 먼저 가늠한다(큰
   // 이진 파일 전체를 문자열로 디코딩하는 낭비/깨짐을 피한다).
   let sample = "";
@@ -317,6 +326,46 @@ async function dfsImportOsFile(parentId, file) {
     record = { ...base, content: "", binary: true, blob: file, mime: file.type || "", fileType: dfDetectFileType(name) };
   }
   const id = await dfsDb.nodes.add(record);
+  return dfsDb.nodes.get(id);
+}
+// dfsImportOsFile에서 분리 - .sc로 드롭된 파일이 이 앱이 만든 바로가기 형식(JSON + url 필드)인지
+// 확인해서, 맞으면 확장자를 뗀 이름의 type:"shortcut" 노드로 만든다. 반환값 3가지:
+//  - false: 이 앱이 만든 .sc 형식이 아니다(JSON이 아니거나 url이 없음) -> 호출한 쪽이 일반
+//    텍스트 파일 가져오기로 계속 진행해야 한다.
+//  - null: 형식은 맞지만 같은 이름 항목이 있어 덮어쓸지 물었는데 사용자가 취소함 -> 아무것도
+//    만들지 않고 그대로 끝(일반 파일로도 안 떨어짐 - 취소는 취소니까).
+//  - 그 외: 새로 만든 바로가기 노드.
+async function dfsImportScFile(parentId, file) {
+  let text;
+  try {
+    text = await file.text();
+  } catch (e) {
+    return false;
+  }
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (e) {
+    return false;
+  }
+  if (!data || typeof data.url !== "string" || !data.url) return false;
+  // 요청 #141과 같은 규칙: 실제 윈도우가 .lnk 확장자를 숨기는 것처럼, 데스크탑에 만들어질
+  // 바로가기의 이름에서도 .sc를 뗀다(displayName과 같은 방식 - 어차피 여기 새로 만드는 노드는
+  // "실제 파일명"이라는 개념이 없어 그대로 이름으로 쓴다).
+  const desiredName = displayName(file.name || "") || "새 바로가기";
+  const conflict = await dfsFindNameConflict(parentId, desiredName, null);
+  if (conflict) {
+    const ok = await showConfirmDialog(`이 위치에 이미 "${desiredName}" 항목이 있습니다. 덮어쓸까요?`);
+    if (!ok) return null;
+    await dfsDelete(conflict);
+  }
+  const now = Date.now();
+  const pos = await dfsNextIconPos(parentId);
+  const id = await dfsDb.nodes.add({
+    parentId, type: "shortcut", name: desiredName,
+    url: data.url, icon: (typeof data.icon === "string" && data.icon) || "", popup: !!data.popup,
+    x: pos.x, y: pos.y, createdAt: now, updatedAt: now
+  });
   return dfsDb.nodes.get(id);
 }
 async function dfsImportOsFileList(parentId, fileList, refresh) {

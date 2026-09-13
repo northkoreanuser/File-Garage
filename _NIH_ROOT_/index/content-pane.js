@@ -39,6 +39,46 @@ function dirLabelFor(it, opts) {
   }
   return dirParts.join("/") || repoName;
 }
+// ---------------- 실제 저장소 파일을 진짜 OS 바탕화면/탐색기로 끌어내기 ----------------
+// 사용자 지시: "레포 안에 있는 파일을 밖으로 끌어내면 그게 텍스트 형식의 파일(확장자 무관)인
+// 경우 바로 바탕화면으로 꺼내버려(js fetch로 파일 형식 빠르게 판단해서 한다)" - 크롬 계열
+// 브라우저는 드래그의 dataTransfer에 "DownloadURL" 항목을 채워두면 놓인 곳이 진짜 OS 바탕화면/
+// 탐색기일 때 브라우저가 그 URL을 직접 받아서 파일로 저장해준다(우리가 내용을 미리 다 들고
+// 있을 필요가 없음) - 다만 "텍스트 파일일 때만" 허용해야 하므로, 드래그가 실제로 시작되기 전에
+// (폴더가 그려지는 시점에 백그라운드로) 앞부분만 fetch해서 dfLooksLikeText로 판별해 캐시해둔다.
+// dragstart는 동기적으로 dataTransfer를 채워야 해서 그 자리에서 fetch를 기다릴 수 없으므로,
+// 아직 판별이 안 끝난 상태(드문 경우 - 폴더를 열자마자 바로 끄는 경우)에서 드래그를 시작하면
+// 그냥 아무 일도 없는 것으로 취급한다(강제로 기다리게 하면 네이티브 드래그 자체가 끊긴다).
+const dfRepoTextSniffCache = new Map(); // key: path.join("/") -> true(텍스트)/false(아님)
+async function dfSniffRepoFileIsText(it) {
+  const key = it.path.join("/");
+  if (dfRepoTextSniffCache.has(key)) return dfRepoTextSniffCache.get(key);
+  try {
+    const url = absoluteFileUrl(it.path);
+    // 큰 파일을 통째로 내려받지 않도록 앞부분만 Range로 요청해본다(서버가 Range를 무시하고
+    // 전체를 돌려줘도 어차피 아래에서 8000자만 잘라 쓰므로 판별 결과는 똑같다).
+    const res = await fetch(url, { headers: { Range: "bytes=0-8000" } });
+    if (!res.ok && res.status !== 206) throw new Error(String(res.status));
+    const text = await res.text();
+    const isText = dfLooksLikeText(text.slice(0, 8000));
+    dfRepoTextSniffCache.set(key, isText);
+    return isText;
+  } catch (e) {
+    return false; // 네트워크 오류 등 - 캐시에 남기지 않아 다음에 다시 시도할 수 있게 한다
+  }
+}
+function attachRepoFileDragOut(cell, it) {
+  cell.draggable = true;
+  dfSniffRepoFileIsText(it); // 그려지자마자 백그라운드로 미리 판별해둔다(실제 드래그 전에 끝날 확률을 높임)
+  cell.addEventListener("dragstart", (e) => {
+    e.stopPropagation(); // els.contentPane의 전역 dragstart 리스너(아래)가 취소해버리지 않게
+    const key = it.path.join("/");
+    if (dfRepoTextSniffCache.get(key) !== true) { e.preventDefault(); return; }
+    const url = absoluteFileUrl(it.path);
+    e.dataTransfer.setData("DownloadURL", `text/plain:${it.name}:${url}`);
+    e.dataTransfer.effectAllowed = "copy";
+  });
+}
 function buildGrid(items, opts) {
   if (items.length === 0) {
     const div = document.createElement("div");
@@ -64,7 +104,10 @@ function buildGrid(items, opts) {
     cell.className = "grid-item" + (opts.flat ? " flat" : "") + ((isMultiSel || isSingleSel) ? " selected" : "");
     cell.dataset.key = key;
     const icon = it.dfsNode ? dfsIconGlyphFor(it.dfsNode, 32) : (it.type === "folder" ? resolveFolderIcon(it.path, 32, false) : resolveFileIcon(it.name, 32));
-    const subHtml = opts.flat ? `<div class="sub">${escapeHtml(dirLabelFor(it, opts))}</div>` : "";
+    // 요청: 검색 결과(flat)에서 태그가 있는 항목은 위치 아래에 태그도 같이 보여준다(어떤 태그로
+    // 걸렸는지 바로 알 수 있게) - 태그가 없는 항목은 예전 그대로 위치만 보여준다.
+    const tagsHtml = (opts.flat && it.tags && it.tags.length) ? `<div class="sub tag-sub">${it.tags.map(t => "#" + escapeHtml(t)).join(" ")}</div>` : "";
+    const subHtml = opts.flat ? `<div class="sub">${escapeHtml(dirLabelFor(it, opts))}</div>${tagsHtml}` : "";
     // 요청 #141: .sc 바로가기 파일은 실제 윈도우가 .lnk 확장자를 숨기는 것처럼 목록에는 확장자를 뺀
     // 이름으로 보여준다(실제 파일명 자체는 그대로라서 다운로드/속성 등은 전혀 영향받지 않는다).
     cell.innerHTML = `<div class="icon">${icon}</div><div class="label">${escapeHtml(displayName(it.name))}</div>${subHtml}`;
@@ -135,6 +178,11 @@ function buildGrid(items, opts) {
           await dfsBroadcastChange();
         });
       }
+    } else if (it.type !== "folder") {
+      // 진짜 저장소 파일(바탕화면/휴지통이 아닌 읽기 전용 영역, 검색 결과의 flat 목록 포함) -
+      // 옮기거나 지울 순 없지만, 진짜 OS 바탕화면으로 "꺼내는" 드래그는 가능하다(텍스트 파일일
+      // 때만, attachRepoFileDragOut 참고). 폴더 항목은 대상이 아니므로 제외한다.
+      attachRepoFileDragOut(cell, it);
     }
     grid.appendChild(cell);
   });
@@ -291,6 +339,7 @@ function contentPaneOpenBackgroundMenu(x, y) {
     showContextMenu(x, y, [
       { label: "새로고침", action: () => refreshCurrentFolder() },
       { label: "경로 복사", action: () => copyCurrentUrlToClipboard() },
+      { label: "태그 편집", action: () => openTagEditorForFolder(currentPath) },
       { label: "속성", action: () => showRepoFolderProperties(currentPath, { kind: currentPath.length ? "폴더" : "저장소 루트 폴더" }) }
     ]);
     return;
