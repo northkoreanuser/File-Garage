@@ -42,9 +42,15 @@ async function runSearch() {
     return;
   }
   if (els.searchInput.value.trim().toLowerCase() !== q) return; // 그 사이 검색어가 바뀌었으면 무시
-  // 요청: 이름뿐 아니라 #hashtag.json으로 붙여둔 태그와도 일치하면 검색 결과에 포함한다(부분
-  // 일치 - "html"을 검색하면 태그가 "웹, html, js"인 test.html도 걸린다).
-  const matches = all.filter(it => it.name.toLowerCase().includes(q) || (it.tags || []).some(t => t.toLowerCase().includes(q)));
+  // 검색 모드: 이름(일반) / 태그(해시) / 둘 다. settings.searchByName, searchByTag (기본 둘 다 true).
+  // 부분 일치 - "html"을 검색하면 이름이 포함되거나 태그가 "웹, html, js"인 항목도 걸린다.
+  const byName = settings.searchByName !== false;
+  const byTag = settings.searchByTag !== false;
+  const matches = all.filter(it => {
+    if (byName && it.name.toLowerCase().includes(q)) return true;
+    if (byTag && (it.tags || []).some(t => t.toLowerCase().includes(q))) return true;
+    return false;
+  });
   currentItems = matches;
   currentOpts = {
     flat: true,

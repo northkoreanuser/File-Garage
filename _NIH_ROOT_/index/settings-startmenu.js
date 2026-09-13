@@ -13,6 +13,8 @@ const DEFAULT_SETTINGS = {
   doubleClickAction: "helper",
   searchScope: "subtree",    // "subtree"(현재 폴더의 하위만) | "all"(전체 저장소)
   searchRelativePath: true,  // 검색 결과 위치를 현재 폴더 기준 상대 경로로 표시할지
+  searchByName: true,        // 검색 시 파일/폴더 이름 매칭
+  searchByTag: true,         // 검색 시 #hashtag.json 태그 매칭 (둘 다 기본 켜짐)
   aeroEnabled: true,         // 반투명 블러("에어로") 효과 - 기본 활성화
   trayIconCount: 25,         // 트레이 빠른 실행 아이콘 최대 개수 (최소 1, 최대 25)
   dfEditorTheme: "dark",     // 내장 에디터(옵시디언 스타일) 테마
@@ -78,6 +80,8 @@ function loadSettings() {
   }
   if (s.searchScope !== "all") s.searchScope = "subtree";
   s.searchRelativePath = s.searchRelativePath !== false;
+  s.searchByName = s.searchByName !== false;
+  s.searchByTag = s.searchByTag !== false;
   s.aeroEnabled = s.aeroEnabled !== false;
   s.trayIconCount = Math.max(1, Math.min(25, Number(s.trayIconCount) || DEFAULT_SETTINGS.trayIconCount));
   if (s.dfEditorTheme !== "light") s.dfEditorTheme = "dark";
@@ -174,6 +178,12 @@ function dfsBuildSettingsBodyHtml() {
       <div class="settings-row">
         <label class="settings-check"><input type="checkbox" id="setSearchRelative"> 검색 결과 위치를 현재 폴더 기준 상대 경로로 표시</label>
       </div>
+      <div class="settings-row">
+        <span class="settings-label">검색 모드</span>
+        <label class="settings-check"><input type="checkbox" id="setSearchByName"> 이름 (일반)</label>
+        <label class="settings-check"><input type="checkbox" id="setSearchByTag"> 태그 (해시)</label>
+        <div class="settings-hint">둘 다 켜면 이름 또는 태그에 일치하는 항목을 찾습니다. 기본은 둘 다 켜짐.</div>
+      </div>
       <div class="settings-divider"></div>
       <div class="settings-row">
         <label class="settings-check"><input type="checkbox" id="setAeroEnabled"> 에어로(반투명 블러 효과) 사용</label>
@@ -225,6 +235,8 @@ function dfApplySettingsToPanel(root) {
   $("setDoubleClick").value = settings.doubleClickAction;
   $("setSearchScope").value = settings.searchScope;
   $("setSearchRelative").checked = settings.searchRelativePath;
+  if ($("setSearchByName")) $("setSearchByName").checked = settings.searchByName;
+  if ($("setSearchByTag")) $("setSearchByTag").checked = settings.searchByTag;
   if ($("setAeroEnabled")) $("setAeroEnabled").checked = settings.aeroEnabled;
   if ($("setTrayIconCount")) $("setTrayIconCount").value = settings.trayIconCount;
   if ($("setSkinIconPriority")) $("setSkinIconPriority").checked = settings.skinIconPriority;
@@ -347,6 +359,27 @@ function dfInitSettingsWindow(handle) {
     settings.searchRelativePath = $("setSearchRelative").checked;
     saveSettings();
   };
+  if ($("setSearchByName")) {
+    $("setSearchByName").onchange = () => {
+      settings.searchByName = $("setSearchByName").checked;
+      // 둘 다 꺼지면 검색이 아예 안 되므로 최소 하나는 유지
+      if (!settings.searchByName && !settings.searchByTag) {
+        settings.searchByTag = true;
+        if ($("setSearchByTag")) $("setSearchByTag").checked = true;
+      }
+      saveSettings();
+    };
+  }
+  if ($("setSearchByTag")) {
+    $("setSearchByTag").onchange = () => {
+      settings.searchByTag = $("setSearchByTag").checked;
+      if (!settings.searchByName && !settings.searchByTag) {
+        settings.searchByName = true;
+        if ($("setSearchByName")) $("setSearchByName").checked = true;
+      }
+      saveSettings();
+    };
+  }
   if ($("setAeroEnabled")) {
     $("setAeroEnabled").onchange = () => {
       settings.aeroEnabled = $("setAeroEnabled").checked;

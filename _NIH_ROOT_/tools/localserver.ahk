@@ -152,7 +152,17 @@ WHHandleRequest(Client) {
 
     ; 헤더는 아스키라서 문자 위치 = 바이트 오프셋. "\r\n\r\n"(4글자) 매치 시작 위치(1-based) +
     ; 4글자 뒤가 본문 시작이므로, 0-based 바이트 오프셋으로는 headerEndPos + 3.
+    ; 주의: StrGet(..., "UTF-8")이 본문의 multi-byte/invalid 바이트 때문에 문자열 길이를
+    ; 바이트 수와 다르게 만들 수 있으므로, 헤더 끝 위치는 바이트 단위로 다시 확인한다.
     bodyStart := headerEndPos + 3
+    ; 바이트 단위로 \r\n\r\n 찾기 (더 안전)
+    Loop, % total - 3 {
+        if (NumGet(&buf + A_Index - 1, "UChar") = 13 && NumGet(&buf + A_Index, "UChar") = 10
+            && NumGet(&buf + A_Index + 1, "UChar") = 13 && NumGet(&buf + A_Index + 2, "UChar") = 10) {
+            bodyStart := A_Index + 3   ; 0-based: after the 4-byte sequence (A_Index is 1-based start of \r)
+            break
+        }
+    }
     bodyLen := total - bodyStart
 
     if (contentLength > 0 && bodyLen < contentLength) {
@@ -173,6 +183,13 @@ WHHandleRequest(Client) {
     }
     if (contentLength > 0 && bodyLen > contentLength)
         bodyLen := contentLength
+
+    ; 본문을 별도 버퍼로 안전하게 복사 (포인터 산술/수명 문제 방지, 0바이트 저장 버그 방지)
+    bodyBuf := ""
+    if (bodyLen > 0) {
+        VarSetCapacity(bodyBuf, bodyLen, 0)
+        DllCall("RtlMoveMemory", "Ptr", &bodyBuf, "Ptr", &buf + bodyStart, "Ptr", bodyLen)
+    }
 
     ; 경로와 쿼리스트링 분리 (/open?url=...&size=... -> routePath=/open, queryStr=url=...&size=...)
     qPos := InStr(reqPath, "?")
@@ -230,9 +247,9 @@ WHHandleRequest(Client) {
     } else if (routePath = "/savetopath") {
         HandleSaveToPath(Client, fileUrl, sizeParam, baseParam, relParam)
     } else if (routePath = "/savecontent") {
-        HandleSaveContent(Client, &buf + bodyStart, bodyLen, nameParam)
+        HandleSaveContent(Client, bodyLen > 0 ? &bodyBuf : 0, bodyLen, nameParam)
     } else if (routePath = "/savecontentto") {
-        HandleSaveContentToPath(Client, &buf + bodyStart, bodyLen, baseParam, relParam)
+        HandleSaveContentToPath(Client, bodyLen > 0 ? &bodyBuf : 0, bodyLen, baseParam, relParam)
     } else {
         WHSend(Client, 404, "Not Found")
     }
