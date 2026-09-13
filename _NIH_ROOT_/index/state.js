@@ -53,6 +53,14 @@ function getOwnerRepo() {
   const repo = location.pathname.split("/").filter(Boolean)[0] || "";
   return { owner, repo };
 }
+// 요청: "모든 아이콘 채우는 곳에 /{repo}/_NIH_ROOT_/index/ui/icon/ 주소를 채우는 기능을 만든다
+// (바로가기, 파일 메이커 등등)" - 아이콘 URL을 입력하는 곳마다 이 경로를 한 번에 채워주는 버튼이
+// 공통으로 쓰는 값이다. repo 이름을 하드코딩하지 않고 항상 getOwnerRepo()로 지금 열려 있는
+// 저장소 이름을 그대로 넣는다 - 사용자는 뒤에 실제 파일명만 이어 적으면 된다.
+function dfRepoIconFolderPath() {
+  const { repo } = getOwnerRepo();
+  return `/${repo || "REPO"}/_NIH_ROOT_/index/ui/icon/`;
+}
 
 /* ============ GitHub 바로가기 (보기/다운로드/수정/삭제) ============
    이 페이지 자체는 정적 사이트라 파일을 직접 쓸 수 없다. 수정/삭제는 항상
@@ -235,6 +243,11 @@ function resolveSettingsIconHtml() {
    식별자, 값은 소리 파일의 URL 또는 base64 데이터 URI다(비어 있으면 그 상황엔 소리를 재생하지
    않음 - 기본값은 전부 무음). 이 앱에서 실제로 구분해 소리를 낼 수 있는 모든 경우를 나열한다. */
 const DF_SOUND_SCENARIOS = [
+  // 요청: "사운드 옵션에 부팅음을 추가한다(페이지 로드시 화면을 터치하거나 하면 재생, 자동 재생은
+  // 불가능하니까)" - 브라우저는 사용자 동작(클릭/터치/키 입력) 전에는 소리 재생 자체를 막으므로,
+  // 페이지를 연 시점이 아니라 그 뒤 화면을 처음 클릭/터치/키입력하는 순간 딱 한 번만 재생한다
+  // (dfArmBootSoundOnFirstInteraction 참고).
+  { key: "boot", label: "부팅음", hint: "페이지를 열고 화면을 처음 클릭/터치(또는 키 입력)했을 때 1회만 - 자동재생은 브라우저 정책상 불가능해 첫 상호작용에 재생합니다" },
   { key: "notify_success", label: "일반 알림(성공)", hint: "대부분의 성공 토스트(기본 종류)" },
   { key: "notify_info", label: "안내 알림", hint: "정보성 안내 토스트" },
   { key: "notify_warn", label: "경고/오류 알림", hint: "실패·경고 토스트 전체" },
@@ -290,6 +303,23 @@ function dfsPlaySound(scenarioKey) {
     audio.play().catch(() => {}); // 브라우저 자동재생 정책 등으로 실패해도 부수 기능이니 조용히 무시
   } catch (e) { /* 무시 */ }
 }
+// 요청: 페이지 로드시 부팅음을 재생하고 싶어도 브라우저 자동재생 정책 때문에 곧바로는 불가능하다
+// - 대신 로드 이후 화면에서 일어나는 첫 클릭/터치/키 입력을 "사용자 동작"으로 인정받는 순간으로
+// 삼아 그때 딱 한 번만 dfsPlaySound("boot")를 재생한다(그 뒤로는 다시 재생하지 않음 - 이후의
+// 클릭들은 전부 원래 그 클릭이 하려던 일을 그대로 한다). 부팅음이 지정돼 있지 않으면(기본값)
+// dfsPlaySound가 알아서 아무 것도 하지 않으므로, 이 함수는 부팅음 설정 여부와 무관하게 항상 걸어
+// 둬도 안전하다.
+let dfBootSoundArmed = false;
+function dfArmBootSoundOnFirstInteraction() {
+  if (dfBootSoundArmed) return;
+  dfBootSoundArmed = true;
+  const events = ["click", "touchstart", "keydown"];
+  const handler = () => {
+    events.forEach(ev => document.removeEventListener(ev, handler, true));
+    dfsPlaySound("boot");
+  };
+  events.forEach(ev => document.addEventListener(ev, handler, true));
+}
 
 /* ============ extension_run_set.json: 확장자별 더블클릭 동작 (요청 #143) ============
    "메뉴 메이커에 '확장자' 네 번째 탭을 추가. 도구에 이니셜을 추가(에디터 = editor 같은 식), 원하는
@@ -309,7 +339,12 @@ const EXTENSION_RUN_ACTIONS = [
   { key: "editor", label: "에디터로 열기" },
   { key: "text", label: "텍스트(브라우저)로 열기" },
   { key: "download", label: "다운로드" },
-  { key: "repo", label: "저장소에서 보기(GitHub)" }
+  { key: "repo", label: "저장소에서 보기(GitHub)" },
+  // 요청: "hls 재생기 추가. 파일 확장자 연결은 메뉴 메이커의 확장자 탭에서 연결한다(하드코딩
+  // 연결은 하지 말고, 사용자가 찾아 쓰게 하면 좋음)" - 그래서 여기서는 .m3u8 같은 확장자를
+  // 하드코딩으로 이 동작에 미리 이어붙이지 않는다. 사용자가 메뉴 메이커 > 확장자 탭에서 원하는
+  // 확장자에 이 동작을 직접 골라 연결해야 한다(hls-player.js의 dfsOpenRepoFileInHlsPlayer 참고).
+  { key: "hls", label: "HLS 재생기로 열기" }
 ];
 function fileExtOf(name) {
   const dot = (name || "").lastIndexOf(".");
@@ -343,6 +378,10 @@ function dfLsIconKey() { return "dfLocalIconSetV1"; }
 function dfLsIconSkinPrefix() { return "dfLocalIconSetSkinV1:"; }
 function dfLsIconSkinKey(skinName) { return dfLsIconSkinPrefix() + (skinName || "win7"); }
 function dfLsSoundKey() { return "dfLocalSoundSetV1"; }
+// 사운드도 아이콘과 똑같이 스킨별로 저장할 수 있다("스킨용으로 저장" - 메뉴 메이커 사운드 탭,
+// dfLsIconSkinKey/dfLsIconSkinPrefix와 완전히 같은 패턴).
+function dfLsSoundSkinPrefix() { return "dfLocalSoundSetSkinV1:"; }
+function dfLsSoundSkinKey(skinName) { return dfLsSoundSkinPrefix() + (skinName || "win7"); }
 function dfLsExtRunKey() { return "dfLocalExtRunSetV1"; }
 function dfReadLocalOverride(key) {
   try {

@@ -22,6 +22,10 @@ const DEFAULT_SETTINGS = {
   // 우선한다(둘 다 없는 쪽은 있는 쪽 그대로 씀 - mergeIconMap 참고). 요청 #163: 스킨별로 아이콘을
   // 따로 꾸며두는 게 보통은 의도한 커스터마이징이므로 기본값을 켬으로 바꾼다(예전엔 꺼짐이 기본).
   skinIconPriority: true,
+  // 아이콘과 완전히 같은 개념을 사운드에도 적용 - 메뉴 메이커의 사운드 탭에도 "스킨용으로 저장"
+  // 체크박스가 생겨서 스킨 폴더 안에 sound_set.json을 따로 둘 수 있다(skinIconPriority와 같은
+  // 기본값 이유로 기본을 켬으로 둔다 - mergeSoundSetConfigs 참고).
+  skinSoundPriority: true,
   // 요청 #152: "페이지를 열 때마다 로컬 헬퍼(웹훅)가 켜져 있는지 미리 조용히 확인해두는 것" -
   // 브라우저의 로컬 네트워크 접근 권한 팝업이 뜰 수 있어 기본은 꺼둔다. 웹훅으로 실제 다운로드가
   // 한 번이라도 성공하면(local-helper.js의 dfNoteWebhookDownloadSucceeded) 자동으로 켜진다.
@@ -35,11 +39,13 @@ const DEFAULT_SETTINGS = {
   // 의견에 따라, 이 확인창을 아예 건너뛸 수 있는 옵션을 추가한다 - 기본은 꺼짐(기존과 동일하게
   // 항상 확인창을 띄움, 실수로 닫는 것 방지가 원래 목적이었으므로).
   closeWindowWithoutConfirm: false,
-  // 요청 #161: 닫혀 있던 탐색기 창을 작업표시줄 클릭으로 다시 열 때, 예전처럼 항상 루트에서
-  // 시작할지 닫기 전 마지막 위치(+트리 펼침 상태)에서 이어갈지 - 기본은 꺼짐(기존 동작 그대로
-  // 항상 루트). 켜져 있어도 작업표시줄 아이콘 우클릭의 "이전 위치 열기"는 이 설정과 무관하게
-  // 항상 마지막 위치로 연다.
-  reopenAtLastLocation: false,
+  // 요청: "작업 표시줄 탐색기 클릭시 이전 위치 열기 = 기본값(누르면 자동 동작)" - 닫혀 있던
+  // 탐색기를 작업표시줄 클릭으로 다시 열면 이제 이 켜고 끌 수 있는 설정 없이 항상 닫기 전 마지막
+  // 위치(+트리 펼침 상태)에서 이어서 연다(window-chrome.js의 taskbarApp.onclick). 예전엔 이
+  // 동작이 기본 꺼짐인 별도 설정(reopenAtLastLocation)과, 그 설정과 무관하게 항상 마지막
+  // 위치로 여는 우클릭 메뉴의 "이전 위치 열기" 항목 두 가지로 나뉘어 있었는데, 클릭 자체가 이미
+  // "이전 위치 열기"와 똑같이 동작하게 되면서 그 메뉴 항목은 중복이라 제거했다(우클릭 메뉴는
+  // 이제 "열기" 하나만 보여준다).
   // 요청 #163: 기본은 꺼짐(예전과 동일하게 새 탭을 열면 전체화면을 먼저 풂) - 켜두면 새 "탭"을 열
   // 때도(팝업은 원래도 항상 유지) 전체화면을 풀지 않는다.
   keepFullscreenOnNewTab: false
@@ -77,10 +83,10 @@ function loadSettings() {
   if (s.dfEditorTheme !== "light") s.dfEditorTheme = "dark";
   if (!AVAILABLE_THEMES.has(s.theme)) s.theme = "win7";
   s.skinIconPriority = s.skinIconPriority === true;
+  s.skinSoundPriority = s.skinSoundPriority === true;
   s.fullscreenOnLoad = s.fullscreenOnLoad !== false;
   s.checkHelperOnLoad = s.checkHelperOnLoad === true;
   s.closeWindowWithoutConfirm = s.closeWindowWithoutConfirm === true;
-  s.reopenAtLastLocation = s.reopenAtLastLocation === true;
   s.keepFullscreenOnNewTab = s.keepFullscreenOnNewTab === true;
   return s;
 }
@@ -125,6 +131,10 @@ function dfsBuildSettingsBodyHtml() {
       <div class="settings-row">
         <label class="settings-check"><input type="checkbox" id="setSkinIconPriority"> 스킨 아이콘 우선</label>
         <div class="settings-hint">기본은 icon_set.json의 아이콘이 우선이고(겹치지 않는 항목은 스킨 쪽도 그대로 씀), 이 옵션을 켜면 지금 스킨의 icon_set.json(메뉴 메이커에서 "스킨용으로 저장"한 것)이 겹치는 항목에서 기본보다 우선합니다.</div>
+      </div>
+      <div class="settings-row">
+        <label class="settings-check"><input type="checkbox" id="setSkinSoundPriority"> 스킨 사운드 우선</label>
+        <div class="settings-hint">아이콘과 같은 방식입니다 - 기본은 sound_set.json의 소리가 우선이고, 이 옵션을 켜면 지금 스킨의 sound_set.json(메뉴 메이커 사운드 탭에서 "스킨용으로 저장"한 것)이 겹치는 상황에서 기본보다 우선합니다.</div>
       </div>
       <div class="settings-divider"></div>
       <div class="settings-row">
@@ -198,11 +208,6 @@ function dfsBuildSettingsBodyHtml() {
       </div>
       <div class="settings-divider"></div>
       <div class="settings-row">
-        <label class="settings-check"><input type="checkbox" id="setReopenAtLastLocation"> 닫았던 탐색기를 다시 열 때 이전 위치에서 시작</label>
-        <div class="settings-hint">기본은 꺼짐입니다 - 닫혀 있던 탐색기를 작업표시줄에서 다시 열면 항상 루트에서 시작합니다. 켜두면 닫기 전 마지막으로 보고 있던 위치와 트리 펼침 상태를 그대로 이어갑니다. (작업표시줄 아이콘을 우클릭하면 이 설정과 무관하게 "이전 위치 열기"를 바로 고를 수 있습니다.)</div>
-      </div>
-      <div class="settings-divider"></div>
-      <div class="settings-row">
         <span class="settings-label">로컬 헬퍼(웹훅)</span>
         <button class="settings-button settings-button-neutral" id="setDownloadHelperBtn">웹훅 받기</button>
         <button class="settings-button" id="setKillHelperBtn">웹훅 종료</button>
@@ -223,10 +228,10 @@ function dfApplySettingsToPanel(root) {
   if ($("setAeroEnabled")) $("setAeroEnabled").checked = settings.aeroEnabled;
   if ($("setTrayIconCount")) $("setTrayIconCount").value = settings.trayIconCount;
   if ($("setSkinIconPriority")) $("setSkinIconPriority").checked = settings.skinIconPriority;
+  if ($("setSkinSoundPriority")) $("setSkinSoundPriority").checked = settings.skinSoundPriority;
   if ($("setFullscreenOnLoad")) $("setFullscreenOnLoad").checked = settings.fullscreenOnLoad;
   if ($("setCheckHelperOnLoad")) $("setCheckHelperOnLoad").checked = settings.checkHelperOnLoad;
   if ($("setCloseWithoutConfirm")) $("setCloseWithoutConfirm").checked = settings.closeWindowWithoutConfirm;
-  if ($("setReopenAtLastLocation")) $("setReopenAtLastLocation").checked = settings.reopenAtLastLocation;
   if ($("setKeepFullscreenOnNewTab")) $("setKeepFullscreenOnNewTab").checked = settings.keepFullscreenOnNewTab;
 }
 function applySearchPlaceholder() {
@@ -281,6 +286,11 @@ function dfInitSettingsWindow(handle) {
       applyTheme(settings.theme);
       // 요청 #121: 스킨이 바뀌면 그 스킨의 icon_set.json(있다면)을 기본과 다시 병합해서 반영한다.
       refreshMergedIconConfig();
+      // 사운드도 스킨별 sound_set.json이 있을 수 있으므로 아이콘과 똑같이 다시 병합한다.
+      refreshMergedSoundConfig();
+      // 요청: 메뉴 메이커가 이미 열려 있으면(싱글턴) 그 안의 "OO 스킨용으로 저장" 이름 표시도
+      // 새로고침(F5) 없이 바로 지금 스킨 이름으로 갱신한다(menu-maker.js의 handle.updateSkinName).
+      if (dfMenuMakerWinHandle && dfMenuMakerWinHandle.updateSkinName) dfMenuMakerWinHandle.updateSkinName(settings.theme);
     };
   }
   if ($("setSkinIconPriority")) {
@@ -288,6 +298,13 @@ function dfInitSettingsWindow(handle) {
       settings.skinIconPriority = $("setSkinIconPriority").checked;
       saveSettings();
       refreshMergedIconConfig();
+    };
+  }
+  if ($("setSkinSoundPriority")) {
+    $("setSkinSoundPriority").onchange = () => {
+      settings.skinSoundPriority = $("setSkinSoundPriority").checked;
+      saveSettings();
+      refreshMergedSoundConfig();
     };
   }
   $("setGithubLinks").onchange = () => { settings.githubLinksEnabled = $("setGithubLinks").checked; saveSettings(); };
@@ -300,12 +317,6 @@ function dfInitSettingsWindow(handle) {
   if ($("setCloseWithoutConfirm")) {
     $("setCloseWithoutConfirm").onchange = () => {
       settings.closeWindowWithoutConfirm = $("setCloseWithoutConfirm").checked;
-      saveSettings();
-    };
-  }
-  if ($("setReopenAtLastLocation")) {
-    $("setReopenAtLastLocation").onchange = () => {
-      settings.reopenAtLastLocation = $("setReopenAtLastLocation").checked;
       saveSettings();
     };
   }
@@ -490,6 +501,24 @@ async function loadSkinIconSetConfig(skinName) {
   const data = await fetchJsonQuiet(skinIconSetPath(skinName));
   return data || {};
 }
+// 사운드도 아이콘과 똑같이 스킨 폴더 안에 자기만의 sound_set.json을 둘 수 있다("스킨용으로
+// 저장" - 메뉴 메이커 사운드 탭). 이전에는 이 개념을 아이콘 탭에만 만들어두고 사운드 탭에는
+// 빼먹었던 것을 여기서 icon과 완전히 같은 패턴(경로/로드/병합/새로고침)으로 채운다.
+function skinSoundSetPath(skinName) {
+  return `_NIH_ROOT_/index/ui/theme/${AVAILABLE_THEMES.has(skinName) ? skinName : "win7"}/sound_set.json`;
+}
+async function loadSkinSoundSetConfig(skinName) {
+  const local = dfReadLocalOverride(dfLsSoundSkinKey(skinName));
+  if (local) return local;
+  const data = await fetchJsonQuiet(skinSoundSetPath(skinName));
+  return data || {};
+}
+// sound_set.json은 icon_set.json의 folders/extensions와 같은 모양(그냥 {시나리오키: 소리} 평평한
+// 객체 하나)이라 mergeIconMap을 그대로 재사용해도 되지만, 다른 이름(사운드)으로 부르는 쪽이 코드
+// 읽을 때 헷갈리지 않으므로 얇은 함수 하나로 감싼다.
+function mergeSoundSetConfigs(base, skin, skinPriority) {
+  return mergeIconMap(base, skin, skinPriority);
+}
 // 겹치지 않는 키는 양쪽 다 그대로 살아남고, 겹치는 키만 우선순위대로 하나를 고른다.
 function mergeIconMap(baseMap, skinMap, skinPriority) {
   const b = (baseMap && typeof baseMap === "object") ? baseMap : {};
@@ -524,10 +553,10 @@ function mergeIconSetConfigs(base, skin, skinPriority) {
 // icon_set.json도 미리 같이 읽어와 skinIcons/skinName으로 함께 건네준다(dfsOpenMenuMakerInWindow가
 // 창을 만들기 전에 한 번 호출해서 초기 데이터로 넘겨준다).
 async function loadAllMenuMakerConfigs() {
-  const [menu, icons, sounds, skinIcons, extRun] = await Promise.all([
-    loadMenuSetConfig(), loadIconSetConfig(), loadSoundSetConfig(), loadSkinIconSetConfig(settings.theme), loadExtensionRunSetConfig()
+  const [menu, icons, sounds, skinIcons, skinSounds, extRun] = await Promise.all([
+    loadMenuSetConfig(), loadIconSetConfig(), loadSoundSetConfig(), loadSkinIconSetConfig(settings.theme), loadSkinSoundSetConfig(settings.theme), loadExtensionRunSetConfig()
   ]);
-  return { menu: menu || { start: [], tray: [] }, icons: icons || {}, sounds: sounds || {}, skinIcons: skinIcons || {}, skinName: settings.theme, extRun: extRun || {} };
+  return { menu: menu || { start: [], tray: [] }, icons: icons || {}, sounds: sounds || {}, skinIcons: skinIcons || {}, skinSounds: skinSounds || {}, skinName: settings.theme, extRun: extRun || {} };
 }
 // 부팅 시 + 스킨/스킨아이콘우선 설정이 바뀔 때마다 다시 불러서 화면에 반영한다(applyCustomIconConfig
 // 이후 화면들을 다시 그려야 실제로 아이콘이 바뀐 게 보인다).
@@ -537,6 +566,19 @@ async function refreshMergedIconConfig() {
   renderNavPane();
   if (els.win && !els.win.classList.contains("closed")) renderContentPane();
   if (dfsDb) await dfsRenderDesktop();
+  // 요청 #144: 환경설정 창이 이미 열려 있으면(편집하는 동안 즉시 확인 가능하도록) 타이틀바
+  // 아이콘도 바로 다시 그린다 - 새로 열 때만 반영되면 편집 중엔 안 바뀐 것처럼 보인다.
+  if (dfSettingsWinHandle) {
+    const tbIcon = dfSettingsWinHandle.el.querySelector(".tb-icon");
+    if (tbIcon) tbIcon.innerHTML = resolveSettingsIconHtml();
+  }
+}
+// refreshMergedIconConfig와 완전히 같은 패턴 - 스킨/스킨사운드우선 설정이 바뀔 때마다(테마 변경,
+// 체크박스 토글, 메뉴 메이커에서 사운드를 스킨용으로 저장해 localStorage가 바뀔 때) 기본+스킨
+// sound_set.json을 다시 읽어 병합해서 soundSetConfig에 반영한다.
+async function refreshMergedSoundConfig() {
+  const [base, skin] = await Promise.all([loadSoundSetConfig(), loadSkinSoundSetConfig(settings.theme)]);
+  applySoundSetConfig(mergeSoundSetConfigs(base, skin, settings.skinSoundPriority));
   // 요청 #144: 환경설정 창이 이미 열려 있으면(편집하는 동안 즉시 확인 가능하도록) 타이틀바
   // 아이콘도 바로 다시 그린다 - 새로 열 때만 반영되면 편집 중엔 안 바뀐 것처럼 보인다.
   if (dfSettingsWinHandle) {
@@ -571,8 +613,8 @@ window.addEventListener("storage", (e) => {
     });
   } else if (e.key === dfLsIconKey() || e.key.indexOf(dfLsIconSkinPrefix()) === 0) {
     dfDebouncedLsRefresh("icon", refreshMergedIconConfig);
-  } else if (e.key === dfLsSoundKey()) {
-    dfDebouncedLsRefresh("sound", () => loadSoundSetConfig().then(applySoundSetConfig));
+  } else if (e.key === dfLsSoundKey() || e.key.indexOf(dfLsSoundSkinPrefix()) === 0) {
+    dfDebouncedLsRefresh("sound", refreshMergedSoundConfig);
   } else if (e.key === dfLsExtRunKey()) {
     dfDebouncedLsRefresh("extRun", () => loadExtensionRunSetConfig().then(applyExtensionRunSetConfig));
   }

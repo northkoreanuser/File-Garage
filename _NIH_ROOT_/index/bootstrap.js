@@ -16,6 +16,10 @@ async function main() {
     els.repoLink.innerHTML = `<a href="https://github.com/${owner}/${repo}" target="_blank" rel="noopener noreferrer">${owner}/${repo}</a>`;
   }
   settings = loadSettings();
+  // 요청: 부팅음 - 자동재생이 막혀 있으니 로드 후 첫 클릭/터치/키 입력에 딱 한 번만 재생한다.
+  // sound_set.json이 아직 비동기로 로딩 중이어도 상관없다(실제 재생 시점엔 이미 도착해 있는 게
+  // 보통이고, 설령 안 왔어도 그때 soundSetConfig에 값이 없으면 그냥 조용히 아무 일도 안 한다).
+  dfArmBootSoundOnFirstInteraction();
   dfSetupFullscreenAutoManagement();
   applyTheme(settings.theme);
   applySearchPlaceholder();
@@ -92,7 +96,7 @@ async function main() {
     // (menu_set.json/sound_set.json은 스킨에 있어도 무시하고 항상 기본 것만 쓴다).
     applyCustomIconConfig(mergeIconSetConfigs(cfg.icons, cfg.skinIcons, settings.skinIconPriority));
     // 상황별 알림음(sound_set.json) 반영 - state.js의 dfsPlaySound가 이 설정을 참조한다.
-    applySoundSetConfig(cfg.sounds);
+    applySoundSetConfig(mergeSoundSetConfigs(cfg.sounds, cfg.skinSounds, settings.skinSoundPriority));
     // 요청 #143: 확장자별 더블클릭 개별 설정(extension_run_set.json) 반영 - keyboard-and-activate.js의
     // activate()가 extensionRunActionFor()로 이 설정을 참조한다.
     applyExtensionRunSetConfig(cfg.extRun);

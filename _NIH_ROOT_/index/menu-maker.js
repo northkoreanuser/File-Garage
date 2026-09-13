@@ -149,6 +149,12 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   var rawSounds = (RAW.sounds && typeof RAW.sounds === "object") ? RAW.sounds : {};
   DATA.sounds = {};
   SOUND_SCENARIOS.forEach(function(s) { DATA.sounds[s.key] = typeof rawSounds[s.key] === "string" ? rawSounds[s.key] : ""; });
+  // 사운드도 아이콘과 똑같이 "스킨용으로 저장"이 가능해야 한다(이전엔 아이콘 탭에만 있었음) -
+  // opener(dfsOpenMenuMakerInWindow)가 RAW.skinSounds로 스킨 폴더의 sound_set.json도 같이 건네준다.
+  var rawSkinSounds = (RAW.skinSounds && typeof RAW.skinSounds === "object") ? RAW.skinSounds : {};
+  DATA.skinSounds = {};
+  SOUND_SCENARIOS.forEach(function(s) { DATA.skinSounds[s.key] = typeof rawSkinSounds[s.key] === "string" ? rawSkinSounds[s.key] : ""; });
+  DATA.soundForSkin = false; // "스킨용으로 저장" 체크 여부 - 지금 사운드 탭이 base/스킨 중 어느 데이터셋을 보여주는 중인지
   // 요청 #143: extension_run_set.json - { "확장자": "이니셜" } 객체를 {key: 확장자, action: 이니셜}
   // 배열로 풀어서 목록으로 다루다가(다른 탭들과 같은 습관), 저장할 때 다시 객체로 합친다
   // (serializeExtRunSet 참고). EXTENSION_RUN_ACTIONS(state.js)에 없는 값은 무시한다.
@@ -185,6 +191,20 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     }
     DATA.iconForSkin = flag;
   }
+  // setIconForSkin과 완전히 같은 패턴(DATA.sounds가 항상 "지금 화면에 보이는" 데이터셋을 가리키도록
+  // base<->skin을 맞바꿔치기) - 사운드 탭의 "스킨용으로 저장" 체크박스를 켜고 끌 때 쓴다.
+  function setSoundForSkin(flag) {
+    flag = !!flag;
+    if (flag === DATA.soundForSkin) return;
+    if (flag) {
+      DATA.baseSounds = DATA.sounds;
+      DATA.sounds = DATA.skinSounds;
+    } else {
+      DATA.skinSounds = DATA.sounds;
+      DATA.sounds = DATA.baseSounds;
+    }
+    DATA.soundForSkin = flag;
+  }
 
   // 요청 #137: 우클릭 위치에 따라 메뉴 메이커를 열 때 바로 해당 탭으로 들어가야 한다(트레이/시작
   // 메뉴 우클릭 -> 메뉴 탭, 파일/폴더 우클릭 -> 아이콘 탭) - 호출부(dfsOpenMenuMakerInWindow)가
@@ -209,8 +229,8 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   function setDirty() { state.dirty = true; persistLocalOverride(); }
   // 요청 #123: 편집(가져오기 포함, setDirty가 불리는 모든 곳)이 있을 때마다 "지금 탭"에 해당하는
   // 내용을 localStorage에 즉시 반영한다 - 아직 실제 파일로 저장/다운로드하지 않아도 이 브라우저
-  // 에서는 곧바로 테스트해볼 수 있다. 아이콘 탭은 "스킨용으로 저장" 체크 여부에 따라 base/스킨
-  // 중 지금 편집 중인 쪽의 키에만 쓴다.
+  // 에서는 곧바로 테스트해볼 수 있다. 아이콘/사운드 탭은 "스킨용으로 저장" 체크 여부에 따라
+  // base/스킨 중 지금 편집 중인 쪽의 키에만 쓴다.
   // 요청 #135로 메뉴 메이커가 별개의 탭이 아니라 이 문서 자신 안의 창이 된 뒤로는, storage
   // 이벤트가 저절로 메인 화면을 다시 그려주지 않는다(storage 이벤트는 값을 바꾼 문서 "자신"
   // 에게는 절대 오지 않고, 오직 같은 오리진의 "다른" 문서/탭에만 온다 - 이제 메인 화면과 메뉴
@@ -232,8 +252,8 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
       dfWriteLocalOverride(DATA.iconForSkin ? dfLsIconSkinKey(DATA.skinName) : dfLsIconKey(), serializeIconSet());
       dfDebouncedLsRefresh("icon", refreshMergedIconConfig);
     } else if (currentTab === "sound") {
-      dfWriteLocalOverride(dfLsSoundKey(), serializeSoundSet());
-      dfDebouncedLsRefresh("sound", () => loadSoundSetConfig().then(applySoundSetConfig));
+      dfWriteLocalOverride(DATA.soundForSkin ? dfLsSoundSkinKey(DATA.skinName) : dfLsSoundKey(), serializeSoundSet());
+      dfDebouncedLsRefresh("sound", refreshMergedSoundConfig);
     } else if (currentTab === "ext") {
       dfWriteLocalOverride(dfLsExtRunKey(), serializeExtRunSet());
       dfDebouncedLsRefresh("extRun", () => loadExtensionRunSetConfig().then(applyExtensionRunSetConfig));
@@ -506,6 +526,14 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     var fileBtn = document.createElement("button");
     fileBtn.textContent = "이미지 파일 선택";
     fileBtn.onclick = function() { fileInput.click(); };
+    // 요청: "모든 아이콘 채우는 곳에 /{repo}/_NIH_ROOT_/index/ui/icon/ 주소를 채우는 기능을 만든다" -
+    // 이 저장소의 기본 아이콘 폴더 경로를 한 번에 채워주는 버튼(dfRepoIconFolderPath, state.js).
+    // 뒤에 실제 파일명만 이어 적으면 되므로, 저장소 이름을 매번 손으로 치는 수고를 던다.
+    var repoIconBtn = document.createElement("button");
+    repoIconBtn.type = "button";
+    repoIconBtn.textContent = "저장소 아이콘 폴더";
+    repoIconBtn.title = "이 저장소의 기본 아이콘 폴더 경로를 채웁니다 - 뒤에 파일명만 이어 적으세요";
+    repoIconBtn.onclick = function() { setIcon(dfRepoIconFolderPath()); };
     var hint = document.createElement("div");
     hint.className = "mm-hint";
     hint.textContent = "이미지를 클립보드에 복사한 뒤 위 입력칸에 Ctrl+V로 붙여넣어도 base64로 바로 들어갑니다.";
@@ -513,6 +541,7 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     var actionsBtnRow = document.createElement("div");
     actionsBtnRow.style.display = "flex"; actionsBtnRow.style.gap = "6px";
     actionsBtnRow.appendChild(fileBtn);
+    actionsBtnRow.appendChild(repoIconBtn);
     iconActions.appendChild(actionsBtnRow);
     iconActions.appendChild(hint);
     iconRow.appendChild(iconPreview);
@@ -898,9 +927,17 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   }
   function renderSoundTabLists() {
     listsBodyEl.innerHTML =
+      '<div class="mm-section-head"><h3>스킨용 저장</h3></div>' +
+      '<label class="mm-check-row"><input type="checkbox" id="mmSoundForSkin"' + (DATA.soundForSkin ? ' checked' : '') + '> "' + escapeHtml(DATA.skinName) + '" 스킨용으로 저장</label>' +
+      '<div class="mm-section-sub">체크하면 지금부터 사운드 탭에서 편집/저장하는 내용이 기본 sound_set.json이 아니라 현재 스킨(' + escapeHtml(DATA.skinName) + ')만의 sound_set.json이 되고, 저장 버튼을 눌러도 시작 메뉴/트레이/아이콘/확장자는 저장하지 않습니다. 체크를 풀면 다시 기본 sound_set.json으로 돌아옵니다(편집 중이던 두 내용은 서로 지워지지 않고 각자 남아있습니다).</div>' +
       '<div class="mm-section-head"><h3>상황별 알림음</h3></div>' +
       '<div class="mm-section-sub">이 앱에서 소리를 낼 수 있는 모든 상황입니다. 항목을 추가/삭제할 수는 없고, 각 상황에 소리를 지정하거나 비워둘 수만 있습니다.</div>' +
       '<div class="mm-list" id="mmSoundList"></div>';
+    document.getElementById("mmSoundForSkin").onchange = function(e) {
+      setSoundForSkin(e.target.checked);
+      sel = null;
+      renderAll();
+    };
     renderSoundList(document.getElementById("mmSoundList"));
   }
   // 요청 #143: "도구" 목록(이니셜) - 화면에 등록된 도구와 그 이니셜을 안내로 보여준다("도구에
@@ -962,6 +999,56 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     dfMenuMakerLastTab = currentTab; // 요청 #148
     sel = null;
     updateTabButtons();
+    renderAll();
+  };
+  // 요청: "아이콘이랑 사운드 항목의 스킨 전용으로 생성, 스킨 변하면 바로 이름 반영되게 해 지금은
+  // F5 눌러야 반영된다" - 메뉴 메이커는 싱글턴이라 열어둔 채로 설정 창에서 스킨을 바꿀 수 있는데,
+  // DATA.skinName은 창을 "열 때" 한 번만 정해지므로 그동안은 예전 스킨 이름이 아이콘/사운드 탭의
+  // "OO 스킨용으로 저장" 문구에 그대로 남아 있었다(체크박스를 눌러도 옛 스킨 폴더에 저장돼버리는
+  // 버그였음 - 페이지를 새로고침(F5)해서 메뉴 메이커를 다시 열어야만 새 스킨 이름으로 열렸다).
+  // settings-startmenu.js의 setTheme onchange가 스킨이 바뀔 때마다 이 함수를 직접 불러, 새로고침
+  // 없이 그 자리에서 이름과 배경의 스킨별 아이콘/사운드 데이터를 새 스킨 것으로 다시 맞춘다.
+  handle.updateSkinName = async function(newSkinName) {
+    if (!newSkinName || newSkinName === DATA.skinName) return;
+    DATA.skinName = newSkinName;
+    var wasIconForSkin = DATA.iconForSkin, wasSoundForSkin = DATA.soundForSkin;
+    var freshIcons = {}, freshSounds = {};
+    try {
+      var res = await Promise.all([loadSkinIconSetConfig(newSkinName), loadSkinSoundSetConfig(newSkinName)]);
+      freshIcons = res[0] || {}; freshSounds = res[1] || {};
+    } catch (e) { /* 무시 - 실패해도 이름 표시만이라도 즉시 갱신된다 */ }
+    // DATA.skinName이 이미 바뀐 뒤이므로, 지금 renderAll()이 그리는 라벨은 항상 최신 스킨 이름을
+    // 쓴다. 아래는 "체크박스를 켜서 실제로 그 스킨 데이터를 편집하려 할 때" 옛 스킨 내용이 아니라
+    // 새 스킨의 내용이 뜨도록, DATA.iconFolders 등(iconForSkin이 true라 지금 화면에 그 데이터가
+    // 이미 떠 있는 경우)과 DATA.skinIconFolders 등(백그라운드에 대기 중인 경우) 둘 다 새 스킨
+    // 것으로 다시 채우는 부분이다 - dfInitMenuMakerWindow 맨 위의 마이그레이션/파싱과 같은 방식.
+    var legacy = typeof freshIcons.recycleBin === "string" ? freshIcons.recycleBin : "";
+    var freshFolders = (freshIcons.folders && typeof freshIcons.folders === "object")
+      ? Object.keys(freshIcons.folders).map(function(k) { return { key: k, icon: freshIcons.folders[k] }; }) : [];
+    var freshExts = (freshIcons.extensions && typeof freshIcons.extensions === "object")
+      ? Object.keys(freshIcons.extensions).map(function(k) { return { key: k, icon: freshIcons.extensions[k] }; }) : [];
+    var freshRepoRoot = typeof freshIcons.repoRoot === "string" ? freshIcons.repoRoot : "";
+    var freshRecycleEmpty = (typeof freshIcons.recycleBinEmpty === "string" && freshIcons.recycleBinEmpty) ? freshIcons.recycleBinEmpty : legacy;
+    var freshRecycleFull = (typeof freshIcons.recycleBinFull === "string" && freshIcons.recycleBinFull) ? freshIcons.recycleBinFull : legacy;
+    var freshDesktop = typeof freshIcons.desktop === "string" ? freshIcons.desktop : "";
+    var freshSettings = typeof freshIcons.settings === "string" ? freshIcons.settings : "";
+    var freshSoundMap = {};
+    SOUND_SCENARIOS.forEach(function(s) { freshSoundMap[s.key] = typeof freshSounds[s.key] === "string" ? freshSounds[s.key] : ""; });
+
+    if (wasIconForSkin) {
+      DATA.iconFolders = freshFolders; DATA.iconExts = freshExts;
+      DATA.iconRepoRoot = freshRepoRoot;
+      DATA.iconRecycleBinEmpty = freshRecycleEmpty; DATA.iconRecycleBinFull = freshRecycleFull;
+      DATA.iconDesktop = freshDesktop; DATA.iconSettings = freshSettings;
+    } else {
+      DATA.skinIconFolders = freshFolders; DATA.skinIconExts = freshExts;
+      DATA.skinIconRepoRoot = freshRepoRoot;
+      DATA.skinIconRecycleBinEmpty = freshRecycleEmpty; DATA.skinIconRecycleBinFull = freshRecycleFull;
+      DATA.skinIconDesktop = freshDesktop; DATA.skinIconSettings = freshSettings;
+    }
+    if (wasSoundForSkin) { DATA.sounds = freshSoundMap; } else { DATA.skinSounds = freshSoundMap; }
+
+    sel = null;
     renderAll();
   };
   // 요청 #148: "폴더/파일 우클릭 -> 메뉴 메이커(아이콘 탭), 그 확장자/폴더 설정을 자동으로 보여줌"
@@ -1124,11 +1211,32 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     });
     return JSON.stringify(out, null, 2);
   }
+  // 아이콘 탭과 사운드 탭 둘 다 "스킨용으로 저장"이 있을 수 있으므로, 둘 중 하나라도 체크돼
+  // 있으면 체크된 파일들만(스킨 폴더용으로) 저장하고 나머지(체크 안 된 것 포함, menu_set.json/
+  // extension_run_set.json은 애초에 스킨 개념이 없으므로 항상 제외)는 저장하지 않는다. 둘 다
+  // 체크돼 있으면 icon_set.json + sound_set.json 두 개를 한 번에 그 스킨 폴더용으로 저장한다.
+  function skinOnlySaveFiles() {
+    var out = [];
+    if (DATA.iconForSkin) out.push({ name: "icon_set.json", text: serializeIconSet() });
+    if (DATA.soundForSkin) out.push({ name: "sound_set.json", text: serializeSoundSet() });
+    return out;
+  }
+  // 저장 성공 토스트 문구를 스킨용 저장 여부에 맞춰 만든다 - 체크된 게 하나면 그 파일 이름만,
+  // 둘 다면 두 파일 다, 아무 것도 스킨용이 아니면 기존처럼 네 파일 전체를 언급한다.
+  function skinSaveNoticeText(methodLabel) {
+    if (!DATA.iconForSkin && !DATA.soundForSkin) {
+      return methodLabel + "(menu_set/icon_set/sound_set/extension_run_set.json) - 저장소의 _NIH_ROOT_/index/ 안에 덮어써 주세요";
+    }
+    var names = [];
+    if (DATA.iconForSkin) names.push("icon_set.json");
+    if (DATA.soundForSkin) names.push("sound_set.json");
+    return methodLabel + "(" + names.join(", ") + ', "' + DATA.skinName + '" 스킨용) - 저장소의 _NIH_ROOT_/index/ui/theme/' + DATA.skinName + '/ 안에 덮어써 주세요';
+  }
   function filesToSave() {
-    // 요청 #121: "스킨용으로 저장"이 체크된 상태면 icon_set.json 하나만 저장하고(그 스킨 폴더용),
-    // 시작 메뉴/트레이(menu_set.json)/사운드(sound_set.json)/확장자(extension_run_set.json)는
-    // 아예 저장하지 않는다.
-    if (DATA.iconForSkin) return [{ name: "icon_set.json", text: serializeIconSet() }];
+    // 요청 #121: "스킨용으로 저장"이 체크된 상태면(아이콘/사운드 둘 중 하나라도) 그 파일(들)만
+    // 저장하고(그 스킨 폴더용), 시작 메뉴/트레이(menu_set.json)/확장자(extension_run_set.json)와
+    // 체크 안 된 나머지 탭은 아예 저장하지 않는다.
+    if (DATA.iconForSkin || DATA.soundForSkin) return skinOnlySaveFiles();
     return [
       { name: "menu_set.json", text: serializeMenuSet() },
       { name: "icon_set.json", text: serializeIconSet() },
@@ -1156,9 +1264,7 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     return files.reduce(function(chain, file, idx) {
       return chain.then(function() { return blobDownloadOne(file, idx === 0 ? 0 : 150); });
     }, Promise.resolve()).then(function() {
-      showToast(DATA.iconForSkin
-        ? ('브라우저로 다운로드됨(icon_set.json, "' + DATA.skinName + '" 스킨용) - 저장소의 _NIH_ROOT_/index/ui/theme/' + DATA.skinName + '/ 안에 덮어써 주세요')
-        : "브라우저로 다운로드됨(menu_set/icon_set/sound_set/extension_run_set.json) - 저장소의 _NIH_ROOT_/index/ 안에 덮어써 주세요", { sticky: true });
+      showToast(skinSaveNoticeText("브라우저로 다운로드됨"), { sticky: true });
       state.dirty = false;
     });
   }
@@ -1178,9 +1284,7 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     }, Promise.resolve(false)).then(function(lastCancelled) {
       if (lastCancelled) { showToast("다운로드가 취소되었습니다."); return; }
       dfNoteWebhookDownloadSucceeded(); // 요청 #152
-      showToast(DATA.iconForSkin
-        ? ('웹훅으로 다운로드됨(icon_set.json, "' + DATA.skinName + '" 스킨용) - 저장소의 _NIH_ROOT_/index/ui/theme/' + DATA.skinName + '/ 안에 덮어써 주세요')
-        : "웹훅으로 다운로드됨(menu_set/icon_set/sound_set/extension_run_set.json) - 저장소의 _NIH_ROOT_/index/ 안에 덮어써 주세요", { sticky: true });
+      showToast(skinSaveNoticeText("웹훅으로 다운로드됨"), { sticky: true });
       state.dirty = false;
     });
   }

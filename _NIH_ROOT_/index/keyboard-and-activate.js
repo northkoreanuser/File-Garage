@@ -294,6 +294,10 @@ async function activate(it) {
 //   repo     -> 저장소에서 보기(GitHub의 blob 화면, openInRepo) - GitHub 바로가기 표시가 꺼져
 //               있으면(settings.githubLinksEnabled=false) 우클릭 메뉴에서도 안 보이는 기능이므로
 //               새 탭에서 열기로 대신 동작한다.
+//   hls      -> HLS 재생기로 열기(hls-player.js의 dfsOpenRepoFileInHlsPlayer) - 어떤 확장자를
+//               이 동작에 연결할지는 하드코딩돼 있지 않고, 항상 메뉴 메이커의 확장자 탭에서
+//               사용자가 직접 고른다(전역 더블클릭 기본값 목록에는 넣지 않는다 - editor와 같은
+//               이유, state.js의 EXTENSION_RUN_ACTIONS 주석 참고).
 function runDoubleClickAction(action, it) {
   switch (action) {
     case "text": viewOnPages(it); break;
@@ -301,6 +305,7 @@ function runDoubleClickAction(action, it) {
     case "repo": settings.githubLinksEnabled ? openInRepo(it) : viewAsHostedPage(it); break;
     case "newtab": viewAsHostedPage(it); break;
     case "editor": dfsOpenRepoFileInEditor(it); break;
+    case "hls": dfsOpenRepoFileInHlsPlayer(it); break;
     case "helper":
     default: localHelperOpen(it); break;
   }

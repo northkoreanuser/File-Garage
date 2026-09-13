@@ -122,8 +122,9 @@ function showShortcutDialog(defaults = {}, opts = {}) {
           <div class="sc-icon-preview" style="width:32px;height:32px;flex:0 0 auto;border:1px solid #d5d5d5;border-radius:6px;background-color:#fff;background-size:contain;background-position:center;background-repeat:no-repeat;"></div>
           <input type="text" class="confirm-input sc-icon-input" placeholder="아이콘 URL 또는 붙여넣기(Ctrl+V)로 이미지 삽입" style="flex:1;">
         </div>
-        <div style="display:flex;">
+        <div style="display:flex;gap:8px;">
           <button class="settings-button settings-button-neutral sc-icon-file-btn">이미지 파일 선택</button>
+          <button class="settings-button settings-button-neutral sc-icon-repo-btn" type="button" title="이 저장소의 기본 아이콘 폴더 경로를 채웁니다 - 뒤에 파일명만 이어 적으세요">저장소 아이콘 폴더</button>
         </div>
         <input type="file" accept="image/*" class="sc-icon-file-input" style="display:none">
         <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;cursor:pointer;">
@@ -191,6 +192,9 @@ function showShortcutDialog(defaults = {}, opts = {}) {
       }
     };
     overlay.querySelector(".sc-icon-file-btn").onclick = () => fileInput.click();
+    // 요청: "모든 아이콘 채우는 곳에 /{repo}/_NIH_ROOT_/index/ui/icon/ 주소를 채우는 기능을
+    // 만든다(바로가기, 파일 메이커 등등)" - menu-maker.js의 buildIconEditorField와 같은 버튼.
+    overlay.querySelector(".sc-icon-repo-btn").onclick = () => setIcon(dfRepoIconFolderPath());
     fileInput.onchange = () => {
       const file = fileInput.files && fileInput.files[0];
       if (!file) return;
