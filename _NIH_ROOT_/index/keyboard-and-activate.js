@@ -314,6 +314,7 @@ function runDoubleClickAction(action, it) {
     // dfsOpenMediaViewerWindow 참고).
     case "music": dfsOpenRepoFileInMediaViewer(it, "music"); break;
     case "photo": dfsOpenRepoFileInMediaViewer(it, "photo"); break;
+    case "pdf": dfsOpenRepoFileInMediaViewer(it, "pdf"); break;
     case "helper":
     default: localHelperOpen(it); break;
   }

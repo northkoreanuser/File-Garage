@@ -46,6 +46,7 @@ const DF_MEDIA_VIEWER_CSS = `
   .hls-video-wrap video { width: 100%; height: 100%; object-fit: contain; background: #000; }
   .hls-video-wrap img { max-width: 100%; max-height: 100%; object-fit: contain; }
   .hls-video-wrap audio { width: 88%; }
+  .hls-video-wrap iframe { width: 100%; height: 100%; border: 0; background: #fff; }
   .hls-status { flex: 0 0 auto; padding: 6px 10px; font: 12px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color: #ddd; background: #111; border-top: 1px solid #000; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `;
 
@@ -58,20 +59,23 @@ function resolveMediaViewerIconHtml(name, mode) {
   if (custom) return customImgIcon(custom, 16);
   if (mode === "music") return "\u{1F3B5}"; // 🎵
   if (mode === "photo") return "\u{1F5BC}\u{FE0F}"; // 🖼️
+  if (mode === "pdf") return "\u{1F4C4}"; // 📄
   return "\u{25B6}\u{FE0F}"; // ▶️ (video/hls 기본값, 예전 그대로)
 }
 
 // mode: "video"(HLS/일반 영상 - hls.js 필요할 수 있음) | "music"(오디오, <audio> 태그로 raw
-// 재생) | "photo"(이미지, <img> 태그로 raw 로드). it: 파일 아이템(이름/아이콘 결정용),
+// 재생) | "photo"(이미지, <img> 태그로 raw 로드) | "pdf"(문서, <iframe> 태그로 raw 로드 -
+// 브라우저 내장 PDF 뷰어가 알아서 렌더링). it: 파일 아이템(이름/아이콘 결정용),
 // url: 실제로 불러올 raw 주소.
 function dfsOpenMediaViewerWindow(it, mode, url) {
   dfInjectStyleOnce("dfHlsPlayerStyle", DF_MEDIA_VIEWER_CSS);
   let hlsInstance = null;
   const mediaTagHtml = mode === "photo" ? '<img alt="">'
     : mode === "music" ? '<audio controls autoplay></audio>'
+    : mode === "pdf" ? '<iframe title="PDF"></iframe>'
     : '<video controls autoplay playsinline></video>';
   const handle = dfCreateAppWindow({
-    title: it.name || (mode === "music" ? "음악 플레이어" : mode === "photo" ? "사진 뷰어" : "HLS 재생기"),
+    title: it.name || (mode === "music" ? "음악 플레이어" : mode === "photo" ? "사진 뷰어" : mode === "pdf" ? "PDF 뷰어" : "HLS 재생기"),
     icon: "\u{25B6}\u{FE0F}", // dfCreateAppWindow는 textContent로만 넣으므로 임시값 - 아래서 innerHTML로 덮어씀
     width: mode === "music" ? 480 : 900,
     height: mode === "music" ? 180 : 560,
@@ -101,6 +105,13 @@ function dfsOpenMediaViewerWindow(it, mode, url) {
     const audio = handle.bodyEl.querySelector("audio");
     audio.onerror = () => { statusEl.textContent = "오디오를 불러오지 못했습니다: " + url; };
     audio.src = url;
+    return handle;
+  }
+  if (mode === "pdf") {
+    // 브라우저 내장 PDF 뷰어(대부분의 크로미움/파이어폭스)가 <iframe src="raw.pdf">만으로
+    // 알아서 렌더링한다 - photo/music과 완전히 같은 "raw 링크만 물리면 끝" 꼼수.
+    const iframe = handle.bodyEl.querySelector("iframe");
+    iframe.src = url;
     return handle;
   }
 

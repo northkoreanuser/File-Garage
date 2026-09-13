@@ -358,7 +358,10 @@ const EXTENSION_RUN_ACTIONS = [
   // 모드에서만 탄다 - 음악/사진은 raw 주소를 <audio>/<img>에 그대로 물릴 뿐이라 hls.js가 필요
   // 없음). 이 확장자 탭에서도 hls처럼 어떤 확장자와도 미리 엮여 있지 않으므로 사용자가 직접 연결.
   { key: "music", label: "음악 플레이어로 열기" },
-  { key: "photo", label: "사진 뷰어로 열기" }
+  { key: "photo", label: "사진 뷰어로 열기" },
+  // music/photo와 완전히 같은 논리 - pdf도 raw 주소를 <iframe>에 그대로 물리면 브라우저가
+  // 알아서 렌더링하므로(hls.js 같은 조립 불필요) dfsOpenMediaViewerWindow에 mode만 추가.
+  { key: "pdf", label: "PDF 뷰어로 열기" }
 ];
 function fileExtOf(name) {
   const dot = (name || "").lastIndexOf(".");
