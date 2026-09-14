@@ -1,6 +1,6 @@
 ﻿; ============================================================
 ; 커스텀 캡쳐 툴 (AutoHotkey v1)
-; PrintScreen 누르면 "현재 활성 창 전체"를 PNG로 캡쳐해서
+; Ctrl + PrintScreen 누르면 "현재 활성 창 전체"를 PNG로 캡쳐해서
 ; 사용자가 지정한 폴더에 01.png ~ 99.png 이름으로 저장.
 ; 저장 폴더는 GUI에서 직접 선택하며, 자동으로 만들어주지 않음 -
 ; 선택된 폴더가 나중에 사라지면 캡쳐 시점에 다시 선택창을 띄움.
@@ -30,7 +30,7 @@ Gui, +LastFound
 Gui, Add, Text, x10 y12 w90, 캡쳐 저장 폴더:
 Gui, Add, Edit, x105 y10 w300 h22 vFolderPathText ReadOnly, % CaptureDir
 Gui, Add, Button, x410 y9 w90 h24 gSelectFolderBtn, 폴더 선택...
-Gui, Add, Text, x10 y46 w490, 단축키: PrintScreen → 현재 활성 창 전체 캡쳐 (01.png ~ 99.png 순서로 저장)
+Gui, Add, Text, x10 y46 w490, 단축키: Ctrl + PrintScreen → 현재 활성 창 전체 캡쳐 (01.png ~ 99.png 순서로 저장)
 Gui, Show, w512 h70, 커스텀 캡쳐 툴
 MainGuiHwnd := WinExist()
 
@@ -38,7 +38,7 @@ global pToken := 0
 Gdip_Startup()
 OnExit("OnScriptExit")
 
-TrayTip, 캡쳐 툴 시작됨, PrintScreen: 활성 창 캡쳐, 3
+TrayTip, 캡쳐 툴 시작됨, Ctrl + PrintScreen: 활성 창 캡쳐, 3
 return
 
 ; ===================== GUI 이벤트 =====================
