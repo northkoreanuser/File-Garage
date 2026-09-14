@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title></title>
+<link rel="icon" href="favicon.ico">
+<style>
+  :root {
+    --ink: #171410;
+    --paper: #efe9df;
+    --brass: #b08a4e;
+    --brass-dim: #8a6c3d;
+    --line: rgba(239,233,223,0.16);
+    --panel: #201b15;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    background:
+      radial-gradient(circle at 20% 20%, #221d16 0%, transparent 55%),
+      radial-gradient(circle at 80% 80%, #1c1712 0%, transparent 55%),
+      var(--ink);
+    font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    color: var(--paper);
+    padding: 24px;
+  }
+
+  /* ===== 뷰어 ===== */
+  .viewer { width: 100%; max-width: 720px; }
+  .viewer.empty { display: none; }
+
+  .page-description {
+    margin: -4px 0 18px;
+    padding: 0 2px;
+    font-size: 22px;
+    line-height: 1.4;
+    font-style: italic;
+    font-weight: 400;
+    color: var(--paper);
+  }
+  .page-description:empty { display: none; }
+
+  .section-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .section-tab {
+    flex: 0 0 auto;
+    background: none;
+    border: 1px solid var(--line);
+    color: rgba(239,233,223,0.6);
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 13px;
+    font-style: italic;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .section-tab.active { color: var(--brass); border-color: var(--brass); }
+
+  .slider-container {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    overflow: hidden;
+    border-radius: 4px;
+    background: #0d0b08;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(176,138,78,0.25);
+  }
+
+  .slider-track {
+    display: flex;
+    height: 100%;
+    transition: transform 0.55s cubic-bezier(.65,0,.35,1);
+    will-change: transform;
+  }
+
+  .slide { min-width: 100%; height: 100%; position: relative; }
+
+  .slide img {
+    width: 100%; height: 100%; object-fit: contain; display: block;
+    user-select: none; -webkit-user-drag: none;
+  }
+
+  /* 이미지 자체 설명(caption): 좌우 이동 버튼과 같은 톤(어두운 반투명 + 블러)의 박스에 담아 좌측 하단에 고정 */
+  .slide-caption {
+    position: absolute; left: 14px; bottom: 14px;
+    max-width: calc(100% - 28px);
+    padding: 6px 14px;
+    border-radius: 6px;
+    background: rgba(13,11,8,0.55);
+    backdrop-filter: blur(3px);
+    border: 1px solid var(--line);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--paper);
+    pointer-events: none;
+    z-index: 15;
+  }
+  .slide-caption:empty { display: none; }
+  .slide-caption a { pointer-events: auto; color: var(--brass); text-decoration: underline; }
+
+  /* 섹션/전체 경계를 넘을 때 이미지 중앙에 방향 화살표를 표시.
+     좌우 이동 버튼(.slider-btn)과 같은 톤(어두운 반투명 + 블러)으로 통일하고, 페이드 없이 즉시 나타났다 즉시 사라짐.
+     크기는 전부 동일 — 정상 진행(→/←)과 전체 갤러리 랩어라운드(<</>>)는 글자 모양(홑화살표 vs 겹화살표)으로만 구분함. */
+  .edge-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 20;
+    pointer-events: none;
+    padding: 6px 18px;
+    border-radius: 6px;
+    background: rgba(13,11,8,0.55);
+    backdrop-filter: blur(3px);
+    border: 1px solid var(--line);
+    color: var(--paper);
+    font-size: clamp(18px, 4.5vw, 32px);
+    line-height: 1;
+    opacity: 0;
+  }
+  .edge-label.show { opacity: 1; }
+
+  /* 마우스를 안 대고 있으면 안 보이다가, 컨테이너 위에서 움직이면 나타나고,
+     가만히(idle) 있으면 다시 사라짐 — 좌우 버튼 둘 다 .slider-container.controls-visible일 때만 보임 */
+  .slider-btn {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    background: rgba(13,11,8,0.55);
+    backdrop-filter: blur(3px);
+    color: var(--paper);
+    border: 1px solid var(--line);
+    width: 42px; height: 42px;
+    cursor: pointer; font-size: 16px; border-radius: 50%;
+    z-index: 10;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, background 0.2s, border-color 0.2s, transform 0.15s;
+  }
+  .slider-container.controls-visible .slider-btn,
+  .zoom-overlay.controls-visible .slider-btn {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .slider-btn:hover { background: rgba(176,138,78,0.85); border-color: var(--brass); color: #171410; }
+  .slider-btn:active { transform: translateY(-50%) scale(0.92); }
+  .slider-btn:focus-visible { opacity: 1; pointer-events: auto; outline: 2px solid var(--brass); outline-offset: 2px; }
+  .prev-btn { left: 14px; }
+  .next-btn { right: 14px; }
+
+  /* 전체화면 버튼: 우상단 고정, 다른 슬라이더 버튼과 같은 idle 표시/숨김 규칙(.controls-visible)을 그대로 공유 */
+  .slider-btn.fullscreen-btn {
+    top: 10px; right: 10px; left: auto; transform: none;
+    width: 34px; height: 34px; font-size: 15px; border-radius: 6px;
+  }
+  .slider-btn.fullscreen-btn:active { transform: scale(0.92); }
+
+  .dots { display: flex; justify-content: center; gap: 8px; margin-top: 14px; }
+  .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: rgba(239,233,223,0.28);
+    border: none; cursor: pointer; padding: 0;
+    transition: background 0.25s, width 0.25s;
+  }
+  .dot.active { background: var(--brass); width: 20px; border-radius: 3px; }
+  .dot:focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
+
+  /* 전체 이미지(모든 폴더 통틀어) 미리보기 썸네일 스트립 */
+  .thumbs {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+  }
+  .thumbs:empty { display: none; }
+  .thumbs::-webkit-scrollbar { height: 4px; }
+  .thumbs::-webkit-scrollbar-thumb { background: var(--brass-dim); border-radius: 2px; }
+
+  .thumbs .thumb {
+    flex: 0 0 auto;
+    width: 64px;
+    height: 44px;
+    border-radius: 3px;
+    overflow: hidden;
+    cursor: pointer;
+    border: 1px solid transparent;
+    opacity: 0.5;
+    transition: opacity 0.2s, border-color 0.2s;
+    background: none;
+    padding: 0;
+  }
+  .thumbs .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumbs .thumb.active { opacity: 1; border-color: var(--brass); }
+  .thumbs .thumb:hover { opacity: 0.85; }
+  .thumbs .thumb:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+  /* 확대: 브라우저 전체화면(F11류)이 아니라 DOM 오버레이로 이미지를 탭 전체에 크게 덮어씌우기만 함 */
+  .zoom-overlay {
+    position: fixed; inset: 0; z-index: 1100;
+    background: rgba(8,7,5,0.94);
+    display: none;
+    align-items: center; justify-content: center;
+  }
+  .zoom-overlay.show { display: flex; }
+
+  /* object-fit:contain 특성상 이미지가 레터박스로 줄어드는데, 버튼/캡션/닫기 버튼이 화면 전체
+     구석이 아니라 실제로 보이는 이미지 영역 안쪽 구석에 붙도록, 이미지 크기에 딱 맞게 줄어드는
+     래퍼(zoom-frame)를 기준으로 위치를 잡음 */
+  .zoom-frame {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    max-width: 100%;
+    max-height: 100%;
+  }
+  .zoom-frame img {
+    display: block;
+    max-width: 100vw;
+    max-height: 100vh;
+    width: auto; height: auto;
+    object-fit: contain;
+    user-select: none; -webkit-user-drag: none;
+  }
+  /* .slider-btn을 같이 붙여서 다른 버튼들과 동일한 idle 표시/숨김을 그대로 물려받음(opacity/pointer-events/transition) —
+     위치·크기·모양만 여기서 덮어씀. transform은 .slider-btn의 top:50%용 translateY(-50%)를 상쇄해야 함. */
+  .zoom-close-btn {
+    position: absolute; top: 14px; right: 14px; z-index: 1101;
+    transform: none;
+    background: rgba(13,11,8,0.55); backdrop-filter: blur(3px);
+    color: var(--paper); border: 1px solid var(--line);
+    width: 34px; height: 34px; border-radius: 50%;
+    font-size: 18px; line-height: 1; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .zoom-close-btn:hover { background: rgba(176,138,78,0.85); border-color: var(--brass); color: #171410; }
+  .zoom-close-btn:active { transform: scale(0.92); }
+
+  /* 확대 화면에서도 축소판과 동일하게 좌측 하단, 버튼과 같은 톤의 박스에 caption 표시 */
+  .zoom-caption {
+    position: absolute; left: 14px; bottom: 14px;
+    max-width: calc(100% - 28px);
+    padding: 6px 14px;
+    border-radius: 6px;
+    background: rgba(13,11,8,0.55);
+    backdrop-filter: blur(3px);
+    border: 1px solid var(--line);
+    font-style: italic;
+    font-size: 14px;
+    color: var(--paper);
+    pointer-events: none;
+    z-index: 1090;
+  }
+  .zoom-caption:empty { display: none; }
+  .zoom-caption a { pointer-events: auto; color: var(--brass); text-decoration: underline; }
+  .zoom-frame .edge-label { z-index: 1095; } /* 프레임 안에서는 캡션(1090)보다 위에 오도록 */
+
+  .info { margin-top: 16px; padding: 0 2px; }
+  .info h2 { font-size: 18px; font-weight: 400; font-style: italic; margin: 0 0 4px; color: var(--paper); }
+  .info p { font-size: 13px; line-height: 1.6; color: rgba(239,233,223,0.65); margin: 0; }
+  .info .count {
+    display: block; margin-top: 8px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px; letter-spacing: 0.05em; color: var(--brass);
+  }
+
+  /* file:// 안내 */
+  .notice {
+    display: none;
+    max-width: 420px;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.7;
+    color: rgba(239,233,223,0.55);
+    font-style: italic;
+  }
+  .notice code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-style: normal;
+    color: var(--brass);
+    background: rgba(176,138,78,0.1);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .notice.show { display: block; }
+
+  .empty-hint {
+    display: none;
+    width: 320px;
+    max-width: 80vw;
+    aspect-ratio: 3 / 2;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    border: 2px dashed var(--line);
+    border-radius: 8px;
+    color: rgba(239,233,223,0.35);
+    font-size: 13px;
+    font-style: italic;
+  }
+  .empty-hint.show { display: flex; }
+
+  /* 드래그 오버레이 */
+  .drop-overlay {
+    position: fixed; inset: 0; z-index: 900;
+    pointer-events: none; opacity: 0; transition: opacity 0.15s;
+    border: 3px dashed var(--brass);
+    margin: 16px; border-radius: 8px;
+    background: rgba(23,20,16,0.35);
+  }
+  .drop-overlay.active { opacity: 1; }
+
+  /* ===== 모달 ===== */
+  .modal-backdrop {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(10,8,6,0.72);
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .modal-backdrop.show { display: flex; }
+
+  .modal {
+    width: 100%; max-width: 480px;
+    max-height: 84vh;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: 0 40px 80px -20px rgba(0,0,0,0.8);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  .modal-body { padding: 20px 20px 4px; overflow-y: auto; }
+
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--brass);
+    margin-bottom: 6px;
+    font-style: italic;
+  }
+  .field input[type="text"],
+  .field textarea {
+    width: 100%;
+    background: rgba(239,233,223,0.05);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    color: var(--paper);
+    font-family: inherit;
+    font-size: 14px;
+    padding: 9px 11px;
+    resize: vertical;
+  }
+  .field textarea { min-height: 56px; }
+  .field input[type="text"]:focus,
+  .field textarea:focus { outline: none; border-color: var(--brass); }
+
+  .image-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
+  .image-row {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(239,233,223,0.03);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 6px;
+    cursor: grab;
+  }
+  .image-row.dragging { opacity: 0.4; }
+  .image-row .thumb {
+    width: 52px; height: 36px; flex: 0 0 auto;
+    border-radius: 3px; overflow: hidden; background: #0d0b08;
+  }
+  .image-row .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .image-row .filename {
+    flex: 0 0 auto; width: 56px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 10px;
+    color: rgba(239,233,223,0.4);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .image-row input[type="text"] {
+    flex: 1 1 auto;
+    background: rgba(239,233,223,0.05);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    color: var(--paper);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 7px 9px;
+  }
+  .image-row input[type="text"]:focus { outline: none; border-color: var(--brass); }
+
+  .folder-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+  .folder-row {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(239,233,223,0.03);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 9px 12px;
+    font-size: 13px;
+    cursor: grab;
+  }
+  .folder-row.dragging { opacity: 0.4; }
+  .folder-row .handle { color: var(--brass-dim); font-size: 11px; }
+
+  .modal-actions {
+    display: flex; justify-content: flex-end; gap: 8px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--line);
+  }
+  .btn {
+    font-family: inherit;
+    font-size: 13px;
+    padding: 8px 18px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px solid var(--line);
+    background: none;
+    color: rgba(239,233,223,0.7);
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+  }
+  .btn:hover { border-color: var(--brass); color: var(--paper); }
+  .btn.primary { background: var(--brass); border-color: var(--brass); color: #171410; font-weight: 600; }
+  .btn.primary:hover { background: #c49a5c; color: #171410; }
+
+  @media (prefers-reduced-motion: reduce) { .slider-track { transition: none; } }
+  @media (max-width: 480px) {
+    .slider-btn { width: 36px; height: 36px; font-size: 14px; }
+    .thumbs .thumb { width: 52px; height: 36px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="viewer empty" id="viewer">
+  <p class="page-description" id="pageDescription"></p>
+  <div class="section-tabs" id="sectionTabs"></div>
+  <div class="slider-container" id="sliderContainer">
+    <div class="slider-track" id="sliderTrack"></div>
+    <div class="edge-label" id="edgeLabel"></div>
+    <button class="slider-btn prev-btn" id="prevBtn" aria-label="이전">&#10094;</button>
+    <button class="slider-btn next-btn" id="nextBtn" aria-label="다음">&#10095;</button>
+    <button class="slider-btn fullscreen-btn" id="fullscreenBtn" aria-label="확대">&#10530;</button>
+  </div>
+  <div class="dots" id="dots"></div>
+  <div class="thumbs" id="thumbs"></div>
+  <div class="info">
+    <h2 id="sectionTitle"></h2>
+    <p id="sectionDesc"></p>
+    <span class="count" id="counter"></span>
+  </div>
+</div>
+
+<p class="notice" id="notice">
+  file:// 로 열려 있어 데이터를 불러올 수 없습니다.<br>
+  폴더에서 터미널을 열고 <code>python3 -m http.server</code> 실행 후<br>
+  <code>http://localhost:8000</code> 으로 접속해주세요.
+</p>
+
+<div class="empty-hint" id="emptyHint">폴더를 이 화면에 드래그하세요</div>
+
+<div class="drop-overlay" id="dropOverlay"></div>
+
+<div class="zoom-overlay" id="zoomOverlay">
+  <div class="zoom-frame" id="zoomFrame">
+    <img id="zoomImage" src="" alt="">
+    <div class="edge-label" id="zoomEdgeLabel"></div>
+    <div class="zoom-caption" id="zoomCaption"></div>
+    <button class="slider-btn prev-btn" id="zoomPrevBtn" aria-label="이전">&#10094;</button>
+    <button class="slider-btn next-btn" id="zoomNextBtn" aria-label="다음">&#10095;</button>
+    <button class="zoom-close-btn slider-btn" id="zoomCloseBtn" aria-label="닫기">&times;</button>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="imageModalBackdrop">
+  <div class="modal">
+    <div class="modal-body">
+      <div class="field">
+        <label>제목</label>
+        <input type="text" id="setTitleInput" placeholder="예: 외모">
+      </div>
+      <div class="field">
+        <label>설명</label>
+        <textarea id="setDescInput" placeholder="이 세트에 대한 설명"></textarea>
+      </div>
+      <div class="field">
+        <label>이미지 (드래그로 순서 변경 · 각 항목에 개별 설명 입력 가능)</label>
+        <div class="image-rows" id="imageRows"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="imageModalCancel">취소</button>
+      <button class="btn primary" id="imageModalSave">order.json 다운로드</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="folderModalBackdrop">
+  <div class="modal">
+    <div class="modal-body">
+      <div class="field">
+        <label>제목</label>
+        <input type="text" id="folderTitleInput" placeholder="예: 캐릭터 커스터마이징">
+      </div>
+      <div class="field">
+        <label>서브타이틀</label>
+        <input type="text" id="folderSubtitleInput" placeholder="브라우저 탭 제목에 '제목 - 서브타이틀'로 표시">
+      </div>
+      <div class="field">
+        <label>설명</label>
+        <textarea id="folderDescInput" placeholder="이 컬렉션에 대한 설명 (웹페이지 상단에 표시)"></textarea>
+      </div>
+      <div class="field">
+        <label>폴더 순서 (드래그로 변경)</label>
+        <div class="folder-rows" id="folderRows"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="folderModalCancel">취소</button>
+      <button class="btn primary" id="folderModalSave">folders.json 다운로드</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(()=>{const e=document.getElementById("viewer"),t=document.getElementById("notice"),n=document.getElementById("emptyHint"),o=document.getElementById("sectionTabs"),i=document.getElementById("sliderTrack"),l=document.getElementById("nextBtn"),c=document.getElementById("prevBtn"),s=document.getElementById("fullscreenBtn"),a=document.getElementById("dots"),r=document.getElementById("thumbs"),d=document.getElementById("sliderContainer"),u=document.getElementById("sectionTitle"),m=document.getElementById("sectionDesc"),f=document.getElementById("counter"),g=document.getElementById("pageDescription"),p=document.getElementById("edgeLabel"),h=document.getElementById("zoomOverlay"),v=document.getElementById("zoomFrame"),E=document.getElementById("zoomImage"),L=document.getElementById("zoomCloseBtn"),y=document.getElementById("zoomPrevBtn"),w=document.getElementById("zoomNextBtn"),I=document.getElementById("zoomEdgeLabel"),B=document.getElementById("zoomCaption");let b=[],k=[],T=0,x=!1,C=null,$=null,N=document.title;function M(e){return String(e).padStart(2,"0")}function R(){const e=k[T].sectionIndex,t=b[e],n=function(e){return k.reduce((t,n,o)=>(n.sectionIndex===e&&t.push(o),t),[])}(e),o=n.indexOf(T);return{si:e,sec:t,bounds:n,localIdx:o}}function D(){if(!k.length)return;const{si:e,sec:t,bounds:n,localIdx:o}=R();document.title=`${t.title} (${M(e+1)}/${M(b.length)} - ${M(o+1)}/${M(n.length)})`}const A=[p,I];function H(e){A.forEach(t=>t.classList.toggle("show",e))}function U(){E.src=k[T].url,B.innerHTML=z(k[T].caption||"")}function j(e){return e.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}function O(e){return"["===e||"{"===e}function X(e){return"]"===e||"}"===e}function z(e){if(!e)return"";const t=/^https?:\/\/[^\s\[\]{}()]+/;let n=0,o="";const i=e.length;for(;n<i;)if(O(e[n])){let l=n;for(;l<i&&O(e[l]);)l++;const c=l-n,s=e.slice(l).match(t);if(!s){o+=j(e[n]),n+=1;continue}const a=s[0];let r=l+a.length,d=0;for(;X(e[r+d]);)d++;if(0===d){o+=j(e[n]),n+=1;continue}const u=r+d;if(1===c&&1===d){const t=e.slice(u).match(/^\(([^()]*)\)/);if(t){const e=t[1]||a;o+=`<a href="${j(a)}" target="_blank" rel="noopener noreferrer">${j(e)}</a>`,n=u+t[0].length}else o+=`<a href="${j(a)}" target="_blank" rel="noopener noreferrer">${j(a)}</a>`,n=u}else if(c>1&&d>1)o+=j(e.slice(n,u)),n=u;else{const t=e.slice(n,u);o+=`<a href="${j(a)}" target="_blank" rel="noopener noreferrer">${j(t)}</a>`,n=u}}else o+=j(e[n]),n+=1;return o}async function S(e){const t=await fetch(e,{cache:"no-store"});if(!t.ok)throw new Error("not found");return t.json()}function P(e){return(e||[]).map(e=>"string"==typeof e?{file:e,caption:""}:{file:e.file,caption:e.caption||""})}function F(){if(!k.length)return;i.style.transform=`translateX(-${100*T}%)`;const{si:e,sec:t,bounds:n,localIdx:l}=R();Array.from(o.children).forEach((t,n)=>t.classList.toggle("active",n===e)),a.innerHTML="",n.forEach((e,t)=>{const n=document.createElement("button");n.className="dot"+(t===l?" active":""),n.addEventListener("click",()=>_(e)),a.appendChild(n)}),r.innerHTML="",n.forEach((e,t)=>{const n=document.createElement("button");n.className="thumb"+(t===l?" active":""),n.setAttribute("aria-label",`${t+1}번째 이미지로 이동`);const o=document.createElement("img");o.src=k[e].url,o.loading="lazy",o.alt="",n.appendChild(o),n.addEventListener("click",()=>_(e)),r.appendChild(n),t===l&&n.scrollIntoView({behavior:"smooth",inline:"center",block:"nearest"})}),u.textContent=t.title,m.innerHTML=z(t.description||""),m.style.display=t.description?"":"none",f.textContent=`${M(e+1)}/${M(b.length)} · ${M(l+1)}/${M(n.length)}`,x&&C?(A.forEach(e=>{e.textContent=C}),H(!0)):H(!1),h.classList.contains("show")&&(U(),D())}function _(e,t){x=!0;const n=k.length?k[T].sectionIndex:null;T=(e+k.length)%k.length;const o=k.length?k[T].sectionIndex:null;C=t&&null!==n&&o!==n?"next"===t&&n===b.length-1&&0===o?"<<":"prev"===t&&0===n&&o===b.length-1?">>":"next"===t?"→":"←":null,$&&(clearTimeout($),$=null),C&&($=setTimeout(()=>{C=null,H(!1),$=null},550)),F()}function G(){_(T+1,"next")}function W(){_(T-1,"prev")}function J(e,t){t-e.left<e.width/2?W():G()}function V(){h.classList.remove("show"),document.title=N}function q(){h.classList.contains("show")?V():k.length&&(U(),D(),h.classList.add("show"))}s.addEventListener("click",q),L.addEventListener("click",V),[c,y].forEach(e=>e.addEventListener("click",W)),[l,w].forEach(e=>e.addEventListener("click",G)),h.addEventListener("click",e=>{te(e.target)||J(h.getBoundingClientRect(),e.clientX)}),window.addEventListener("keydown",e=>{k.length&&(["INPUT","TEXTAREA"].includes(document.activeElement.tagName)||("Escape"!==e.key?"f"!==e.key&&"F"!==e.key?("ArrowLeft"!==e.key&&"a"!==e.key&&"A"!==e.key||W(),"ArrowRight"!==e.key&&"d"!==e.key&&"D"!==e.key||G()):q():h.classList.contains("show")&&V()))});let K=0,Q=0,Y=!1,Z=!1,ee=null;function te(e){return!!(e&&e.closest&&e.closest(".slider-btn"))}function ne(e){Y=!0,K=e,Q=0,Z=!1,i.style.transition="none"}function oe(e){if(!Y)return;Q=e-K,!Z&&Math.abs(Q)>6&&(Z=!0,ae.show(),ee&&clearInterval(ee),ee=setInterval(()=>{Y&&ae.show()},500));const t=Q/d.clientWidth*100;i.style.transform=`translateX(calc(-${100*T}% + ${t}%))`}function ie(e){if(!Y)return;Y=!1,ee&&(clearInterval(ee),ee=null),i.style.transition="";const t=.15*d.clientWidth;if(Q>t)W();else if(Q<-t)G();else{let t=K+Q;e&&(e.changedTouches&&e.changedTouches.length?t=e.changedTouches[0].clientX:"number"==typeof e.clientX&&(t=e.clientX)),J(d.getBoundingClientRect(),t)}}function le(){Y&&(Y=!1,Z=!1,ee&&(clearInterval(ee),ee=null),i.style.transition="",F())}function ce(e){let t=null,n=!1;function o(){e.classList.add("controls-visible"),t&&(clearTimeout(t),t=null),n||(t=setTimeout(()=>{e.classList.remove("controls-visible"),t=null},1800))}return{show:o,hideNow:function(){t&&(clearTimeout(t),t=null),e.classList.remove("controls-visible")},setOverButton:function(e){n=e,o()}}}function se(e,t,n){e.addEventListener("mouseenter",t.show),e.addEventListener("mousemove",t.show),e.addEventListener("mouseleave",t.hideNow),e.addEventListener("touchstart",t.show,{passive:!0}),n.forEach(e=>{e.addEventListener("mouseenter",()=>t.setOverButton(!0)),e.addEventListener("mouseleave",()=>t.setOverButton(!1))})}d.addEventListener("touchstart",e=>{te(e.target)||ne(e.touches[0].clientX)},{passive:!0}),d.addEventListener("touchmove",e=>oe(e.touches[0].clientX),{passive:!0}),d.addEventListener("touchend",e=>ie(e)),d.addEventListener("mousedown",e=>{te(e.target)||(e.preventDefault(),ne(e.clientX))}),window.addEventListener("mousemove",e=>{!Y||1&e.buttons?oe(e.clientX):le()}),window.addEventListener("mouseup",e=>ie(e)),window.addEventListener("blur",le),document.addEventListener("visibilitychange",()=>{document.hidden&&le()});const ae=ce(d);se(d,ae,[c,l,s]),se(v,ce(h),[y,w,L]),async function(){let e=[];try{const t=await S("folders.json");Array.isArray(t.folders)&&t.folders.length&&(e=t.folders.map(e=>"string"==typeof e?e:e.path)),t.title&&(document.title=t.subtitle?`${t.title} - ${t.subtitle}`:t.title,N=document.title),g.innerHTML=z(t.description||"")}catch(e){}const t=[];for(const n of e)try{const e=await S(`${encodeURIComponent(n)}/order.json`),o=P(e.images).map(e=>({url:`${n}/${encodeURIComponent(e.file)}`,caption:e.caption}));if(!o.length)continue;t.push({path:n,title:e.title||n,description:e.description||"",images:o})}catch(e){}return t}().then(l=>{b=l,b.length?(k=[],b.forEach((e,t)=>{e.images.forEach(e=>k.push({sectionIndex:t,url:e.url,caption:e.caption}))}),k.length?(e.classList.remove("empty"),i.innerHTML="",k.forEach(e=>{const t=document.createElement("div");t.className="slide";const n=document.createElement("img");n.src=e.url,n.loading="lazy",t.appendChild(n);const o=document.createElement("div");o.className="slide-caption",o.innerHTML=z(e.caption||""),t.appendChild(o),i.appendChild(t)}),o.innerHTML="",b.forEach((e,t)=>{const n=document.createElement("button");n.className="section-tab",n.textContent=e.title,n.addEventListener("click",()=>{const e=k.findIndex(e=>e.sectionIndex===t);-1!==e&&_(e)}),o.appendChild(n)}),F()):n.classList.add("show")):"file:"===location.protocol?t.classList.add("show"):n.classList.add("show")}).catch(()=>{"file:"===location.protocol?t.classList.add("show"):n.classList.add("show")});const re=document.getElementById("dropOverlay");let de=0;function ue(e,t){const n=new Blob([JSON.stringify(t,null,2)],{type:"application/json"}),o=URL.createObjectURL(n),i=document.createElement("a");i.href=o,i.download=e,document.body.appendChild(i),i.click(),i.remove(),URL.revokeObjectURL(o)}function me(e,t){e.addEventListener("click",n=>{n.target===e&&t()})}function fe(e,t){e.addEventListener("keydown",e=>{"Enter"===e.key&&"INPUT"===e.target.tagName&&(e.preventDefault(),t.click())})}function ge(e,t){return e.localeCompare(t,void 0,{numeric:!0,sensitivity:"base"})}function pe(e,t,n){let o=null;e.addEventListener("dragstart",e=>{const t=e.target.closest("[data-idx]");t&&(o=Number(t.dataset.idx),t.classList.add("dragging"),e.dataTransfer.effectAllowed="move")}),e.addEventListener("dragend",e=>{const t=e.target.closest("[data-idx]");t&&t.classList.remove("dragging")}),e.addEventListener("dragover",e=>e.preventDefault()),e.addEventListener("drop",e=>{e.preventDefault();const i=e.target.closest("[data-idx]");if(!i||null===o)return;const l=Number(i.dataset.idx);if(l===o)return;const c=t(),[s]=c.splice(o,1);c.splice(l,0,s),o=null,n()})}const he=document.getElementById("imageModalBackdrop"),ve=document.getElementById("setTitleInput"),Ee=document.getElementById("setDescInput"),Le=document.getElementById("imageRows");let ye=[];function we(){Le.innerHTML="",ye.forEach((e,t)=>{const n=document.createElement("div");n.className="image-row",n.draggable=!0,n.dataset.idx=t;const o=document.createElement("div");o.className="thumb";const i=document.createElement("img");i.src=e.url,o.appendChild(i);const l=document.createElement("div");l.className="filename",l.textContent=e.file;const c=document.createElement("input");c.type="text",c.placeholder="설명 (선택)",c.value=e.caption,c.addEventListener("input",()=>{e.caption=c.value}),n.appendChild(o),n.appendChild(l),n.appendChild(c),Le.appendChild(n)})}function Ie(){he.classList.remove("show"),ye.forEach(e=>URL.revokeObjectURL(e.url)),ye=[]}pe(Le,()=>ye,we),document.getElementById("imageModalCancel").addEventListener("click",Ie);const Be=document.getElementById("imageModalSave");Be.addEventListener("click",()=>{ue("order.json",{title:ve.value.trim(),description:Ee.value.trim(),images:ye.map(e=>({file:e.file,caption:e.caption.trim()}))}),Ie()}),me(he,Ie),fe(he,Be);const be=document.getElementById("folderModalBackdrop"),ke=document.getElementById("folderTitleInput"),Te=document.getElementById("folderSubtitleInput"),xe=document.getElementById("folderDescInput"),Ce=document.getElementById("folderRows");let $e=[];function Ne(){Ce.innerHTML="",$e.forEach((e,t)=>{const n=document.createElement("div");n.className="folder-row",n.draggable=!0,n.dataset.idx=t,n.innerHTML=`<span class="handle">&#8942;&#8942;</span><span>${e}</span>`,Ce.appendChild(n)})}function Me(){be.classList.remove("show"),$e=[]}pe(Ce,()=>$e,Ne),document.getElementById("folderModalCancel").addEventListener("click",Me);const Re=document.getElementById("folderModalSave");Re.addEventListener("click",()=>{ue("folders.json",{title:ke.value.trim(),subtitle:Te.value.trim(),description:xe.value.trim(),folders:$e,favicon:"favicon.ico"}),Me()}),me(be,Me),fe(be,Re),window.addEventListener("keydown",e=>{"Escape"===e.key&&(he.classList.contains("show")&&Ie(),be.classList.contains("show")&&Me())}),window.addEventListener("dragenter",e=>{e.preventDefault(),de++,re.classList.add("active")}),window.addEventListener("dragleave",e=>{e.preventDefault(),de--,de<=0&&(de=0,re.classList.remove("active"))}),window.addEventListener("dragover",e=>e.preventDefault()),window.addEventListener("drop",async e=>{e.preventDefault(),de=0,re.classList.remove("active");const t=e.dataTransfer&&e.dataTransfer.items;if(!t)return;const n=Array.from(t).map(e=>e.webkitGetAsEntry?e.webkitGetAsEntry():null).filter(Boolean);if(!n.length)return;const o=n.filter(e=>e.isDirectory),i=n.filter(e=>e.isFile);if(o.length&&!i.length)return l=o.map(e=>e.name).sort(ge),$e=l,ke.value="",Te.value="",xe.value="",Ne(),be.classList.add("show"),void ke.focus();var l;if(i.length&&!o.length){const e=i.filter(e=>/\.(png|jpe?g|webp|gif|bmp)$/i.test(e.name)).sort((e,t)=>ge(e.name,t.name));if(!e.length)return;!function(e){ye=e,ve.value="",Ee.value="",we(),he.classList.add("show"),ve.focus()}(await Promise.all(e.map(async e=>{const t=await function(e){return new Promise((t,n)=>e.file(t,n))}(e);return{file:e.name,url:URL.createObjectURL(t),caption:""}})))}})})();
+</script>
+
+</body>
+</html>

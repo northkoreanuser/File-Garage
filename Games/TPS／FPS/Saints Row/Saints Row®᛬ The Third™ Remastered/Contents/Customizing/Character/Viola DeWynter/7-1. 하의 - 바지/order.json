@@ -1,9 +1,13 @@
 {
-  "title": "의상 - 전체",
+  "title": "하의 - 바지",
   "description": "",
   "images": [
     {
       "file": "01.png",
+      "caption": ""
+    },
+    {
+      "file": "02.png",
       "caption": ""
     }
   ]
