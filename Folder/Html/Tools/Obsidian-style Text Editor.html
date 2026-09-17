@@ -1,0 +1,872 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Obsidian-style Text Editor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+<style>
+:root{
+  --bg:#111318;--panel:#181b21;--panel2:#1d2129;--border:#2b3039;
+  --text:#d7dae0;--muted:#858c99;--accent:#8b7cf6;--accent2:#a89dff;
+  --code:#0d0f13;--code-text:#d5d9e1;--inline-code-bg:#242832;
+  --quote:#858cff;--quote-text:#aeb3be;--quote-bg:#ffffff03;
+  --heading:#f0f1f4;--hover-bg:#ffffff08;--shadow:0 14px 40px #0005;
+}
+:root[data-theme="light"]{
+  --bg:#f7f7f8;--panel:#ffffff;--panel2:#eef0f3;--border:#dde1e7;
+  --text:#20242b;--muted:#6a7180;--accent:#7c5cf0;--accent2:#6247c4;
+  --code:#f1f2f5;--code-text:#2a2e37;--inline-code-bg:#e6e8ed;
+  --quote:#7c5cf0;--quote-text:#4a4f5a;--quote-bg:#00000006;
+  --heading:#14161b;--hover-bg:#00000009;--shadow:0 14px 40px #0002;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+button,input{font:inherit}
+.app{height:100%;display:flex;flex-direction:column;overflow:hidden}
+.topbar{height:48px;flex:0 0 48px;border-bottom:1px solid var(--border);background:var(--panel);display:flex;align-items:center;padding:0 10px;gap:10px}
+.brand{font-weight:700;font-size:14px;padding:0 8px;white-space:nowrap}
+.filetab{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--border);border-radius:7px;padding:6px 10px;font-size:13px;min-width:180px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+#filename{outline:none;cursor:text;min-width:2ch}
+.filetab-close{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:0 2px;border-radius:4px;margin-left:2px}
+.filetab-close:hover{background:var(--hover-bg);color:var(--text)}
+.app.dragover{outline:2px dashed var(--accent);outline-offset:-2px}
+.spacer{flex:1}
+.iconbtn,.toggle{border:1px solid var(--border);background:transparent;color:var(--muted);height:32px;border-radius:7px;cursor:pointer}
+.iconbtn{width:32px;font-size:15px}.iconbtn:hover,.toggle:hover{background:var(--hover-bg);color:var(--text)}
+.toggle{display:flex;align-items:center;gap:7px;padding:0 10px;color:var(--text)}
+.toggle:disabled{opacity:.4;cursor:not-allowed}
+.toggle:disabled:hover{background:transparent;color:var(--text)}
+.workspace{min-height:0;flex:1;display:flex}
+.editor-pane,.preview-pane{min-width:0;flex:1;overflow:auto}
+.editor-pane{border-right:1px solid var(--border);position:relative}
+.workspace.viewer .editor-pane{display:none}
+/* 텍스트 에디터 모드: 마크다운 뷰어 없이 에디터 하나만 전체 화면으로 씀.
+   바깥 div(editor-pane/editor-wrap)는 스크롤을 만들지 않고 textarea 높이를 100%로 꽉 채워서,
+   스크롤바가 textarea 자체(안쪽) 하나만 생기게 한다 — 이전엔 바깥 div도 overflow:auto라
+   textarea 스크롤 + 바깥 스크롤 두 개가 겹쳐서 생겼었다. */
+.workspace.textmode .preview-pane{display:none!important}
+.workspace.textmode .editor-pane{display:flex!important;border-right:0;overflow:hidden}
+.workspace.textmode .editor-wrap{max-width:none;margin:0;padding:0;width:100%;height:100%;display:flex}
+.editor-wrap{max-width:900px;margin:auto;padding:48px 64px 100px}
+#editor{width:100%;min-height:calc(100vh - 160px);resize:none;border:0;outline:0;background:transparent;color:var(--text);font:15px/1.75 "SFMono-Regular",Consolas,"Liberation Mono",monospace;tab-size:2}
+.workspace.textmode #editor{flex:1;min-height:0;height:100%;padding:24px 32px 60px}
+.preview-pane{background:var(--bg);position:relative}
+#htmlFrame{position:absolute;inset:0;width:100%;height:100%;border:0;background:#fff}
+.preview-actions{position:fixed;top:58px;right:16px;z-index:5;display:flex;gap:8px}
+.preview-actions .iconbtn{background:var(--panel);box-shadow:var(--shadow);display:none}
+.copy-all-btn.copied{color:var(--accent);border-color:var(--accent)}
+/* 복사 버튼은 뷰어 단독 모드(에디터가 안 보일 때)에서만 필요 — 분할 모드에선 옆 에디터에서 바로 복사하면 된다 */
+.workspace.viewer .copy-all-btn{display:inline-block}
+/* 새 탭/팝업으로 열기는 HTML 모드에서만 의미가 있다 */
+.workspace.htmlmode .html-out-btn{display:inline-block}
+.preview{max-width:900px;margin:auto;padding:48px 64px 100px;font-size:16px;line-height:1.8}
+.preview h1,.preview h2,.preview h3,.preview h4,.preview h5,.preview h6{line-height:1.25;color:var(--heading);margin:1.5em 0 .55em}
+.preview h1{font-size:2.15em}.preview h2{font-size:1.65em}.preview h3{font-size:1.3em}
+.preview p{margin:.75em 0}.preview a{color:var(--accent2)}
+.preview blockquote{border-left:3px solid var(--quote);margin:1em 0;padding:.15em 1em;color:var(--quote-text);background:var(--quote-bg)}
+.preview code{font: .9em "SFMono-Regular",Consolas,monospace;background:var(--inline-code-bg);color:var(--text);border-radius:5px;padding:.15em .38em}
+.preview pre{background:var(--code);border:1px solid var(--border);border-radius:9px;padding:16px;overflow:auto}
+.preview pre code{background:transparent;padding:0;color:var(--code-text)}
+.codewrap{position:relative}
+.code-copy{position:absolute;top:8px;right:8px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);background:var(--panel);color:var(--muted);border-radius:6px;cursor:pointer;opacity:0;transition:opacity .12s;font-size:13px}
+.codewrap:hover .code-copy{opacity:1}
+.code-copy:hover{background:var(--hover-bg);color:var(--text)}
+.code-copy.copied{opacity:1;color:var(--accent)}
+.preview ul,.preview ol{padding-left:1.7em}
+.preview table{border-collapse:collapse;width:100%;margin:1em 0}
+.preview th,.preview td{border:1px solid var(--border);padding:8px 10px;text-align:left}
+.preview th{background:var(--panel2)}
+.preview table.frontmatter{background:var(--panel2);border:1px solid var(--border);border-radius:8px;font-size:.85em;margin:0 0 1.4em}
+.preview table.frontmatter th,.preview table.frontmatter td{border:0;border-bottom:1px solid var(--border);padding:6px 12px}
+.preview table.frontmatter tr:last-child th,.preview table.frontmatter tr:last-child td{border-bottom:0}
+.preview table.frontmatter th{background:transparent;color:var(--muted);font-weight:600;white-space:nowrap;width:1%}
+.preview hr{border:0;border-top:1px solid var(--border);margin:2em 0}
+.preview img{max-width:100%;border-radius:8px}
+.task{list-style:none;margin-left:-1.35em}
+.task input{accent-color:var(--accent);margin-right:7px}
+.status{height:28px;flex:0 0 28px;border-top:1px solid var(--border);background:var(--panel);color:var(--muted);display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:11px;font-family:"SFMono-Regular",Consolas,monospace}
+.status-right{display:flex;align-items:center;gap:15px}
+#urlinfo{color:var(--accent);font-weight:700}
+.hidden{display:none!important}
+.dropdown-wrap{position:relative}
+.dropdown-menu{position:absolute;top:38px;right:0;background:var(--panel);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow);padding:4px;display:flex;flex-direction:column;gap:2px;min-width:220px;z-index:10}
+.dropdown-menu button{background:transparent;border:0;color:var(--text);text-align:left;padding:8px 10px;border-radius:6px;cursor:pointer;font-size:13px}
+.dropdown-menu button:hover{background:var(--hover-bg)}
+@media(max-width:760px){
+ .brand{display:none}.filetab{min-width:0}.filetab span{display:none}
+ .editor-wrap,.preview{padding:28px 20px 80px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">Markdown</div>
+    <div class="filetab"><span class="dot"></span><span id="filename" contenteditable="plaintext-only" spellcheck="false" title="클릭해서 이름 수정">Untitled.md</span><button class="filetab-close" id="closeFileBtn" title="기본 템플릿으로 되돌리기">×</button></div>
+    <div class="spacer"></div>
+    <button class="iconbtn" id="openBtn" title="Markdown 열기">↥</button>
+    <button class="iconbtn" id="saveBtn" title="Markdown 저장">↓</button>
+    <div class="dropdown-wrap" id="copyUrlWrap">
+      <button class="iconbtn" id="copyUrlBtn" title="링크 복사 (클릭하면 옵션 선택)">🔗</button>
+      <div class="dropdown-menu hidden" id="copyUrlMenu">
+        <button type="button" data-share="0">링크 복사</button>
+        <button type="button" data-share="1">공유 링크 복사 (S) — UI 없이 텍스트만 보임</button>
+      </div>
+    </div>
+    <button class="iconbtn" id="themeBtn" title="테마 전환">☾</button>
+    <button class="iconbtn" id="renderModeBtn" title="HTML 뷰어로 전환">M</button>
+    <button class="toggle" id="toggleBtn"><span id="toggleIcon">◐</span><span id="toggleText">뷰어</span></button>
+    <input id="fileInput" type="file" accept=".md,.markdown,.txt" hidden>
+  </header>
+
+  <main class="workspace" id="workspace">
+    <section class="editor-pane"><div class="editor-wrap"><textarea id="editor" spellcheck="false" aria-label="Markdown editor"></textarea></div></section>
+    <section class="preview-pane">
+      <div class="preview-actions">
+        <button class="iconbtn copy-all-btn" id="copyAllBtn" title="전체 내용 복사">⧉</button>
+        <button class="iconbtn html-out-btn" id="openTabBtn" title="새 탭에서 열기">↗</button>
+        <button class="iconbtn html-out-btn" id="openPopupBtn" title="팝업으로 열기">🗗</button>
+      </div>
+      <article class="preview" id="preview"></article>
+      <iframe id="htmlFrame" class="hidden" sandbox="" referrerpolicy="no-referrer" title="HTML 미리보기(샌드박스)"></iframe>
+    </section>
+  </main>
+
+  <footer class="status">
+    <span id="urlinfo">🔴 주소 엔진 준비 중…</span>
+    <span class="status-right">
+      <span id="words">0 words</span><span id="chars">0 chars</span><span id="pos">Ln 1, Col 1</span>
+    </span>
+  </footer>
+</div>
+
+<script>
+const editor=document.getElementById('editor');
+const preview=document.getElementById('preview');
+const htmlFrame=document.getElementById('htmlFrame');
+const workspace=document.getElementById('workspace');
+const toggleBtn=document.getElementById('toggleBtn');
+const toggleText=document.getElementById('toggleText');
+const toggleIcon=document.getElementById('toggleIcon');
+const fileInput=document.getElementById('fileInput');
+const filename=document.getElementById('filename');
+const urlinfo=document.getElementById('urlinfo');
+const copyUrlBtn=document.getElementById('copyUrlBtn');
+
+const starter=`# Welcome
+
+Obsidian 느낌의 **단일 HTML Markdown 에디터**입니다.
+
+## 기능
+
+- 실시간 Markdown 렌더링
+- 편집 / 뷰어 토글 — \`Ctrl+Shift+V\` (Mac: \`Cmd+Shift+V\`)
+- 저장 — \`Ctrl+S\` (Mac: \`Cmd+S\`)
+- 파일 열기 — \`Ctrl+O\` (Mac: \`Cmd+O\`)
+- 굵게 — \`Ctrl+B\` (Mac: \`Cmd+B\`)
+- 기울임 — \`Ctrl+I\` (Mac: \`Cmd+I\`)
+- 링크 — \`Ctrl+K\` (Mac: \`Cmd+K\`)
+- \`.md\` 파일을 드래그 & 드롭하면 즉시 열림
+- 체크박스
+- 표 / 인용 / 코드 블록
+- 주소(URL)에 압축 저장 — 새로고침해도, 링크만 있으면 복원됩니다
+
+> 오른쪽 위 **뷰어** 버튼으로 편집 화면과 읽기 화면을 전환할 수 있습니다.
+
+\`\`\`javascript
+console.log("Hello Markdown!");
+\`\`\`
+`;
+
+/* ===================== 마크다운 렌더러 ===================== */
+function esc(s){
+ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function inline(s){
+ s=esc(s);
+ s=s.replace(/!\[([^\]]*)\]\(([^ )]+)(?:\s+"([^"]*)")?\)/g,(_,a,u,t)=>`<img src="${u}" alt="${a}"${t?` title="${t}"`:''}>`);
+ s=s.replace(/\[([^\]]+)\]\(([^ )]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+ // 백틱 1~3개를 여닫는 쌍으로 모두 인라인 코드 처리 (예: `x`, ``x``, ```x```).
+ s=s.replace(/(`{1,3})([\s\S]*?)\1(?!`)/g,(_,fence,content)=>{
+  let c=content;
+  if(fence.length>1 && /^ /.test(c) && / $/.test(c) && c.trim()!=='') c=c.slice(1,-1);
+  return `<code>${c}</code>`;
+ });
+ // 볼드+기울임(***text***, ___text___)을 먼저 처리한다.
+ s=s.replace(/\*\*\*([\s\S]+?)\*\*\*/g,(_,t)=>`<strong><em>${t}</em></strong>`);
+ s=s.replace(/___([\s\S]+?)___/g,(_,t)=>`<strong><em>${t}</em></strong>`);
+ // 볼드(**text**, __text__) — 안쪽에 단일 */_ 가 남아있으면(예: **Text *Text* Text**)
+ // 그 부분만 기울임으로 재귀 처리해 굵게+기울임이 함께 적용되게 한다.
+ s=s.replace(/\*\*([\s\S]+?)\*\*/g,(_,inner)=>`<strong>${inner.replace(/\*([^*]+)\*/g,'<em>$1</em>')}</strong>`);
+ s=s.replace(/__([\s\S]+?)__/g,(_,inner)=>`<strong>${inner.replace(/_([^_]+)_/g,'<em>$1</em>')}</strong>`);
+ // 남은 단일 */_ 는 기울임으로 처리한다.
+ s=s.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g,'<em>$1</em>');
+ s=s.replace(/(?<!_)_([^_]+)_(?!_)/g,'<em>$1</em>');
+ s=s.replace(/~~([^~]+)~~/g,'<del>$1</del>');
+ return s;
+}
+// 줄이 ``` 로 시작하고, 같은 줄 안에서 닫는 ``` 가 없을 때만 "코드 블록 시작"으로 인정한다.
+// (같은 줄 안에 닫는 ```가 있으면 그건 한 줄짜리 인라인 코드이지 블록 펜스가 아니다.)
+function isFenceOpen(l){
+ if(!/^```/.test(l))return false;
+ return !l.slice(3).includes('```');
+}
+function markdown(src){
+ const lines=src.replace(/\r\n?/g,'\n').split('\n'), out=[];
+ let i=0,inCode=false,codeLang='',code=[];
+ function pushCodeBlock(){
+  let lang=codeLang,content=code;
+  if(content.length===0 && lang){
+   // 여는 줄에 개행 없이 내용까지 바로 붙여 쓴 경우: "언어"로 잡힌 텍스트가 사실은 내용이다.
+   content=[lang];lang='';
+  }
+  out.push(`<div class="codewrap"><button type="button" class="code-copy" title="코드 복사">⧉</button><pre><code class="language-${esc(lang)}">${esc(content.join('\n'))}</code></pre></div>`);
+  inCode=false;codeLang='';code=[];
+ }
+ while(i<lines.length){
+  let l=lines[i];
+  if(!inCode && isFenceOpen(l)){
+   inCode=true;codeLang=l.replace(/^```/,'').trim();code=[];i++;continue;
+  }
+  if(inCode && /^```\s*$/.test(l)){
+   // 정상적으로 백틱 3개만 있는 줄로 닫힘
+   pushCodeBlock();i++;continue;
+  }
+  if(inCode && /```\s*$/.test(l)){
+   // 개행 없이 내용 뒤에 바로 닫는 백틱을 붙여쓴 경우 (예: "ㅇㅇㅇ```")
+   code.push(l.replace(/```\s*$/,''));
+   pushCodeBlock();i++;continue;
+  }
+  if(inCode){code.push(l);i++;continue}
+  if(/^ {0,3}#{1,6}\s+/.test(l)){
+   const m=l.match(/^ {0,3}(#{1,6})\s+(.*)$/), n=m[1].length;
+   out.push(`<h${n}>${inline(m[2].replace(/\s+#+\s*$/,''))}</h${n}>`);i++;continue;
+  }
+  if(/^---+$/.test(l.trim())){
+   // Front matter(YAML) 스타일 메타데이터 블록: "---" 로 시작해서 빈 줄 없이 이어지다가
+   // 닫는 "---" 를 만나면 구분선이 아니라 메타데이터 박스로 렌더링한다.
+   // (문서 맨 앞이 아니어도 인정 — 코드블록 등 다른 내용 뒤에 나와도 똑같이 동작해야 일관적이다.
+   //  단, 중간에 빈 줄이 끼면 별개의 문단/섹션으로 보고 포기한다 — 안 그러면 문서 뒷부분 전체를
+   //  실수로 표 취급해 삼켜버릴 수 있다. 그리고 내용 없이 "---"가 바로 연달아 나오면(예: ---\n---)
+   //  빈 메타데이터 박스가 아니라 그냥 구분선 두 개로 본다.
+   let end=-1;
+   for(let j=i+1;j<lines.length;j++){
+    if(lines[j].trim()===''){break}
+    if(/^---+$/.test(lines[j].trim())){end=j;break}
+   }
+   if(end>i+1){
+    const rows=lines.slice(i+1,end).map(x=>{
+     const m=x.match(/^\s*([^:]+):\s*(.*)$/);
+     return m
+      ?`<tr><th>${esc(m[1].trim())}</th><td>${esc(m[2].trim())}</td></tr>`
+      :`<tr><td colspan="2">${esc(x)}</td></tr>`;
+    }).join('');
+    out.push(`<table class="frontmatter">${rows}</table>`);
+    i=end+1;continue;
+   }
+   out.push('<hr>');i++;continue;
+  }
+  if(/^\*\*\*+$/.test(l.trim())){out.push('<hr>');i++;continue}
+  if(/^>\s?/.test(l)){
+   const q=[];while(i<lines.length && /^>\s?/.test(lines[i])){q.push(lines[i].replace(/^>\s?/,'') );i++}
+   out.push(`<blockquote>${q.map(x=>`<p>${inline(x)}</p>`).join('')}</blockquote>`);continue;
+  }
+  if(/^\s*[-*+]\s+/.test(l)){
+   const items=[];while(i<lines.length && /^\s*[-*+]\s+/.test(lines[i])){
+    let x=lines[i].replace(/^\s*[-*+]\s+/,'');
+    const task=x.match(/^\[([ xX])\]\s+(.*)$/);
+    items.push(task?`<li class="task"><input type="checkbox" ${task[1].toLowerCase()==='x'?'checked':''} disabled>${inline(task[2])}</li>`:`<li>${inline(x)}</li>`);i++;
+   }
+   out.push(`<ul>${items.join('')}</ul>`);continue;
+  }
+  if(/^\s*\d+\.\s+/.test(l)){
+   const items=[];while(i<lines.length && /^\s*\d+\.\s+/.test(lines[i])){items.push(`<li>${inline(lines[i].replace(/^\s*\d+\.\s+/,'') )}</li>`);i++}
+   out.push(`<ol>${items.join('')}</ol>`);continue;
+  }
+  if(l.trim()===''){i++;continue}
+  if(l.includes('|') && i+1<lines.length && /^\s*\|?[\s:-]+(\|[\s:-]+)+\|?\s*$/.test(lines[i+1])){
+   const split=x=>x.trim().replace(/^\||\|$/g,'').split('|').map(v=>v.trim());
+   const heads=split(l);i+=2;const rows=[];
+   while(i<lines.length && lines[i].includes('|') && lines[i].trim()!==''){rows.push(split(lines[i]));i++}
+   out.push(`<table><thead><tr>${heads.map(x=>`<th>${inline(x)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${heads.map((_,k)=>`<td>${inline(r[k]??'')}</td>`).join('')}</tr>`).join('')}</tbody></table>`);continue;
+  }
+  const para=[l];i++;while(i<lines.length && lines[i].trim()!=='' && !/^(#{1,6})\s|^>|^\s*[-*+]\s|^\s*\d+\.\s/.test(lines[i]) && !/^---+$|^\*\*\*+$/.test(lines[i].trim()) && !isFenceOpen(lines[i])){para.push(lines[i]);i++}
+  out.push(`<p>${para.map(inline).join('<br>')}</p>`);
+ }
+ if(inCode)pushCodeBlock();
+ return out.join('');
+}
+
+/* ===================== 주소(URL) 압축 저장 엔진 ===================== */
+/* WebMaker.html 방식 참조: 여러 압축 방식을 모두 시도해 가장 짧은 결과를 채택하고,
+   결과 앞에 1글자짜리 방식 키를 붙여 base64url로 인코딩한다.
+   저장 형식: #<방식키><base64url( "파일이름|본문내용" 압축 결과 )> */
+const COMPRESSORS={};
+
+function toB64Url(bytes){
+ let bin='';for(let i=0;i<bytes.length;i++)bin+=String.fromCharCode(bytes[i]);
+ return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function fromB64Url(s){
+ s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';
+ const bin=atob(s),arr=new Uint8Array(bin.length);
+ for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+ return arr;
+}
+async function streamCompress(format,bytes){
+ const cs=new CompressionStream(format),w=cs.writable.getWriter();
+ w.write(bytes);w.close();
+ return new Uint8Array(await new Response(cs.readable).arrayBuffer());
+}
+async function streamDecompress(format,bytes){
+ const ds=new DecompressionStream(format),w=ds.writable.getWriter();
+ w.write(bytes);w.close();
+ return new Uint8Array(await new Response(ds.readable).arrayBuffer());
+}
+function tryNativeFormat(format,key,label){
+ try{
+  new CompressionStream(format);
+  COMPRESSORS[key]={name:label,
+   compress:(b)=>streamCompress(format,b),
+   decompress:(b)=>streamDecompress(format,b)};
+ }catch(e){/* 미지원 브라우저 - 건너뜀 */}
+}
+tryNativeFormat('gzip','g','Native Gzip');
+tryNativeFormat('deflate-raw','d','Native Deflate');
+tryNativeFormat('brotli','b','Native Brotli');
+if(typeof pako!=='undefined'){
+ COMPRESSORS['p']={name:'Pako Deflate',
+  compress:(b)=>pako.deflateRaw(b,{level:9}),
+  decompress:(b)=>pako.inflateRaw(b)};
+}
+// Brotli WASM은 네트워크가 필요하므로 비동기로 향상(실패해도 위 방식들로 계속 동작)
+const brotliReady=(async()=>{
+ try{
+  const mod=await import('https://cdn.jsdelivr.net/npm/brotli-wasm@3.0.1/+esm');
+  const inst=await mod.default;
+  COMPRESSORS['w']={name:'Brotli WASM',
+   compress:(b)=>inst.compress(b,{quality:11}),
+   decompress:(b)=>inst.decompress(b)};
+ }catch(e){/* 오프라인이거나 로드 실패 - 건너뜀 */}
+})();
+
+function formatLen(n){return n<1000?`${n}자`:`${(n/1000).toFixed(1)}k자`}
+
+async function encodeToHash(name,content,modeOverride){
+ // 저장 형식: "이름|모드마커(M/H/T/S)|내용" — 렌더 모드를 로컬스토리지뿐 아니라
+ // 주소(링크)와 함께 저장해서, 이 링크를 다른 브라우저/탭에서 열어도 같은 모드로 열리게 한다.
+ // modeOverride: 공유 링크(S)처럼 지금 화면의 렌더 모드와 무관하게 특정 마커를 강제로 넣고 싶을 때 사용.
+ const modeChar=modeOverride||RENDER_LABELS[renderMode]||'M';
+ const raw=new TextEncoder().encode((name||'Untitled.md')+'|'+modeChar+'|'+content);
+ let best=null,bestKey=null;
+ for(const key in COMPRESSORS){
+  try{
+   let out=COMPRESSORS[key].compress(raw);
+   if(out instanceof Promise)out=await out;
+   if(!out||!out.length)continue;
+   const payload=key+toB64Url(out);
+   if(!best||payload.length<best.length){best=payload;bestKey=key}
+  }catch(e){/* 이 방식은 실패 - 다음 방식 시도 */}
+ }
+ if(!best){best='r'+toB64Url(raw);bestKey='r'}
+ return {hash:best,method:bestKey==='r'?'무압축':(COMPRESSORS[bestKey]?.name||bestKey)};
+}
+async function decodeFromHash(hash){
+ if(!hash||hash.length<2)throw new Error('빈 주소');
+ const key=hash.charAt(0),payload=hash.slice(1);
+ const bytes=fromB64Url(payload);
+ let raw;
+ if(key==='r'){raw=bytes}
+ else{
+  const comp=COMPRESSORS[key];
+  if(!comp)throw new Error('알 수 없는 압축 방식: '+key);
+  let out=comp.decompress(bytes);
+  if(out instanceof Promise)out=await out;
+  raw=out;
+ }
+ const text=new TextDecoder().decode(raw);
+ const idx=text.indexOf('|');
+ if(idx<0)return{name:'Untitled.md',mode:null,content:text};
+ const name=text.slice(0,idx), rest=text.slice(idx+1);
+ // "M|"/"H|"/"T|"로 시작하면 모드 마커가 붙은 새 형식, 아니면 마커 없는 예전 링크(그대로 내용 취급).
+ if(rest.length>=2 && rest[1]==='|' && 'MHTS'.includes(rest[0])){
+  return{name,mode:rest[0],content:rest.slice(2)};
+ }
+ return{name,mode:null,content:rest};
+}
+
+// 지금 에디터 내용과 일치하는 마지막 해시값 — 링크 로드를 취소했을 때 주소를 되돌리는 데 씀.
+let currentHash='';
+// 기본 템플릿이거나 비어 있으면 "버릴 내용 없음"으로 간주해 확인 없이 바로 불러오게 한다.
+function isDiscardable(){
+ return editor.value.trim()==='' || editor.value===starter;
+}
+let saveTimer=null;
+let dotTimer=null;
+function startSavingIndicator(){
+ if(dotTimer)return; // 이미 표시 중이면 그대로 둠
+ let n=1;
+ urlinfo.textContent='🔴 저장 중.';
+ dotTimer=setInterval(()=>{
+  n=n%3+1;
+  urlinfo.textContent='🔴 저장 중'+'.'.repeat(n);
+ },120);
+}
+function stopSavingIndicator(){
+ if(dotTimer){clearInterval(dotTimer);dotTimer=null}
+}
+function scheduleUrlSave(){
+ clearTimeout(saveTimer);
+ startSavingIndicator(); // 입력 즉시 표시 — 실제 반영까지는 디바운스+압축 시간이 걸리기 때문
+ saveTimer=setTimeout(async()=>{
+  try{
+   const {hash,method}=await encodeToHash(filename.textContent,editor.value);
+   history.replaceState(null,'',location.pathname+location.search+'#'+hash);
+   currentHash=hash;
+   stopSavingIndicator();
+   urlinfo.textContent=`🟢 주소 ${formatLen(hash.length)} · ${method}`;
+  }catch(e){
+   stopSavingIndicator();
+   urlinfo.textContent='🔴 주소 저장 실패';
+  }
+ },400);
+}
+
+/* ===================== 편집/렌더링 ===================== */
+// persist=false: 화면만 갱신하고 주소(URL) 저장은 건너뜀.
+// 주소에서 막 불러온 직후처럼 "이미 그 내용 그대로 주소에 저장돼 있는" 경우에 씀 —
+// 안 그러면 로드하자마자 불필요하게 "저장 중" 표시가 뜬다.
+function render(persist=true){
+ // HTML 모드: 원본 페이지 DOM에 직접 꽂지 않고 sandbox 처리된 iframe(별도 origin, 스크립트/폼/팝업 전부 차단)
+ // 안에서만 렌더링해서, 사용자가 입력한 <style>/이벤트 핸들러 등이 에디터 바깥 화면을 망가뜨리지 못하게 격리한다.
+ if(renderMode==='html'){
+  preview.classList.add('hidden');
+  htmlFrame.classList.remove('hidden');
+  htmlFrame.srcdoc=editor.value;
+ }else{
+  htmlFrame.classList.add('hidden');
+  htmlFrame.srcdoc='';
+  preview.classList.remove('hidden');
+  preview.innerHTML=markdown(editor.value);
+ }
+ updateStatus();
+ localStorage.setItem('md-editor-content',editor.value);
+ localStorage.setItem('md-editor-name',filename.textContent);
+ if(persist)scheduleUrlSave();
+ // 아직 기본 템플릿 그대로인 상태(되돌릴 게 없는 상태)에서는 × 버튼을 숨긴다.
+ const pristine=editor.value===starter && filename.textContent==='Untitled.md';
+ document.getElementById('closeFileBtn').classList.toggle('hidden',pristine);
+}
+function updateStatus(){
+ const v=editor.value, p=editor.selectionStart, before=v.slice(0,p), line=before.split('\n').length, col=p-(before.lastIndexOf('\n')+1);
+ document.getElementById('chars').textContent=`${v.length} chars`;
+ document.getElementById('words').textContent=`${(v.trim().match(/\S+/g)||[]).length} words`;
+ document.getElementById('pos').textContent=`Ln ${line}, Col ${col+1}`;
+}
+
+/* ===================== 모드 전환: 에디터(좌우 분할) / 뷰어(전체 화면) ===================== */
+function setMode(mode){
+ if(mode==='viewer'){
+  workspace.classList.add('viewer');
+  toggleText.textContent='편집';toggleIcon.textContent='✎';
+ }else{
+  workspace.classList.remove('viewer');
+  toggleText.textContent='뷰어';toggleIcon.textContent='◐';
+ }
+ localStorage.setItem('md-editor-mode',mode);
+}
+toggleBtn.onclick=()=>{
+ const current=workspace.classList.contains('viewer')?'viewer':'editor';
+ setMode(current==='viewer'?'editor':'viewer');
+};
+
+/* ===================== 렌더링 모드: M(마크다운) → H(HTML) → T(텍스트) 순환 버튼 하나 ===================== */
+// render()가 처음 호출되기 전에 값이 필요하므로 여기서 바로 localStorage에서 초기화한다.
+const RENDER_MODES=['markdown','html','text'];
+const RENDER_LABELS={markdown:'M',html:'H',text:'T'};
+const MODE_FROM_MARKER={M:'markdown',H:'html',T:'text'};
+const RENDER_MODE_NAME={markdown:'마크다운(M)',html:'HTML(H)',text:'텍스트(T)'};
+const RENDER_TITLES={markdown:'HTML 뷰어로 전환',html:'텍스트 에디터 모드로 전환',text:'Markdown 뷰어로 전환'};
+let renderMode=RENDER_MODES.includes(localStorage.getItem('md-editor-rendermode'))?localStorage.getItem('md-editor-rendermode'):'markdown';
+const renderModeBtn=document.getElementById('renderModeBtn');
+function applyRenderMode(){
+ workspace.classList.toggle('textmode',renderMode==='text');
+ workspace.classList.toggle('htmlmode',renderMode==='html');
+ toggleBtn.disabled=renderMode==='text';
+ renderModeBtn.textContent=RENDER_LABELS[renderMode];
+ renderModeBtn.title=RENDER_TITLES[renderMode];
+ localStorage.setItem('md-editor-rendermode',renderMode);
+}
+applyRenderMode();
+renderModeBtn.onclick=()=>{
+ renderMode=RENDER_MODES[(RENDER_MODES.indexOf(renderMode)+1)%RENDER_MODES.length];
+ applyRenderMode();
+ // 모드 마커가 주소(해시)에도 실리므로, 내용이 안 바뀌었어도 여기선 반드시 다시 저장해야 한다.
+ render();
+};
+
+/* ===================== 파일 열기 / 저장 ===================== */
+document.getElementById('openBtn').onclick=()=>fileInput.click();
+fileInput.onchange=e=>{
+ const f=e.target.files[0];if(!f)return;
+ if(!isDiscardable()){
+  const ok=window.confirm(`현재 편집 중인 내용을 버리고 "${f.name}"을(를) 불러올까요?`);
+  if(!ok){fileInput.value='';return}
+ }
+ const r=new FileReader();r.onload=()=>{editor.value=r.result;filename.textContent=f.name;render()};r.readAsText(f);
+};
+document.getElementById('saveBtn').onclick=()=>{
+ const blob=new Blob([editor.value],{type:'text/markdown;charset=utf-8'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename.textContent.endsWith('.md')?filename.textContent:filename.textContent+'.md';a.click();URL.revokeObjectURL(a.href);
+};
+document.getElementById('closeFileBtn').onclick=(e)=>{
+ e.stopPropagation();
+ editor.value=starter;
+ filename.textContent='Untitled.md';
+ history.replaceState(null,'',location.pathname+location.search);
+ currentHash='';
+ render();
+};
+
+/* ===================== 드래그 & 드롭으로 md 즉시 열기 ===================== */
+const appEl=document.querySelector('.app');
+let dragDepth=0;
+appEl.addEventListener('dragenter',e=>{e.preventDefault();dragDepth++;appEl.classList.add('dragover')});
+appEl.addEventListener('dragover',e=>{e.preventDefault()});
+appEl.addEventListener('dragleave',e=>{dragDepth=Math.max(0,dragDepth-1);if(dragDepth===0)appEl.classList.remove('dragover')});
+appEl.addEventListener('drop',async e=>{
+ e.preventDefault();dragDepth=0;appEl.classList.remove('dragover');
+ const file=e.dataTransfer?.files?.[0];
+ if(!file)return;
+ if(!isDiscardable()){
+  const ok=window.confirm(`현재 편집 중인 내용을 버리고 "${file.name}"을(를) 불러올까요?`);
+  if(!ok)return;
+ }
+ const text=await file.text();
+ editor.value=text;
+ filename.textContent=file.name;
+ render();
+ setMode(workspace.classList.contains('viewer')?'viewer':'editor');
+});
+
+/* ===================== 코드블록 복사 버튼 ===================== */
+preview.addEventListener('click',e=>{
+ const btn=e.target.closest('.code-copy');
+ if(!btn)return;
+ const code=btn.parentElement.querySelector('pre code');
+ if(!code)return;
+ const text=code.textContent;
+ const done=()=>{
+  btn.classList.add('copied');btn.textContent='✓';
+  setTimeout(()=>{btn.classList.remove('copied');btn.textContent='⧉'},900);
+ };
+ if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(text).then(done).catch(()=>{fallbackCopy(text);done()})}
+ else{fallbackCopy(text);done()}
+});
+
+/* ===================== 전체 내용 복사 (뷰어 우측 상단) ===================== */
+const copyAllBtn=document.getElementById('copyAllBtn');
+copyAllBtn.onclick=()=>{
+ const text=editor.value;
+ const done=()=>{
+  copyAllBtn.classList.add('copied');copyAllBtn.textContent='✓';
+  setTimeout(()=>{copyAllBtn.classList.remove('copied');copyAllBtn.textContent='⧉'},900);
+ };
+ if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(text).then(done).catch(()=>{fallbackCopy(text);done()})}
+ else{fallbackCopy(text);done()}
+};
+
+/* ===================== HTML 모드: 새 탭 / 팝업으로 열기 =====================
+   about:blank를 새로 띄운 뒤 document.write로 내용을 직접 써 넣는다.
+   opener 차단은 window.open의 'noopener' 기능으로 하지 않는다 — noopener를 쓰면 스펙상
+   성공 여부와 무관하게 반환값이 항상 null이라 (1) 차단 여부를 확인할 수 없고
+   (2) 참조 자체가 없어 write()도 못 해서 빈 창만 뜬다. 대신 참조는 정상으로 받고
+   콘텐츠를 쓰기 전에 win.opener=null로 직접 끊는다 — 결과는 동일(원본 페이지 접근 차단)하면서
+   차단 감지와 내용 기록이 둘 다 정상 동작한다. */
+function openHtmlOutput(asPopup){
+ // 주의: window.open의 세 번째 인자에 'noopener'를 넣으면 브라우저 스펙상 성공 여부와 무관하게
+ // 항상 null이 반환된다 — 그래서 늘 "차단됨"으로 오판했고, 어차피 참조가 없어 내용도 못 썼다(빈 창).
+ // 그 대신 참조는 정상적으로 받아 내용을 쓰고, 쓰기 전에 opener만 직접 끊어서 격리한다.
+ const features=asPopup?'width=1000,height=800':'';
+ const win=window.open('about:blank','_blank',features);
+ if(!win){alert('브라우저가 새 창을 차단했습니다. 팝업 허용 후 다시 시도해 주세요.');return}
+ // 사용자 콘텐츠(스크립트 포함)를 쓰기 전에 opener 참조부터 끊어서,
+ // 그 창의 스크립트가 window.opener로 이 편집기 페이지를 되짚어 건드리지 못하게 막는다.
+ win.opener=null;
+ win.document.open();
+ win.document.write(editor.value);
+ win.document.close();
+}
+document.getElementById('openTabBtn').onclick=()=>openHtmlOutput(false);
+document.getElementById('openPopupBtn').onclick=()=>openHtmlOutput(true);
+
+/* ===================== 주소 복사 ===================== */
+function fallbackCopy(text){
+ const ta=document.createElement('textarea');
+ ta.value=text;ta.style.cssText='position:fixed;opacity:0;left:-9999px;top:-9999px';
+ document.body.appendChild(ta);ta.select();
+ try{document.execCommand('copy')}catch(e){}
+ document.body.removeChild(ta);
+}
+const copyUrlMenu=document.getElementById('copyUrlMenu');
+copyUrlBtn.onclick=(e)=>{
+ e.stopPropagation();
+ copyUrlMenu.classList.toggle('hidden');
+};
+document.addEventListener('click',()=>{copyUrlMenu.classList.add('hidden')});
+copyUrlMenu.addEventListener('click',e=>e.stopPropagation());
+copyUrlMenu.querySelectorAll('button').forEach(btn=>{
+ btn.onclick=async()=>{
+  copyUrlMenu.classList.add('hidden');
+  await copyCurrentUrl(btn.dataset.share==='1');
+ };
+});
+async function copyCurrentUrl(asShare){
+ let text;
+ if(asShare){
+  // 지금 화면의 렌더 모드와 무관하게 항상 S 마커로 강제 인코딩한 링크를 새로 만든다
+  // (현재 주소를 바꾸는 게 아니라, 클립보드에 넣을 별도의 링크 문자열만 만드는 것).
+  const{hash}=await encodeToHash(filename.textContent,editor.value,'S');
+  text=location.origin+location.pathname+location.search+'#'+hash;
+ }else{
+  text=location.href;
+ }
+ if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(text).catch(()=>fallbackCopy(text))}
+ else{fallbackCopy(text)}
+ const orig=copyUrlBtn.textContent;copyUrlBtn.textContent='✓';setTimeout(()=>copyUrlBtn.textContent=orig,900);
+}
+
+/* ===================== 테마 ===================== */
+const themeBtn=document.getElementById('themeBtn');
+function applyTheme(theme){
+ document.documentElement.setAttribute('data-theme',theme);
+ localStorage.setItem('md-editor-theme',theme);
+ themeBtn.textContent=theme==='light'?'☀':'☾';
+}
+themeBtn.onclick=()=>{
+ const current=document.documentElement.getAttribute('data-theme')==='light'?'light':'dark';
+ applyTheme(current==='light'?'dark':'light');
+};
+
+/* ===================== 파일이름 편집 ===================== */
+filename.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();filename.blur()}});
+filename.addEventListener('blur',()=>{
+ if(!filename.textContent.trim())filename.textContent='Untitled.md';
+ render();
+});
+
+/* ===================== 굵게/기울임 토글 ===================== */
+// 별표 개수를 "상태값"으로 다룬다: 0=없음, 1=기울임, 2=볼드, 3=볼드+기울임.
+// bit=1(기울임) 또는 bit=2(볼드)를 XOR로 토글하면 늘어나기만 하던 문제 없이
+// 항상 +/- 로 정확히 한 겹만 추가/제거된다.
+function starRunBefore(v,idx){let n=0,i=idx-1;while(i>=0&&v[i]==='*'){n++;i--}return n}
+function starRunAfter(v,idx){let n=0,i=idx;while(i<v.length&&v[i]==='*'){n++;i++}return n}
+function toggleEmphasis(bit){
+ const v=editor.value;
+ const a=editor.selectionStart,b=editor.selectionEnd;
+ // 선택 영역 안쪽 가장자리에 별표가 함께 드래그돼 있으면 실제 텍스트(core)만 남긴다.
+ let coreStart=a; while(coreStart<b && v[coreStart]==='*') coreStart++;
+ let coreEnd=b; while(coreEnd>coreStart && v[coreEnd-1]==='*') coreEnd--;
+ const core=v.slice(coreStart,coreEnd)||'text';
+ // core 양옆에 실제로 이어져 있는 별표 개수(선택 안팎 상관없이) = 현재 상태값
+ const left=starRunBefore(v,coreStart), right=starRunAfter(v,coreEnd);
+ const current=Math.min(left,right);
+ const next=current^bit;
+ const rangeStart=coreStart-left, rangeEnd=coreEnd+right;
+ const stars='*'.repeat(next);
+ editor.setRangeText(stars+core+stars,rangeStart,rangeEnd,'select');
+ editor.selectionStart=rangeStart+next;
+ editor.selectionEnd=rangeStart+next+core.length;
+}
+
+/* ===================== 에디터 이벤트 ===================== */
+editor.addEventListener('input',render);
+editor.addEventListener('click',updateStatus);editor.addEventListener('keyup',updateStatus);editor.addEventListener('select',updateStatus);
+editor.addEventListener('keydown',e=>{
+ if(e.ctrlKey && ['b','i','k'].includes(e.key.toLowerCase())){
+  e.preventDefault();
+  const k=e.key.toLowerCase();
+  if(k==='k'){
+   const a=editor.selectionStart,b=editor.selectionEnd,sel=editor.value.slice(a,b);
+   // 이미 [라벨](url) 형태를 통째로 선택했다면 "라벨 url"로 분리(토글 해제).
+   const fullLink=sel.match(/^\[([^\]]*)\]\(([^)]+)\)$/);
+   // "라벨 url" 형태(라벨 뒤에 공백과 URL)를 선택했다면 [라벨](url)로 합친다.
+   const labelUrl=sel.match(/^([\s\S]*\S)[ \t]+((?:https?:\/\/|www\.)\S+)$/i);
+   // URL만 선택했다면 기본 라벨 "HyperLink"를 사용한다.
+   const bareUrl=sel.match(/^(https?:\/\/\S+|www\.\S+)$/i);
+   let replacement;
+   if(fullLink) replacement=`${fullLink[1]} ${fullLink[2]}`;
+   else if(bareUrl) replacement=`[HyperLink](${sel})`;
+   else if(labelUrl) replacement=`[${labelUrl[1]}](${labelUrl[2]})`;
+   else if(sel) replacement=`[${sel}](https://example.com)`;
+   else replacement=`[HyperLink](https://example.com)`;
+   editor.setRangeText(replacement,a,b,'select');
+  }else{
+   toggleEmphasis(k==='b'?2:1);
+  }
+  render();return;
+ }
+ if(e.key==='Tab'){e.preventDefault();editor.setRangeText('  ',editor.selectionStart,editor.selectionEnd,'end')}
+});
+document.addEventListener('keydown',e=>{
+ if(e.key==='Escape' && document.activeElement===editor){editor.blur();return}
+ const mod=e.ctrlKey||e.metaKey, k=e.key.toLowerCase();
+ // 뷰어 모드에서는 편집기가 포커스를 받지 못해 이 리스너가 유일한 처리 지점이 된다.
+ // 그래서 저장/열기/토글 단축키는 항상 여기서 처리해 브라우저 기본 동작(페이지 저장 등)을 막는다.
+ if(mod && e.shiftKey && k==='v'){e.preventDefault();toggleBtn.click();return}
+ if(mod && !e.shiftKey && k==='s'){e.preventDefault();document.getElementById('saveBtn').click();return}
+ if(mod && !e.shiftKey && k==='o'){e.preventDefault();fileInput.click();return}
+});
+
+/* ===================== 공유(S) 뷰: UI 없이 텍스트만, 탭 제목=파일 이름, Ctrl+S로 저장 ===================== */
+function renderShareView(name,content){
+ document.title=name;
+ // 크롬이 .txt 파일을 직접 열 때 실제로 만드는 DOM을 그대로 재현한다(직접 확인함):
+ //   <html><head><meta name="color-scheme" content="light dark"></head>
+ //   <body><pre style="word-wrap: break-word; white-space: pre-wrap;">내용</pre></body></html>
+ // 우리 앱 자체의 <style>(다크/라이트 색상, 폰트 등)이 남아있으면 그게 끼어들어서
+ // "진짜 브라우저 자체 다크"가 아니게 되므로, 그 스타일시트부터 완전히 제거한다.
+ // 그러면 배경/글자색/폰트/여백 전부 UA(브라우저) 기본값 그대로 나오고,
+ // color-scheme 메타 태그 덕분에 라이트/다크 반전도 브라우저가 알아서 처리한다.
+ // 화면 표시와는 무관하지만, 실제 브라우저의 .txt 뷰는 <html>에 lang 속성도 없고
+ // head 안에 charset/viewport meta나 우리 앱이 불러온 pako 같은 <script> 태그도 없다.
+ // DOM 소스 자체도 최대한 동일하게 만들기 위해 이런 것들도 전부 제거한다.
+ document.head.querySelectorAll('style').forEach(s=>s.remove());
+ document.head.querySelectorAll('script').forEach(s=>s.remove());
+ document.head.querySelectorAll('meta[charset], meta[name="viewport"]').forEach(m=>m.remove());
+ document.documentElement.removeAttribute('lang');
+ document.documentElement.removeAttribute('data-theme');
+ let meta=document.querySelector('meta[name="color-scheme"]');
+ if(!meta){meta=document.createElement('meta');meta.setAttribute('name','color-scheme');document.head.appendChild(meta)}
+ meta.setAttribute('content','light dark');
+ // 앱 UI를 통째로 걷어내고, 브라우저가 만드는 것과 똑같은 <pre> 하나만 남긴다.
+ // innerHTML이 아니라 textContent라 공유받은 내용에 HTML/스크립트가 섞여 있어도 해석되지 않는다.
+ document.body.innerHTML='';
+ const pre=document.createElement('pre');
+ pre.style.cssText='word-wrap: break-word; white-space: pre-wrap;';
+ pre.textContent=content;
+ document.body.appendChild(pre);
+ document.addEventListener('keydown',e=>{
+  const mod=e.ctrlKey||e.metaKey;
+  if(mod && !e.shiftKey && e.key.toLowerCase()==='s'){
+   e.preventDefault();
+   const blob=new Blob([content],{type:'text/plain;charset=utf-8'});
+   const a=document.createElement('a');
+   a.href=URL.createObjectURL(blob);
+   a.download=name;
+   a.click();
+   URL.revokeObjectURL(a.href);
+  }
+ });
+}
+
+/* ===================== 시작 시 주소(#) → 로컬 저장 → 기본 문서 순서로 복원 ===================== */
+// isNavigation=true: 이미 열려 있는 상태에서 해시가 바뀐 경우(링크 클릭 등).
+// 이때만 "버릴 내용"이 있는지 확인한다 — 시작 시 최초 로드(init)는 항상 그대로 불러온다.
+window.addEventListener('hashchange',()=>{loadFromLocation(true)});
+async function loadFromLocation(isNavigation){
+ const h=(location.hash||'').replace(/^#/,'');
+ if(!h)return false;
+
+ let res;
+ try{
+  res=await decodeFromHash(h);
+ }catch(e){
+  urlinfo.textContent='🔴 주소 복원 실패 — 로컬 백업 사용';
+  return false;
+ }
+
+ if(res.mode==='S' && !isNavigation){
+  // 공유(S) 마커 링크 — 앱이 처음 열릴 때만 특수 처리한다. 이미 앱을 쓰던 중에 이 링크로
+  // 이동한 경우(isNavigation)까지 화면을 통째로 갈아엎으면 편집 중이던 내용을 잃기 쉬우므로
+  // 그 경우는 그냥 일반 마커 없는 링크처럼 취급해 아래로 흘려보낸다.
+  renderShareView(res.name||'Untitled.md',res.content);
+  return true;
+ }
+ const incomingMode=(res.mode && res.mode!=='S')?MODE_FROM_MARKER[res.mode]:null;
+
+ // 비교 기준: 탭을 유지한 채면 지금 화면의 내용/이름/모드, 새 탭이면 로컬스토리지에 남은 마지막 내용/이름/모드.
+ let baseline,baselineMeaningful,baselineMode,baselineName;
+ if(isNavigation){
+  baseline=editor.value;
+  baselineMeaningful=!isDiscardable();
+  baselineMode=renderMode;
+  baselineName=filename.textContent||'Untitled.md';
+ }else{
+  baseline=localStorage.getItem('md-editor-content');
+  baselineMeaningful=baseline!=null && baseline.trim()!=='' && baseline!==starter;
+  baselineMode=RENDER_MODES.includes(localStorage.getItem('md-editor-rendermode'))?localStorage.getItem('md-editor-rendermode'):'markdown';
+  baselineName=localStorage.getItem('md-editor-name')||'Untitled.md';
+ }
+ function restoreBaseline(){
+  if(isNavigation){
+   // 취소하면 주소만 원래 내용에 해당하는 해시로 되돌려 편집 중인 내용과 어긋나지 않게 한다.
+   history.replaceState(null,'',location.pathname+location.search+(currentHash?('#'+currentHash):''));
+  }else{
+   editor.value=baseline;
+   filename.textContent=localStorage.getItem('md-editor-name')||'Untitled.md';
+   render();
+  }
+ }
+
+ if(baselineMeaningful){
+  if(baseline!==res.content){
+   // 내용 자체가 다른 경우 — 기존처럼 "버릴지" 확인.
+   const ok=window.confirm(isNavigation
+    ?'현재 편집 중인 내용을 버리고 이 링크의 내용을 불러올까요?'
+    :'로컬에 저장된 내용과 다른 링크입니다. 링크의 내용을 불러올까요? (취소하면 로컬에 저장된 내용을 유지합니다)');
+   if(!ok){restoreBaseline();return isNavigation?false:true}
+  }else{
+   // 내용은 100% 같은 경우 — 파일 이름과 모드 마커 각각의 차이를 따로 감지해서, 무엇이 다른지 구체적으로 확인한다.
+   const incomingName=res.name||'Untitled.md';
+   const nameDiffers=incomingName!==baselineName;
+   const modeDiffers=!!(incomingMode && incomingMode!==baselineMode);
+   let msg=null;
+   if(nameDiffers && modeDiffers){
+    msg=`내용은 동일하지만 파일 이름과 모드가 다릅니다. 이름: "${baselineName}" → "${incomingName}", 모드: ${RENDER_MODE_NAME[baselineMode]} → ${RENDER_MODE_NAME[incomingMode]}. 이 링크의 값으로 바꿀까요?`;
+   }else if(nameDiffers){
+    msg=`내용은 동일하지만 파일 이름이 다릅니다. "${baselineName}" → "${incomingName}"(으)로 바꿀까요?`;
+   }else if(modeDiffers){
+    msg=`내용은 동일하고 모드만 다릅니다. ${RENDER_MODE_NAME[baselineMode]} → ${RENDER_MODE_NAME[incomingMode]}로 전환할까요?`;
+   }
+   if(msg){
+    const ok=window.confirm(msg);
+    if(!ok){restoreBaseline();return isNavigation?false:true}
+   }
+  }
+ }
+
+ // 링크에 모드 마커가 실려 있으면(M/H/T) 지금 렌더 모드를 그 문서가 저장될 때의 모드로 맞춘다 —
+ // 로컬스토리지는 이 브라우저에만 남아있으니, 링크 자체에도 모드를 실어서 어디서 열어도 같게 만든다.
+ if(incomingMode && incomingMode!==renderMode){
+  renderMode=incomingMode;
+  applyRenderMode();
+ }
+ editor.value=res.content;
+ filename.textContent=res.name||'Untitled.md';
+ // 지금 불러온 내용은 이미 이 주소 그대로 저장돼 있는 것이므로,
+ // 다시 인코딩해서 저장하지 않고(=저장 중 표시 없이) 바로 "저장됨"으로 표시한다.
+ render(false);
+ stopSavingIndicator();
+ const methodKey=h.charAt(0);
+ const methodName=methodKey==='r'?'무압축':(COMPRESSORS[methodKey]?.name||methodKey);
+ urlinfo.textContent=`🟢 주소 ${formatLen(h.length)} · ${methodName}`;
+ currentHash=h;
+ return true;
+}
+(async function init(){
+ applyTheme(localStorage.getItem('md-editor-theme')||'dark');
+ await brotliReady;
+ const loaded=await loadFromLocation();
+ if(!loaded){
+  editor.value=localStorage.getItem('md-editor-content') ?? starter;
+  filename.textContent=localStorage.getItem('md-editor-name') ?? 'Untitled.md';
+  render();
+ }
+ setMode(localStorage.getItem('md-editor-mode')||'editor');
+})();
+</script>
+</body>
+</html>

@@ -44,6 +44,7 @@ text-align:center;padding:28px;transition:.15s;background:var(--panel2);cursor:p
 label{display:block;font-size:13px;font-weight:700;margin:0 0 7px}
 input[type=text],input[type=password],input[type=number]{width:100%;padding:11px 12px;border:1px solid var(--input-border);border-radius:11px;background:var(--input);color:var(--text);outline:none;transition:border-color .2s, box-shadow .2s}
 input:focus{border-color:var(--accent);box-shadow:0 0 0 3px #315efb18}
+.dropzone:focus-visible{border-color:var(--accent);box-shadow:0 0 0 3px #315efb18;outline:none}
 input::placeholder{color:var(--muted);opacity:0.6}
 input.error{border-color:var(--danger)!important;box-shadow:0 0 0 3px #d92d2033!important}
 input.error-shake{animation:shake .4s}
@@ -105,7 +106,7 @@ word-break:break-all;max-height:100px;overflow:auto}
 
   <main class="card">
     <div class="main">
-      <div id="main-dropzone" class="dropzone" tabindex="0">
+      <div id="main-dropzone" class="dropzone" tabindex="0" role="button" aria-label="파일을 여기에 놓거나 클릭하여 선택">
         <div id="dropzone-content">
           <h2>파일을 여기에 놓으세요</h2>
           <p>VLT1이면 자동으로 복호화 · 그 외 파일은 암호화</p>
@@ -129,7 +130,7 @@ word-break:break-all;max-height:100px;overflow:auto}
         </div>
 
         <div id="encrypt-pqc-fields" class="hidden">
-          <div id="encrypt-pqc-dropzone" class="dropzone" style="min-height:120px">
+          <div id="encrypt-pqc-dropzone" class="dropzone" style="min-height:120px" tabindex="0" role="button" aria-label="수신자 결합 공개키 파일을 놓거나 클릭하여 선택">
             <div><b>수신자 결합 공개키</b><p>설정 패널의 공개키 또는 .txt/.VaultKey를 사용합니다.</p>
             <input id="encrypt-pqc-file-input" type="file" accept=".txt,.VaultKey" hidden></div>
           </div>
@@ -145,7 +146,7 @@ word-break:break-all;max-height:100px;overflow:auto}
           <label for="encrypt-sign-checkbox">서명 포함</label>
         </div>
         <div id="sign-hint" class="hint">서명을 체크하면 암호화 마지막 단계에서 개인키를 선택하고 비밀번호를 입력합니다.</div>
-        <div id="encrypt-status" class="statusline"></div>
+        <div id="encrypt-status" class="statusline" role="status" aria-live="polite" aria-atomic="true"></div>
         <button id="encrypt-execute-btn" class="primary" style="width:100%;margin-top:13px">암호화</button>
       </section>
 
@@ -156,13 +157,13 @@ word-break:break-all;max-height:100px;overflow:auto}
           <label for="decrypt-password">비밀번호</label><input id="decrypt-password" type="password" autocomplete="current-password" placeholder="비밀번호 입력">
         </div>
         <div id="decrypt-pqc-wrap" class="hidden">
-          <div id="decrypt-pqc-dropzone" class="dropzone" style="min-height:120px">
+          <div id="decrypt-pqc-dropzone" class="dropzone" style="min-height:120px" tabindex="0" role="button" aria-label="결합 개인키 파일을 놓거나 클릭하여 선택">
             <div><b>결합 개인키</b><p id="decrypt-pqc-state">개인키를 로드하세요.</p>
             <input id="decrypt-pqc-file-input" type="file" accept=".txt,.VaultKey" hidden></div>
           </div>
         </div>
-        <div id="status-decrypt" class="statusline"></div>
-        <div id="decrypt-signature-banner" class="hidden"></div>
+        <div id="status-decrypt" class="statusline" role="status" aria-live="polite" aria-atomic="true"></div>
+        <div id="decrypt-signature-banner" class="hidden" role="status" aria-live="polite" aria-atomic="true"></div>
         <button id="decrypt-execute-btn" class="primary" style="width:100%;margin-top:13px">복호화</button>
       </section>
     </div>
@@ -175,7 +176,7 @@ word-break:break-all;max-height:100px;overflow:auto}
   <aside class="settings-inner">
     <div class="settings-head"><h2>설정</h2><button id="settings-close" class="ghost">닫기</button></div>
 
-    <div id="settings-dropzone" class="dropzone loadzone">
+    <div id="settings-dropzone" class="dropzone loadzone" tabindex="0" role="button" aria-label="키 파일을 놓거나 클릭하여 선택">
       <div><b>키 로드</b><p>.txt 또는 .VaultKey</p><input id="settings-file-input" type="file" accept=".txt,.VaultKey" hidden></div>
     </div>
     <div id="settings-load-status" class="statusline"></div>
@@ -255,7 +256,7 @@ word-break:break-all;max-height:100px;overflow:auto}
     <div class="modal-actions"><button id="modal-cancel-btn" class="ghost">취소</button><button id="modal-confirm-btn" class="primary">확인</button></div>
   </div>
 </div>
-<div id="toast" class="toast hidden"></div>
+<div id="toast" class="toast hidden" role="alert" aria-live="assertive" aria-atomic="true"></div>
 
 <script type="module">
 import { ml_kem768 } from "https://esm.sh/@noble/post-quantum@0.7.0/ml-kem.js";
@@ -1109,12 +1110,19 @@ async function loadKeyFile(file) {
   }
 }
 
-$("main-dropzone").onclick = function(e) {
+function handleMainDropzoneActivate(e) {
   if (e.target.tagName === "INPUT") return;
   if (mainFile) {
     unloadFile();
   } else {
     $("main-file-input").click();
+  }
+}
+$("main-dropzone").onclick = handleMainDropzoneActivate;
+$("main-dropzone").onkeydown = function(e) {
+  if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+    e.preventDefault();
+    handleMainDropzoneActivate(e);
   }
 };
 $("main-file-input").onchange = e => {
@@ -1136,6 +1144,7 @@ $("settings-toggle").onclick = () => $("settings-panel").classList.remove("hidde
 $("settings-close").onclick = () => $("settings-panel").classList.add("hidden");
 $("settings-panel").onclick = e => { if (e.target === $("settings-panel")) $("settings-panel").classList.add("hidden") };
 $("settings-dropzone").onclick = () => $("settings-file-input").click();
+$("settings-dropzone").onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("settings-file-input").click(); } };
 bindDrop($("settings-dropzone"), async f => { 
   try {
     await loadKeyFile(f);
@@ -1160,6 +1169,7 @@ $("encrypt-password-confirm").oninput = updateEncryptUI;
 $("hint-help").onclick = () => modal("힌트 사용법", "\\n은 줄바꿈으로 표시됩니다.\n|| 는 구분선으로 표시됩니다.\n\n핑거프린트 힌트 포함 활성화 시:\n||fingerprint:{핑거프린트}||{메모}\n형식으로 자동 추가됩니다.");
 
 $("encrypt-pqc-dropzone").onclick = () => $("encrypt-pqc-file-input").click();
+$("encrypt-pqc-dropzone").onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("encrypt-pqc-file-input").click(); } };
 bindDrop($("encrypt-pqc-dropzone"), async f => { 
   try {
     const result = await loadKeyFile(f);
@@ -1191,6 +1201,7 @@ $("encrypt-pqc-file-input").onchange = async e => {
 $("encrypt-execute-btn").onclick = runEncrypt;
 
 $("decrypt-pqc-dropzone").onclick = () => $("decrypt-pqc-file-input").click();
+$("decrypt-pqc-dropzone").onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("decrypt-pqc-file-input").click(); } };
 bindDrop($("decrypt-pqc-dropzone"), async f => { 
   try {
     const name = f.name.toLowerCase();

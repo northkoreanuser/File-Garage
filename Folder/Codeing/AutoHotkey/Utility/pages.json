@@ -1,6 +1,7 @@
 {
   "folders": [],
   "files": [
-    {"name": "custom_capture.ahk", "size": 10043, "crc32": "4AE3A7FF"}
+    {"name": "custom_capture.ahk", "size": 10043, "crc32": "4AE3A7FF"},
+    {"name": "emergency_network_repair.ahk", "size": 31713, "crc32": "69A99F8F"}
   ]
 }

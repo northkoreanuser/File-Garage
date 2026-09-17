@@ -1,12 +1,7 @@
 {
   "folders": [],
   "files": [
-    {"name": "HTML Editor.html", "size": 20635, "crc32": "09F4122A"},
-    {"name": "Obsidian-style Text Editor.html", "size": 47142, "crc32": "D18D41A4"},
-    {"name": "Roulette.html", "size": 30578, "crc32": "355BDCE9"},
-    {"name": "Simple_Vault.html", "size": 72769, "crc32": "1F37CB41"},
-    {"name": "Ssibal.enc.html", "size": 52158, "crc32": "2BD71D0D"},
-    {"name": "Ssibal_Text.enc.html", "size": 80053, "crc32": "0C859EBD"},
-    {"name": "WebPage-Maker.html", "size": 24299, "crc32": "408F2C71"}
+    {"name": "vault_gui.7z", "size": 52198646, "crc32": "A49025D8"},
+    {"name": "vault_gui.exe", "size": 19746458, "crc32": "F86715FC"}
   ]
 }
