@@ -29,6 +29,10 @@
 ;   화면 가상 파일시스템 폴더를 통째로 다운로드할 때(폴더 구조를 그대로 재현해야 하는데 각
 ;   파일이 서버에 실제 URL은 없는 경우) 쓴다.
 ;
+; 시작할 때마다 'localserver:' URL 프로토콜을 자기 자신으로(HKEY_CURRENT_USER, 관리자 권한 불필요)
+; 등록한다(RegisterLocalserverProtocol) - index.html이 헬퍼를 못 찾았을 때 다운로드 안내 전에
+; 이 주소로 먼저 실행을 시도해볼 수 있게 하기 위함이다.
+;
 ; 포트는 고정하지 않고 8000~8020 사이에서 비어있는 걸 동적으로 잡는다.
 ; index.html도 같은 범위를 스캔해서 응답하는 포트를 찾아 쓴다 (양쪽 다 동적).
 ; 그 범위에 이미 다른 무관한 프로그램이 떠있을 수도 있으므로, /ping은 단순
@@ -66,6 +70,12 @@ RunningProcs := []   ; [{pid, path}, ...] "열기"로 실행해서 temp에 남�
 UniqueCounter := 0
 Busy := false         ; 진행률 다운로드 도중 재진입 방지용 (개인용 단일 서버라 동시 다운로드는 막는다)
 
+; index.html(local-helper.js)이 헬퍼가 꺼져 있는 걸 발견하면 다운로드 안내 전에 먼저
+; 'localserver:' 주소로 이 스크립트를 직접 실행시켜볼 수 있도록, 시작할 때마다 자기 자신을 그
+; 프로토콜 핸들러로 등록해둔다(관리자 권한이 필요없는 HKEY_CURRENT_USER에 등록). 실패해도(권한
+; 정책 등) 서버 자체 동작에는 지장이 없으므로 조용히 무시한다.
+RegisterLocalserverProtocol()
+
 boundUrl := StartWebhookServer(PORT_MIN, PORT_MAX, A_ScriptDir . "\webhook.log")
 if !boundUrl {
     MsgBox, 4096, 로컬 헬퍼, %PORT_MIN%~%PORT_MAX% 사이에 열 수 있는 포트가 없습니다.
@@ -74,6 +84,31 @@ if !boundUrl {
 ; #NoTrayIcon이라 트레이 아이콘을 마우스로 우클릭해서 끌 수 없다 - index.html 환경설정의
 ; "웹훅 종료" 버튼이 /kill 요청을 보내서 끄는 게 유일한 정상 종료 방법이다.
 return
+
+; ===================== 'localserver:' URL 프로토콜 자가 등록 =====================
+; 컴파일된 exe면 자기 자신을 그대로, .ahk 스크립트로 돌고 있으면 "AutoHotkey 실행파일 스크립트경로"
+; 형태로 등록해야 한다 - URL 프로토콜의 shell\open\command는 실제 실행 파일을 직접 가리켜야 하므로
+; .ahk 파일 경로 하나만 넣어서는 실행되지 않는다(더블클릭 시의 파일 연결과는 다른 경로). %1 자리에는
+; 브라우저가 클릭된 주소("localserver:")를 그대로 넘겨주는데, 이 스크립트는 그 값을 읽어 쓸 필요가
+; 없다 - "실행되어 포트를 열기만" 하면 목적을 다한 것이기 때문이다.
+; 이미 지금과 완전히 같은 명령으로 등록돼 있으면(경로가 안 바뀌었으면) 다시 쓰지 않는다(불필요한
+; 레지스트리 쓰기 방지 - 실행할 때마다 매번 쓰는 건 낭비이고, 드물게는 정책상 막혀 있을 수도 있다).
+RegisterLocalserverProtocol() {
+    if (A_IsCompiled)
+        cmd := """" . A_ScriptFullPath . """" . " ""%1"""
+    else
+        cmd := """" . A_AhkPath . """ """ . A_ScriptFullPath . """ ""%1"""
+
+    RegRead, existing, HKEY_CURRENT_USER, Software\Classes\localserver\shell\open\command
+    if (existing = cmd)
+        return
+
+    iconTarget := A_IsCompiled ? A_ScriptFullPath : A_AhkPath
+    RegWrite, REG_SZ, HKEY_CURRENT_USER, Software\Classes\localserver,, URL:localserver Protocol
+    RegWrite, REG_SZ, HKEY_CURRENT_USER, Software\Classes\localserver, URL Protocol,
+    RegWrite, REG_SZ, HKEY_CURRENT_USER, Software\Classes\localserver\DefaultIcon,, % """" . iconTarget . """,0"
+    RegWrite, REG_SZ, HKEY_CURRENT_USER, Software\Classes\localserver\shell\open\command,, %cmd%
+}
 
 ; ===================== 서버 시작 (portMin~portMax 사이에서 빈 포트 탐색) =====================
 StartWebhookServer(portMin, portMax, logFile := "webhook.log") {

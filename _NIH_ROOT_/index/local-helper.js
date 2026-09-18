@@ -119,11 +119,43 @@ async function scanForHelperPort() {
   const found = await scanAllHelperPorts();
   return found.length ? found[0] : null;
 }
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+// ============ 헬퍼 검사 -> 없음 -> 'localserver:' 프로토콜 실행 -> 재검사 -> 그래도 없으면 출력 ============
+// 헬퍼가 설치는 돼 있지만(설치 시 localserver.ahk가 자기 자신을 이 프로토콜로 등록해둔다) 지금
+// 실행 중이 아닐 때, 곧바로 "받으세요" 안내 대화상자부터 띄우는 대신 한 번은 이 프로토콜로 직접
+// 실행을 시도해본다 - 등록돼 있으면 OS가 그대로 실행해준다(브라우저가 "이 사이트가 앱을 열려고
+// 합니다" 허용 팝업을 띄울 수 있는데, 로컬 네트워크 접근 팝업과 마찬가지로 정상이다). 실행 시도
+// 직후엔 헬퍼가 뜨고 포트를 열기까지(+ 사용자가 허용 팝업을 누르는 시간까지) 약간 시간이 걸리므로
+// 곧장 재검사하지 않고 잠깐 기다렸다가 다시 스캔한다. 그래도 안 잡히면(설치가 안 됐거나, 사용자가
+// 허용을 안 눌렀거나) 기존처럼 offerHelperDownload가 다운로드를 안내한다("이래도 없으면 출력").
+// 같은 클릭 안에서, 혹은 아주 짧은 시간 안에 여러 함수가 겹쳐 ensureHelperPort를 부를 수 있으므로
+// (예: 다중 선택 다운로드) 마지막 시도로부터 일정 시간 안이면 프로토콜 실행 자체는 건너뛴다 -
+// 매번 브라우저 허용 팝업이 겹쳐 뜨는 걸 막기 위함이다.
+const HELPER_PROTOCOL_RETRY_COOLDOWN_MS = 3000;
+const HELPER_PROTOCOL_WAIT_MS = 1200;
+let lastHelperProtocolAttempt = 0;
+function tryLaunchHelperProtocol() {
+  const now = Date.now();
+  if (now - lastHelperProtocolAttempt < HELPER_PROTOCOL_RETRY_COOLDOWN_MS) return false;
+  lastHelperProtocolAttempt = now;
+  try {
+    location.href = "localserver:";
+    return true;
+  } catch (e) {
+    return false; // 브라우저가 커스텀 프로토콜 자체를 막아둔 경우 등 - 조용히 실패하고 기존 흐름으로
+  }
+}
 async function ensureHelperPort() {
   if (cachedHelperPort !== null && (await pingPort(cachedHelperPort))) return cachedHelperPort;
   cachedHelperPort = await scanForHelperPort();
+  if (cachedHelperPort !== null) { dfNoteWebhookConnected(); return cachedHelperPort; }
+  // 헬퍼 검사 -> 없음 -> url 프로토콜 실행 -> 헬퍼 재검사
+  if (tryLaunchHelperProtocol()) {
+    await sleep(HELPER_PROTOCOL_WAIT_MS);
+    cachedHelperPort = await scanForHelperPort();
+  }
   if (cachedHelperPort !== null) dfNoteWebhookConnected();
-  return cachedHelperPort;
+  return cachedHelperPort; // 이래도 없으면 null 그대로 반환 - 호출한 쪽(offerHelperDownload)이 안내 대화상자를 띄운다
 }
 // 특정 포트에 종료 요청을 보낸다 (응답이 오든 안 오든, 연결이 끊기든 상관없이 실패는 그냥 무시한다 -
 // 어차피 목적은 "떠 있으면 끄기"이고, 이미 꺼져있었다면 애초에 에러가 나는 게 정상이다).

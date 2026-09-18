@@ -55,5 +55,7 @@
   "ai": "photo",
   "eps": "photo",
   "pdf": "pdf",
-  "txt": "editor"
+  "txt": "editor",
+  "json": "editor",
+  "ico": "photo"
 }

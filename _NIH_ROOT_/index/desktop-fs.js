@@ -468,7 +468,12 @@ async function dfsDeepCopyChildren(fromId, toId) {
     }
     // 요청 #133: targetId가 있으면(기존 방식) 내부 항목을 가리키는 바로가기, 없고 url이 있으면
     // 사용자가 직접 주소/아이콘을 입력해 만든 바로가기 - 둘 다 복사 시 그대로 유지해야 한다.
-    if (kid.type === "shortcut") { copy.targetId = kid.targetId; copy.url = kid.url; copy.icon = kid.icon; }
+    // iconKind/iconName/iconPath(저장소 항목에서 만든 바로가기의 아이콘 계산용)도 함께 유지해야
+    // 복사본도 원본과 같은 아이콘으로 그려진다(버그 리포트 수정과 짝).
+    if (kid.type === "shortcut") {
+      copy.targetId = kid.targetId; copy.url = kid.url; copy.icon = kid.icon;
+      copy.iconKind = kid.iconKind || null; copy.iconName = kid.iconName || null; copy.iconPath = kid.iconPath || null;
+    }
     const newId = await dfsDb.nodes.add(copy);
     if (kid.type === "folder") await dfsDeepCopyChildren(kid.id, newId);
   }
@@ -512,7 +517,10 @@ async function dfsCopyInto(node, parentId, desiredName) {
     copy.content = node.content; copy.fileType = node.fileType;
     if (node.binary) { copy.binary = true; copy.blob = node.blob; copy.mime = node.mime; } // 요청 #145
   }
-  if (node.type === "shortcut") { copy.targetId = node.targetId; copy.url = node.url; copy.icon = node.icon; } // 요청 #133
+  if (node.type === "shortcut") { // 요청 #133 (+ iconKind 등은 버그 리포트 수정 - dfsDeepCopyChildren과 같은 이유)
+    copy.targetId = node.targetId; copy.url = node.url; copy.icon = node.icon;
+    copy.iconKind = node.iconKind || null; copy.iconName = node.iconName || null; copy.iconPath = node.iconPath || null;
+  }
   const id = await dfsDb.nodes.add(copy);
   if (node.type === "folder") await dfsDeepCopyChildren(node.id, id);
   return dfsDb.nodes.get(id);
@@ -530,13 +538,20 @@ async function dfsCreateShortcut(node) {
 // 요청 #133: 바탕화면/탐색기(가상 폴더) 빈 곳에서 "바로가기 생성"을 고르면 기존 항목을 가리키는
 // 게 아니라, 사용자가 직접 입력한 이름/주소(URL)/아이콘으로 완전히 새로운 바로가기를 만든다
 // (dfsCreateShortcut의 targetId 방식과 달리 url/icon 필드를 쓴다 - dfsActivate/dfsIconGlyphFor
-// 양쪽에서 이 둘을 구분해서 처리한다). icon은 비어 있으면 기본 파일 아이콘으로 그려진다.
+// 양쪽에서 이 둘을 구분해서 처리한다). icon은 비어 있으면 기본 파일 아이콘으로 그려진다 - 단,
+// iconKind가 있으면(dfsCreateDesktopShortcutFromRepoItem 참고) 그 대상의 실제 아이콘(폴더/확장자별
+// 아이콘)을 대신 그린다(dfsIconGlyphFor). 호출하는 쪽이 안 넘기면 undefined로 저장되어 예전과
+// 동일하게 동작한다.
 async function dfsCreateUrlShortcut(parentId, info) {
   const name = await dfsUniqueName(parentId, info.name || "새 바로가기");
   const now = Date.now();
   const pos = await dfsNextIconPos(parentId);
   // 요청 #141: popup - 활성화(더블클릭/열기)할 때 새 탭 대신 작은 팝업 창으로 열지 여부.
-  const id = await dfsDb.nodes.add({ parentId, type: "shortcut", name, url: info.url, icon: info.icon || "", popup: !!info.popup, x: pos.x, y: pos.y, createdAt: now, updatedAt: now });
+  const id = await dfsDb.nodes.add({
+    parentId, type: "shortcut", name, url: info.url, icon: info.icon || "", popup: !!info.popup,
+    iconKind: info.iconKind || null, iconName: info.iconName || null, iconPath: info.iconPath || null,
+    x: pos.x, y: pos.y, createdAt: now, updatedAt: now
+  });
   return dfsDb.nodes.get(id);
 }
 // 요청: 저장소(진짜 파일/폴더) 우클릭 메뉴에서도 바탕 화면에 바로가기를 바로 만들 수 있어야 한다는
@@ -544,9 +559,18 @@ async function dfsCreateUrlShortcut(parentId, info) {
 // 딥링크(pathToHash, data-and-hash.js)를 주소로 쓰는 url 방식 바로가기로 만든다. 이렇게 만든 바로
 // 가기는 dfsDownloadShortcutFile로 .sc 파일로 받아 저장소에 다시 올려도(activateScShortcut) 같은
 // 위치가 그대로 다시 열리므로, 바탕화면과 저장소 양쪽에서 재사용 가능한 진짜 바로가기가 된다.
+// 버그 리포트: "레포에서 바탕화면으로 생성한 바로가기 아이콘 없음" - icon을 항상 빈 문자열로
+// 남겨서 dfsIconGlyphFor가 매번 기본(빈) 파일 아이콘으로만 그렸다(폴더를 가리키는 바로가기조차
+// 폴더 모양이 아니었음). 폴더/확장자 아이콘은 크기(트리 15px/내용창 32px/바탕화면 40px)에 따라
+// 다시 그려야 하므로 아이콘 자체(HTML)를 저장하는 대신 "무엇의 아이콘을 어떻게 다시 계산할지"만
+// (iconKind/iconName/iconPath) 저장해서 dfsIconGlyphFor가 그때그때 알맞은 크기로 새로 그리게 한다
+// (저장소 탐색기가 같은 항목을 그릴 때 쓰는 resolveFolderIcon/resolveFileIcon과 완전히 같은 규칙).
 async function dfsCreateDesktopShortcutFromRepoItem(it) {
   const url = location.origin + location.pathname + "#" + pathToHash(it.path);
-  await dfsCreateUrlShortcut(DFS_DESKTOP_ROOT, { name: it.name, url, icon: "", popup: false });
+  const iconInfo = it.type === "folder"
+    ? { iconKind: "folder", iconName: null, iconPath: it.path }
+    : { iconKind: "file", iconName: it.name, iconPath: it.path };
+  await dfsCreateUrlShortcut(DFS_DESKTOP_ROOT, { name: it.name, url, icon: "", popup: false, ...iconInfo });
   await dfsBroadcastChange();
   showToast(`"${it.name}" 바로가기를 바탕 화면에 만들었습니다.`, { sound: "move_or_copy" });
 }
@@ -601,7 +625,12 @@ async function dfsEditShortcut(node, refresh) {
     { title: "바로가기 편집", okLabel: "저장" }
   );
   if (!info) return;
-  const patch = { url: info.url, icon: info.icon || "", popup: !!info.popup, targetId: null, updatedAt: Date.now() };
+  // targetId와 마찬가지로 iconKind/iconName/iconPath(저장소 항목에서 자동으로 만들어진 아이콘
+  // 계산 정보)도 편집 순간부터는 지운다 - 편집한 뒤로는 "주소가 있는 보통 바로가기"가 되어 더는
+  // 원래 저장소 항목을 자동으로 따라가지 않으므로(위 주석), 아이콘도 icon 필드(직접 입력한 값,
+  // 비어있으면 기본 파일 아이콘)로만 정해지는 게 맞다 - 안 지우면 주소를 완전히 다른 곳으로
+  // 바꿔도 예전 대상의 폴더/확장자 아이콘이 계속 남아 혼동을 준다.
+  const patch = { url: info.url, icon: info.icon || "", popup: !!info.popup, targetId: null, iconKind: null, iconName: null, iconPath: null, updatedAt: Date.now() };
   const newName = info.name.trim() || "새 바로가기";
   if (newName !== node.name) {
     const err = dfsValidateName(newName);
@@ -944,8 +973,16 @@ function dfsIconGlyphFor(node, size) {
   if (node.type === "folder") inner = folderIcon(size, false);
   // 요청 #133: 사용자가 직접 주소/아이콘을 입력해 만든 바로가기는 그 아이콘(URL 또는 붙여넣은
   // base64 이미지)이 있으면 그대로 그린다 - 기존 항목을 가리키는 바로가기(아이콘 지정 없음)는
-  // 예전처럼 기본 파일 아이콘을 쓴다.
-  else if (node.type === "shortcut") inner = node.icon ? `<img src="${escapeHtml(resolveIconSrc(node.icon))}" style="width:${size}px;height:${size}px;object-fit:contain;">` : fileIcon(size);
+  // 예전처럼 기본 파일 아이콘을 쓴다. 버그 리포트 수정: icon이 없어도 iconKind가 있으면(저장소
+  // 폴더/파일에서 만든 바로가기 - dfsCreateDesktopShortcutFromRepoItem) 저장소 탐색기와 똑같은
+  // 규칙(resolveFolderIcon/resolveFileIcon)으로 그 대상의 실제 아이콘을 지금 크기에 맞게 다시
+  // 계산해서 그린다 - 그래도 없으면(옛날에 만든 바로가기 등) 기존처럼 기본 파일 아이콘.
+  else if (node.type === "shortcut") {
+    if (node.icon) inner = `<img src="${escapeHtml(resolveIconSrc(node.icon))}" style="width:${size}px;height:${size}px;object-fit:contain;">`;
+    else if (node.iconKind === "folder") inner = resolveFolderIcon(node.iconPath || [], size, false);
+    else if (node.iconKind === "file") inner = resolveFileIcon(node.iconName || node.name, size, node.iconPath || null);
+    else inner = fileIcon(size);
+  }
   else {
     // 요청 #146: "확장자 아이콘을 바꾸면 저장소 파일에는 적용되는데 바탕화면에 만든 파일에는
     // 적용이 안 됨" - state.js의 resolveFileIcon(진짜 저장소 파일용)과 같은 순서로, 먼저

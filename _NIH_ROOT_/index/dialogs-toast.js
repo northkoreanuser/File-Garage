@@ -161,8 +161,13 @@ function showShortcutDialog(defaults = {}, opts = {}) {
       resolve(result);
     };
     function submit() {
-      const url = urlInput.value.trim();
+      let url = urlInput.value.trim();
       if (!url) { showToast("주소(URL)를 입력하세요.", { kind: "warn", sound: "error_generic" }); urlInput.focus(); return; }
+      // 버그 리포트: 스킴 없이("example.com"처럼) 저장된 바로가기는 나중에 저장소 탐색기에서
+      // 파비콘(아이콘)을 못 받아온다(new URL()이 예외를 던져 조용히 실패함) - 저장 시점에 미리
+      // 보정해서 앞으로 만드는 바로가기는 이 문제가 생기지 않게 한다. mailto:/ftp: 등 이미 스킴이
+      // 있는 값이나 이 앱 자신의 딥링크(https://...#...)는 건드리지 않는다.
+      if (!/^[a-z][a-z0-9+.-]*:/i.test(url)) url = "https://" + url;
       const name = nameInput.value.trim() || "새 바로가기";
       cleanup({ name, url, icon: currentIcon, popup: popupInput.checked });
     }

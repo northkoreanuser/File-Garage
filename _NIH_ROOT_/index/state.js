@@ -245,9 +245,20 @@ function dfWriteScFaviconCache(path, url, favicon) {
 // google s2 파비콘 서비스 - 대상 사이트가 favicon.ico를 루트에 안 두거나 manifest로만 아이콘을
 // 지정해도 대부분 잡아준다. <img src>는 CORS 제약이 없어(화면 표시만 할 뿐 픽셀을 읽지 않음)
 // 대상 사이트가 크로스오리진이어도 그냥 붙여 쓸 수 있다.
+// 버그 리포트: "탐색기 내 일부 바로가기 아이콘 로드 안 됨" - 원인은 바로가기 생성 대화상자가
+// 주소 입력을 검증하지 않아서, "example.com"처럼 스킴(https://) 없이 입력된 예전 .sc 파일들의
+// url이 new URL()에서 그냥 예외를 던졌기 때문이다(예외는 조용히 삼켜지므로 그 파일은 영영 기본
+// 아이콘에 머무른다 - "로드가 안 되는" 것처럼 보임). 스킴이 없으면 https://를 붙여 한 번 더
+// 시도해서, 이미 저장소에 올라가 있는 스킴 없는 예전 바로가기도 파비콘을 받아오게 한다(주소
+// 값 자체는 바꾸지 않는다 - 여기서는 파비콘 조회용으로만 잠깐 보정할 뿐).
 function dfFaviconUrlForTarget(targetUrl) {
-  try { return `https://www.google.com/s2/favicons?sz=64&domain=${encodeURIComponent(new URL(targetUrl).hostname)}`; }
-  catch (e) { return null; } // url이 상대경로 등 파싱 불가한 형태면 파비콘 없이 기본 아이콘 유지
+  let u;
+  try { u = new URL(targetUrl); }
+  catch (e) {
+    try { u = new URL("https://" + targetUrl); }
+    catch (e2) { return null; } // 그래도 안 되면(빈 값/잘못된 형식 등) 파비콘 없이 기본 아이콘 유지
+  }
+  return `https://www.google.com/s2/favicons?sz=64&domain=${encodeURIComponent(u.hostname)}`;
 }
 // 이번 페이지 로드에서 이미 한 번 갱신을 마친 .sc 경로 - content-pane.js의 dfRepoTextSniffCache와
 // 같은 목적(같은 폴더를 여러 번 다시 그릴 때 매번 네트워크를 타지 않게). 페이지를 새로고침하면

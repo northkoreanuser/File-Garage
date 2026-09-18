@@ -221,8 +221,8 @@ function dfsBuildSettingsBodyHtml() {
         <span class="settings-label">로컬 헬퍼(웹훅)</span>
         <button class="settings-button settings-button-neutral" id="setDownloadHelperBtn">웹훅 받기</button>
         <button class="settings-button" id="setKillHelperBtn">웹훅 종료</button>
-        <button class="settings-button settings-button-neutral" id="setDownloadGitToolBtn">Install.zip 받기</button>
-        <div class="settings-hint">"웹훅 받기"는 저장소의 localserver.ahk를 바로 내려받습니다(받은 뒤 실행하세요). "웹훅 종료"는 실행 중인 로컬 헬퍼를 끕니다 - 트레이 아이콘이 없어서 마우스로는 끌 수 없으므로 끄려면 이 버튼을 사용하세요. (8000~8020 전체 포트에 종료 요청을 보냅니다) "Install.zip 받기"는 저장소의 Git 올인원 툴을 Install.zip라는 이름으로 바로 내려받습니다(받은 뒤 실행하세요).</div>
+        <button class="settings-button settings-button-neutral" id="setDownloadGitToolBtn">GitTool.7z 받기</button>
+        <div class="settings-hint">"웹훅 받기"는 저장소의 localserver.ahk를 바로 내려받습니다(받은 뒤 실행하세요). "웹훅 종료"는 실행 중인 로컬 헬퍼를 끕니다 - 트레이 아이콘이 없어서 마우스로는 끌 수 없으므로 끄려면 이 버튼을 사용하세요. (8000~8020 전체 포트에 종료 요청을 보냅니다) "GitTool.7z 받기"는 저장소의 Git 올인원 툴을 GitTool.7z라는 이름으로 바로 내려받습니다(받은 뒤 실행하세요).</div>
       </div>
     </div>
   `;
@@ -414,7 +414,7 @@ function dfInitSettingsWindow(handle) {
     }
   };
   $("setDownloadHelperBtn").onclick = () => downloadRealFileDirect(LOCALSERVER_TOOL_PATH, "localserver.ahk");
-  if ($("setDownloadGitToolBtn")) $("setDownloadGitToolBtn").onclick = () => downloadRealFileDirect(GITTOOL_TOOL_PATH, "Install.zip");
+  if ($("setDownloadGitToolBtn")) $("setDownloadGitToolBtn").onclick = () => downloadRealFileDirect(GITTOOL_TOOL_PATH, "GitTool.7z");
   // 요청 #136: 환경설정도 이제 앱 내 창이라 메뉴 메이커와 같은 z-index 공간을 쓰므로(둘 다
   // dfCreateAppWindow), 예전 #135 시절 필요했던 "메뉴 메이커를 열기 전에 환경설정 오버레이부터
   // 닫기"는 더 이상 필요 없다 - 두 창이 동시에 떠 있어도 각자 독립적으로 옮기고 포커스할 수 있다.
