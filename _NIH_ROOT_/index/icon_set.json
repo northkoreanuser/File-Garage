@@ -66,7 +66,8 @@
     "svg": "/_NIH_ROOT_/index/ui/icon/media/image.svg",
     "ai": "/_NIH_ROOT_/index/ui/icon/media/image.svg",
     "eps": "/_NIH_ROOT_/index/ui/icon/media/image.svg",
-    "pdf": "_NIH_ROOT_/index/ui/icon/pdf.svg"
+    "pdf": "_NIH_ROOT_/index/ui/icon/pdf.svg",
+    "vault": "_NIH_ROOT_/index/ui/icon/Vault.ico"
   },
   "repoRoot": "/_NIH_ROOT_/index/ui/icon/desktop/drive.ico",
   "recycleBinEmpty": "/_NIH_ROOT_/index/ui/icon/desktop/recyclebin1.ico",

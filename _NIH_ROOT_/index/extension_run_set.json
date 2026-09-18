@@ -54,5 +54,6 @@
   "svg": "photo",
   "ai": "photo",
   "eps": "photo",
-  "pdf": "pdf"
+  "pdf": "pdf",
+  "txt": "editor"
 }
