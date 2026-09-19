@@ -817,7 +817,7 @@ const els = {};
 // dfInitSettingsWindow(handle)가 열릴 때마다 handle.bodyEl 기준으로 새로 찾아 쓴다.
 // settingsMenuRow(시작 메뉴의 "설정" 항목 자체)는 항상 고정으로 있으므로 그대로 둔다.
 ["winTitle","btnMin","btnMax","btnClose","btnNavToggle","btnBack","btnForward","btnUp",
- "btnRefresh","breadcrumb","searchInput","navPane","contentPane","statusText","repoLink",
+ "btnRefresh","breadcrumb","searchInput","btnSearchMode","navPane","contentPane","statusText","repoLink",
  "win","taskbar","taskbarApp","clock","batteryWidget","weatherWidget","titlebar","startBtn","startMenu","startAvatar","startUserName","dfIconLayer",
  "startUserLink","startApps","trayIcons","toast","settingsMenuRow","settingsMenuIcon","themeLink"
 ].forEach(id => els[id] = document.getElementById(id));

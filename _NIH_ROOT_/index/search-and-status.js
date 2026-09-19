@@ -27,6 +27,53 @@ els.searchInput.addEventListener("input", () => {
   clearTimeout(searchDebounce);
   searchDebounce = setTimeout(runSearch, 200);
 });
+/* ============ 요청: "환경설정 → 검색 창에 검색 모드 넣기(설정 이관)" ============
+   검색 모드(이름/태그) 체크박스가 환경설정 창에만 있어서 검색할 때마다 설정을 열어 바꿔야 했다 -
+   검색창 바로 옆의 작은 버튼(index.html의 #btnSearchMode)을 누르면 뜨는 작은 메뉴로 옮긴다.
+   settings.searchByName/searchByTag 값과 "최소 하나는 항상 켜져 있어야 함" 규칙(둘 다 꺼지면
+   검색이 아예 안 됨)은 예전 환경설정 체크박스와 완전히 같고, 그걸 바꾸는 자리만 옮겼다.
+   메뉴 자체는 시작 메뉴 하위 메뉴(settings-startmenu.js의 openSubmenuFor)와 같은 .start-submenu
+   뜨는 방식(positionFloating)과 openSubmenuEls 배열을 그대로 재사용해서, 바깥을 클릭하면 자동으로
+   닫히는 동작(같은 파일의 전역 document 클릭 리스너)도 별도 구현 없이 그대로 따라온다. */
+function setSearchModeOption(key, checked, menuEl) {
+  settings[key] = checked;
+  if (!settings.searchByName && !settings.searchByTag) {
+    // 방금 끈 것 때문에 둘 다 꺼졌으면 나머지 하나를 강제로 다시 켠다(검색 자체가 막히지 않게).
+    const otherKey = key === "searchByName" ? "searchByTag" : "searchByName";
+    settings[otherKey] = true;
+    if (menuEl) {
+      const otherBox = menuEl.querySelector(otherKey === "searchByName" ? "#searchModeByName" : "#searchModeByTag");
+      if (otherBox) otherBox.checked = true;
+    }
+  }
+  saveSettings();
+}
+function openSearchModeMenu() {
+  // 이미 떠 있으면 다시 눌렀을 때 토글로 닫히게 한다(실제 드롭다운 버튼 흉내).
+  if (openSubmenuEls.some(el => el.classList.contains("search-mode-menu"))) { closeAllSubmenus(); return; }
+  closeAllSubmenus();
+  const menu = document.createElement("div");
+  menu.className = "start-submenu search-mode-menu";
+  menu.innerHTML = `
+    <div style="padding:2px 8px;display:flex;flex-direction:column;gap:8px;min-width:150px;">
+      <label class="settings-check"><input type="checkbox" id="searchModeByName"> 이름 (일반)</label>
+      <label class="settings-check"><input type="checkbox" id="searchModeByTag"> 태그 (해시)</label>
+    </div>`;
+  // 체크박스를 누른 클릭이 그대로 버블돼서 window-chrome.js/settings-startmenu.js의 "아무 데나
+  // 클릭하면 닫기" 전역 리스너에 걸려 메뉴가 즉시 닫혀버리는 것을 막는다(시작 메뉴 하위 메뉴와 같은 이유).
+  menu.addEventListener("click", ev => ev.stopPropagation());
+  const nameBox = menu.querySelector("#searchModeByName");
+  const tagBox = menu.querySelector("#searchModeByTag");
+  nameBox.checked = settings.searchByName !== false;
+  tagBox.checked = settings.searchByTag !== false;
+  nameBox.onchange = () => { setSearchModeOption("searchByName", nameBox.checked, menu); runSearch(); };
+  tagBox.onchange = () => { setSearchModeOption("searchByTag", tagBox.checked, menu); runSearch(); };
+  positionFloating(menu, els.btnSearchMode.getBoundingClientRect());
+  openSubmenuEls.push(menu);
+}
+if (els.btnSearchMode) {
+  els.btnSearchMode.onclick = (e) => { e.stopPropagation(); openSearchModeMenu(); };
+}
 async function runSearch() {
   const raw = els.searchInput.value.trim();
   const q = raw.toLowerCase();

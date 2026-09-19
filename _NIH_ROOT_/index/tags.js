@@ -37,6 +37,22 @@ function clearTagCache(pathArr) {
   try { localStorage.removeItem(tagCacheKey(pathArr)); } catch (e) {}
   tagDirCache.delete(pathArr.join("/"));
 }
+// 요청: "해당 폴더 태그 비우기(로컬만), 이름은 초기화로(실제 동작은 업로드된 태그 json으로
+// 되돌리기)" - 브라우저에 남아있는 태그 캐시(tagDirCache/localStorage)가 실제 저장소에 올라가
+// 있는 #hashtag.json과 달라질 수 있다(예: 로컬 헬퍼 없이 "#hashtag.json"을 다운로드만 받고 아직
+// 저장소에 직접 넣지 않은 경우 - saveFolderTagsViaHelper 위 주석 참고). 이 함수는 파일 자체를
+// 지우거나 새로 쓰지 않는다 - 로컬 캐시만 지우고 실제로 지금 저장소에 올라가 있는 내용을 다시
+// 읽어와서, "로컬에만 있던 차이"를 버리고 업로드된 상태로 되돌린다(그래서 이름이 "비우기"가 아니라
+// "초기화" - 저장소에 태그가 이미 있으면 그 태그로 되돌아가지, 무조건 빈 상태가 되는 게 아니다).
+async function resetFolderTagsToUploaded(pathArr) {
+  clearTagCache(pathArr);
+  indexPromiseCache.clear(); // 검색 인덱스도 새로 반영되게 비운다(태그 편집 저장 때와 동일한 이유)
+  const data = await loadFolderTags(pathArr); // 캐시가 비었으니 실제 #hashtag.json을 다시 읽어온다
+  const hasAny = Object.keys(data).length > 0;
+  showToast(hasAny
+    ? "태그를 저장소에 올라가 있는 내용으로 초기화했습니다."
+    : "저장소에 저장된 태그가 없어서 모두 비워졌습니다.", { sound: "notify_success" });
+}
 // 폴더 하나의 #hashtag.json을 읽어온다 - 없으면(404 등) 빈 객체로 취급한다(에러가 아니라 "아직
 // 태그가 없는 폴더"인 정상 상태). 바탕화면/휴지통(가상 파일시스템)은 태그 대상이 아니다.
 async function loadFolderTags(pathArr) {
@@ -189,9 +205,14 @@ async function openTagEditorForFolder(pathArr) {
       <div style="display:flex;justify-content:flex-end;">
         <button class="settings-button settings-button-neutral tag-editor-reset-root" style="font-size:11.5px;">태그 저장 위치 변경</button>
       </div>
+      <!-- 요청: "태그 저장 - 파일 저장이랑 브라우저 로컬 구분" - 예전엔 "저장" 버튼 하나가 브라우저
+           캐시 갱신과 실제 파일 저장(헬퍼/다운로드)을 항상 같이 처리해서, 지금 한 게 둘 중 뭔지
+           구분이 안 됐다. 이제 "로컬 저장"(이 브라우저에서의 검색/표시에만 즉시 반영, 파일에는
+           아무 것도 안 씀)과 "파일로 저장"(로컬 반영 + 실제 #hashtag.json 파일 저장 시도)을 분리한다. -->
       <div class="confirm-buttons">
         <button class="settings-button settings-button-neutral confirm-cancel">취소</button>
-        <button class="settings-button confirm-ok">저장</button>
+        <button class="settings-button settings-button-neutral tag-editor-save-local">로컬 저장</button>
+        <button class="settings-button confirm-ok">파일로 저장</button>
       </div>
     </div>`;
   const rowsEl = overlay.querySelector(".tag-editor-rows");
@@ -226,12 +247,28 @@ async function openTagEditorForFolder(pathArr) {
   overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) cleanup(); });
   function onKey(e) { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); cleanup(); } }
   document.addEventListener("keydown", onKey, true);
-  overlay.querySelector(".confirm-ok").onclick = async () => {
+  // 입력창에 적힌 내용을 { 이름: [태그, ...] } 형태로 모은다 - "로컬 저장"/"파일로 저장" 둘 다
+  // 여기서 시작한다(브라우저 캐시 갱신 부분은 완전히 동일하고, 그 다음에 파일까지 쓸지만 다르다).
+  function collectTagEditorData() {
     const data = {};
     for (const [name, input] of rowInputs) {
       const tags = parseTagsInput(input.value);
       if (tags.length) data[name] = tags;
     }
+    return data;
+  }
+  // 브라우저(로컬)에만 반영한다 - 이번 세션의 검색/표시에는 바로 쓰이지만, 실제 저장소의
+  // #hashtag.json 파일에는 아무 것도 쓰지 않는다(사용자 지시: 파일 저장과 구분).
+  overlay.querySelector(".tag-editor-save-local").onclick = () => {
+    const data = collectTagEditorData();
+    tagDirCache.set(pathArr.join("/"), data);
+    writeTagCache(pathArr, data);
+    indexPromiseCache.clear();
+    cleanup();
+    showToast("브라우저에만 저장했습니다. (저장소 파일에는 반영되지 않음)");
+  };
+  overlay.querySelector(".confirm-ok").onclick = async () => {
+    const data = collectTagEditorData();
     // 브라우저 쪽 캐시부터 즉시 반영 - 헬퍼 저장이 실패해도 이번 세션의 검색은 바로 새 태그를 쓴다.
     tagDirCache.set(pathArr.join("/"), data);
     writeTagCache(pathArr, data);

@@ -7,9 +7,9 @@
   ],
   "files": [
     {"name": "favicon.ico", "size": 89346, "crc32": "69AEB42E"},
-    {"name": "folders.json", "size": 351, "crc32": "8FF4B3AE"},
-    {"name": "index.html", "size": 31134, "crc32": "64DC3DFC"},
-    {"name": "previewer.ahk", "size": 31336, "crc32": "3E0E46C9"},
+    {"name": "folders.json", "size": 362, "crc32": "1EC98D13"},
+    {"name": "index.html", "size": 31681, "crc32": "741E9E08"},
+    {"name": "previewer.ahk", "size": 32197, "crc32": "7AE19A3F"},
     {"name": "WebView2Loader.dll", "size": 135056, "crc32": "E4106859"}
   ]
 }

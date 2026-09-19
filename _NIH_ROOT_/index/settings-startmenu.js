@@ -178,12 +178,11 @@ function dfsBuildSettingsBodyHtml() {
       <div class="settings-row">
         <label class="settings-check"><input type="checkbox" id="setSearchRelative"> 검색 결과 위치를 현재 폴더 기준 상대 경로로 표시</label>
       </div>
-      <div class="settings-row">
-        <span class="settings-label">검색 모드</span>
-        <label class="settings-check"><input type="checkbox" id="setSearchByName"> 이름 (일반)</label>
-        <label class="settings-check"><input type="checkbox" id="setSearchByTag"> 태그 (해시)</label>
-        <div class="settings-hint">둘 다 켜면 이름 또는 태그에 일치하는 항목을 찾습니다. 기본은 둘 다 켜짐.</div>
-      </div>
+      <!-- 요청: "환경설정 → 검색 창에 검색 모드 넣기(설정 이관)" - 검색 모드(이름/태그) 체크박스는
+           검색할 때마다 여기까지 들어와서 바꾸기 번거롭다는 지적으로 검색창 옆의 작은 버튼(index.html의
+           #btnSearchMode, search-and-status.js의 openSearchModeMenu)으로 옮겼다. settings.searchByName/
+           searchByTag 값 자체와 "최소 하나는 켜져 있어야 함" 로직은 그대로이고, 그걸 바꾸는 UI
+           위치만 옮겨졌다. -->
       <div class="settings-divider"></div>
       <div class="settings-row">
         <label class="settings-check"><input type="checkbox" id="setAeroEnabled"> 에어로(반투명 블러 효과) 사용</label>
@@ -236,8 +235,6 @@ function dfApplySettingsToPanel(root) {
   $("setDoubleClick").value = settings.doubleClickAction;
   $("setSearchScope").value = settings.searchScope;
   $("setSearchRelative").checked = settings.searchRelativePath;
-  if ($("setSearchByName")) $("setSearchByName").checked = settings.searchByName;
-  if ($("setSearchByTag")) $("setSearchByTag").checked = settings.searchByTag;
   if ($("setAeroEnabled")) $("setAeroEnabled").checked = settings.aeroEnabled;
   if ($("setTrayIconCount")) $("setTrayIconCount").value = settings.trayIconCount;
   if ($("setSkinIconPriority")) $("setSkinIconPriority").checked = settings.skinIconPriority;
@@ -360,27 +357,8 @@ function dfInitSettingsWindow(handle) {
     settings.searchRelativePath = $("setSearchRelative").checked;
     saveSettings();
   };
-  if ($("setSearchByName")) {
-    $("setSearchByName").onchange = () => {
-      settings.searchByName = $("setSearchByName").checked;
-      // 둘 다 꺼지면 검색이 아예 안 되므로 최소 하나는 유지
-      if (!settings.searchByName && !settings.searchByTag) {
-        settings.searchByTag = true;
-        if ($("setSearchByTag")) $("setSearchByTag").checked = true;
-      }
-      saveSettings();
-    };
-  }
-  if ($("setSearchByTag")) {
-    $("setSearchByTag").onchange = () => {
-      settings.searchByTag = $("setSearchByTag").checked;
-      if (!settings.searchByName && !settings.searchByTag) {
-        settings.searchByName = true;
-        if ($("setSearchByName")) $("setSearchByName").checked = true;
-      }
-      saveSettings();
-    };
-  }
+  // setSearchByName/setSearchByTag 체크박스는 더 이상 이 창에 없다(설정 이관 - 위 HTML 주석
+  // 참고) - search-and-status.js의 openSearchModeMenu/setSearchModeOption이 대신 처리한다.
   if ($("setAeroEnabled")) {
     $("setAeroEnabled").onchange = () => {
       settings.aeroEnabled = $("setAeroEnabled").checked;

@@ -472,6 +472,7 @@
     .desktop { padding: 8px 8px 64px; }
     .window { height: 90vh; max-height: none; }
     .search-box { display: none; }
+    #btnSearchMode { display: none; }
     .nav-toggle { display: flex; }
     .nav-pane {
       position: absolute; z-index: 5; top: 0; bottom: 0; left: 0;

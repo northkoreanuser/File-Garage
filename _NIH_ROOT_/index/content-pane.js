@@ -385,6 +385,9 @@ function contentPaneOpenBackgroundMenu(x, y) {
       { label: "새로고침", action: () => refreshCurrentFolder() },
       { label: "경로 복사", action: () => copyCurrentUrlToClipboard() },
       { label: "태그 편집", action: () => openTagEditorForFolder(currentPath) },
+      // 요청: "해당 폴더 태그 비우기(로컬만), 이름은 초기화로(실제 동작은 업로드된 태그 json으로
+      // 되돌리기)" - tags.js의 resetFolderTagsToUploaded 참고.
+      { label: "태그 초기화", action: () => resetFolderTagsToUploaded(currentPath) },
       { label: "속성", action: () => showRepoFolderProperties(currentPath, { kind: currentPath.length ? "폴더" : "저장소 루트 폴더" }) }
     ]);
     return;
