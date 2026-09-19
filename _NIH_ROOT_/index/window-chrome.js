@@ -5,6 +5,15 @@
      클릭해 다시 열면 항상 그 상태로 이어서 연다("이전 위치 열기"가 기본이자 유일한 동작 - 예전엔
      환경설정에 끄고 켤 수 있는 별도 옵션이 있었지만 없앴다).
 ================================================================== */
+// 버그 리포트: "이미지/PDF/음악/영상 뷰어끼리는 창을 누르면 자기끼리 창 위치를 경쟁하는데 탐색기는
+// 무조건 뷰어 뒤다 - 탐색기를 눌러도, 작업표시줄의 탐색기 항목을 눌러도 그렇다." 원인은 각 스킨의
+// style.css에 있던 "#win { z-index: 2; }"가 고정값이었던 것 - 뷰어/에디터 창(app-window.js)은
+// dfAppWinBringToFront로 누를 때마다 공유 카운터(dfAppWinZTop, 10부터 시작)를 올려 서로 앞뒤를
+// 다투는데, 탐색기 창(#win)만 그 경쟁에 아예 끼지 못하고 항상 2로 고정되어 있어 뷰어가 하나라도
+// 열려 있으면 탐색기는 절대 맨 앞에 올 수 없었다. 탐색기 창도 뷰어 창들과 같은 dfAppWinZTop
+// 카운터를 공유해서 눌렀을 때 맨 앞으로 오도록 한다(JS 인라인 스타일이 스타일시트의 고정값보다
+// 우선하므로 CSS는 그대로 두고 이 mousedown 리스너만 추가하면 된다).
+els.win.addEventListener("mousedown", () => { if (typeof dfAppWinBringToFront === "function") dfAppWinBringToFront(els.win); });
 els.btnMin.onclick = () => { els.win.classList.add("minimized"); dfsPlaySound("window_minimize"); };
 // 드래그로 옮긴 위치(position:fixed의 left/top 인라인 스타일)는 최대화하면 잠깐 지워야
 // (.maximized 클래스의 top:0/left:0을 인라인 스타일이 덮어써버리면 꽉 채워지지 않음) 온전히 꽉 찬다.
@@ -174,6 +183,11 @@ els.taskbarApp.onclick = () => {
   els.taskbarApp.classList.add("active");
   persistWindowOpen(true);
   if (wasHidden) dfsPlaySound("window_open");
+  // 버그 리포트: 작업표시줄의 탐색기 항목을 눌러도 뷰어 창들 뒤에 그대로 남아있던 문제 - 이미
+  // 열려 있던 창을 다시 누른 경우(뷰어 뒤에 깔려 있다가 앞으로 꺼내고 싶은 경우)에도 mousedown이
+  // 탐색기 창 자신이 아니라 작업표시줄 위에서 발생하므로 위 mousedown 리스너가 못 잡는다 - 여기서
+  // 직접 맨 앞으로 올려준다.
+  if (typeof dfAppWinBringToFront === "function") dfAppWinBringToFront(els.win);
   // 요청: "작업 표시줄 탐색기 클릭시 이전 위치 열기 = 기본값(누르면 자동 동작)" - 예전엔 환경설정의
   // "이전 위치에서 시작"이 꺼져 있으면(기본값) 루트로 열렸는데, 이제 그 설정 자체를 없애고 항상
   // 닫기 전 마지막 위치(+트리 펼침 상태)에서 이어서 연다.
@@ -239,6 +253,9 @@ function openRealExplorerAt(path) {
   els.taskbarApp.classList.add("active");
   persistWindowOpen(true);
   if (wasHidden) dfsPlaySound("window_open");
+  // 위 taskbarApp.onclick과 같은 이유 - 바탕화면 아이콘 더블클릭 등으로 탐색기를 열 때도 뷰어
+  // 창들 뒤에 깔려 있던 채로 열리지 않게 맨 앞으로 올린다.
+  if (typeof dfAppWinBringToFront === "function") dfAppWinBringToFront(els.win);
   if (wasClosed) expanded.clear();
   navigate(path);
   openNavPaneRespectingHash();

@@ -586,10 +586,40 @@ function dfOpenNewTab(url, target, features) {
   if (!isPopup && !settings.keepFullscreenOnNewTab) dfExitFullscreenForNewTab();
   return window.open(url, target, features);
 }
+// 버그 리포트: "바탕화면의 레포 바로가기를 더블클릭하면 새 탭이 열리고, 그마저도 폴더나 파일이
+// 제대로 열리지 않는다" - dfsCreateDesktopShortcutFromRepoItem이 만드는 바로가기의 url은 사실
+// "이 페이지 자기 자신"을 가리키는 딥링크(origin+pathname은 완전히 같고 #뒤 경로만 다름)다. 그런
+// url을 굳이 새 탭으로 열면 1) 창을 하나 더 띄우는 낭비고 2) 새로 뜬 탭은 처음부터 다시 부팅하는
+// 과정에서(dexie 연결, 저장소 색인 로딩 등) 타이밍에 따라 대상 폴더/파일까지 못 드러내는 경우가
+// 있었다(버그 리포트의 "그마저도 제대로 안 열림"). url이 이 페이지 자신을 가리키면 새 탭 대신 지금
+// 탭 안에서 location.hash만 바꿔 그대로 이동시킨다 - 실제 윈도우에서 같은 창 안의 다른 폴더를
+// 가리키는 바로가기가 새 창을 띄우지 않는 것과 같은 동작이고, 이미 다 부팅된 상태를 그대로
+// 재사용하므로 두 번째 문제도 자연히 함께 해결된다. 진짜 외부 주소(웹 북마크 등)는 그대로 새 탭.
+function dfSamePageDeepLinkHash(url) {
+  try {
+    const u = new URL(url, location.href);
+    if (u.origin !== location.origin || u.pathname !== location.pathname) return null;
+    return u.hash || "#";
+  } catch (e) {
+    return null;
+  }
+}
+// location.hash를 바꾸면 보통 bootstrap.js의 hashchange 리스너(dfApplyHashNavigation)가 알아서
+// 처리해준다. 다만 지금 가리키는 곳과 해시가 완전히 같으면(예: 같은 바로가기를 다시 더블클릭)
+// 브라우저가 hashchange 이벤트 자체를 안 띄우므로, 그때는 이 함수를 직접 한 번 더 불러 같은
+// 효과를 낸다(예: 창이 그새 닫혔으면 다시 열어준다).
+function dfNavigateSamePageLink(hash) {
+  if (location.hash === hash) { if (typeof dfApplyHashNavigation === "function") dfApplyHashNavigation(); return; }
+  location.hash = hash;
+}
 // 요청 #141: 바로가기(가상 파일시스템의 url 방식 + 저장소에 올라간 .sc 파일 둘 다)가 공용으로 쓰는
 // "대상 열기" - popup이 참이면 새 탭이 아니라 작은 별도 창으로 띄운다(features 문자열에 width/height
 // 등 창 크기 속성이 있으면 대부분의 브라우저가 탭 대신 진짜 새 창으로 연다).
 function openShortcutUrl(url, popup) {
+  if (!popup) {
+    const hash = dfSamePageDeepLinkHash(url);
+    if (hash !== null) { dfNavigateSamePageLink(hash); return; }
+  }
   if (popup) return dfOpenNewTab(url, "_blank", "width=1000,height=700,resizable=yes,scrollbars=yes,noopener");
   return dfOpenNewTab(url, "_blank", "noopener,noreferrer");
 }

@@ -332,10 +332,15 @@ function dfsDesktopFileMenuItems(it) {
     return shortcutItems;
   }
   // 요청 #145: 이진 파일은 에디터로 열 수 없다 - 이미지만 "미리보기(새 탭)"를 대신 넣고, 그 외
-  // 이진 파일은 아래 다운로드 항목들만으로 충분하다(더블클릭도 다운로드로 동작 - dfsActivate).
+  // 이진 파일은 아래 다운로드 항목들만으로 충분하다(더블클릭은 dfsActivate가 확장자 설정/기본
+  // 동작을 따진다). 버그 리포트 수정: 여기 "미리보기(새 탭)"/"에디터로 열기"는 사용자가 명시적으로
+  // 고른 동작이므로, 더블클릭용 dfsActivate(확장자별 설정을 먼저 확인함) 대신 그 동작을 직접
+  // 실행하는 함수를 불러야 한다 - 안 그러면 예를 들어 html 확장자에 "새 탭에서 열기"를 등록해둔
+  // 경우 "에디터로 열기"를 눌러도 새 탭이 열려버린다(저장소 파일 쪽 "에디터로 열기"가 항상
+  // dfsOpenRepoFileInEditor를 직접 부르는 것과 같은 이유).
   const fileItems = node.binary
-    ? ((node.mime || "").indexOf("image/") === 0 ? [{ label: "미리보기(새 탭)", action: () => dfsActivate(node) }] : [])
-    : [{ label: "에디터로 열기", action: () => dfsActivate(node) }];
+    ? ((node.mime || "").indexOf("image/") === 0 ? [{ label: "미리보기(새 탭)", action: () => dfsActivateBinaryFile(node) }] : [])
+    : [{ label: "에디터로 열기", action: () => dfsOpenFileInWindow(node) }];
   // 요청 #162: 바탕화면에 저장된 HTML 파일은 에디터의 미리보기(스크립트 미실행)와 별개로, 실제
   // 웹페이지처럼 스크립트도 실행되는 새 탭으로 바로 볼 수 있게 한다(blob: URL 뷰어).
   if (!node.binary && it.type === "html") {

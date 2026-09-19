@@ -131,9 +131,13 @@ async function saveFolderTagsViaHelper(pathArr, data) {
   const rel = (pathArr.length ? pathArr.join("/") + "/" : "") + "#hashtag.json";
   try {
     const body = JSON.stringify(data, null, 2);
+    // 버그 리포트 수정: 여기서 Content-Type을 application/json으로 직접 지정하면 "단순하지 않은
+    // 요청"이 되어 브라우저가 실제 POST 전에 사전 확인(preflight)을 먼저 보낸다 - 로컬 헬퍼는
+    // 어차피 Content-Type을 전혀 들여다보지 않고 본문 바이트를 그대로 저장하므로, 굳이 지정할
+    // 필요가 없다. 헤더를 빼면 문자열 본문은 기본적으로 안전한 text/plain으로 잡혀 사전 확인
+    // 없이 바로 나간다(local-helper.js의 dfHelperBody와 같은 이유).
     const res = await fetch(`http://127.0.0.1:${port}/savecontentto?base=${encodeURIComponent(base)}&rel=${encodeURIComponent(rel)}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json;charset=utf-8" },
       body
     });
     if (!res.ok) throw new Error(String(res.status));

@@ -86,8 +86,14 @@ function attachTreeDropTarget(row, pathArr) {
   row.addEventListener("dragover", (e) => {
     if (!e.dataTransfer) return;
     const types = Array.from(e.dataTransfer.types || []);
-    if (types.indexOf("Files") === -1 && types.indexOf("text/plain") === -1 && types.indexOf("DownloadURL") === -1) return;
+    // dfRepoDragActive: content-pane.js의 attachRepoFileDragOut 위 주석 참고 - dragover
+    // 단계에선 크롬이 "DownloadURL"을 types에 아직 안 보여준다.
+    const isRepoDrag = dfRepoDragActive || types.indexOf("DownloadURL") !== -1;
+    if (!isRepoDrag && types.indexOf("Files") === -1 && types.indexOf("text/plain") === -1) return;
     e.preventDefault();
+    // 레포 파일 드래그는 effectAllowed가 "copy"라서(attachRepoFileDragOut) dropEffect를
+    // 명시적으로 "copy"로 맞춰야 금지 커서가 안 뜬다(desktop-fs.js의 같은 수정 참고).
+    e.dataTransfer.dropEffect = isRepoDrag ? "copy" : "move";
     row.classList.add("df-drop-target");
   });
   row.addEventListener("dragleave", () => row.classList.remove("df-drop-target"));

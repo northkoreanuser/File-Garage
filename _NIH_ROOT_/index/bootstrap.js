@@ -1,3 +1,85 @@
+/* ============ 주소창(#) 변경 -> 실제 탐색 반영 ============
+   예전엔 main() 안의 hashchange 리스너에 인라인으로만 있었는데, 버그 리포트("바탕화면의 레포
+   바로가기를 더블클릭하면 새 탭이 열리고, 그마저도 폴더/파일이 제대로 안 열림")를 고치면서 이
+   로직을 재사용해야 했다 - 바로가기가 가리키는 주소가 사실 이 페이지 자기 자신을 가리키는
+   딥링크(dfsCreateDesktopShortcutFromRepoItem 등, state.js의 dfSamePageDeepLinkHash 참고)라면,
+   새 탭을 여는 대신 지금 이 탭의 location.hash를 그대로 바꿔서 이 리스너가 처리하게 하면 된다
+   (실제 탐색기 창처럼 동작 - 새 창이 뜨지 않고, 이미 초기화된 상태를 그대로 재사용하므로 새
+   탭에서 초기화 타이밍 문제로 폴더/파일이 안 열리던 문제도 함께 해결된다). 해시가 지금과 완전히
+   같을 때는(예: 같은 바로가기를 다시 더블클릭) hashchange 이벤트 자체가 안 뜨므로, state.js의
+   dfNavigateSamePageLink가 그 경우엔 이 함수를 직접 불러 재적용한다. */
+/* ============ 해시/기억된 경로 -> 실제 폴더 이동 "또는" 파일 활성화 ============
+   버그 리포트: "파일을 가리키는 바로가기(예: 레포 이미지 파일)를 더블클릭하면 그 파일이 있는
+   폴더까지만 이동하고, 정작 그 파일 자체는 열리지 않는다." 원인은 resolveInitialPath()가 애초에
+   "존재하는 폴더"만 찾는 함수였다는 데 있다 - loadDir()가 실패할 때마다(파일 이름은 폴더로서
+   조회하면 항상 실패하므로) 마지막 조각을 하나씩 잘라내며 재시도하다가 결국 파일의 부모 폴더에서
+   멈춰버리고, 파일 자체를 "여는" 시도는 아예 없었다. 여기서는 경로의 마지막 조각이 실제로는
+   폴더가 아니라 파일/바로가기인지 먼저 확인해서, 맞다면 부모 폴더로 이동한 뒤 그 파일이 실제로
+   더블클릭됐을 때와 완전히 같은 방식으로 열리게 한다 - 바탕화면 경로는 dfsActivate(node)(확장자별
+   설정 포함, 위 dfsBuildIconMenuItems/dfsDesktopFileMenuItems 수정과 동일한 이유로 여기선 "더블
+   클릭"과 같은 취급이라 dfsActivate가 맞다), 실제 저장소 경로는 keyboard-and-activate.js의
+   activate()(에디터/미디어 뷰어/확장자별 설정 등 실제 더블클릭과 완전히 동일한 경로를 탄다). */
+async function dfResolvePathAndActivate(p) {
+  if (!p || p.length === 0) { await navigate([]); return; }
+  if (isDfsPath(p)) {
+    if (p.length >= 2) {
+      const node = await dfsNodeAtPath(p).catch(() => null);
+      if (node) {
+        if (node.type === "folder") { await navigate(p); return; }
+        // 파일/바로가기: 부모 폴더로 이동해서 맥락을 보여준 뒤, 더블클릭과 똑같이 활성화한다.
+        await navigate(p.slice(0, -1));
+        dfsActivate(node);
+        return;
+      }
+    }
+    // 못 찾았으면(삭제/이름 변경 등) 예전처럼 실제로 존재하는 조상 폴더까지만 이동한다.
+    await navigate(await resolveInitialPath(p));
+    return;
+  }
+  // 실제 저장소 경로: 우선 폴더로서 존재하는지 시도한다(대부분의 정상적인 폴더 이동 케이스).
+  try {
+    await loadDir(p);
+    await navigate(p);
+    return;
+  } catch (e) { /* 폴더가 아니거나 없으면 아래에서 "파일"인지 확인한다 */ }
+  const parentPath = p.slice(0, -1);
+  const name = p[p.length - 1];
+  try {
+    const dir = await loadDir(parentPath);
+    const f = (dir.files || []).find(x => x.name === name);
+    if (f) {
+      await navigate(parentPath);
+      // content-pane.js가 실제 파일 행에 만드는 것과 같은 모양의 it 객체 - activate()가 그대로
+      // 더블클릭 때와 동일한 판단(에디터/뷰어/확장자별 설정)을 내리게 한다.
+      activate({ name: f.name, size: f.size, crc32: f.crc32, path: p, type: fileTypeFor(f.name), dfsNode: f.dfsNode });
+      return;
+    }
+  } catch (e) { /* 부모 폴더까지 없으면 아래 최종 대체 로직으로 넘어간다 */ }
+  // 파일도 못 찾았으면(삭제/이름 변경 등) 예전처럼 실제로 존재하는 조상 폴더까지만 이동한다.
+  await navigate(await resolveInitialPath(p));
+}
+function dfApplyHashNavigation() {
+  const hasHash = !!location.hash && location.hash !== "#";
+  if (hasHash) {
+    // 링크/뒤로가기로 플래그먼트가 생기면(공유 링크 등) 창이 닫혀 있었어도 함께 연다.
+    if (els.win.classList.contains("closed")) {
+      els.win.classList.remove("closed");
+      els.taskbarApp.classList.add("active");
+      persistWindowOpen(true);
+    }
+    // 해시에 적힌 트리 열림/닫힘 상태를 그대로 따른다(없으면 열림이 디폴트).
+    if (hashToNavOpen(location.hash)) { if (!isNavPaneOpen()) els.navPane.classList.add("open"); }
+    else { if (isNavPaneOpen()) els.navPane.classList.remove("open"); }
+  }
+  const p = hashToPath(location.hash) || [];
+  if (p.join("/") !== currentPath.join("/")) {
+    // 해시가 바뀌어서(뒤로/앞으로 가기, 바로가기 더블클릭 등) 새 경로로 점프하는 것 - 폴더면
+    // navigate()가 트리도 실시간으로 드러내고, 파일이면(위 dfResolvePathAndActivate 참고) 부모
+    // 폴더로 이동한 뒤 실제 더블클릭과 같은 방식으로 열어준다.
+    dfResolvePathAndActivate(p);
+  }
+}
+
 /* ============ 메인 ============ */
 async function main() {
   // 탐색기 창의 초기 열림/닫힘 상태(사용자 지시 - "진짜 윈도우 바이브"): 최초 방문이거나 지난번에
@@ -64,25 +146,7 @@ async function main() {
   // 성공하면 그 설정이 자동으로 켜져서, 그다음부터는 이 검사도 자동으로 실행된다.
   if (settings.checkHelperOnLoad) initHelperPortAndCollapseDuplicates();
 
-  window.addEventListener("hashchange", () => {
-    const hasHash = !!location.hash && location.hash !== "#";
-    if (hasHash) {
-      // 링크/뒤로가기로 플래그먼트가 생기면(공유 링크 등) 창이 닫혀 있었어도 함께 연다.
-      if (els.win.classList.contains("closed")) {
-        els.win.classList.remove("closed");
-        els.taskbarApp.classList.add("active");
-        persistWindowOpen(true);
-      }
-      // 해시에 적힌 트리 열림/닫힘 상태를 그대로 따른다(없으면 열림이 디폴트).
-      if (hashToNavOpen(location.hash)) { if (!isNavPaneOpen()) els.navPane.classList.add("open"); }
-      else { if (isNavPaneOpen()) els.navPane.classList.remove("open"); }
-    }
-    const p = hashToPath(location.hash) || [];
-    if (p.join("/") !== currentPath.join("/")) {
-      // 해시가 바뀌어서(뒤로/앞으로 가기 등) 새 경로로 점프하는 것 - navigate()가 트리도 실시간으로 드러낸다.
-      resolveInitialPath(p).then(rp => navigate(rp));
-    }
-  });
+  window.addEventListener("hashchange", dfApplyHashNavigation);
 
   // menu_set.json/icon_set.json/sound_set.json(요청 #122로 메뉴/아이콘/사운드 3개로 분리)은
   // 있으면 반영, 없거나 잘못돼도 조용히 무시(선택 기능). 전부 _NIH_ROOT_/index/ 안에 있다
@@ -118,8 +182,9 @@ async function main() {
         if (Array.isArray(remembered)) initialPath = remembered;
       } catch (e) { /* 무시 */ }
     }
-    const resolved = await resolveInitialPath(initialPath || []);
-    await navigate(resolved);
+    // 공유된 딥링크가 파일을 가리키는 경우에도(위 dfResolvePathAndActivate 참고) 폴더 이동으로
+    // 뭉개지 않고 실제로 그 파일을 열어준다.
+    await dfResolvePathAndActivate(initialPath || []);
   }
 
   // 바탕화면 가상 파일시스템(dexie) 아이콘 렌더링 - 진짜 탐색기 창(#win)과는 완전히 독립적이다.

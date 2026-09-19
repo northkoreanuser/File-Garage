@@ -277,16 +277,36 @@ function dfInitEditorWindow(handle, NODE, state) {
   // 가로막음). iframe을 .df-e-preview(오른쪽 뷰어 칸) 안으로 옮겨서(dfsBuildEditorBodyHtml 참고) 그
   // 칸 안에서만 absolute로 채워지게 하고, 왼쪽 textarea(ta)는 마크다운/HTML/텍스트 어느 모드든
   // 항상 그대로 편집 가능하게 둔다.
-  // 요청 #156, 버그 리포트: "에디터 HTML 모드 렌더링이 안 됨(뷰어에 아무것도 안 뜸)" - 위 두 차례의 iframe
-  // 수정(샌드박스 권한/배치)에도 여전히 안 뜨는 경우가 있어서, 아예 iframe(srcdoc)을 걷어내고
-  // 마크다운 뷰어와 완전히 같은 방식(previewInner.innerHTML에 그대로 꽂아 넣기)으로 통일한다 -
-  // 마크다운처럼 파싱하지 않고 원본 HTML을 그대로 넣는 것만 다르다. 대신 innerHTML로 넣은
-  // <script>는 브라우저가 실행하지 않으므로(HTML 표준 동작), 스크립트로 화면을 그리는 페이지는
-  // 여전히 정적으로만 보인다 - 그런 페이지는 "새 탭에서 열기"로 실제 페이지 그대로 확인해야 한다.
+  // 요청 #156 때는 위 두 차례의 iframe 수정(샌드박스 권한/배치)에도 여전히 안 뜨는 경우가 있어서,
+  // iframe(srcdoc)을 걷어내고 마크다운 뷰어와 같은 방식(previewInner.innerHTML에 원본 HTML을 그대로
+  // 꽂아 넣기)으로 바꿨었다. 하지만 이건 새로운, 더 심각한 버그 리포트로 이어졌다: "마크다운 에디터
+  // HTML 모드 설정이 바탕 화면까지 영향을 미친다" - innerHTML로 넣은 내용의 <script> 태그 자체는
+  // 안 돌아도, onerror/onload/onclick 같은 인라인 이벤트 핸들러(예: <img src=x onerror="...">)는
+  // innerHTML로 넣어도 그대로 실행된다. 게다가 그 실행 위치가 이 앱 자신의 메인 문서(previewInner)
+  // 안이라서, 그 코드는 desktop-fs.js/state.js의 모든 전역 함수와 dexie(바탕화면 가상 파일시스템)에
+  // 그냥 접근할 수 있었다 - 즉 신뢰할 수 없는(직접 만들었거나 저장소에서 받은) HTML 파일을 "H" 모드로
+  // 미리보기만 해도 바탕화면을 마음대로 바꾸거나 지울 수 있는 구멍이었다. 그래서 iframe+sandbox
+  // 방식으로 되돌리되(샌드박스 강화 - 사용자 지시), allow-scripts는 유지해서 요청 #156이 원래
+  // 해결하려던 "스크립트로 그리는 페이지가 하얗게만 보임" 문제는 그대로 고쳐진 채로 둔다. srcdoc +
+  // allow-scripts (allow-same-origin 없음) 조합은 그 프레임을 독립된 opaque origin으로 만들어서,
+  // 안의 스크립트가 window.parent/window.top은 물론 document.cookie/localStorage 등 무엇에도
+  // 접근할 수 없다 - 진짜 새 탭에서 열기(dfsOpenHtmlAsViewerTab)와 달리 "미리보기"는 항상 이렇게
+  // 격리된 채로만 렌더링돼야 한다. 마크다운/텍스트 모드는 그대로 previewInner.innerHTML을 쓰지만,
+  // dfMarkdown()이 원본을 항상 dfEsc()로 이스케이프한 뒤에만 조립하므로(dfInline 참고) 마크다운
+  // 소스 안에 섞인 원본 HTML/스크립트는 애초에 실행되지 않는다 - 위험한 경우는 "원본 HTML을 그대로"
+  // 신뢰하는 H(html) 모드뿐이다.
   function renderContent() {
-    htmlFrame.style.display = "none";
-    previewInner.style.display = "";
-    previewInner.innerHTML = renderMode === "html" ? ta.value : dfMarkdown(ta.value);
+    if (renderMode === "html") {
+      previewInner.style.display = "none";
+      previewInner.innerHTML = "";
+      htmlFrame.style.display = "";
+      htmlFrame.srcdoc = ta.value;
+    } else {
+      htmlFrame.style.display = "none";
+      htmlFrame.srcdoc = ""; // 모드를 벗어나면 안에서 돌고 있었을 스크립트/미디어도 함께 멈춘다.
+      previewInner.style.display = "";
+      previewInner.innerHTML = dfMarkdown(ta.value);
+    }
     updateStatus();
   }
   function setSaveState(text) { if (saveStateEl) saveStateEl.textContent = text; }
@@ -461,7 +481,7 @@ async function dfsSaveNodeContent(id, content) {
 // 저장부터는 이 새 id로 dfsSaveNodeContent가 그 자리를 그대로 덮어쓴다.
 async function dfsSaveNodeContentAsNew(name, fileType, content) {
   if (!dfsDb) throw new Error("바탕화면을 사용할 수 없습니다.");
-  const uniqueName = await dfsUniqueName(DFS_DESKTOP_ROOT, name);
+  const uniqueName = await dfsUniqueName(DFS_DESKTOP_ROOT, name, "file");
   const pos = await dfsNextIconPos(DFS_DESKTOP_ROOT);
   const now = Date.now();
   const id = await dfsDb.nodes.add({

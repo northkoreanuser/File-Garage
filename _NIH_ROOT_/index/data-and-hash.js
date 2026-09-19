@@ -76,7 +76,14 @@ async function fetchGithubDirEntry(pathArr) {
   const res = await fetch(url, { headers: { "Accept": "application/vnd.github+json" } });
   if (!res.ok) throw new Error(`GitHub API ${res.status}`);
   const data = await res.json();
-  const list = Array.isArray(data) ? data : [];
+  // 버그 리포트: "바탕 화면 바로가기 html을 더블 클릭 하면 탐색기에 루트/파일이름.html 으로
+  // 열리지 html 뷰어가 뜨지 않는다" - GitHub Contents API는 경로가 "폴더"면 배열을, "파일"이면
+  // 배열이 아닌 객체 하나를 돌려준다. 예전엔 배열이 아니면 그냥 빈 폴더로 취급해버려서, 파일
+  // 경로로 바로가기를 열어도 "내용 없는 폴더"로 오판했다(호출한 쪽인 dfResolvePathAndActivate -
+  // bootstrap.js - 는 이 함수가 성공하면 무조건 폴더로 보고, 실패해야만 파일인지 다시 확인한다).
+  // 그래서 파일 경로일 때는 여기서 명확히 에러를 던져서 "폴더 아님"이 제대로 전달되게 한다.
+  if (!Array.isArray(data)) throw new Error("이 경로는 폴더가 아니라 파일입니다.");
+  const list = data;
   const folders = filterNames(list.filter(it => it.type === "dir").map(it => it.name), pathArr)
     .sort((a, b) => a.localeCompare(b, "ko"));
   const fileEntries = list.filter(it => it.type === "file").map(it => ({ name: it.name, size: Number(it.size) || 0, crc32: "" }));

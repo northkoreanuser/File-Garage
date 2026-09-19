@@ -71,9 +71,17 @@ function dfsStripCounterSuffix(base) {
   const m = /^(.*) \((\d+)\)$/.exec(base);
   return m ? m[1] : base;
 }
-async function dfsUniqueName(parentId, desiredName) {
+// 버그 리포트: "바로가기랑 실제 파일 이름이 겹친다고 덮어쓰기가 뜬다 - 실제 윈도우처럼 바로가기는
+// 파일 이름과 안 겹치게 해라(같은 이름의 바로가기끼리는 겹치는 것으로 간주)." 실제 윈도우는
+// 바로가기가 내부적으로 ".lnk" 확장자를 달고 있어서(화면엔 안 보여도) "photo.jpg"와 그 바로가기가
+// 사실 서로 다른 파일명이라 절대 안 겹친다 - 이 앱의 바로가기(type:"shortcut")도 같은 논리를
+// 따르도록, type 인자로 "지금 만들려는 게 바로가기인지"를 받아서 같은 부류(바로가기 vs
+// 바로가기, 그 외 vs 그 외)끼리만 이름 충돌로 본다. 안 넘기면(기존 호출부와 호환) 기본값은
+// "바로가기가 아님" - 폴더/파일 생성처럼 이 구분이 필요 없는 곳은 그대로 예전 동작을 유지한다.
+async function dfsUniqueName(parentId, desiredName, type) {
   const siblings = await dfsDb.nodes.where("parentId").equals(parentId).toArray();
-  const taken = new Set(siblings.map(s => s.name.toLowerCase()));
+  const isShortcut = type === "shortcut";
+  const taken = new Set(siblings.filter(s => (s.type === "shortcut") === isShortcut).map(s => s.name.toLowerCase()));
   if (!taken.has(desiredName.toLowerCase())) return desiredName;
   const { base, ext } = dfsSplitExt(desiredName);
   const trueBase = dfsStripCounterSuffix(base);
@@ -92,9 +100,13 @@ function dfsSuffixedName(name, suffix) {
 // 찾아준다(자기 자신은 제외). dfsUniqueName처럼 조용히 새 번호를 붙이는 대신, 이 결과가 있으면
 // 호출한 쪽에서 "덮어쓸까요?" 확인창을 띄운다(버그 리포트: 폴더를 드래그해서 넣었는데 이미 같은
 // 이름이 있어도 덮어쓰기 확인 없이 그냥 조용히 처리되던 문제).
-async function dfsFindNameConflict(parentId, name, excludeId) {
+// 버그 리포트(추가): "바로가기랑 실제 파일 이름이 겹친다고 덮어쓰기가 뜬다" - 위 dfsUniqueName과
+// 같은 이유로, newType(지금 이름을 붙이려는 대상이 바로가기인지)을 받아서 바로가기는 바로가기끼리만,
+// 그 외(폴더/파일)는 그 외끼리만 충돌로 본다. 안 넘기면 예전처럼 "바로가기가 아님" 취급.
+async function dfsFindNameConflict(parentId, name, excludeId, newType) {
   const siblings = await dfsDb.nodes.where("parentId").equals(parentId).toArray();
-  return siblings.find(s => s.id !== excludeId && s.name.toLowerCase() === name.toLowerCase()) || null;
+  const newIsShortcut = newType === "shortcut";
+  return siblings.find(s => s.id !== excludeId && s.name.toLowerCase() === name.toLowerCase() && (s.type === "shortcut") === newIsShortcut) || null;
 }
 
 // 요청 #145: "드래그&드롭 바탕화면 업로드가 텍스트 파일만 지원 - 다른 파일도 지원해줘" - 파일
@@ -245,7 +257,7 @@ async function dfsSnapAllIconsToGrid() {
   }
 }
 async function dfsCreateFolder(parentId) {
-  const name = await dfsUniqueName(parentId, "새 폴더");
+  const name = await dfsUniqueName(parentId, "새 폴더", "folder");
   const now = Date.now();
   const pos = await dfsNextIconPos(parentId);
   const id = await dfsDb.nodes.add({ parentId, type: "folder", name, x: pos.x, y: pos.y, createdAt: now, updatedAt: now });
@@ -258,7 +270,7 @@ const DFS_FILE_DEFAULTS = {
 };
 async function dfsCreateFile(parentId, kind) {
   const d = DFS_FILE_DEFAULTS[kind] || DFS_FILE_DEFAULTS.txt;
-  const name = await dfsUniqueName(parentId, d.label);
+  const name = await dfsUniqueName(parentId, d.label, "file");
   const now = Date.now();
   const pos = await dfsNextIconPos(parentId);
   const id = await dfsDb.nodes.add({ parentId, type: "file", name, content: "", fileType: d.fileType, x: pos.x, y: pos.y, createdAt: now, updatedAt: now });
@@ -284,8 +296,10 @@ async function dfsCreateFile(parentId, kind) {
 // 안의 폴더든 전부 마찬가지로) 전혀 반응이 없었다. 새로 만든 폴더만 안 되는 게 아니라 사실 바탕화면
 // 자체도 안 됐던 것인데, 바탕화면 아이콘 위(예: 다른 텍스트 파일 위)에 놓았을 때만 우연히 그 파일의
 // text/plain 이동 조건과 헷갈렸을 뿐이다. 고침: "DownloadURL"도 각 드롭 대상이 인식하는 타입에
-// 추가하고, 드롭 시 이 함수로 실제 내용을 fetch해서 텍스트 그대로 새 가상 파일로 만든다(다운로드
-// 없이 바로 IndexedDB에 저장 - 사용자 지시대로 OS로 실제로 다운로드하지 않는다).
+// 추가하고, 드롭 시 이 함수로 실제 내용을 fetch해서 새 가상 파일로 만든다(다운로드 없이 바로
+// IndexedDB에 저장 - 사용자 지시대로 OS로 실제로 다운로드하지 않는다). 텍스트/이진 파일 모두
+// 지원한다 - 아래 dfsImportRepoFileFromDownloadUrlData 위쪽 주석 참고(이진 파일은 mp4 등을
+// 드래그로 못 가져오던 후속 버그 리포트로 추가됨).
 function dfParseDownloadUrlData(raw) {
   // "mime-type:filename:url" 형식(우리가 만든 값 - content-pane.js의 attachRepoFileDragOut 참고).
   // filename/url 자체엔 콜론이 없다고 가정할 수 없으므로(특히 url은 http://...라서 반드시 있음),
@@ -300,26 +314,26 @@ function dfParseDownloadUrlData(raw) {
   if (!name || !url) return null;
   return { name, url };
 }
-async function dfsImportRepoFileFromDownloadUrlData(parentId, raw) {
-  const parsed = dfParseDownloadUrlData(raw);
+async function dfsImportRepoFileFromDownloadUrlData(parentId, parsed) {
   if (!parsed) return null;
-  let text;
+  let blob;
   try {
     const res = await fetch(parsed.url);
     if (!res.ok) throw new Error(String(res.status));
-    text = await res.text();
+    blob = await res.blob(); // blob.type이 응답의 Content-Type을 그대로 담아온다(이진 파일의 mime으로 그대로 쓴다).
   } catch (e) {
     showToast(`"${parsed.name}"을(를) 가져오지 못했습니다: ${e.message}`, { kind: "warn", sound: "error_generic" });
     return null;
   }
-  // 드래그가 시작될 때 이미 텍스트 형식만 걸러서 draggable로 만들었지만(attachRepoFileDragOut),
-  // 혹시 모를 예외(캐시가 낡았거나 등)에 대비해 실제로 받은 내용으로 한 번 더 확인한다.
-  if (!dfLooksLikeText(text.slice(0, 8000))) {
-    showToast(`"${parsed.name}"은(는) 텍스트 형식이 아니라서 가져올 수 없습니다.`, { kind: "warn", sound: "error_generic" });
-    return null;
-  }
-  const desiredName = parsed.name || "새 파일.txt";
-  const conflict = await dfsFindNameConflict(parentId, desiredName, null);
+  // 버그 리포트: mp4 등 이진 파일을 레포에서 바탕화면으로 끌어다 놓으면 실제 영상 대신 확장자
+  // 아이콘만 다운로드되고, 앱 "안"으로는 아예 못 가져왔다 - attachRepoFileDragOut(content-pane.js)이
+  // 텍스트 파일만 드래그를 허용해뒀던 게 원인이라 거기서 그 제한을 없앴고, 이제 여기서 실제로
+  // 받은 내용을 보고 텍스트/이진을 가른다(dfsImportOsFile - 진짜 OS 파일 드롭 - 과 완전히 같은
+  // 기준과 저장 방식: 이진 파일은 content를 억지로 텍스트로 바꾸지 않고 Blob 그대로 저장한다).
+  const sample = await blob.slice(0, 8000).text().catch(() => "");
+  const looksText = dfLooksLikeText(sample);
+  const desiredName = parsed.name || (looksText ? "새 파일.txt" : "새 파일");
+  const conflict = await dfsFindNameConflict(parentId, desiredName, null, "file");
   if (conflict) {
     const ok = await showConfirmDialog(`이 위치에 이미 "${desiredName}" 항목이 있습니다. 덮어쓸까요?`);
     if (!ok) return null;
@@ -327,22 +341,45 @@ async function dfsImportRepoFileFromDownloadUrlData(parentId, raw) {
   }
   const now = Date.now();
   const pos = await dfsNextIconPos(parentId);
-  const id = await dfsDb.nodes.add({
-    parentId, type: "file", name: desiredName, content: text, fileType: dfDetectFileType(desiredName),
-    x: pos.x, y: pos.y, createdAt: now, updatedAt: now
-  });
+  const base = { parentId, type: "file", name: desiredName, x: pos.x, y: pos.y, createdAt: now, updatedAt: now };
+  let record;
+  if (looksText) {
+    record = { ...base, content: await blob.text(), fileType: dfDetectFileType(desiredName) };
+  } else {
+    // dfsImportOsFile과 같은 4MB 안내(로컬 헬퍼의 /savecontent 상한과 맞춤) - 막지는 않는다.
+    if (blob.size > 4 * 1024 * 1024) {
+      showToast(`"${desiredName}"은(는) 4MB보다 커서, 나중에 "다운로드"(로컬 헬퍼)로 저장할 때 실패할 수 있습니다. "브라우저에서 다운로드"는 그대로 됩니다.`, { kind: "warn", sound: "error_generic" });
+    }
+    record = { ...base, content: "", binary: true, blob, mime: blob.type || "", fileType: dfDetectFileType(desiredName) };
+  }
+  const id = await dfsDb.nodes.add(record);
   return dfsDb.nodes.get(id);
 }
 // dragover/drop 리스너가 공통으로 쓰는 판별/처리 헬퍼 - "DownloadURL" 타입이 있으면 저장소 파일
 // 드래그이므로 이 경로로, 아니면(기존처럼) 호출한 쪽이 Files/text-plain 분기를 계속 처리한다.
+// 버그 리포트: 이 앱 "안"으로 놓으려 하면 놓기도 전에 커서가 금지 모양이었다 - 크롬이
+// "DownloadURL"을 dragstart/drop에서는 정상적으로 넣어주지만 dragover 단계에서는(우리가
+// setData로 직접 채운 값이라) types 목록에 노출하지 않는 게 원인이었다. drop 시점엔 이 함수가
+// 여전히 types로도 정확히 판별하지만(그대로 둔다), dragover 쪽 판별은 이것만으로는 항상
+// 실패하므로 content-pane.js가 dragstart~dragend 사이 켜두는 dfRepoDragActive 플래그도 함께
+// 확인한다(각 dragover 리스너 참고).
 function dfDragHasRepoFile(e) {
+  if (dfRepoDragActive) return true;
   if (!e.dataTransfer) return false;
   const types = Array.from(e.dataTransfer.types || []);
   return types.indexOf("DownloadURL") !== -1;
 }
 async function dfHandleRepoFileDrop(e, parentId, refresh) {
-  const raw = e.dataTransfer.getData("DownloadURL");
-  const result = await dfsImportRepoFileFromDownloadUrlData(parentId, raw);
+  // 세 번째 버그 리포트(content-pane.js의 dfRepoDragItem 위 주석 참고): 크롬이 이 앱 스스로
+  // setData("DownloadURL", ...)로 채운 값을 같은 페이지의 drop에서 getData로 되읽는 건 허용하지
+  // 않아서(항상 빈 문자열) 실제 OS 바탕화면으로는 되면서 이 앱 "안"으로는 절대 안 됐다 -
+  // dfRepoDragItem(우리 자신이 지금 드래그 중인 항목)이 있으면 그걸 그대로 쓰고, 혹시 그게 없는
+  // 드문 경우(예: 다른 탭/사이트에서 진짜 다운로드 링크를 끌어온 경우 - 그런 진짜 외부 드래그는
+  // getData가 정상적으로 값을 돌려줄 수도 있다)에만 dataTransfer를 읽어 파싱한다.
+  const parsed = dfRepoDragItem
+    ? { name: dfRepoDragItem.name, url: absoluteFileUrl(dfRepoDragItem.path) }
+    : dfParseDownloadUrlData(e.dataTransfer.getData("DownloadURL"));
+  const result = await dfsImportRepoFileFromDownloadUrlData(parentId, parsed);
   if (result) {
     showToast(`"${result.name}"을(를) 가져왔습니다.`);
     if (refresh) await refresh();
@@ -371,7 +408,7 @@ async function dfsImportOsFile(parentId, file) {
   const desiredName = file.name || (looksText ? "새 파일.txt" : "새 파일");
   // 실제 컴퓨터에서 드롭한 파일이 이미 있는 이름과 겹치면 조용히 번호를 붙이는 대신 덮어쓸지
   // 물어본다(버그 리포트: 확인창 없이 그냥 처리되던 문제 - dfsMove/dfsCopyInto와 같은 방식).
-  const conflict = await dfsFindNameConflict(parentId, desiredName, null);
+  const conflict = await dfsFindNameConflict(parentId, desiredName, null, "file");
   if (conflict) {
     const ok = await showConfirmDialog(`이 위치에 이미 "${desiredName}" 항목이 있습니다. 덮어쓸까요?`);
     if (!ok) return null;
@@ -428,7 +465,7 @@ async function dfsImportScFile(parentId, file) {
   // 바로가기의 이름에서도 .sc를 뗀다(displayName과 같은 방식 - 어차피 여기 새로 만드는 노드는
   // "실제 파일명"이라는 개념이 없어 그대로 이름으로 쓴다).
   const desiredName = displayName(file.name || "") || "새 바로가기";
-  const conflict = await dfsFindNameConflict(parentId, desiredName, null);
+  const conflict = await dfsFindNameConflict(parentId, desiredName, null, "shortcut");
   if (conflict) {
     const ok = await showConfirmDialog(`이 위치에 이미 "${desiredName}" 항목이 있습니다. 덮어쓸까요?`);
     if (!ok) return null;
@@ -483,16 +520,16 @@ async function dfsCopyInto(node, parentId, desiredName) {
   if (desiredName) {
     // 호출한 쪽이 이름을 정해서 넘겼다(예: dfsDuplicate의 "- 복사본" 접미사) - 그대로 조용히
     // 고유화만 한다. 충돌 확인/덮어쓰기 질문은 필요 없음(애초에 다른 이름이라 겹칠 일이 드묾).
-    name = await dfsUniqueName(parentId, desiredName);
+    name = await dfsUniqueName(parentId, desiredName, node.type);
   } else if (node.parentId === parentId) {
     // 같은 폴더 안에 "붙여넣기"한 경우는 자기 자신과 이름이 겹치는 게 당연하다(사본을 만드는
     // 것뿐) - 덮어쓰기가 아니라 그냥 번호를 이어 붙인다("새 폴더 (2)" 안에서 붙여넣으면
     // "새 폴더 (3)"이 되는 식).
-    name = await dfsUniqueName(parentId, node.name);
+    name = await dfsUniqueName(parentId, node.name, node.type);
   } else {
     // 다른 폴더로 "붙여넣기"했는데 그 폴더에 이미 같은 이름이 있으면 진짜 충돌이므로 조용히
     // 번호를 붙이는 대신 덮어쓸지 물어본다(버그 리포트: 확인창 없이 그냥 처리되던 문제).
-    const conflict = await dfsFindNameConflict(parentId, node.name, null);
+    const conflict = await dfsFindNameConflict(parentId, node.name, null, node.type);
     if (conflict) {
       if (node.type === "folder" && conflict.type === "folder") {
         // 버그 리포트: "새 폴더 (2)를 새 폴더에 넣을때 새 폴더 (2)를 덮을지에 대해서는 묻고
@@ -529,7 +566,7 @@ async function dfsDuplicate(node) {
   return dfsCopyInto(node, node.parentId, dfsSuffixedName(node.name, "복사본"));
 }
 async function dfsCreateShortcut(node) {
-  const name = await dfsUniqueName(node.parentId, dfsSuffixedName(node.name, "바로가기"));
+  const name = await dfsUniqueName(node.parentId, dfsSuffixedName(node.name, "바로가기"), "shortcut");
   const now = Date.now();
   const pos = await dfsNextIconPos(node.parentId);
   const id = await dfsDb.nodes.add({ parentId: node.parentId, type: "shortcut", name, targetId: node.id, x: pos.x, y: pos.y, createdAt: now, updatedAt: now });
@@ -543,7 +580,7 @@ async function dfsCreateShortcut(node) {
 // 아이콘)을 대신 그린다(dfsIconGlyphFor). 호출하는 쪽이 안 넘기면 undefined로 저장되어 예전과
 // 동일하게 동작한다.
 async function dfsCreateUrlShortcut(parentId, info) {
-  const name = await dfsUniqueName(parentId, info.name || "새 바로가기");
+  const name = await dfsUniqueName(parentId, info.name || "새 바로가기", "shortcut");
   const now = Date.now();
   const pos = await dfsNextIconPos(parentId);
   // 요청 #141: popup - 활성화(더블클릭/열기)할 때 새 탭 대신 작은 팝업 창으로 열지 여부.
@@ -635,7 +672,7 @@ async function dfsEditShortcut(node, refresh) {
   if (newName !== node.name) {
     const err = dfsValidateName(newName);
     if (err) { showToast(err, { kind: "warn", sound: "error_generic" }); return; }
-    const clash = await dfsFindNameConflict(node.parentId, newName, node.id);
+    const clash = await dfsFindNameConflict(node.parentId, newName, node.id, "shortcut");
     if (clash) { showToast(`"${newName}" 이름이 이미 있습니다.`, { kind: "warn", sound: "error_generic" }); return; }
     patch.name = newName;
   }
@@ -670,7 +707,11 @@ async function dfsRename(node, newNameRaw) {
   if (err) { showToast(err, { kind: "warn", sound: "error_generic" }); return false; }
   const newName = newNameRaw.trim();
   const siblings = await dfsDb.nodes.where("parentId").equals(node.parentId).toArray();
-  const clash = siblings.some(s => s.id !== node.id && s.name.toLowerCase() === newName.toLowerCase());
+  // 버그 리포트: "바로가기랑 실제 파일 이름이 겹친다고 덮어쓰기가 뜬다" - dfsFindNameConflict/
+  // dfsUniqueName과 같은 논리로, 이름을 바꾸려는 대상(node)이 바로가기인지에 따라 바로가기는
+  // 바로가기끼리만, 그 외(폴더/파일)는 그 외끼리만 충돌로 본다.
+  const isShortcut = node.type === "shortcut";
+  const clash = siblings.some(s => s.id !== node.id && s.name.toLowerCase() === newName.toLowerCase() && (s.type === "shortcut") === isShortcut);
   if (clash) { showToast(`"${newName}" 이름이 이미 있습니다.`, { kind: "warn", sound: "error_generic" }); return false; }
   await dfsDb.nodes.update(node.id, { name: newName, updatedAt: Date.now() });
   return true;
@@ -717,7 +758,7 @@ async function dfsRestoreFromRecycleBin(node) {
     const p = await dfsDb.nodes.get(targetParent);
     if (!p) targetParent = DFS_DESKTOP_ROOT;
   }
-  const uniqueName = await dfsUniqueName(targetParent, node.name);
+  const uniqueName = await dfsUniqueName(targetParent, node.name, node.type);
   const pos = await dfsNextIconPos(targetParent);
   await dfsDb.nodes.update(node.id, {
     parentId: targetParent,
@@ -825,7 +866,7 @@ async function dfsMove(node, newParentId) {
   // 이동은 복사와 달리 "같은 이름이면 조용히 번호를 붙이는" 게 아니라 실제 윈도우 탐색기처럼
   // 덮어쓸지 물어봐야 한다(버그 리포트: 폴더를 드래그해서 이미 같은 이름이 있는 곳에 넣어도
   // 확인창 없이 그냥 처리되던 문제 - 드래그로 옮기기/잘라내기 붙여넣기 둘 다 여기를 지난다).
-  const conflict = await dfsFindNameConflict(newParentId, node.name, node.id);
+  const conflict = await dfsFindNameConflict(newParentId, node.name, node.id, node.type);
   if (conflict) {
     if (node.type === "folder" && conflict.type === "folder") {
       // 버그 리포트(덮어쓰기로 인한 자료 소실): "바탕화면\새 폴더\새 폴더 (2)\새 텍스트 문서.txt"가
@@ -900,7 +941,7 @@ async function dfsMoveManyToFolder(ids, targetId, targetName) {
 async function dfsMergeFolderInto(srcFolderNode, destFolderId, mode) {
   const kids = await dfsDb.nodes.where("parentId").equals(srcFolderNode.id).toArray();
   for (const kid of kids) {
-    const conflict = await dfsFindNameConflict(destFolderId, kid.name, mode === "move" ? kid.id : null);
+    const conflict = await dfsFindNameConflict(destFolderId, kid.name, mode === "move" ? kid.id : null, kid.type);
     if (!conflict) {
       if (mode === "move") await dfsDb.nodes.update(kid.id, { parentId: destFolderId, updatedAt: Date.now() });
       else await dfsCopyInto(kid, destFolderId, kid.name);
@@ -1345,9 +1386,22 @@ document.querySelector(".desktop").addEventListener("dragover", (e) => {
   if (e.target.closest(".window")) return;
   if (!e.dataTransfer) return;
   const types = Array.from(e.dataTransfer.types || []);
-  if (types.indexOf("Files") === -1 && types.indexOf("text/plain") === -1 && types.indexOf("DownloadURL") === -1) return;
+  // 버그 리포트: 레포 파일을 이 가짜 바탕화면 위로 끌고만 가도(놓기도 전에) 커서가 계속 금지
+  // 모양이라 아예 놓을 수 없었다 - 크롬이 dragstart/drop에는 "DownloadURL"을 정상적으로
+  // 넣어주지만, 그 사이 dragover/dragenter 단계에서는 이 값(우리가 setData로 직접 채운 것이라
+  // 진짜 OS 파일 드래그와 다르게 취급되는 듯)을 dataTransfer.types에 아예 노출하지 않는다 -
+  // types만으로는 이 조건이 항상 거짓이라 매번 return(=드롭 불가) 되고 있었다. content-pane.js가
+  // 저장소 파일 드래그 중에 켜두는 dfRepoDragActive 플래그도 함께 확인해서 우회한다.
+  const isRepoDrag = dfRepoDragActive || types.indexOf("DownloadURL") !== -1;
+  if (!isRepoDrag && types.indexOf("Files") === -1 && types.indexOf("text/plain") === -1) return;
   e.preventDefault();
-  e.dataTransfer.dropEffect = "move";
+  // 버그 리포트(추가): 위 dfRepoDragActive로 dragover까지는 통과해도, 레포 파일 드래그는
+  // attachRepoFileDragOut(content-pane.js)에서 dragstart 때 effectAllowed를 "copy"로 못박아
+  // 둔다 - 그런데 여기서 dropEffect를 무조건 "move"로 주면 허용되지 않은 조합이라(크롬이
+  // "move"는 "copy"에 포함되지 않는다고 보고) 여전히 금지 커서를 보여준다. 레포 파일 드래그일
+  // 때만 "copy"를 주고(내용을 옮기는 게 아니라 복사해오는 것이므로 의미도 이쪽이 맞다), 내부
+  // 가상 파일시스템 이동/진짜 OS 파일 드롭은 예전 그대로 "move"를 쓴다.
+  e.dataTransfer.dropEffect = isRepoDrag ? "copy" : "move";
 });
 document.querySelector(".desktop").addEventListener("drop", async (e) => {
   if (!dfsDb) return;
@@ -1637,11 +1691,14 @@ function dfsBuildIconMenuItems(node, opts = {}) {
     items.push({ label: "다운로드(.sc)", action: () => dfsDownloadShortcutFile(node) });
   } else {
     // 요청 #145: 이진 파일은 에디터로 열 수 없다 - 이미지만 "미리보기(새 탭)"를 대신 보여주고,
-    // 그 외 이진 파일은 아래 다운로드 항목들만으로 충분하다(더블클릭도 다운로드로 동작).
+    // 그 외 이진 파일은 아래 다운로드 항목들만으로 충분하다(더블클릭은 dfsActivate가 확장자
+    // 설정/기본 동작을 따진다). 버그 리포트 수정: 여기 두 항목은 사용자가 명시적으로 고른 동작이므로
+    // dfsActivate(확장자별 설정부터 확인) 대신 그 동작 자체를 직접 부른다 - context-menu.js의 같은
+    // 수정과 이유가 같다.
     if (node.binary) {
-      if ((node.mime || "").indexOf("image/") === 0) items.push({ label: "미리보기(새 탭)", action: () => dfsActivate(node) });
+      if ((node.mime || "").indexOf("image/") === 0) items.push({ label: "미리보기(새 탭)", action: () => dfsActivateBinaryFile(node) });
     } else {
-      items.push({ label: "에디터로 열기", action: () => dfsActivate(node) });
+      items.push({ label: "에디터로 열기", action: () => dfsOpenFileInWindow(node) });
     }
     // 실제 탐색기 파일 메뉴와 순서를 맞춘다: 다운로드(웹훅으로 로컬 헬퍼가 저장) 다음
     // 브라우저에서 다운로드(강제 blob 다운로드).
@@ -1816,6 +1873,70 @@ async function dfsActivateBinaryFile(node) {
   setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
+// 바탕화면(가상 파일시스템) 파일 내용을 blob: URL로 만들어 재사용한다 - 새 탭 뷰어/미디어
+// 뷰어(사진·음악·PDF)처럼 "실제 주소가 있는 것처럼" 다뤄야 하는 확장자별 동작들이 공용으로
+// 쓴다. dfsOpenHtmlAsViewerTab의 캐싱과 같은 이유(내용이 그대로면 재사용, 바뀌었으면 그때만
+// 이전 URL을 해제하고 새로 만든다 - 매번 새로 만들면 blob이 계속 쌓여 메모리를 낭비한다).
+const dfsNodeBlobUrlCache = new Map(); // nodeId -> { key, url }
+function dfsNodeBlobUrl(node) {
+  const key = node.binary ? node.blob : (node.content || "");
+  const cached = dfsNodeBlobUrlCache.get(node.id);
+  if (cached && cached.key === key) return cached.url;
+  if (cached) { try { URL.revokeObjectURL(cached.url); } catch (e) { /* 무시 */ } }
+  const blob = node.binary ? (key || new Blob([]))
+    : new Blob([key], { type: node.fileType === "html" ? "text/html;charset=utf-8" : "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  dfsNodeBlobUrlCache.set(node.id, { key, url });
+  return url;
+}
+// 버그 리포트: "바탕 화면도 파일 확장자 설정에 따라서 영상/음악/이미지/pdf/txt 등 설정을
+// 따라야 한다" - 지금까지 메뉴 메이커의 "확장자" 탭(extension_run_set.json, state.js의
+// EXTENSION_RUN_ACTIONS)은 실제 저장소 파일(keyboard-and-activate.js의 runDoubleClickAction)에만
+// 반영되고, 바탕화면 파일은 무조건 이진=미리보기/다운로드, 텍스트=에디터로만 열렸다. 저장소 쪽의
+// runDoubleClickAction과 같은 동작들을, 실제 URL이 없는 가상 파일에서도 뜻이 통하게(주소가
+// 필요한 곳은 dfsNodeBlobUrl로 만든 blob: 주소로 대신) 옮겨온 것이 이 함수다.
+function dfsRunExtensionActionForDesktopNode(action, node) {
+  switch (action) {
+    case "download":
+      localHelperSaveContent(node.name, node.binary ? node.blob : (node.content || ""));
+      return;
+    // 저장소 파일의 "helper"(로컬에서 열기)와 같은 동작 - 웹훅(로컬 헬퍼)에게 내용을 그대로
+    // 보내 연결된 프로그램으로 열게 한다(local-helper.js의 localHelperOpenContent 참고).
+    case "helper":
+      localHelperOpenContent(node.name, node.binary ? node.blob : (node.content || ""));
+      return;
+    case "editor":
+      if (node.binary) { dfsActivateBinaryFile(node); return; }
+      dfsOpenFileInWindow(node);
+      return;
+    case "textviewer":
+      if (node.binary) { dfsActivateBinaryFile(node); return; }
+      dfsOpenTextViewerWindow(node, node.content || "", "");
+      return;
+    case "music":
+    case "photo":
+    case "pdf":
+    case "hls":
+      dfsOpenMediaViewerWindow(node, action === "hls" ? "video" : action, dfsNodeBlobUrl(node));
+      return;
+    case "popup":
+      // blob: 주소는 noopener를 주면 일부 브라우저에서 새 탭이 못 여는 경우가 있어(editor.js/
+      // dfsOpenHtmlAsViewerTab과 같은 이유) 여기서는 noopener 없이 연다.
+      dfOpenNewTab(dfsNodeBlobUrl(node), "_blank", "width=1000,height=700,resizable=yes,scrollbars=yes");
+      return;
+    // "text"(텍스트로 열기)/"newtab"(새 탭에서 열기)/"repo"(저장소에서 보기)는 전부 실제
+    // 저장소 주소가 있어야 뜻이 통하는데, 바탕화면 가상 파일은 그런 주소가 없다 - 가장 가까운
+    // 대체 동작으로 blob: 주소를 새 탭에서 그대로 보여준다.
+    case "text":
+    case "newtab":
+    case "repo":
+      dfOpenNewTab(dfsNodeBlobUrl(node), "_blank");
+      return;
+    default:
+      if (node.binary) { dfsActivateBinaryFile(node); return; }
+      dfsOpenFileInWindow(node);
+  }
+}
 /* ---------------- 활성화(더블클릭) ----------------
    에디터는 더 이상 탐색기 창 내부에서 그려지지 않는다 - 파일을 열면 앱 내 창(요청 #135,
    dfsOpenFileInWindow)으로 뜬다. */
@@ -1841,6 +1962,10 @@ async function dfsActivate(node) {
     if (!target) { showToast("바로가기 대상을 찾을 수 없습니다(삭제된 항목).", { kind: "warn", sound: "error_generic" }); return; }
     return dfsActivate(target);
   }
+  // 버그 리포트: 메뉴 메이커 "확장자" 탭에 등록해둔 개별 동작이 있으면(저장소 파일과 동일한
+  // 우선순위) 그것부터 따른다 - 없을 때만 기존 기본 동작(이진=미리보기/다운로드, 텍스트=에디터)으로.
+  const runAction = extensionRunActionFor(node.name);
+  if (runAction) { dfsRunExtensionActionForDesktopNode(runAction, node); return; }
   // 요청 #145: 이진 파일(binary:true)은 에디터로 열 수 없으므로 먼저 걸러서 dfsActivateBinaryFile로.
   if (node.binary) { return dfsActivateBinaryFile(node); }
   dfsOpenFileInWindow(node);

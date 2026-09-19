@@ -187,6 +187,18 @@ async function initHelperPortAndCollapseDuplicates() {
 function sizeQueryParam(it) {
   return (it && it.size > 0) ? `&size=${encodeURIComponent(it.size)}` : "";
 }
+// 버그 리포트: "바탕화면에 만든 txt 파일을 웹훅으로 다운로드하면 빈 파일, 이진 파일은 아예 다운로드도
+// 안 됨(브라우저 자체 다운로드는 둘 다 문제없음)". localserver.ahk의 CORS 응답 헤더 보강(WHSend
+// 참고)만으로도 고쳐지지만, 이진 파일(Blob)을 fetch의 body로 그대로 넘기면 애초에 Blob.type(예:
+// image/png)이 그대로 Content-Type 헤더가 되어 "단순하지 않은 요청"이 되고 매번 사전 확인
+// (preflight) 왕복이 필요해진다 - 서버가 그 사전 확인에 제대로 응답해야만 실제 요청이 나간다는
+// 의존성 자체를 없애는 게 더 안전하다. Blob을 미리 ArrayBuffer로 바꿔서 보내면 fetch가 Content-Type
+// 헤더를 아예 안 붙이므로(설정 안 함 = 항상 "단순한 요청") 사전 확인이 필요 없어진다 - 문자열
+// 본문(텍스트 파일)은 원래도 안전한 text/plain으로 잡혀 사전 확인이 없었으므로 그대로 둔다.
+async function dfHelperBody(content) {
+  if (content instanceof Blob) return content.arrayBuffer();
+  return content ?? "";
+}
 async function localHelperOpen(it) {
   const port = await ensureHelperPort();
   if (port === null) { offerHelperDownload("열기"); return; }
@@ -325,7 +337,7 @@ async function dfsDownloadFolderViaHelper(node) {
       try {
         const res = await fetch(`http://127.0.0.1:${port}/savecontentto?base=${encodeURIComponent(baseRoot)}&rel=${encodeURIComponent(rel)}`, {
           method: "POST",
-          body: f.content ?? ""
+          body: await dfHelperBody(f.content)
         });
         if (!res.ok) throw new Error(String(res.status));
         ok++;
@@ -394,7 +406,7 @@ async function dfsDownloadFolderIntoBase(node, port, baseRoot, dlg) {
     const rel = relPrefix + "/" + f.path;
     dlg.setText(`다운로드 중 (${i + 1}/${files.length}): ${f.path}`);
     try {
-      const res = await fetch(`http://127.0.0.1:${port}/savecontentto?base=${encodeURIComponent(baseRoot)}&rel=${encodeURIComponent(rel)}`, { method: "POST", body: f.content ?? "" });
+      const res = await fetch(`http://127.0.0.1:${port}/savecontentto?base=${encodeURIComponent(baseRoot)}&rel=${encodeURIComponent(rel)}`, { method: "POST", body: await dfHelperBody(f.content) });
       if (!res.ok) throw new Error(String(res.status));
       ok++;
     } catch (e) { fail++; }
@@ -402,6 +414,27 @@ async function dfsDownloadFolderIntoBase(node, port, baseRoot, dlg) {
   return { cancelled: false, ok, fail };
 }
 
+// 버그 리포트: "바탕화면도 확장자 설정(메뉴 메이커 > 확장자 탭)을 따라야 한다" - 그 설정의
+// "helper"(로컬에서 열기) 동작은 실제 저장소 파일이면 그 URL을 로컬 헬퍼가 받아서 바로 실행하지만
+// (localHelperOpen), 바탕화면 가상 파일은 서버에 URL이 없다. localHelperSaveContent(POST로 내용을
+// 그대로 보내 "저장 대화상자"를 띄우는 것)와 같은 방식으로 내용을 그대로 보내되, 대화상자 없이
+// temp에 받아서 바로 실행하도록 localserver.ahk에 /opencontent를 새로 추가했다(HandleOpen과
+// 같은 방식 - 그저 URL 대신 POST 본문에서 바로 temp 파일을 만든다는 점만 다르다).
+async function localHelperOpenContent(name, content) {
+  const port = await ensureHelperPort();
+  if (port === null) { offerHelperDownload("열기"); return; }
+  showToast(`여는 중: ${name}`, { sound: "download_start" });
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/opencontent?name=${encodeURIComponent(name)}`, {
+      method: "POST",
+      body: await dfHelperBody(content)
+    });
+    if (!res.ok) throw new Error(String(res.status));
+    showToast(`열었습니다: ${name}`, { sound: "download_complete" });
+  } catch (e) {
+    showToast(`여는 중 오류: ${e.message}`, { kind: "warn", sound: "download_error" });
+  }
+}
 // 브라우저 자체 저장소(바탕화면 가상 파일시스템)에만 있는 파일은 서버에 URL이 없으므로
 // /download처럼 url= 파라미터로 받아올 수 없다. 대신 이미 갖고 있는 내용을 그대로 로컬
 // 헬퍼에 POST로 보내고, 헬퍼가 저장 대화상자를 띄워서 저장한다.
@@ -412,7 +445,7 @@ async function localHelperSaveContent(name, content) {
   try {
     const res = await fetch(`http://127.0.0.1:${port}/savecontent?name=${encodeURIComponent(name)}`, {
       method: "POST",
-      body: content ?? ""
+      body: await dfHelperBody(content)
     });
     const text = await res.text();
     if (!res.ok) throw new Error(String(res.status));

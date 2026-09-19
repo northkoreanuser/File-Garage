@@ -40,44 +40,62 @@ function dirLabelFor(it, opts) {
   return dirParts.join("/") || repoName;
 }
 // ---------------- 실제 저장소 파일을 진짜 OS 바탕화면/탐색기로 끌어내기 ----------------
-// 사용자 지시: "레포 안에 있는 파일을 밖으로 끌어내면 그게 텍스트 형식의 파일(확장자 무관)인
-// 경우 바로 바탕화면으로 꺼내버려(js fetch로 파일 형식 빠르게 판단해서 한다)" - 크롬 계열
-// 브라우저는 드래그의 dataTransfer에 "DownloadURL" 항목을 채워두면 놓인 곳이 진짜 OS 바탕화면/
-// 탐색기일 때 브라우저가 그 URL을 직접 받아서 파일로 저장해준다(우리가 내용을 미리 다 들고
-// 있을 필요가 없음) - 다만 "텍스트 파일일 때만" 허용해야 하므로, 드래그가 실제로 시작되기 전에
-// (폴더가 그려지는 시점에 백그라운드로) 앞부분만 fetch해서 dfLooksLikeText로 판별해 캐시해둔다.
-// dragstart는 동기적으로 dataTransfer를 채워야 해서 그 자리에서 fetch를 기다릴 수 없으므로,
-// 아직 판별이 안 끝난 상태(드문 경우 - 폴더를 열자마자 바로 끄는 경우)에서 드래그를 시작하면
-// 그냥 아무 일도 없는 것으로 취급한다(강제로 기다리게 하면 네이티브 드래그 자체가 끊긴다).
-const dfRepoTextSniffCache = new Map(); // key: path.join("/") -> true(텍스트)/false(아님)
-async function dfSniffRepoFileIsText(it) {
-  const key = it.path.join("/");
-  if (dfRepoTextSniffCache.has(key)) return dfRepoTextSniffCache.get(key);
-  try {
-    const url = absoluteFileUrl(it.path);
-    // 큰 파일을 통째로 내려받지 않도록 앞부분만 Range로 요청해본다(서버가 Range를 무시하고
-    // 전체를 돌려줘도 어차피 아래에서 8000자만 잘라 쓰므로 판별 결과는 똑같다).
-    const res = await fetch(url, { headers: { Range: "bytes=0-8000" } });
-    if (!res.ok && res.status !== 206) throw new Error(String(res.status));
-    const text = await res.text();
-    const isText = dfLooksLikeText(text.slice(0, 8000));
-    dfRepoTextSniffCache.set(key, isText);
-    return isText;
-  } catch (e) {
-    return false; // 네트워크 오류 등 - 캐시에 남기지 않아 다음에 다시 시도할 수 있게 한다
-  }
-}
+// 버그 리포트: "레포에서 mp4 같은 이진 파일을 바탕화면(가짜/실제 컴퓨터 모두)으로 끌어내면
+// 실제 파일 대신 확장자 아이콘(예: video.svg)만 다운로드되고, 진짜 영상은 안 나온다." 원인은
+// 이 함수가 원래 "텍스트 파일일 때만" 드래그를 허용하도록 만들어져 있었다는 것 - dragstart가
+// 시작되기 전에 파일 앞부분을 fetch해서 dfLooksLikeText로 미리 판별해두고(비동기라 드래그
+// 시작 시점엔 이미 끝나 있어야 함), 텍스트가 아니거나(예: mp4) 판별이 아직 안 끝난 상태(폴더를
+// 열자마자 바로 끄는 경우 - 흔함)면 dragstart에서 그냥 preventDefault()로 드래그 자체를
+// 끊어버렸다. 그런데 "DownloadURL" dataTransfer는 애초에 브라우저가 그 URL을 직접 받아 파일로
+// 저장해주는 것이라(우리가 내용을 미리 fetch해서 들고 있을 필요가 전혀 없다) 텍스트인지 여부와
+// 무관하게 항상 그대로 동작해야 한다 - 이 앱 "안"으로 떨어뜨렸을 때만(desktop-fs.js의
+// dfHandleRepoFileDrop) 실제 내용을 다뤄야 하므로, 텍스트/이진 구분은 거기서 실제로 받은
+// 내용을 보고 나서 하면 충분하다(dfsImportRepoFileFromDownloadUrlData 참고 - dfsImportOsFile과
+// 같은 기준으로 이진 파일은 Blob 그대로 저장한다). 이제 이 함수는 파일 형식과 무관하게 항상
+// dragstart에서 바로(동기적으로, fetch 없이) DownloadURL을 채운다 - 사전 판별용 fetch/캐시/
+// 타이밍 경합 자체가 없어졌으므로 "드래그를 눌러도 가끔 아무 반응이 없다"는 문제도 함께 없어진다.
+//
+// 후속 버그 리포트: "진짜 OS 바탕화면으로는 잘 되는데, 이 앱 '안'의 가짜 바탕화면 위로 끌고
+// 가면(놓기 전부터) 커서가 금지 모양이라 아예 놓을 수조차 없다(텍스트/이진 둘 다)." 원인은
+// 크롬이 "DownloadURL"을 dragstart/drop 시점에는 dataTransfer에 정상적으로 담아주지만,
+// 그 사이 단계인 dragover/dragenter에서는 (진짜 OS 파일 드래그와 달리, 페이지 스스로
+// setData("DownloadURL", ...)로 "흉내 낸" 값이라서) e.dataTransfer.types 목록에 아예 노출하지
+// 않는다는 것 - desktop-fs.js/tree-pane.js/이 파일의 각 dragover 리스너가 전부
+// types.indexOf("DownloadURL")로만 판별하고 있었으니, 그 조건이 항상 -1(없음)로 나와서
+// preventDefault()를 못 하고 매번 "놓을 수 없음" 취급됐던 것 - drop 자체는(브라우저가 실제로
+// 놓게만 해줬다면) 문제없이 동작했을 것이다(types는 drop 시점엔 정상적으로 다시 보인다).
+// dataTransfer.types에 의존하는 대신, 이 앱이 "지금 저장소 파일을 드래그하는 중"이라는 사실을
+// 직접 기억해뒀다가(dragstart~dragend 사이) 각 dragover 리스너가 이 값도 함께 확인하도록
+// 고쳤다(desktop-fs.js의 dfDragHasRepoFile 참고) - dragend는 성공/취소/엉뚱한 곳에 놓임 등
+// 결과와 무관하게 항상 발생하므로 플래그가 계속 켜진 채로 남는 일은 없다.
+//
+// 세 번째 버그 리포트: 위 두 수정으로 커서는 정상(놓기 허용 모양)이 됐지만, 실제로 놓아도
+// 여전히 아무것도 안 가져와졌다 - 콘솔 진단으로 확인해보니 desktop의 drop 리스너는 정확히
+// 실행되지만 e.dataTransfer.getData("DownloadURL")이 빈 문자열을 돌려주고 있었다. 즉 크롬은
+// 페이지 스스로 setData("DownloadURL", ...)로 채운 값을 dragstart/(진짜 OS로 놓았을 때의) 내부
+// 처리에는 쓰지만, 같은 페이지 안의 drop 이벤트에서 스크립트가 getData로 "다시 읽어가는 것"은
+// 허용하지 않는다(OS에 파일로 저장시키는 용도의 사실상 "쓰기 전용" 채널인 셈 - 그래서 진짜
+// 컴퓨터 바탕화면으로는 잘 되면서 이 앱 "안"으로는 안 됐던 것이다). dataTransfer를 왕복시키는
+// 대신, dfRepoDragActive와 같은 방식으로 지금 드래그 중인 항목 자체(it)를 dfRepoDragItem에
+// 직접 기억해뒀다가 drop 시점에 그대로 쓴다(desktop-fs.js의 dfHandleRepoFileDrop 참고) - 같은
+// 페이지 안에서 벌어지는 일이라 dataTransfer를 거칠 필요가 전혀 없다.
+let dfRepoDragActive = false;
+let dfRepoDragItem = null;
 function attachRepoFileDragOut(cell, it) {
   cell.draggable = true;
-  dfSniffRepoFileIsText(it); // 그려지자마자 백그라운드로 미리 판별해둔다(실제 드래그 전에 끝날 확률을 높임)
   cell.addEventListener("dragstart", (e) => {
     e.stopPropagation(); // els.contentPane의 전역 dragstart 리스너(아래)가 취소해버리지 않게
-    const key = it.path.join("/");
-    if (dfRepoTextSniffCache.get(key) !== true) { e.preventDefault(); return; }
+    dfRepoDragActive = true;
+    dfRepoDragItem = it; // drop 시점에 dataTransfer를 왕복시키지 않고 바로 이걸 쓴다(위 주석 참고)
     const url = absoluteFileUrl(it.path);
-    e.dataTransfer.setData("DownloadURL", `text/plain:${it.name}:${url}`);
+    // mime 힌트는 브라우저가 data: URL을 해석할 때만 의미가 있고(우리는 항상 http(s) URL이라
+    // 실제 저장 결과에는 영향이 없다) - html만 구분해주고 나머지는 범용값을 쓴다. 실제 OS
+    // 바탕화면으로 놓을 때는(진짜 브라우저 다운로드 처리) 여전히 이 DownloadURL 값을 쓴다.
+    const mimeHint = fileTypeFor(it.name) === "html" ? "text/html" : "application/octet-stream";
+    e.dataTransfer.setData("DownloadURL", `${mimeHint}:${it.name}:${url}`);
     e.dataTransfer.effectAllowed = "copy";
   });
+  cell.addEventListener("dragend", () => { dfRepoDragActive = false; dfRepoDragItem = null; });
 }
 function buildGrid(items, opts) {
   if (items.length === 0) {
@@ -154,8 +172,14 @@ function buildGrid(items, opts) {
         cell.addEventListener("dragover", (e) => {
           if (!e.dataTransfer) return;
           const types = Array.from(e.dataTransfer.types || []);
-          if (types.indexOf("Files") === -1 && types.indexOf("text/plain") === -1 && types.indexOf("DownloadURL") === -1) return;
+          // 버그 리포트: dragover 단계에선 크롬이 "DownloadURL"을 types에 아직 안 보여준다
+          // (attachRepoFileDragOut 위 주석 참고) - dfRepoDragActive도 함께 확인한다.
+          const isRepoDrag = dfRepoDragActive || types.indexOf("DownloadURL") !== -1;
+          if (!isRepoDrag && types.indexOf("Files") === -1 && types.indexOf("text/plain") === -1) return;
           e.preventDefault();
+          // 레포 파일 드래그는 effectAllowed가 "copy"라서(attachRepoFileDragOut) dropEffect를
+          // 명시적으로 "copy"로 맞춰야 금지 커서가 안 뜬다(desktop-fs.js의 같은 수정 참고).
+          e.dataTransfer.dropEffect = isRepoDrag ? "copy" : "move";
           cell.classList.add("df-drop-target");
         });
         cell.addEventListener("dragleave", () => cell.classList.remove("df-drop-target"));
@@ -294,9 +318,15 @@ els.contentPane.addEventListener("dragover", (e) => {
   if (e.target.closest(".grid-item")) return; // 폴더 칸 위는 그 칸 자체의 리스너가 처리
   if (!e.dataTransfer) return;
   const types = Array.from(e.dataTransfer.types || []);
-  if (types.indexOf("Files") === -1 && types.indexOf("text/plain") === -1 && types.indexOf("DownloadURL") === -1) return;
+  // dfRepoDragActive: 위 attachRepoFileDragOut 주석 참고 - dragover 단계엔 "DownloadURL"이
+  // types에 안 보이므로 이 플래그로도 판별한다.
+  const isRepoDrag = dfRepoDragActive || types.indexOf("DownloadURL") !== -1;
+  if (!isRepoDrag && types.indexOf("Files") === -1 && types.indexOf("text/plain") === -1) return;
   e.preventDefault();
-  e.dataTransfer.dropEffect = "move";
+  // 레포 파일 드래그는 attachRepoFileDragOut이 dragstart에서 effectAllowed를 "copy"로 정해뒀다 -
+  // 여기서 dropEffect를 "move"로 주면 허용되지 않는 조합이라 금지 커서로 보인다(desktop-fs.js의
+  // 같은 수정 참고). 레포 드래그만 "copy", 나머지(내부 이동/OS 파일)는 그대로 "move".
+  e.dataTransfer.dropEffect = isRepoDrag ? "copy" : "move";
 });
 // text/plain(트리 행이나 다른 폴더의 grid-item에서 네이티브 드래그로 끌려온 가상 파일시스템 노드
 // id)을 특정 폴더 칸이 아니라 이 내용창의 빈 곳/배경에 놓으면, 바탕화면 아이콘을 창 안으로 끌어다
@@ -551,8 +581,11 @@ async function handleMultiDownload(items) {
         } else if (it.dfsNode) {
           const res = await fetch(`http://127.0.0.1:${port}/savecontentto?base=${encodeURIComponent(baseRoot)}&rel=${encodeURIComponent(it.name)}`, {
             method: "POST",
-            // 요청 #145: 이진 파일은 Blob 그대로 보낸다.
-            body: (it.dfsNode.binary && it.dfsNode.blob) ? it.dfsNode.blob : (it.dfsNode.content || "")
+            // 요청 #145: 이진 파일은 Blob 내용 그대로 보낸다. 버그 리포트 수정: Blob을 그대로 fetch
+            // body로 넘기면 Blob.type이 Content-Type이 되어 브라우저가 사전 확인(preflight)을
+            // 먼저 보내는데, 그게 막히면 요청 자체가 안 나간다 - dfHelperBody가 ArrayBuffer로
+            // 바꿔서 애초에 사전 확인이 필요 없게 만든다(local-helper.js 참고).
+            body: await dfHelperBody((it.dfsNode.binary && it.dfsNode.blob) ? it.dfsNode.blob : (it.dfsNode.content || ""))
           });
           if (!res.ok) throw new Error(String(res.status));
           okCount++;
