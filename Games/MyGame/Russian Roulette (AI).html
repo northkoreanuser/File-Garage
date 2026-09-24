@@ -565,6 +565,9 @@ body.dark .actions{filter:brightness(4)}
 .chat-in .ibtn{height:34px}
 body.auto .chat-in{display:none}
 @media (max-width:699px){.chat{min-height:260px}.chat-list{font-size:13px}}
+#tcRu:empty{display:none}
+/* 러시아어 제거 후: 한글 라벨은 자간 좁게 */
+.rlbl,.gunlbl,.chat-t,.btn.fire .s,.turnflag,.tc-ru,.rechead,.card h3,.spectate,.pl,.w1{letter-spacing:.06em;font-family:var(--f-kr);font-weight:700}
 </style>
 </head>
 <body>
@@ -574,7 +577,7 @@ body.auto .chat-in{display:none}
   <header class="top">
     <div class="brand">
       <svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,72 21,94 32,59 3,38 39,38" fill="#c4161c" stroke="#ff5a5a" stroke-width="2"/></svg>
-      <div><div class="ru">РУССКАЯ РУЛЕТКА</div><div class="kr">러시안 <em>룰렛</em></div></div>
+      <div><div class="kr">러시안 <em>룰렛</em></div></div>
     </div>
     <div class="ctrls">
       <div class="seg" id="modeSeg">
@@ -596,7 +599,7 @@ body.auto .chat-in{display:none}
           <button class="ibtn wide" id="voiceBtn">대사 유형 · 커스텀 편집 <span id="voiceCur" class="vcur"></span></button>
         </div></div>
       <div class="popwrap" id="shopWrap"><button class="ibtn" id="shopBtn">암시장 <span id="shopBank" class="sbank"></span></button>
-        <div class="pop shop" id="shopPop"><div class="pl">ЧЁРНЫЙ РЫНОК · 암시장</div><div id="shopList"></div></div></div>
+        <div class="pop shop" id="shopPop"><div class="pl">암시장</div><div id="shopList"></div></div></div>
       <button class="ibtn" id="pauseBtn">❚❚ 일시정지</button>
       <button class="ibtn" id="recBtn" title="기록 보기 (L)">📊 기록<span class="rlong"> 보기</span></button>
       <button class="ibtn" id="musicBtn" title="음악 (M)"><span class="bars"><i></i><i></i><i></i></span> 음악</button>
@@ -605,7 +608,7 @@ body.auto .chat-in{display:none}
 
   <main class="arena">
     <section class="seat" id="seat0">
-      <div class="bubble"></div><div class="gainpop"></div><div class="turnflag">ХОД · 차례</div><div class="killed">УБИТ</div><div class="bleed"></div><svg class="gunpt" viewBox="0 0 240 140"><defs><linearGradient id="gSt0" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a929e"/><stop offset=".18" stop-color="#4b525c"/><stop offset=".55" stop-color="#1b1e23"/><stop offset=".85" stop-color="#2c3139"/><stop offset="1" stop-color="#0d0e11"/></linearGradient><linearGradient id="gCy0" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9aa2ad"/><stop offset=".25" stop-color="#555c66"/><stop offset=".6" stop-color="#202328"/><stop offset="1" stop-color="#0c0d10"/></linearGradient><linearGradient id="gWd0" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a4a22"/><stop offset=".45" stop-color="#5a2c12"/><stop offset="1" stop-color="#2a1207"/></linearGradient><pattern id="gCk0" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0H4M0 0V4" stroke="rgba(0,0,0,.45)" stroke-width="1"/></pattern></defs><g stroke="#07080a" stroke-width="1.4" stroke-linejoin="round"><path d="M146 84 Q144 108 163 109 Q179 109 180 90" fill="none" stroke="#1c1f24" stroke-width="5"/><path d="M146 84 Q144 108 163 109 Q179 109 180 90" fill="none" stroke="rgba(160,170,180,.35)" stroke-width="1.2"/><path d="M161 86 Q155 96 160 104 Q163 99 165 88 Z" fill="#23262c"/><path d="M166 80 Q180 78 190 84 Q198 100 210 122 Q214 132 206 137 Q192 141 182 130 Q172 114 168 98 Z" fill="url(#gWd0)"/><path d="M170 88 Q180 86 188 90 Q196 104 204 122 Q204 130 198 131 Q188 132 182 122 Q175 108 172 96 Z" fill="url(#gCk0)" stroke="none"/><path d="M174 86 Q184 104 196 128" fill="none" stroke="rgba(255,200,150,.12)" stroke-width="1.5"/><path d="M196 132 Q206 134 211 126 L214 131 Q210 141 196 139 Z" fill="url(#gSt0)"/><circle cx="214" cy="138" r="4.5" fill="none" stroke="#3a3f47" stroke-width="2.2"/><circle cx="185" cy="104" r="6.5" fill="#b8913f"/><path d="M185 99 L186.5 102.6 L190.3 102.7 L187.3 105 L188.4 108.6 L185 106.5 L181.6 108.6 L182.7 105 L179.7 102.7 L183.5 102.6 Z" fill="#c4161c" stroke="none"/><g class="ghammer"><path d="M175 42 L178 27 Q181 17 195 17 Q201 18 201 22 Q191 23 189 29 L186 44 Z" fill="url(#gSt0)"/><path d="M184 20 L197 19 M183 23 L194 22 M182 26 L191 25" stroke="rgba(0,0,0,.6)" stroke-width="1"/></g><path d="M108 32 L178 32 Q187 33 188 44 L191 80 Q187 88 176 88 L152 86 Q138 86 126 84 L110 82 Z" fill="url(#gSt0)"/><path d="M112 34 L176 34" stroke="rgba(200,210,220,.35)" stroke-width="1"/><path d="M170 30 l3 -3 h4 l3 3" fill="#15171b"/><rect x="10" y="37" width="104" height="17" rx="2" fill="url(#gSt0)"/><rect x="10" y="33" width="104" height="5" rx="1.5" fill="#2a2e35"/><path d="M12 38.5 H112" stroke="rgba(220,228,236,.45)" stroke-width="1.2"/><path d="M12 46 H112" stroke="rgba(0,0,0,.45)" stroke-width="1"/><path d="M16 33 L18 25 L27 25 L27 33 Z" fill="#1d2025"/><rect x="5" y="34" width="8" height="21" rx="2.5" fill="#101215"/><path d="M7 36 V53" stroke="rgba(255,255,255,.18)" stroke-width="1"/><rect x="42" y="54" width="72" height="9" rx="4.5" fill="#1f2227"/><path d="M46 56.5 H112" stroke="rgba(200,210,220,.22)" stroke-width="1"/><circle cx="45" cy="58.5" r="5" fill="#3a3f47"/><path d="M42 56 h6 M42 58.5 h6 M42 61 h6" stroke="rgba(0,0,0,.6)" stroke-width=".8"/><rect x="116" y="36" width="50" height="46" rx="8" fill="url(#gCy0)"/><rect x="116" y="38" width="4" height="42" rx="2" fill="rgba(0,0,0,.4)" stroke="none"/><rect x="123" y="42" width="8" height="34" rx="4" fill="#0b0c0f" stroke="none"/><rect x="137" y="42" width="8" height="34" rx="4" fill="#0b0c0f" stroke="none"/><rect x="151" y="42" width="8" height="34" rx="4" fill="#0b0c0f" stroke="none"/><path d="M124 43 V74 M138 43 V74 M152 43 V74" stroke="rgba(170,180,190,.25)" stroke-width="1"/><path d="M119 39 H163" stroke="rgba(235,240,245,.55)" stroke-width="1.4"/><path d="M116 46 H166 M116 72 H166" stroke="rgba(0,0,0,.35)" stroke-width="1"/><circle cx="176" cy="48" r="2.4" fill="#5d646e"/><path d="M174.3 48 h3.4" stroke="#111" stroke-width=".8"/><circle cx="178" cy="72" r="2.4" fill="#5d646e"/><path d="M176.3 72 h3.4" stroke="#111" stroke-width=".8"/><circle cx="190" cy="118" r="2.2" fill="#c9a24c"/></g></svg>
+      <div class="bubble"></div><div class="gainpop"></div><div class="turnflag">차례</div><div class="killed">사망</div><div class="bleed"></div><svg class="gunpt" viewBox="0 0 240 140"><defs><linearGradient id="gSt0" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a929e"/><stop offset=".18" stop-color="#4b525c"/><stop offset=".55" stop-color="#1b1e23"/><stop offset=".85" stop-color="#2c3139"/><stop offset="1" stop-color="#0d0e11"/></linearGradient><linearGradient id="gCy0" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9aa2ad"/><stop offset=".25" stop-color="#555c66"/><stop offset=".6" stop-color="#202328"/><stop offset="1" stop-color="#0c0d10"/></linearGradient><linearGradient id="gWd0" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a4a22"/><stop offset=".45" stop-color="#5a2c12"/><stop offset="1" stop-color="#2a1207"/></linearGradient><pattern id="gCk0" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0H4M0 0V4" stroke="rgba(0,0,0,.45)" stroke-width="1"/></pattern></defs><g stroke="#07080a" stroke-width="1.4" stroke-linejoin="round"><path d="M146 84 Q144 108 163 109 Q179 109 180 90" fill="none" stroke="#1c1f24" stroke-width="5"/><path d="M146 84 Q144 108 163 109 Q179 109 180 90" fill="none" stroke="rgba(160,170,180,.35)" stroke-width="1.2"/><path d="M161 86 Q155 96 160 104 Q163 99 165 88 Z" fill="#23262c"/><path d="M166 80 Q180 78 190 84 Q198 100 210 122 Q214 132 206 137 Q192 141 182 130 Q172 114 168 98 Z" fill="url(#gWd0)"/><path d="M170 88 Q180 86 188 90 Q196 104 204 122 Q204 130 198 131 Q188 132 182 122 Q175 108 172 96 Z" fill="url(#gCk0)" stroke="none"/><path d="M174 86 Q184 104 196 128" fill="none" stroke="rgba(255,200,150,.12)" stroke-width="1.5"/><path d="M196 132 Q206 134 211 126 L214 131 Q210 141 196 139 Z" fill="url(#gSt0)"/><circle cx="214" cy="138" r="4.5" fill="none" stroke="#3a3f47" stroke-width="2.2"/><circle cx="185" cy="104" r="6.5" fill="#b8913f"/><path d="M185 99 L186.5 102.6 L190.3 102.7 L187.3 105 L188.4 108.6 L185 106.5 L181.6 108.6 L182.7 105 L179.7 102.7 L183.5 102.6 Z" fill="#c4161c" stroke="none"/><g class="ghammer"><path d="M175 42 L178 27 Q181 17 195 17 Q201 18 201 22 Q191 23 189 29 L186 44 Z" fill="url(#gSt0)"/><path d="M184 20 L197 19 M183 23 L194 22 M182 26 L191 25" stroke="rgba(0,0,0,.6)" stroke-width="1"/></g><path d="M108 32 L178 32 Q187 33 188 44 L191 80 Q187 88 176 88 L152 86 Q138 86 126 84 L110 82 Z" fill="url(#gSt0)"/><path d="M112 34 L176 34" stroke="rgba(200,210,220,.35)" stroke-width="1"/><path d="M170 30 l3 -3 h4 l3 3" fill="#15171b"/><rect x="10" y="37" width="104" height="17" rx="2" fill="url(#gSt0)"/><rect x="10" y="33" width="104" height="5" rx="1.5" fill="#2a2e35"/><path d="M12 38.5 H112" stroke="rgba(220,228,236,.45)" stroke-width="1.2"/><path d="M12 46 H112" stroke="rgba(0,0,0,.45)" stroke-width="1"/><path d="M16 33 L18 25 L27 25 L27 33 Z" fill="#1d2025"/><rect x="5" y="34" width="8" height="21" rx="2.5" fill="#101215"/><path d="M7 36 V53" stroke="rgba(255,255,255,.18)" stroke-width="1"/><rect x="42" y="54" width="72" height="9" rx="4.5" fill="#1f2227"/><path d="M46 56.5 H112" stroke="rgba(200,210,220,.22)" stroke-width="1"/><circle cx="45" cy="58.5" r="5" fill="#3a3f47"/><path d="M42 56 h6 M42 58.5 h6 M42 61 h6" stroke="rgba(0,0,0,.6)" stroke-width=".8"/><rect x="116" y="36" width="50" height="46" rx="8" fill="url(#gCy0)"/><rect x="116" y="38" width="4" height="42" rx="2" fill="rgba(0,0,0,.4)" stroke="none"/><rect x="123" y="42" width="8" height="34" rx="4" fill="#0b0c0f" stroke="none"/><rect x="137" y="42" width="8" height="34" rx="4" fill="#0b0c0f" stroke="none"/><rect x="151" y="42" width="8" height="34" rx="4" fill="#0b0c0f" stroke="none"/><path d="M124 43 V74 M138 43 V74 M152 43 V74" stroke="rgba(170,180,190,.25)" stroke-width="1"/><path d="M119 39 H163" stroke="rgba(235,240,245,.55)" stroke-width="1.4"/><path d="M116 46 H166 M116 72 H166" stroke="rgba(0,0,0,.35)" stroke-width="1"/><circle cx="176" cy="48" r="2.4" fill="#5d646e"/><path d="M174.3 48 h3.4" stroke="#111" stroke-width=".8"/><circle cx="178" cy="72" r="2.4" fill="#5d646e"/><path d="M176.3 72 h3.4" stroke="#111" stroke-width=".8"/><circle cx="190" cy="118" r="2.2" fill="#c9a24c"/></g></svg>
       <div class="inner">
         <div class="portrait"><span class="ini"></span></div>
         <div class="sname"></div>
@@ -616,7 +619,7 @@ body.auto .chat-in{display:none}
     </section>
 
     <section class="stage">
-      <div class="stage-top"><span class="rlbl" id="roundLbl">РАУНД 0</span><span class="gunlbl" id="gunLbl"></span><span class="pot" id="pot">₽ 0</span></div>
+      <div class="stage-top"><span class="rlbl" id="roundLbl">라운드 0</span><span class="gunlbl" id="gunLbl"></span><span class="pot" id="pot">₽ 0</span></div>
       <div class="cyl-area">
         <div class="arrow l" id="arL"></div><div class="arrow r" id="arR"></div>
         <svg class="frame" viewBox="0 0 120 56"><path d="M4 56 Q8 30 34 22 L86 22 Q112 30 116 56" fill="none" stroke="#2b2e33" stroke-width="10" stroke-linecap="round"/><path d="M4 56 Q8 30 34 22 L86 22 Q112 30 116 56" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="2"/></svg>
@@ -629,14 +632,14 @@ body.auto .chat-in{display:none}
         <div class="dpct" id="dpct">—</div>
         <div class="dside"><div class="dlbl" id="dlbl">다음 격발 사망 확률</div><div class="pips" id="pips"></div></div>
       </div>
-      <div class="warn" id="warn"><span>⚠ ПОСЛЕДНИЙ ПАТРОН // 마지막 약실 // ПОСЛЕДНИЙ ПАТРОН // 마지막 약실 //</span></div>
+      <div class="warn" id="warn"><span>⚠ 마지막 약실 // 마지막 약실 // 마지막 약실 // 마지막 약실 //</span></div>
       <div class="msg" id="msg"></div>
       <button class="sidebet" id="sideBet"></button>
       <div class="tbar" id="tbar"><i></i></div>
     </section>
 
     <section class="seat" id="seat1">
-      <div class="bubble"></div><div class="gainpop"></div><div class="turnflag">ХОД · 차례</div><div class="killed">УБИТ</div><div class="bleed"></div><svg class="gunpt" viewBox="0 0 240 140"><defs><linearGradient id="gSt1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a929e"/><stop offset=".18" stop-color="#4b525c"/><stop offset=".55" stop-color="#1b1e23"/><stop offset=".85" stop-color="#2c3139"/><stop offset="1" stop-color="#0d0e11"/></linearGradient><linearGradient id="gCy1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9aa2ad"/><stop offset=".25" stop-color="#555c66"/><stop offset=".6" stop-color="#202328"/><stop offset="1" stop-color="#0c0d10"/></linearGradient><linearGradient id="gWd1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a4a22"/><stop offset=".45" stop-color="#5a2c12"/><stop offset="1" stop-color="#2a1207"/></linearGradient><pattern id="gCk1" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0H4M0 0V4" stroke="rgba(0,0,0,.45)" stroke-width="1"/></pattern></defs><g stroke="#07080a" stroke-width="1.4" stroke-linejoin="round"><path d="M146 84 Q144 108 163 109 Q179 109 180 90" fill="none" stroke="#1c1f24" stroke-width="5"/><path d="M146 84 Q144 108 163 109 Q179 109 180 90" fill="none" stroke="rgba(160,170,180,.35)" stroke-width="1.2"/><path d="M161 86 Q155 96 160 104 Q163 99 165 88 Z" fill="#23262c"/><path d="M166 80 Q180 78 190 84 Q198 100 210 122 Q214 132 206 137 Q192 141 182 130 Q172 114 168 98 Z" fill="url(#gWd1)"/><path d="M170 88 Q180 86 188 90 Q196 104 204 122 Q204 130 198 131 Q188 132 182 122 Q175 108 172 96 Z" fill="url(#gCk1)" stroke="none"/><path d="M174 86 Q184 104 196 128" fill="none" stroke="rgba(255,200,150,.12)" stroke-width="1.5"/><path d="M196 132 Q206 134 211 126 L214 131 Q210 141 196 139 Z" fill="url(#gSt1)"/><circle cx="214" cy="138" r="4.5" fill="none" stroke="#3a3f47" stroke-width="2.2"/><circle cx="185" cy="104" r="6.5" fill="#b8913f"/><path d="M185 99 L186.5 102.6 L190.3 102.7 L187.3 105 L188.4 108.6 L185 106.5 L181.6 108.6 L182.7 105 L179.7 102.7 L183.5 102.6 Z" fill="#c4161c" stroke="none"/><g class="ghammer"><path d="M175 42 L178 27 Q181 17 195 17 Q201 18 201 22 Q191 23 189 29 L186 44 Z" fill="url(#gSt1)"/><path d="M184 20 L197 19 M183 23 L194 22 M182 26 L191 25" stroke="rgba(0,0,0,.6)" stroke-width="1"/></g><path d="M108 32 L178 32 Q187 33 188 44 L191 80 Q187 88 176 88 L152 86 Q138 86 126 84 L110 82 Z" fill="url(#gSt1)"/><path d="M112 34 L176 34" stroke="rgba(200,210,220,.35)" stroke-width="1"/><path d="M170 30 l3 -3 h4 l3 3" fill="#15171b"/><rect x="10" y="37" width="104" height="17" rx="2" fill="url(#gSt1)"/><rect x="10" y="33" width="104" height="5" rx="1.5" fill="#2a2e35"/><path d="M12 38.5 H112" stroke="rgba(220,228,236,.45)" stroke-width="1.2"/><path d="M12 46 H112" stroke="rgba(0,0,0,.45)" stroke-width="1"/><path d="M16 33 L18 25 L27 25 L27 33 Z" fill="#1d2025"/><rect x="5" y="34" width="8" height="21" rx="2.5" fill="#101215"/><path d="M7 36 V53" stroke="rgba(255,255,255,.18)" stroke-width="1"/><rect x="42" y="54" width="72" height="9" rx="4.5" fill="#1f2227"/><path d="M46 56.5 H112" stroke="rgba(200,210,220,.22)" stroke-width="1"/><circle cx="45" cy="58.5" r="5" fill="#3a3f47"/><path d="M42 56 h6 M42 58.5 h6 M42 61 h6" stroke="rgba(0,0,0,.6)" stroke-width=".8"/><rect x="116" y="36" width="50" height="46" rx="8" fill="url(#gCy1)"/><rect x="116" y="38" width="4" height="42" rx="2" fill="rgba(0,0,0,.4)" stroke="none"/><rect x="123" y="42" width="8" height="34" rx="4" fill="#0b0c0f" stroke="none"/><rect x="137" y="42" width="8" height="34" rx="4" fill="#0b0c0f" stroke="none"/><rect x="151" y="42" width="8" height="34" rx="4" fill="#0b0c0f" stroke="none"/><path d="M124 43 V74 M138 43 V74 M152 43 V74" stroke="rgba(170,180,190,.25)" stroke-width="1"/><path d="M119 39 H163" stroke="rgba(235,240,245,.55)" stroke-width="1.4"/><path d="M116 46 H166 M116 72 H166" stroke="rgba(0,0,0,.35)" stroke-width="1"/><circle cx="176" cy="48" r="2.4" fill="#5d646e"/><path d="M174.3 48 h3.4" stroke="#111" stroke-width=".8"/><circle cx="178" cy="72" r="2.4" fill="#5d646e"/><path d="M176.3 72 h3.4" stroke="#111" stroke-width=".8"/><circle cx="190" cy="118" r="2.2" fill="#c9a24c"/></g></svg>
+      <div class="bubble"></div><div class="gainpop"></div><div class="turnflag">차례</div><div class="killed">사망</div><div class="bleed"></div><svg class="gunpt" viewBox="0 0 240 140"><defs><linearGradient id="gSt1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a929e"/><stop offset=".18" stop-color="#4b525c"/><stop offset=".55" stop-color="#1b1e23"/><stop offset=".85" stop-color="#2c3139"/><stop offset="1" stop-color="#0d0e11"/></linearGradient><linearGradient id="gCy1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9aa2ad"/><stop offset=".25" stop-color="#555c66"/><stop offset=".6" stop-color="#202328"/><stop offset="1" stop-color="#0c0d10"/></linearGradient><linearGradient id="gWd1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a4a22"/><stop offset=".45" stop-color="#5a2c12"/><stop offset="1" stop-color="#2a1207"/></linearGradient><pattern id="gCk1" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0H4M0 0V4" stroke="rgba(0,0,0,.45)" stroke-width="1"/></pattern></defs><g stroke="#07080a" stroke-width="1.4" stroke-linejoin="round"><path d="M146 84 Q144 108 163 109 Q179 109 180 90" fill="none" stroke="#1c1f24" stroke-width="5"/><path d="M146 84 Q144 108 163 109 Q179 109 180 90" fill="none" stroke="rgba(160,170,180,.35)" stroke-width="1.2"/><path d="M161 86 Q155 96 160 104 Q163 99 165 88 Z" fill="#23262c"/><path d="M166 80 Q180 78 190 84 Q198 100 210 122 Q214 132 206 137 Q192 141 182 130 Q172 114 168 98 Z" fill="url(#gWd1)"/><path d="M170 88 Q180 86 188 90 Q196 104 204 122 Q204 130 198 131 Q188 132 182 122 Q175 108 172 96 Z" fill="url(#gCk1)" stroke="none"/><path d="M174 86 Q184 104 196 128" fill="none" stroke="rgba(255,200,150,.12)" stroke-width="1.5"/><path d="M196 132 Q206 134 211 126 L214 131 Q210 141 196 139 Z" fill="url(#gSt1)"/><circle cx="214" cy="138" r="4.5" fill="none" stroke="#3a3f47" stroke-width="2.2"/><circle cx="185" cy="104" r="6.5" fill="#b8913f"/><path d="M185 99 L186.5 102.6 L190.3 102.7 L187.3 105 L188.4 108.6 L185 106.5 L181.6 108.6 L182.7 105 L179.7 102.7 L183.5 102.6 Z" fill="#c4161c" stroke="none"/><g class="ghammer"><path d="M175 42 L178 27 Q181 17 195 17 Q201 18 201 22 Q191 23 189 29 L186 44 Z" fill="url(#gSt1)"/><path d="M184 20 L197 19 M183 23 L194 22 M182 26 L191 25" stroke="rgba(0,0,0,.6)" stroke-width="1"/></g><path d="M108 32 L178 32 Q187 33 188 44 L191 80 Q187 88 176 88 L152 86 Q138 86 126 84 L110 82 Z" fill="url(#gSt1)"/><path d="M112 34 L176 34" stroke="rgba(200,210,220,.35)" stroke-width="1"/><path d="M170 30 l3 -3 h4 l3 3" fill="#15171b"/><rect x="10" y="37" width="104" height="17" rx="2" fill="url(#gSt1)"/><rect x="10" y="33" width="104" height="5" rx="1.5" fill="#2a2e35"/><path d="M12 38.5 H112" stroke="rgba(220,228,236,.45)" stroke-width="1.2"/><path d="M12 46 H112" stroke="rgba(0,0,0,.45)" stroke-width="1"/><path d="M16 33 L18 25 L27 25 L27 33 Z" fill="#1d2025"/><rect x="5" y="34" width="8" height="21" rx="2.5" fill="#101215"/><path d="M7 36 V53" stroke="rgba(255,255,255,.18)" stroke-width="1"/><rect x="42" y="54" width="72" height="9" rx="4.5" fill="#1f2227"/><path d="M46 56.5 H112" stroke="rgba(200,210,220,.22)" stroke-width="1"/><circle cx="45" cy="58.5" r="5" fill="#3a3f47"/><path d="M42 56 h6 M42 58.5 h6 M42 61 h6" stroke="rgba(0,0,0,.6)" stroke-width=".8"/><rect x="116" y="36" width="50" height="46" rx="8" fill="url(#gCy1)"/><rect x="116" y="38" width="4" height="42" rx="2" fill="rgba(0,0,0,.4)" stroke="none"/><rect x="123" y="42" width="8" height="34" rx="4" fill="#0b0c0f" stroke="none"/><rect x="137" y="42" width="8" height="34" rx="4" fill="#0b0c0f" stroke="none"/><rect x="151" y="42" width="8" height="34" rx="4" fill="#0b0c0f" stroke="none"/><path d="M124 43 V74 M138 43 V74 M152 43 V74" stroke="rgba(170,180,190,.25)" stroke-width="1"/><path d="M119 39 H163" stroke="rgba(235,240,245,.55)" stroke-width="1.4"/><path d="M116 46 H166 M116 72 H166" stroke="rgba(0,0,0,.35)" stroke-width="1"/><circle cx="176" cy="48" r="2.4" fill="#5d646e"/><path d="M174.3 48 h3.4" stroke="#111" stroke-width=".8"/><circle cx="178" cy="72" r="2.4" fill="#5d646e"/><path d="M176.3 72 h3.4" stroke="#111" stroke-width=".8"/><circle cx="190" cy="118" r="2.2" fill="#c9a24c"/></g></svg>
       <div class="inner">
         <div class="portrait"><span class="ini"></span></div>
         <div class="sname"></div>
@@ -646,7 +649,7 @@ body.auto .chat-in{display:none}
       </div>
     </section>
   <div class="actions">
-      <button class="btn fire" id="fireBtn" disabled><span><span class="t">방아쇠</span><span class="s">СПУСК · 연타하면 플릭샷</span></span><kbd>F</kbd></button>
+      <button class="btn fire" id="fireBtn" disabled><span><span class="t">방아쇠</span><span class="s">연타하면 플릭샷</span></span><kbd>F</kbd></button>
       <div class="turnnote">↻ 아래 행동은 <b>방아쇠 없이 차례를 넘긴다</b> — 탄을 넣어도.</div>
       <button class="btn spin" id="spinBtn" disabled title="실린더를 돌려 1번부터 다시. 쏘지 않고 차례를 넘긴다."><span><span class="t">스핀</span><span class="s">초기화 · 턴 넘김 ↻</span></span><kbd>S</kbd></button>
       <button class="btn pass" id="passBtn" disabled title="확률 그대로 총을 넘긴다. 쏘지 않고 차례를 넘긴다."><span><span class="t">양보</span><span class="s">그대로 · 턴 넘김 ↻</span></span><kbd>D</kbd></button>
@@ -656,19 +659,19 @@ body.auto .chat-in{display:none}
   </main>
 
   <section class="chat" id="chat">
-    <div class="chat-h"><span class="chat-t">ЧАТ · 채팅</span>
+    <div class="chat-h"><span class="chat-t">채팅</span>
       <div class="chat-tabs" id="chatTabs"><button data-f="all" class="on">전체</button><button data-f="talk">대화</button><button data-f="game">진행</button></div></div>
     <ul class="chat-list" id="chatList"></ul>
     <form class="chat-in" id="chatForm" autocomplete="off"><span class="chat-me" id="chatMe">나</span><input id="chatInput" maxlength="60" placeholder="Enter로 채팅 — 상대가 대꾸할 수도 있다"><button class="ibtn" type="submit">전송</button></form>
   </section>
 
-  <div class="spectate">— НАБЛЮДЕНИЕ · 관전 중 —</div>
+  <div class="spectate">— 관전 중 —</div>
 
   <div class="recov hide" id="recOv"><div class="recbox">
-  <div class="rechead"><span>ЗАПИСИ · 기록</span><button class="ibtn" id="recClose">✕ 닫기</button></div>
+  <div class="rechead"><span>기록</span><button class="ibtn" id="recClose">✕ 닫기</button></div>
   <div class="lower">
-    <div class="card"><h3>ЖУРНАЛ <small>기록</small></h3><ul class="log" id="log"></ul></div>
-    <div class="card"><h3>ДОСЬЕ <small>AI 성격별 전적</small></h3><table class="lb" id="lb"></table><div class="hist-h">약실별 사망 분포</div><div class="hist" id="hist"></div><div class="me" id="meStat"></div></div>
+    <div class="card"><h3>진행 기록</h3><ul class="log" id="log"></ul></div>
+    <div class="card"><h3>AI 성격별 전적</h3><table class="lb" id="lb"></table><div class="hist-h">약실별 사망 분포</div><div class="hist" id="hist"></div><div class="me" id="meStat"></div></div>
   </div>
   </div></div>
 </div>
@@ -676,7 +679,7 @@ body.auto .chat-in{display:none}
 <!-- 계약서 (최초 이름 입력) -->
 <div class="ov hide" id="contract">
   <div class="paper" id="paper">
-    <div class="p-head"><span>ДОГОВОР № <span id="docNo">0000</span></span><svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,72 21,94 32,59 3,38 39,38" fill="#8a1a14"/></svg></div>
+    <div class="p-head"><span>계약서 № <span id="docNo">0000</span></span><svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,72 21,94 32,59 3,38 39,38" fill="#8a1a14"/></svg></div>
     <h2>참가 서약서</h2>
     <div class="sub">지하 3층, 전등 하나. 테이블 위에는 리볼버 한 자루.</div>
     <p class="cl">一. 본인은 누구의 강요도 없이 이 테이블에 앉는다.</p>
@@ -684,18 +687,18 @@ body.auto .chat-in{display:none}
     <p class="cl">三. 돌리든, 넘기든, 한 발 더 넣든 — 무엇을 해도 차례는 넘어간다.</p>
     <p class="cl">四. 방아쇠의 결과에 대해 누구도 책임지지 않는다.</p>
     <div class="sig">
-      <label>ПОДПИСЬ · 서명</label>
-      <input id="nameInput" maxlength="12" autocomplete="off" spellcheck="false" placeholder="이름을 적으시오">
+      <label>서명</label>
+      <input id="nameInput" maxlength="6" autocomplete="off" spellcheck="false" placeholder="이름을 적으시오">
     </div>
-    <div class="p-foot"><small id="pHint">최대 12자 · 이 이름이 테이블에 불린다</small><button class="p-btn" id="signBtn">서명하고 앉는다 →</button></div>
-    <div class="stamp">ПРИНЯТО</div>
+    <div class="p-foot"><small id="pHint">최대 6자 · 이 이름이 테이블에 불린다</small><button class="p-btn" id="signBtn">서명하고 앉는다 →</button></div>
+    <div class="stamp">승인</div>
   </div>
 </div>
 
 <!-- 재방문 시작 화면 -->
 <div class="ov hide" id="welcome">
   <div class="welcome">
-    <div class="w1">С ВОЗВРАЩЕНИЕМ</div>
+    <div class="w1">즐거운 도파민</div>
     <div class="w2">러시안 <em>룰렛</em></div>
     <div class="w3">다시 왔군, <b id="wName"></b>.</div>
     <div class="w4">화면을 눌러 테이블에 앉기</div>
@@ -707,7 +710,7 @@ body.auto .chat-in{display:none}
 <div class="window" aria-hidden="true"><canvas id="snow" width="150" height="210"></canvas><div class="wframe"></div></div>
 <div class="ov hide" id="voiceOv">
   <div class="vcard">
-    <div class="vhead"><div><div class="tc-ru">ГОЛОС · 내 대사</div><div class="vtitle">테이블에서 할 말</div></div>
+    <div class="vhead"><div><div class="tc-ru">내 대사</div><div class="vtitle">테이블에서 할 말</div></div>
       <div class="vtop"><label class="vrand"><input type="checkbox" id="voiceRand"> 프리셋 랜덤 <small>(광전사 · 도박꾼 · 도발꾼)</small></label><label class="vsel">유형 <select id="voicePreset"></select></label></div></div>
     <div class="vhint">프리셋을 고르면 아래 칸이 그 AI의 대사로 채워진다. 그대로 저장하면 프리셋, 고쳐서 저장하면 커스텀. 한 줄에 대사 하나, <b>{opp}</b>는 상대 이름.</div>
     <div class="vform" id="voiceForm"></div>
@@ -720,7 +723,7 @@ body.auto .chat-in{display:none}
 <div id="clean"></div>
 <div id="deathBg"></div>
 <div id="blood"><canvas id="bStain"></canvas><canvas id="bFx"></canvas></div>
-<div id="death"><div class="dz-top">УБИТ · 사망</div><div class="dz-name" id="dzName"></div><div class="dz-sub" id="dzSub"></div><div class="dz-quote" id="dzQuote"></div></div>
+<div id="death"><div class="dz-top">사망</div><div class="dz-name" id="dzName"></div><div class="dz-sub" id="dzSub"></div><div class="dz-quote" id="dzQuote"></div></div>
 <div id="flash"></div>
 
 <button id="dbgBtn">⚙ DEBUG</button>
@@ -1047,9 +1050,9 @@ Object.assign(A, {
 
 // ══════════════════ 상수 ══════════════════
 const GUNS = {
-  5: { ko: '스너브노즈', ru: 'КОРОТЫШ', desc: '5연발 · 첫 격발부터 20%. 빠르고 잔인하다.' },
-  6: { ko: '리볼버', ru: 'РЕВОЛЬВЕР', desc: '6연발 · 표준 룰렛.' },
-  7: { ko: '나강 M1895', ru: 'НАГАН', desc: '7연발 · 러시아 제국군 제식 리볼버. 오래 버틴다.' },
+  5: { ko: '스너브노즈', desc: '5연발 · 첫 격발부터 20%. 빠르고 잔인하다.' },
+  6: { ko: '리볼버', desc: '6연발 · 표준 룰렛.' },
+  7: { ko: '나강 M1895', desc: '7연발 · 러시아 제국군 제식 리볼버. 오래 버틴다.' },
 };
 const ANTE = 100, LOAN = 1000, FLOORS = 7;
 const TOUR_TIERS = [['drunk', 'coward'], ['gambler', 'mimic'], ['fatalist', 'berserker'], ['veteran', 'calculator'], ['provocateur'], ['mindgamer'], ['strategist']];
@@ -1076,36 +1079,36 @@ function weighted(c, w) { const opts = Object.entries(w).filter(([a]) => a === '
 
 // ══════════════════ AI 성격 ══════════════════
 const PERS = {
-  berserker: { ko: '광전사', ru: 'БЕРСЕРК', color: '#ff5a3d', tempo: [250, 700],
+  berserker: { ko: '광전사', color: '#ff5a3d', tempo: [250, 700],
     desc: '피할 줄 모른다. 오히려 초반에 한 발 더 넣고 판을 키운다.',
     decide: c => c.p >= 1 ? escape(c) : (c.can.raise && c.k <= 1 && c.b === 1 && Math.random() < .6) ? 'raise' : 'fire',
     lines: { intro: ['빨리 시작하지.', '피가 끓는군.'], fire: ['하하! 당겨!', '겁 따윈 없다.', '이게 사는 맛이지!'], spin: ['…전략적 후퇴다.'], pass: ['받아라. 이것도 싸움이다.'], raise: ['한 발로는 심심하지!', '판을 키우자고!'], survive: ['봤냐?', '다음은 네 차례다, {opp}.'], die: ['후회는… 없다…'], win: ['약해빠진 놈.'] } },
-  coward: { ko: '겁쟁이', ru: 'ТРУС', color: '#b8c4a0', tempo: [1600, 3600],
+  coward: { ko: '겁쟁이', color: '#b8c4a0', tempo: [1600, 3600],
     desc: '두 번째 약실부터 손이 떨린다. 아이템을 너무 일찍 써버리는 게 약점.',
     decide: c => (c.can.raise && c.p < 1 && Math.random() < .04) ? 'raise' // 공포에 질린 헛손질 (드묾)
       : c.k === 0 ? (Math.random() < .1 ? escape(c) : 'fire') : (c.p >= .25 && Math.random() < .8 ? escape(c) : 'fire'),
     lines: { intro: ['저, 저는 그냥 구경만…', '집에 가고 싶어…'], fire: ['제, 제발…', '엄마…', '눈 감고 당길게요…'], spin: ['돌려! 돌려야 해!', '안 돼, 못 해!'], pass: ['너, 너가 먼저 해!', '저 말고요!'], raise: ['제, 제발… 이번엔 저쪽에서 터져라…', '뭐라도 해야 할 것 같아서… 제발 저한테만 오지 마…', '눈 감고 넣었어요… 제발, 제발 저쪽이길…'], survive: ['사, 살았다…', '심장이 멎는 줄…'], die: ['싫어…'], win: ['내가… 이겼어?'] } },
-  gambler: { ko: '도박꾼', ru: 'ИГРОК', color: '#e8c14a', tempo: [600, 1400],
+  gambler: { ko: '도박꾼', color: '#e8c14a', tempo: [600, 1400],
     desc: '첫 약실은 무조건 당기고, 그다음부터는 주사위를 굴려 정한다.',
     decide: c => c.p >= 1 ? escape(c) : c.k === 0 ? 'fire' : weighted(c, { fire: .45, spin: .2, pass: .2, raise: .15, skip: .1 }),
-    lines: { intro: ['자, 판을 벌여볼까.', '오늘 운은 좋은 편이야.'], fire: ['앞면이 나왔군.', '홀짝이지 뭐.'], spin: ['패를 바꾸지.', '셔플.'], pass: ['이번 패는 넘기지.'], raise: ['레이즈.', '판돈을 올리지.'], survive: ['하우스는 늘 이기지.'], die: ['올인… 실패.'], win: ['잭팟.'] } },
-  calculator: { ko: '계산기', ru: 'СЧЁТЧИК', color: '#4fd18b', tempo: [900, 1500],
+    lines: { intro: ['자, 판을 벌여볼까.', '오늘 운은 좋은 편이야.'], fire: ['🪙 앞면이 나왔군.', '🎲 홀짝이지 뭐.', '🎲 주사위는 던져졌다.', '🪙 동전은 거짓말 안 해.'], spin: ['🃏 패를 바꾸지.', '🃏 셔플.'], pass: ['🃏 이번 패는 넘기지.'], raise: ['🪙 레이즈.', '🪙 판돈을 올리지.'], survive: ['🎰 하우스는 늘 이기지.'], die: ['올인… 실패.'], win: ['🎰 잭팟.'] } },
+  calculator: { ko: '계산기', color: '#4fd18b', tempo: [900, 1500],
     desc: '사망 확률 33%를 넘으면 피한다. 상대가 피할 수단이 없을 때만 판을 키운다.',
     decide: c => c.p >= 1 / 3 ? escape(c) : (c.can.raise && !c.oppEsc && c.p <= .25) ? 'raise' : 'fire',
     lines: { intro: ['변수 입력 완료.'], fire: ['사망 확률 {p}%. 허용 범위.', '계산 완료. 격발.'], spin: ['{p}%는 임계치 초과.', '기대값상 스핀이 우월.'], pass: ['{p}%는 네 몫이다.'], raise: ['네 회피 수단은 0. 변수를 늘린다.'], survive: ['예측대로.'], die: ['오차… 범위…'], win: ['확률은 거짓말하지 않는다.'] } },
-  strategist: { ko: '전략가', ru: 'СТРАТЕГ', color: '#5aa9ff', tempo: [1100, 2300],
+  strategist: { ko: '전략가', color: '#5aa9ff', tempo: [1100, 2300],
     desc: '게임 이론으로 푼 최적해를 따른다. 모든 아이템의 가치를 계산한다.',
     decide: c => optimal(c.N, c.k, c.b, maskOf(c.seat), maskOf(c.opp)).a,
     lines: { intro: ['최적해는 이미 나와 있다.'], fire: ['이 수가 최선이다.', '아이템은 아껴두지.'], spin: ['턴을 넘기겠다.', '{opp}, 이제 네 몫이다.'], pass: ['이 확률은 네가 짊어져라.'], raise: ['이 한 발이 승부를 가른다.'], survive: ['수읽기대로.'], die: ['체크메이트… 당했군.'], win: ['게임 이론의 승리다.'] } },
-  fatalist: { ko: '운명론자', ru: 'ФАТАЛИСТ', color: '#b07cff', tempo: [900, 1900],
+  fatalist: { ko: '운명론자', color: '#b07cff', tempo: [900, 1900],
     desc: '판마다 불길한 숫자를 하나 정한다. 그 약실에서만 피한다.',
     decide: c => (c.chamber === c.seat.n || c.p >= 1) ? escape(c) : 'fire',
     lines: { intro: ['오늘 내 불길한 숫자는 {n}.', '{n}번… 오늘은 {n}번이 느낌이 안 좋아.'], fire: ['운명이 정할 일.', '신이 원한다면.'], spin: ['{n}… 불길한 숫자다.'], pass: ['{n}번은 내 몫이 아니다.'], raise: ['운명이 늦장을 부리는군. 한 발 거들어주지.', '정해진 결말이라면… 조금 앞당겨도 되겠지.', '신이 주사위를 굴리지 않는다면, 내가 한 발 얹어주마.'], survive: ['아직 때가 아니군.'], die: ['정해진 일이었다.'], win: ['운명은 너를 택했다.'] } },
-  mimic: { ko: '따라쟁이', ru: 'ЭХО', color: '#ff8fc8', tempo: [700, 1600],
+  mimic: { ko: '따라쟁이', color: '#ff8fc8', tempo: [700, 1600],
     desc: '상대가 방금 한 행동을 그대로 따라 한다. 생각하는 시간까지.',
     decide: c => c.p >= 1 ? escape(c) : (c.oppLast && c.oppLast !== 'fire' && c.can[c.oppLast]) ? c.oppLast : 'fire',
     lines: { intro: ['네 거울이 되어주지, {opp}.'], fire: ['네가 당겼으니 나도.', '따라 해볼까.'], spin: ['네가 돌렸으니 나도.'], pass: ['너도 넘겼잖아.'], raise: ['너도 넣었으니 나도.'], survive: ['똑같이 살아남았네.'], die: ['따라… 가는 건가.'], win: ['거울은 깨지지 않는다.'] } },
-  mindgamer: { ko: '심리전', ru: 'ПСИХОЛОГ', color: '#ff9a3c', tempo: [1200, 2600],
+  mindgamer: { ko: '심리전', color: '#ff9a3c', tempo: [1200, 2600],
     desc: '상대가 오래 망설이면 판을 키워 압박한다. 사람의 습관을 기억한다.',
     decide: c => {
       if (c.p >= 1) return escape(c);
@@ -1114,11 +1117,11 @@ const PERS = {
       if (c.oppEsc) return c.p >= 1 / 3 ? escape(c) : 'fire';
       return optimal(c.N, c.k, c.b, maskOf(c.seat), maskOf(c.opp)).a; },
     lines: { intro: ['네 얼굴부터 읽어볼까.'], fire: ['손이 떨리던데, {opp}?', '망설임이 다 보여.'], spin: ['서두를 필요 없지.'], pass: ['자, 네 표정을 보여줘.'], raise: ['떨고 있군. 한 발 더 넣어주지.'], survive: ['표정 관리 잘 봐.'], die: ['읽혔…나.'], win: ['처음부터 보였어.'] } },
-  veteran: { ko: '노병', ru: 'ВЕТЕРАН', color: '#9fb3c8', tempo: [1000, 2000],
+  veteran: { ko: '노병', color: '#9fb3c8', tempo: [1000, 2000],
     desc: '지금까지의 사망 기록을 기억한다. 가장 많이 죽은 약실을 피한다 (도박사의 오류).',
     decide: c => (c.chamber === c.seat.n || c.p >= .5) ? escape(c) : 'fire',
     lines: { intro: ['내 경험상 {n}번이 제일 위험해.', '{n}번에서 많이들 죽었지.'], fire: ['아직은 괜찮아.', '이 정도는 수백 번 해봤다.'], spin: ['{n}번… 여기서 많이 죽었지.'], pass: ['이 자리는 안 좋아. 네가 앉아라.'], survive: ['전장보다 쉽군.'], die: ['결국… 여기까지.'], win: ['또 살아남았군.'] } },
-  drunk: { ko: '술꾼', ru: 'ПЬЯНИЦА', color: '#e0703a', tempo: [300, 3800],
+  drunk: { ko: '술꾼', color: '#e0703a', tempo: [300, 3800],
     desc: '보드카 한 병째. 판단이 오락가락하고 마지막 약실도 가끔 헷갈린다.',
     decide: c => {
       const dk = (c.seat.drink || 0) / 100; // 취기 0~1
@@ -1126,8 +1129,8 @@ const PERS = {
         return Math.random() < (fl ? .04 + dk * .12 : .03 + dk * .07) ? 'fire' : escape(c); } // 4%(+취기) 헛발질
       if (Math.random() < .25 + dk * .25) return weighted(c, { fire: 1, spin: 1, pass: 1, raise: .6, skip: .5 });
       return c.p >= .5 ? escape(c) : 'fire'; },
-    lines: { intro: ['За здоровье! 건배!', '딸꾹… 누구세요?'], fire: ['딸꾹… 건배!', '보드카 한 잔 더!', '어… 이게 방아쇠야?'], spin: ['빙글빙글~', '세상이 돈다~'], pass: ['자, 너도 한 잔… 아니 한 발!'], raise: ['한 발 더! 한 잔 더!'], survive: ['히끅… 살았네?'], die: ['건… 배…'], win: ['한 잔 더 해야겠군!'] } },
-  provocateur: { ko: '도발꾼', ru: 'ПРОВОКАТОР', color: '#ff4f7a', tempo: [500, 1300],
+    lines: { intro: ['건배!', '딸꾹… 누구세요?'], fire: ['딸꾹… 건배!', '보드카 한 잔 더!', '어… 이게 방아쇠야?'], spin: ['빙글빙글~', '세상이 돈다~'], pass: ['자, 너도 한 잔… 아니 한 발!'], raise: ['한 발 더! 한 잔 더!'], survive: ['히끅… 살았네?'], die: ['건… 배…'], win: ['한 잔 더 해야겠군!'] } },
+  provocateur: { ko: '도발꾼', color: '#ff4f7a', tempo: [500, 1300],
     desc: '상대의 회피 수단이 바닥나는 순간 한 발 더 넣어 몰아붙인다.',
     decide: c => {
       if (c.p >= 1) return escape(c);
@@ -1219,7 +1222,7 @@ function buildCylinder() {
     <polygon points="0,-13 11.3,-6.5 11.3,6.5 0,13 -11.3,6.5 -11.3,-6.5" fill="#2c3036" stroke="#555b63" stroke-width="1.2"/>
     <circle r="5" fill="#0a0a0a"/></svg>`;
   state.rot = 0; cylRot.style.transition = 'none'; cylRot.style.transform = 'rotate(0deg)';
-  $('#gunLbl').textContent = GUNS[N].ru + ' · ' + N;
+  $('#gunLbl').textContent = GUNS[N].ko + ' · ' + N + '연발';
 }
 const chEl = i => document.getElementById('ch' + i);
 const STEP = () => 360 / state.N;
@@ -1264,8 +1267,8 @@ function renderSeat(i) {
   setH(el.querySelector('.ini'), esc([...s.name][0] || '?'));
   { const nm = el.querySelector('.sname'), h = esc(s.name) + (human ? ' <button class="edit" title="이름 변경">✎</button>' : ''); if (nm._h !== h) { nm.innerHTML = h; nm._h = h; } } // 바뀔 때만 다시 그림 (깜빡임 방지)
   let chip;
-  if (human) chip = state.mode === 'tour' ? `${hearts(tour.lives)} ${s.injured ? '<span class="ru">부상</span>' : '<span class="ru">ИГРОК</span>'}` : '플레이어 <span class="ru">ИГРОК №1</span>';
-  else chip = `${s.boss ? '보스 · ' : ''}${s.nemesis ? '<span class="nemtag">숙적</span> · ' : ''}${p.ko} <span class="ru">${p.ru}</span>`;
+  if (human) chip = state.mode === 'tour' ? `${hearts(tour.lives)}${s.injured ? ' <span class="ru">부상</span>' : ''}` : '플레이어';
+  else chip = `${s.boss ? '보스 · ' : ''}${s.nemesis ? '<span class="nemtag">숙적</span> · ' : ''}${p.ko}`;
   setH(el.querySelector('.chip'), chip);
   setH(el.querySelector('.sdesc'), human ? esc(`말투: ${voiceLabel()} · ` + (s.injured ? '피가 멎지 않는다. 손이 떨리고 시간이 짧아진다.' : '방아쇠는 당신 손에 있다.')) : (s.mood ? `<span class="moodtag">${s.mood}</span>` : '') + esc(p.desc));
   const tk = (k, label) => `<span class="token t-${k} ${s.used[k] ? 'used' : ''}">${label}</span>`;
@@ -1291,7 +1294,7 @@ function renderStage() {
   $('#dpct').textContent = state.over ? '탕' : state.busyLoad || lap ? '—' : pct + '%';
   $('#dlbl').textContent = state.over ? '라운드 종료' : state.busyLoad ? '장전 중' : lap ? '딜러가 탄을 다시 꽂는다' : `${nc}/${N} 약실 · 실탄 ${b}발`;
   $('#pips').innerHTML = Array.from({ length: N }, (_, j) => `<i class="pip ${state.fired.has(j + 1) ? 'fired' : ''} ${j + 1 === nc && !state.busyLoad && !state.over ? 'next' : ''}"></i>`).join('');
-  $('#roundLbl').innerHTML = state.mode === 'tour' ? `지하 B${tour.floor} / B${FLOORS}` + (BOSS_TXT[bossRule()] ? ` · <span style="color:#ff8a6a">${BOSS_TXT[bossRule()]}</span>` : '') : 'РАУНД ' + state.round;
+  $('#roundLbl').innerHTML = state.mode === 'tour' ? `지하 B${tour.floor} / B${FLOORS}` + (BOSS_TXT[bossRule()] ? ` · <span style="color:#ff8a6a">${BOSS_TXT[bossRule()]}</span>` : '') : '라운드 ' + state.round;
   $('#pot').textContent = won(state.pot);
   const live = !state.busyLoad && !state.over;
   $('#arL').classList.toggle('on', live && state.turn === 0);
@@ -1402,7 +1405,7 @@ const LINES2 = {
   berserker: { r_fire: ['그래, 그게 사내지.', '좋아, 좋아!'], r_spin: ['쯧, 또 도망이냐.', '돌려봤자다.'], r_pass: ['비겁한 놈.', '받아주지. 두렵지 않다.'], r_raise: ['하! 마음에 드는군!', '그래, 판을 키워라!'],
     doom: ['피할 곳? 필요 없다. 간다!', '마지막 한 발… 영광이다!'], doomOpp: ['끝이군, {opp}. 눈 감지 마라.', '도망칠 곳이 없지? 당겨라.'],
     spin100: ['…살 놈은 산다. 돌린다!', '운명 따위 다시 굴려주지!'], oppSpin100: ['쥐새끼처럼 빠져나가는군.', '운 좋은 놈…'],
-    pass100: ['네가 가져가라, 이 한 발!', '전사의 선물이다. 받아라!'], curse: ['이 개자식이!', '비겁한 쥐새끼 같으니! Сука!'] },
+    pass100: ['네가 가져가라, 이 한 발!', '전사의 선물이다. 받아라!'], curse: ['이 개자식이!', '비겁한 쥐새끼 같으니!'] },
   coward: { r_fire: ['히익…', '저, 저걸 당기다니…'], r_spin: ['휴…', '돌렸다… 다행이다…'], r_pass: ['왜, 왜 나한테…', '안 돼 안 돼…'], r_raise: ['미, 미쳤어?!', '한 발 더라니!'],
     doom: ['엄마… 미안해…', '하, 하나님… 제발…', '싫어 싫어 싫어…'], doomOpp: ['저, 저 사람 이제…', '못 보겠어…'],
     spin100: ['살았다! 돌렸다! 살았어!', '으아아 돌려 돌려!'], oppSpin100: ['아, 안 돼… 다시 처음부터…', '저 사람도 무서웠구나…'],
@@ -1434,16 +1437,16 @@ const LINES2 = {
   veteran: { r_fire: ['배짱은 있군.', '나도 저 나이 땐 그랬지.'], r_spin: ['현명해.', '살아남는 법을 아는군.'], r_pass: ['전장에서도 그런 놈은 있었지.', '…비열하지만 살아남는 법이지.'], r_raise: ['젊은 피로군.', '전쟁에선 그런 놈들이 먼저 죽었다.'],
     doom: ['전우들이 기다리는군.', '드디어… 쉬는구나.'], doomOpp: ['경례는 해주지, {opp}.', '잘 싸웠다.'],
     spin100: ['노병은 죽지 않는다.', '이 정도 사선은 넘어봤지.'], oppSpin100: ['살아남는 법을 아는군.', '운도 실력이다.'],
-    pass100: ['미안하다, 젊은이. 전쟁은 이런 거다.', '살아남는 게 먼저다.'], curse: ['이런 개 같은…! 전장에서 만났으면!', 'Чёрт! 이 비열한 놈!'] },
+    pass100: ['미안하다, 젊은이. 전쟁은 이런 거다.', '살아남는 게 먼저다.'], curse: ['이런 개 같은…! 전장에서 만났으면!', '이 비열한 놈!'] },
   drunk: { r_fire: ['히끅, 멋지다!', '건배! 살았네!'], r_spin: ['빙글빙글~ 나도 어지러워~', '돌아간다~'], r_pass: ['어? 나한테?', '딸꾹… 뭐가 넘어왔지?'], r_raise: ['한 잔 더! 아니 한 발 더!', '좋아 좋아~'],
-    doom: ['딸꾹… 마지막 한 잔은… 없나?', 'За здоровье… 건배…'], doomOpp: ['건배해줄게, {opp}!', '딸꾹… 잘 가~'],
+    doom: ['딸꾹… 마지막 한 잔은… 없나?', '건배…'], doomOpp: ['건배해줄게, {opp}!', '딸꾹… 잘 가~'],
     spin100: ['빙글빙글~ 살았다~ 딸꾹!', '세상이 돈다~ 나도 산다~'], oppSpin100: ['어? 돌렸어? 반칙이다~', '딸꾹, 치사해~'],
-    pass100: ['자, 너도 한 잔… 아니 한 발!', '선물~ 딸꾹!'], curse: ['Сука блять! 딸꾹!', '이 개… 딸꾹… 자식아!'],
+    pass100: ['자, 너도 한 잔… 아니 한 발!', '선물~ 딸꾹!'], curse: ['젠장! 딸꾹!', '이 개… 딸꾹… 자식아!'],
     fire100: ['어… 이거 마지막 칸 아니야? 딸꾹.', '몰라~ 당겨~'] },
   provocateur: { r_fire: ['흥, 운 좋네.', '손 떨리는 거 봤어.'], r_spin: ['겁쟁이.', '도망치는 거 봐.'], r_pass: ['비겁한 놈.', '그게 네 수준이지.'], r_raise: ['오, 제법인데?', '허세 부리지 마.'],
     doom: ['…웃기지 마. 겁 안 나.', '이게 끝이라고? 웃기네.'], doomOpp: ['자, {opp}. 도망칠 곳이 없네?', '기대된다, 그 표정.'],
     spin100: ['아직 안 끝났어!', '날 끝장낼 줄 알았지?'], oppSpin100: ['쥐새끼처럼.', '운 좋은 겁쟁이.'],
-    pass100: ['먹어라, {opp}!', '선물 포장까지 해줬다.'], curse: ['이 개자식이!', 'Сука! 두고 보자!'] },
+    pass100: ['먹어라, {opp}!', '선물 포장까지 해줬다.'], curse: ['이 개자식이!', '두고 보자!'] },
 };
 Object.entries(LINES2).forEach(([id, l]) => Object.assign(PERS[id].lines, l));
 
@@ -1451,7 +1454,7 @@ Object.entries(LINES2).forEach(([id, l]) => Object.assign(PERS[id].lines, l));
 const EXTRA = {
   berserker: { intro: ['총 줘. 먼저 한다.'], spin: ['…이번 한 번뿐이다.', '돌려! 다시 붙자!'], pass: ['네가 먼저 피 봐라.', '이건 도망이 아니다. 순서 조정이다.'], raise: ['탄창 가득 채우고 싶군!'], survive: ['하! 총알도 날 피하는군!'], die: ['하…하… 끝까지… 즐거웠다…', '피… 좋군…'], win: ['다음 놈 데려와!', '너무 쉽잖아.'] },
   coward: { intro: ['저, 룰이 뭐였죠…?'], spin: ['돌려, 돌려, 제발 돌려…'], pass: ['죄송해요 죄송해요 죄송해요!'], survive: ['엄마… 나 살았어…'], die: ['왜… 나만…', '집에… 가고 싶었는데…'], win: ['사, 살았다… 진짜로?', '으아앙… 무서웠어…'] },
-  gambler: { intro: ['칩은 충분해. 목숨도.'], fire: ['오늘은 느낌이 좋아.'], spin: ['덱을 새로 받지.'], pass: ['체크.', '이번 턴은 쉬어가지.'], raise: ['올인에 가까워지는군.'], survive: ['블랙잭.', '역시 운이 따르는군.'], die: ['…하우스가… 이겼군.', '마지막 패가… 조커였나.'], win: ['판돈은 내가 챙기지.', '좋은 게임이었어. 내 돈이지만.'] },
+  gambler: { intro: ['칩은 충분해. 목숨도.'], fire: ['🎲 오늘은 느낌이 좋아.', '🎲 굴려보자, 6만 안 나오면 돼.'], spin: ['🃏 덱을 새로 받지.'], pass: ['체크.', '이번 턴은 쉬어가지.'], raise: ['🪙 올인에 가까워지는군.'], survive: ['🃏 블랙잭.', '🎲 역시 운이 따르는군.'], die: ['…하우스가… 이겼군.', '마지막 패가… 조커였나.'], win: ['판돈은 내가 챙기지.', '좋은 게임이었어. 내 돈이지만.'] },
   calculator: { intro: ['확률 모델 가동.', '입력: 상대. 출력: 결과.'], fire: ['기대 손실 허용.'], spin: ['재샘플링 실행.'], pass: ['위험 이전.', '턴 이양이 최적.'], raise: ['분자 +1. 네 쪽 기대값 하락.', '계산된 공격이다.'], survive: ['오차 없음.', '모델 적중.'], die: ['계산… 오류…', '확률은… 거짓말을…'], win: ['결과가 모델과 일치한다.', 'Q.E.D.'] },
   strategist: { intro: ['첫 수는 네게 양보하지.', '체스판은 이미 깔렸다.'], fire: ['정석이다.'], spin: ['수를 되돌린다.'], pass: ['템포를 넘기지.', '기다림도 수다.'], raise: ['압박을 가한다.', '이제 네 선택지가 줄었다.'], survive: ['예정대로.', '계획의 일부다.'], die: ['…한 수가… 모자랐나.', '기권은… 없다…'], win: ['게임 셋.', '교과서대로다.'] },
   fatalist: { intro: ['별자리가 불길하군.'], fire: ['정해진 대로.'], spin: ['운명의 바퀴를 다시 돌린다.', '아직 때가 아니다.'], pass: ['이 운명은 네 것이다.', '바퀴는 너를 향해 돈다.'], survive: ['운명이 날 붙잡았군.', '예언대로다.'], die: ['별이… 떨어지는군…', '운명의… 끝…'], win: ['운명은 거스를 수 없다.', '예정된 결말이다.'] },
@@ -1484,7 +1487,7 @@ const TAUNT_ALL = ['😂', '😏', '🙏', '👍', '💀'];
 const SKIP_LINES = {
   berserker: { skip: ['돌리든 말든 결국 쏜다!'], r_skip: ['잔재주 부리지 마라.', '돌려봤자 총알은 안 도망간다.'] },
   coward: { skip: ['이, 이 칸은 싫어요…', '하나만… 하나만 넘길게요…'], r_skip: ['왜, 왜 돌려요…?', '그, 그게 뭐예요…'] },
-  gambler: { skip: ['카드 한 장 버리고 받지.', '번 카드.'], r_skip: ['한 장 버렸군. 재밌어.', '덱을 건드리네.'] },
+  gambler: { skip: ['🃏 카드 한 장 버리고 받지.', '🃏 번 카드.'], r_skip: ['한 장 버렸군. 재밌어.', '덱을 건드리네.'] },
   calculator: { skip: ['순서 변경. 확률은 동일.'], r_skip: ['플릭샷 감지. 기대값 변화 없음.', '무의미한 조작이다.'] },
   strategist: { skip: ['수순을 비튼다.'], r_skip: ['순서를 바꿔도 결론은 같다.', '흥미로운 수군.'] },
   fatalist: { skip: ['{n}번은 건너뛴다. 운명을 비껴가지.', '불길한 칸은 손으로 넘긴다.'], r_skip: ['운명을 손으로 비틀 수 있다고 믿나?', '건너뛴 운명은 한 바퀴 돌아 다시 온다.'] },
@@ -1816,7 +1819,7 @@ async function aiTurn(i, tok) {
 // 100%에서 제 발로 당기는 건 '누군가 플릭을 써서 마지막 칸이 공란일 수도 있을 때'만 — 그 도박수를 각자 이유로 감수한다
 const BRAVE = {
   berserker: { p: .15, lines: ['튕긴 놈이 있었지. 빈 칸일지도 모르는 걸 피해? 당긴다!', '100%든 아니든, 광전사는 당긴다!', '공란일 수도 있다고? 그럼 더 좋지. 간다!'] },
-  gambler: { p: .10, lines: ['누가 한 칸 튕겼지. 그럼 이 100%는 가짜일 수도. 콜.', '공란에 건다. 올인.', '딜러 패가 거짓말일 확률, 거기에 레이즈.'] },
+  gambler: { p: .10, lines: ['🪙 누가 한 칸 튕겼지. 그럼 이 100%는 가짜일 수도. 콜.', '🎲 공란에 건다. 올인.', '🃏 딜러 패가 거짓말일 확률, 거기에 레이즈.'] },
   fatalist: { p: .10, lines: ['튕겨진 칸이 운명을 비틀었을지도. 맡겨보지.', '운명이 빈 칸을 남겨뒀다면, 받겠다.', '숫자는 100이라 해도, 운명은 모른다.'] },
   mindgamer: { p: .08, lines: ['플릭 이후 딜러 표정이 달라졌어. 여긴 비었다.', '다들 100%라 믿지. 누가 튕긴 걸 잊었군.', '딜러 눈썹이 떨렸어. 공란이다.'] },
   veteran: { p: .08, lines: ['튕긴 칸이 있었지. 늙은이가 걸어볼 만한 판이야.', '살 날도 얼마 안 남았다. 빈 칸에 걸지.', '전장에선 이보다 나쁜 확률에도 걸었다.'] },
@@ -2040,7 +2043,7 @@ async function tourAfter(humanDied) {
     if (tour.lives <= 0) {
       tourBest = Math.max(tourBest, tour.floor - 1); S.set('tourBest', tourBest);
       const f = tour.floor; tourReset(); renderAll();
-      await tourOverlay('КОНЕЦ ИГРЫ', '끝났다', 'bad', `지하 <b>B${f}</b>에서 마지막 숨을 거뒀다.<br>최고 기록 ${tourBest ? 'B' + tourBest + ' 돌파' : '없음'}`, '처음부터 다시 내려간다');
+      await tourOverlay('', '끝났다', 'bad', `지하 <b>B${f}</b>에서 마지막 숨을 거뒀다.<br>최고 기록 ${tourBest ? 'B' + tourBest + ' 돌파' : '없음'}`, '처음부터 다시 내려간다');
       log('토너먼트 종료 — 처음부터.', 'sys');
     } else { S.set('tour', tour); log(`부상. 목숨 ${tour.lives}개 남음 — 같은 상대와 재대결.`, 'kill'); }
     return true;
@@ -2049,7 +2052,7 @@ async function tourAfter(humanDied) {
   tourBest = Math.max(tourBest, tour.floor); S.set('tourBest', tourBest);
   if (tour.floor >= FLOORS) {
     money.v += 5000; saveMoney(); tourReset(); renderAll();
-    await tourOverlay('ПОБЕДА', '살아서 나간다', 'good', `일곱 층을 모두 돌파했다. 볼코프는 쓰러졌다.<br>상금 ${won(5000 + reward)}`, '일반 모드로 돌아간다');
+    await tourOverlay('', '살아서 나간다', 'good', `일곱 층을 모두 돌파했다. 볼코프는 쓰러졌다.<br>상금 ${won(5000 + reward)}`, '일반 모드로 돌아간다');
     log('토너먼트 우승! 1:1 대결 모드로 복귀.', 'spin');
     state.mode = 'vs'; S.set('mode', 'vs'); S.del('save'); applyModeUI(); restart(); return false; // 우승하면 일반 모드로
   } else {
@@ -2103,7 +2106,7 @@ function timerOn() { return state.mode === 'tour' || !!settings.timer; }
 $('#modeSeg').addEventListener('click', async e => {
   const m = e.target.dataset.mode; if (!m || m === state.mode) return;
   if (tourDeep()) {
-    const ok = await tourOverlay('ВНИМАНИЕ', '테이블을 떠나면', 'bad',
+    const ok = await tourOverlay('', '테이블을 떠나면', 'bad',
       `토너먼트가 <b>처음(B1)부터 초기화</b>된다.<br>현재 지하 B${tour.floor} · 목숨 ${tour.lives}개 · 이번 판 참가비는 돌려받지 못한다.<br>그래도 떠날까?`, '초기화하고 이동', '남는다');
     if (!ok) return;
     tourReset(); log('토너먼트 포기 — 초기화.', 'sys');
@@ -2118,7 +2121,7 @@ $('#gunSeg').addEventListener('click', async e => {
   const inTour = state.started && state.mode === 'tour', deep = tourDeep();
   if (deep) {
     $('#setPop').classList.remove('open');
-    const ok = await tourOverlay('ВНИМАНИЕ', '총을 바꾸면', 'bad',
+    const ok = await tourOverlay('', '총을 바꾸면', 'bad',
       `토너먼트가 <b>처음(B1)부터 초기화</b>된다.<br>현재 지하 B${tour.floor} · 목숨 ${tour.lives}개 · 이번 판 참가비는 돌려받지 못한다.<br>${GUNS[n].ko}(으)로 바꾸고 다시 시작할까?`, '초기화하고 교체', '취소');
     if (!ok) return;
   }
@@ -2164,7 +2167,7 @@ function applyPause() {
 }
 function autoPause(why, on) { on ? pauseWhy.add(why) : pauseWhy.delete(why); applyPause(); }
 $('#pauseBtn').addEventListener('click', e => { e.stopPropagation(); manualPause = !manualPause; applyPause(); });
-const menuOpen = () => $('#setPop').classList.contains('open') || $('#shopPop').classList.contains('open') || !$('#voiceOv').classList.contains('hide') || !$('#tourOv').classList.contains('hide') || !$('#recOv').classList.contains('hide'); // 토너먼트 알림(떠나기 경고 등) 중에도 일시정지
+const menuOpen = () => $('#setPop').classList.contains('open') || $('#shopPop').classList.contains('open') || !$('#voiceOv').classList.contains('hide') || !$('#tourOv').classList.contains('hide') || !$('#recOv').classList.contains('hide') || !$('#contract').classList.contains('hide'); // 토너먼트 알림(떠나기 경고 등) 중에도 일시정지
 new MutationObserver(() => autoPause('menu', menuOpen())).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
 document.addEventListener('visibilitychange', () => autoPause('tab', document.hidden));
 window.addEventListener('blur', () => autoPause('blur', true));
@@ -2175,7 +2178,7 @@ window.addEventListener('focus', () => autoPause('blur', false));
 const LIFE_EVERY = 10;
 const lifeAllow = () => Math.floor(wins / LIFE_EVERY) - lifeBought;
 const SHOP = [
-  { id: 'vodka', ic: 'ВОД', name: '보드카 한 잔', price: 300,
+  { id: 'vodka', ic: '🍸', name: '보드카 한 잔', price: 300,
     desc: () => timerOn() ? '이번 판 시간 제한 +5초, 손떨림 1단계 감소.' : '<em>시간 제한이 꺼져 있어 살 수 없다.</em>',
     can: () => roundLive() && !state.vodka && timerOn(), owned: () => state.vodka,
     buy() { state.vodka = true; A.glass(); setMsg('보드카 한 잔. 손이 조금 진정된다.', 'info'); log('암시장 — 보드카 한 잔.', 'sys'); } },
@@ -2220,7 +2223,18 @@ function begin() {
   } else newRound(state.token, false);
 }
 const contract = $('#contract'), welcome = $('#welcome'), paper = $('#paper'), nameInput = $('#nameInput');
+// ── 이름: 최대 6자 (글자 단위). 조작으로 넘치면 강제 재서명
+const NAME_MAX = 6;
+const nameLen = v => [...String(v)].length;
+const nameOk = v => typeof v === 'string' && !!v.trim() && nameLen(v) <= NAME_MAX;
+const PHINT = `최대 ${NAME_MAX}자 · 이 이름이 테이블에 불린다`;
+function forceRename() {
+  state.name = null; S.del('name'); welcome.classList.add('hide'); openContract();
+  nameInput.value = ''; $('#pHint').textContent = `위조된 서명이다. ${NAME_MAX}자 이내로 다시 서명하라.`;
+  paper.classList.remove('nope'); void paper.offsetWidth; paper.classList.add('nope');
+}
 function openContract() {
+  $('#pHint').textContent = PHINT;
   $('#docNo').textContent = String(1000 + rand(9000)); paper.classList.remove('stamped');
   paper.style.animation = 'none'; void paper.offsetWidth; paper.style.animation = '';
   nameInput.value = state.name || ''; contract.classList.remove('hide', 'fade'); setTimeout(() => nameInput.focus(), 400);
@@ -2228,6 +2242,7 @@ function openContract() {
 async function sign() {
   const v = nameInput.value.trim().replace(/\s+/g, ' ');
   if (!v) { paper.classList.remove('nope'); void paper.offsetWidth; paper.classList.add('nope'); $('#pHint').textContent = '서명 없이는 앉을 수 없다.'; nameInput.focus(); return; }
+  if (nameLen(v) > NAME_MAX) { paper.classList.remove('nope'); void paper.offsetWidth; paper.classList.add('nope'); $('#pHint').textContent = `서명은 ${NAME_MAX}자까지다.`; nameInput.value = [...v].slice(0, NAME_MAX).join(''); nameInput.focus(); return; }
   A.init(); A.stamp(); paper.classList.add('stamped');
   const first = !state.started;
   state.name = v; S.set('name', v);
@@ -2236,14 +2251,23 @@ async function sign() {
   else { if (state.seats[0] && state.seats[0].kind === 'human') { state.seats[0].name = v; renderAll(); } log(`이름 변경 — ${esc(v)}`, 'sys'); }
 }
 $('#signBtn').addEventListener('click', sign);
-nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') sign(); });
+nameInput.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) sign(); });
+const clipName = () => { const c = [...nameInput.value]; if (c.length > NAME_MAX) nameInput.value = c.slice(0, NAME_MAX).join(''); };
+nameInput.addEventListener('input', e => { if (!e.isComposing) clipName(); });
+nameInput.addEventListener('compositionend', clipName);
+// 감시: 저장값·현재 이름이 규칙을 어기면 강제로 이름 재설정
+setInterval(() => {
+  if (!contract.classList.contains('hide')) return;
+  const saved = S.get('name', null);
+  if ((saved !== null && !nameOk(saved)) || (state.name !== null && !nameOk(state.name))) forceRename();
+}, 1500);
 welcome.addEventListener('click', e => {
   if (e.target.id === 'resign') { welcome.classList.add('hide'); openContract(); return; }
   welcome.classList.add('fade'); setTimeout(() => welcome.classList.add('hide'), 500); begin();
 });
 seatEls[0].addEventListener('click', e => { if (e.target.classList.contains('edit')) openContract(); });
 
-// ── 기록 보기 팝업 (ЖУРНАЛ · ДОСЬЕ)
+// ── 기록 보기 팝업 (진행 기록 · 전적)
 const recOv = $('#recOv');
 function recToggle(on) { recOv.classList.toggle('hide', !on); if (on) { $('#setPop').classList.remove('open'); $('#shopPop').classList.remove('open'); } }
 $('#recBtn').addEventListener('click', e => { e.stopPropagation(); recToggle(recOv.classList.contains('hide')); });
@@ -2637,7 +2661,8 @@ window.addEventListener('resize', fitScreen); fitScreen();
 
 // ══════════════════ 초기화 ══════════════════
 buildCylinder(); applyModeUI(); applyMusicUI(); renderLB();
-if (state.name) { $('#wName').textContent = state.name; welcome.classList.remove('hide'); }
+if (state.name && !nameOk(state.name)) forceRename();
+else if (state.name) { $('#wName').textContent = state.name; welcome.classList.remove('hide'); }
 else openContract();
 
 // ══════════════════ 채팅 로그 ══════════════════
