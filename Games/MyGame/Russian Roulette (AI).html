@@ -569,6 +569,12 @@ body.auto .chat-in{display:none}
 /* 러시아어 제거 후: 한글 라벨은 자간 좁게 */
 .rlbl,.gunlbl,.chat-t,.btn.fire .s,.turnflag,.tc-ru,.rechead,.card h3,.spectate,.pl,.w1{letter-spacing:.06em;font-family:var(--f-kr);font-weight:700}
 .lbtabs{display:flex;gap:3px}.lbtabs button{font:inherit;font-size:11px;font-weight:700;letter-spacing:0;padding:3px 9px;border-radius:999px;border:1px solid transparent;background:none;color:var(--dim);cursor:pointer}.lbtabs button.on{border-color:var(--line);background:rgba(255,255,255,.06);color:var(--brass2)}
+/* 성향 설명 가독성 */
+.sdesc{font-size:14.5px;color:#d4c9b8;line-height:1.55;max-width:270px}
+.chip{font-size:13.5px}
+.moodtag{font-size:12.5px;padding:1px 8px}
+@media (max-width:699px){.sdesc{display:block;font-size:12.5px;max-width:none;min-height:0;margin-top:4px}}
+.sidebet kbd{display:inline-block;margin-left:6px;padding:0 6px;border:1px solid currentColor;border-radius:5px;font:inherit;font-size:11px;opacity:.75}
 </style>
 </head>
 <body>
@@ -1479,7 +1485,7 @@ const EXTRA = {
   mindgamer: { intro: ['눈 마주치는 것부터 시작하지.', '긴장했지? 다 보여.'], spin: ['네 기대를 배신해주지.', '예상 못 했지?'], pass: ['부담 가져, {opp}.', '이제 네가 떨 차례야.'], raise: ['네 표정이 바뀌는 게 보고 싶어.', '숨소리가 커졌네?'], survive: ['놀랐어? 난 알고 있었지.', '표정 관리 좀 해.'], die: ['…마지막까지… 웃는다…', '네 얼굴… 기억할게…'], win: ['처음부터 네 머릿속에 있었어.', '넌 너무 읽기 쉬웠어.'] },
   veteran: { intro: ['앉아라. 옛날 얘기 하나 해주지.'], raise: ['전쟁은 이렇게 끝내는 거다.', '한 발 더. 전장에서 배운 거다.', '젊은이, 이게 진짜 전쟁이다.'], spin: ['숨 고르기다.'], pass: ['후퇴도 작전이다.'], survive: ['총알이 날 비켜가는군.', '아직 부를 때가 아니군.'], die: ['전우들… 곧 간다…', '훈장은… 필요 없다…'], win: ['또 한 명을 보냈군.', '전장은 늘 이렇지.'] },
   drunk: { intro: ['여기 술 파는 데 맞지?'], pass: ['너 마셔~ 아니 너 쏴~', '패스~ 딸꾹!'], raise: ['안주 추가요~ 아니 총알 추가요~'], survive: ['어? 나 아직 살아있네? 건배!', '딸꾹… 운 좋다~'], die: ['마지막… 한 잔…', '보드카… 어딨…'], win: ['축하주다~!', '이긴 기념으로 한 병 더!'] },
-  provocateur: { intro: ['시작하기도 전에 떨고 있네.', '기대돼, 네가 무너지는 거.'], fire: ['이 정도야 뭐.'], spin: ['아쉽지? 이거 봐.', '한 번 더 기회를 줄게.'], pass: ['받아먹어.', '네 차례야, 떨어봐.'], raise: ['어때, 숨 막히지?'], survive: ['실망했냐?', '또 살았네. 미안.'], die: ['…네 얼굴… 기억해둘 거다…', '농담… 이지…?'], win: ['잘 가, 겁쟁이.', '봤지? 말했잖아.'] },
+  provocateur: { intro: ['시작하기도 전에 떨고 있네.', '기대돼, 네가 무너지는 거.', '총 잡는 법은 아냐? 방아쇠는 앞에 있어, 병신아.', '여긴 사내들 테이블이야. 오줌 지리면 나가.'], fire: ['이 정도야 뭐.', '봤냐? 이렇게 당기는 거야.', '좆도 안 무섭다.'], spin: ['아쉽지? 이거 봐.', '한 번 더 기회를 줄게.'], pass: ['받아먹어.', '네 차례야, 떨어봐.', '처먹어, {opp}.'], raise: ['어때, 숨 막히지?', '한 발 더. 불알 있으면 받아.'], survive: ['실망했냐?', '또 살았네. 미안.', '씨발, 난 안 죽어. 네가 죽지.'], die: ['…네 얼굴… 기억해둘 거다…', '농담… 이지…?', '씨발… 이게…'], win: ['잘 가, 겁쟁이.', '봤지? 말했잖아.', '입만 산 새끼가 먼저 뒈지는 거야.'] },
 };
 Object.entries(EXTRA).forEach(([id, l]) => Object.entries(l).forEach(([k, arr]) => { const L = PERS[id].lines; L[k] = (L[k] || []).concat(arr); }));
 
@@ -1780,6 +1786,21 @@ function drunkReset(s) { if (s.kind === 'ai' && s.pers === 'drunk') { s.gagDone 
 const DRUNK_HURRY = ['야~ 빨리 해! 딸꾹!', '뭐 해? 빨리 쏴~', '기다리다 술 깨겠다~ 빨리!'];
 const DRUNK_HURRY2 = ['딸꾹… 왜 안 쏴? {opp}, 자냐~?', '이봐~ 딜러! 저 친구 자는데?'];
 const DRUNK_WAKE = ['…네 차례거든?', '너다, 술고래.', '…진심이냐?'];
+// 술꾼이 안 쏘고 재촉할 때 상대의 반응 (성격별 · 플레이어 말투 · 커스텀 r_gag)
+const R_GAG = {
+  berserker: ['네 차례다, 이 술통아! 쏴!', '누굴 재촉해? 네가 쏠 차례잖아!'],
+  coward: ['저, 저기… 그쪽 차례인데요…', '제 차례 아니에요… 제발…'],
+  gambler: ['친구, 네 패야. 카드 까.', '딜러가 기다린다. 네 턴이야.'],
+  calculator: ['정정합니다. 현재 차례는 당신입니다.', '당신 차례일 확률: 100%.'],
+  strategist: ['시간 끌기인가? 네 차례다.', '혼란 작전은 안 통해. 네 턴이야.'],
+  fatalist: ['운명이 너를 가리키고 있다. 네 차례다.', '…네 차례다. 도망칠 수 없다.'],
+  mimic: ['빨리 해~ 딸꾹! …아, 네 차례구나.', '네 차례거든? 네 차례거든?'],
+  mindgamer: ['재촉하는 척 시간 버는 거 다 보여. 네 차례야.', '떨리지? 그래서 남 탓하는 거지. 네 차례다.'],
+  veteran: ['젊은 친구, 술이 과하군. 자네 차례일세.', '…자네 차례다. 정신 차려.'],
+  drunk: ['어? 내 차례야? …아니 네 차례잖아~ 딸꾹!', '우리 둘 다 취했네~ 네 차례!'],
+  provocateur: ['씨발, 네 차례라고 술고래야. 쫄았냐?', '재촉하는 척하면 안 쏴도 될 줄 알았냐? 네 차례다, 병신아.'],
+};
+PERS_IDS.forEach(id => { const L = PERS[id].lines; if (L && !L.r_gag) L.r_gag = R_GAG[id] || DRUNK_WAKE; });
 const DRUNK_TIMEOUT_DIE = ['…어? 내 차례였어…?', '딸꾹… 내… 차례였던 거야…?', '빨리 하라니까… 아, 나였구나…'];
 const DRUNK_DUMB_PRE = ['딸꾹… 100? 그게 뭐야~ 당겨~', '어… 이거 쏘는 거 맞지? 건배!', '숫자 같은 거 안 봐~ 딸꾹!', '스핀? 그게 뭐였더라~ 그냥 쏘자~'];
 const DRUNK_BLUNDER_DIE = ['100%라고… 써 있었네… 딸꾹…', '…딸꾹. 방금 그건… 좀 멍청했다…', '스핀도 있었는데… 왜 당겼지… 나 바보냐…', '보드카가… 이겼네… 멍청한 놈…'];
@@ -1793,7 +1814,7 @@ async function drunkGag(i, tok) {
   bubble(i, pick(DRUNK_HURRY), 2300); setMsg(`${s.name}이(가) 상대를 재촉한다…?`, 'info');
   await wait(2500); if (tok !== state.token) return;
   bubble(i, fmt(i, pick(DRUNK_HURRY2)), 2300);
-  if (state.seats[o].kind === 'ai') setTimeout(() => { if (tok === state.token) bubble(o, pick(DRUNK_WAKE), 1800); }, 900);
+  setTimeout(() => { if (tok !== state.token) return; const t = line(o, 'r_gag') || (state.seats[o].kind === 'ai' ? pick(DRUNK_WAKE) : null); if (t) { seatEls[o].querySelector('.bubble').classList.remove('emo'); bubble(o, t, 2000); } }, 900); // 1:1·관전 모두: 상대가 "네 차례"라고 받아친다
   await wait(2300); if (tok !== state.token) return;
   setMsg(`딜러: ${s.name}, 당신 차례다. 시간 끝.`, 'danger'); A.tick();
   await wait(1500); if (tok !== state.token) return;
@@ -1812,6 +1833,7 @@ function react(actor, act, p, tok, delay = 350) {
   const o = 1 - actor, os = state.seats[o]; if (!os || !linesOf(o)) return;
   let key;
   if (p >= 1) key = act === 'pass' ? 'curse' : act === 'spin' ? 'oppSpin100' : act === 'fire' ? 'doomOpp' : null;
+  else if (isProv(o) && Math.random() < .75 && provReact(o, actor, act, tok, delay)) return; // 도발꾼: 상황 맞춤 심리전
   else if (Math.random() < ({ fire: .4, spin: .85, pass: .85, raise: 1, skip: .75 })[act]) key = 'r_' + act;
   if (!key) return;
   setTimeout(() => { if (tok === state.token) { const t = line(o, key); if (t) say(o, key, t, p >= 1 ? 2600 : 1800); } }, delay);
@@ -2304,6 +2326,7 @@ document.addEventListener('keydown', e => {
   else if (k === 's' || k === 'ы') humanAct('spin');
   else if (k === 'd' || k === 'в') humanAct('pass');
   else if (k === 'r' || k === 'к') humanAct('raise');
+  else if (k === 'b' || k === 'и') { if (betBtn.classList.contains('on') && !betBtn.classList.contains('placed')) betBtn.click(); } // 사이드 베팅
   else if (k === 'm') toggleMusic();
 });
 
@@ -2500,8 +2523,8 @@ $('#emotes').addEventListener('click', ev => {
 });
 
 // ══════════════════ 내 대사 편집 ══════════════════
-const VOICE_KEYS = [['기본', null], ['intro', '판 시작'], ['fire', '방아쇠 (F)'], ['spin', '스핀 (S)'], ['pass', '양보 (D)'], ['raise', '+1발 (R)'], ['skip', '플릭샷 (Q)'], ['survive', '찰칵, 살았을 때'], ['win', '승리'], ['die', '마지막 말'],
-  ['상대 행동에 반응', null], ['r_fire', '상대가 당김'], ['r_spin', '상대가 스핀'], ['r_pass', '상대가 양보'], ['r_raise', '상대가 +1발'], ['r_skip', '상대가 플릭샷'],
+const VOICE_KEYS = [['기본', null], ['intro', '판 시작'], ['fire', '방아쇠 (F)'], ['spin', '스핀 (S)'], ['pass', '양보 (D)'], ['raise', '+1발 (R)'], ['skip', '플릭샷 (F 연타)'], ['survive', '찰칵, 살았을 때'], ['win', '승리'], ['die', '마지막 말'],
+  ['상대 행동에 반응', null], ['r_fire', '상대가 당김'], ['r_spin', '상대가 스핀'], ['r_pass', '상대가 양보'], ['r_raise', '상대가 +1발'], ['r_skip', '상대가 플릭샷'], ['r_gag', '술꾼이 안 쏘고 재촉할 때 (네 차례라고)'],
   ['100% 상황', null], ['doom', '피할 수단 없이 당김'], ['spin100', '100%에서 스핀'], ['pass100', '100%에서 양보'], ['doomOpp', '상대가 100% 궁지'], ['oppSpin100', '상대가 100%에서 스핀'], ['curse', '100%를 떠넘겨 받음 (욕)'],
   ['상대가 이모티콘을 보냈을 때', null], ['emo_laugh', '😂 받음'], ['emo_smirk', '😏 받음'], ['emo_cry', '😭 받음'], ['emo_scared', '😱 받음'], ['emo_angry', '😡 받음'], ['emo_pray', '🙏 받음'], ['emo_good', '👍 받음'], ['emo_skull', '💀 받음']];
 const vSel = $('#voicePreset'), vForm = $('#voiceForm'); let vEdited = false;
@@ -2605,7 +2628,7 @@ function betOffer(i) {
   const h = humanS(), p = risk(); betBtn.className = 'sidebet';
   if (!h || state.mode === 'auto' || p <= 0 || p >= 1 || money.v < BET) return;
   const odds = Math.round(1 / p * 10) / 10; state.betOffer = { i, odds };
-  betBtn.textContent = `🎲 사이드 베팅 ${won(BET)} — ${state.seats[i].name}, 이번에 죽는다 (×${odds})`; betBtn.classList.add('on');
+  betBtn.innerHTML = `🎲 사이드 베팅 ${won(BET)} — ${esc(state.seats[i].name)}, 이번에 죽는다 (×${odds}) <kbd>B</kbd>`; betBtn.classList.add('on');
 }
 betBtn.addEventListener('click', () => {
   if (!state.betOffer || state.bet || state.paused || money.v < BET) return;
@@ -2661,7 +2684,7 @@ const MOOD_T = { 숙취: 1.4, 자신감: .7, 초조: 1.25 };
 
 // ── 차례 시작 시 부가 연출
 function turnExtras(i, tok, p) {
-  const s = state.seats[i];
+  const s = state.seats[i]; state.turnP = p; provTurn(i, tok); // 도발꾼이 상대 차례를 찔러본다
   if (s.kind === 'human') {
     const cn = canOf(i);
     if (state.lastAction[1 - i] === 'raise' && cn.raise) counterOffer(tok);
@@ -2758,6 +2781,105 @@ const chatMeSync = () => { const el = $('#chatMe'), v = state.name || '나'; if 
 chatMeSync(); setInterval(chatMeSync, 2000);
 // 사망 기록 (회색)
 function chatDeath(seat, quote, sub) { chatAdd('death', '', `☠ ${seat.name} 사망${quote ? ' — ' + quote : ''} · ${sub}`); }
+
+// ══════════════════ 도발꾼: 상황을 읽는 심리전 ══════════════════
+// 조건(c) → 대사 묶음. 조건에 맞는 묶음들 중 가중치로 하나 고른다.
+// {opp} 상대 이름 · {pct} 상대가 마주한 확률 · {ch} 다음 약실 · {left} 남은 약실 · {live} 남은 탄 · {t} 고민한 초 · {pot} 판돈 · {fav} 상대가 자주 도망치는 약실 · {streak} 연승 · {lives} 목숨
+const PROV_TURN = [
+  [c => c.p >= 1 && c.esc && c.any, 5, ['튕긴 칸 기억나냐? 비어 있을 수도 있지. …못 믿지? 그게 너야, {opp}.', '100%라고 쓰여 있어도 누가 한 칸 튕겼어. 당겨볼 불알은 있냐?', '공란일 수도 있다고. 근데 넌 절대 못 당겨. 겁쟁이니까.']],
+  [c => c.p >= 1 && c.esc && !c.any, 5, ['도망칠 거지? 알아. 넌 그런 새끼야.', '피해, 피해. 다들 보고 있다. 네가 꽁무니 빼는 거.', '100%다, {opp}. 버튼 누르는 손가락 떨리는 거 보여.']],
+  [c => c.p >= 1 && !c.esc, 6, ['끝이다. 마지막으로 할 말 있으면 지금 해.', '좆됐네, {opp}. 딱 한 발, 네 거다.', '도망갈 구멍 다 막혔지? 내가 막았어. 천천히 당겨.', '엄마한테 전화라도 할래? 아, 여긴 전화가 안 터지지.']],
+  [c => c.p >= .5 && c.p < 1, 4, ['{pct}%. 동전 던지기랑 똑같네. 근데 동전은 네 대가리를 안 날리지.', '반반이다, {opp}. 사내새끼면 당겨.', '손 떨리는 거 여기서도 보인다. 씨발, 그 꼴로 총을 드냐?', '지금 네 심장 소리, 딜러까지 다 들린다.', '남은 칸 {left}개에 탄 {live}발. 산수는 할 줄 알지?']],
+  [c => c.p >= .25 && c.p < .5, 3, ['{pct}%야. 애매하지? 그 애매함이 널 갉아먹는 거다.', '당길까 말까… 그 표정 사진 찍어두고 싶네.', '{ch}번 약실. 느낌 안 좋지? 나도 그래. 너한테.']],
+  [c => c.p > 0 && c.p < .25, 3, ['{pct}%짜리에 벌벌 떨면 그냥 집에 가라.', '애들도 당기는 확률이다, 병신아.', '이 확률에 망설이면 넌 평생 겁쟁이야. 증명해봐.']],
+  [c => c.noEsc && c.p < 1, 4, ['스핀도 양보도 다 썼지? 이제 도망갈 구멍 없다.', '아이템 다 태웠네. 이제 맨몸이다, {opp}.']],
+  [c => c.last === 'spin' || c.last === 'pass', 3, ['또 도망 버튼 누르려고? 버튼 닳겠다, 겁쟁아.', '아까 도망친 거 다 봤어. 한 번 도망친 놈은 또 도망쳐.']],
+  [c => c.think >= 6000, 4, ['아까 {t}초 고민했지? 이번엔 몇 초냐? 세고 있다.', '지난번에 {t}초. 그 시간에 기도라도 했냐?']],
+  [c => c.think > 0 && c.think < 1200 && c.human, 2, ['아까 빨리 누르더라. 무서워서 빨리 끝내고 싶은 거지?']],
+  [c => c.flicked, 3, ['잔재주 부리더니 이제 쫄았냐?', '플릭샷? 손재주 좋네. 그 손으로 방아쇠나 당겨봐.']],
+  [c => c.human && c.profN >= 3, 3, ['넌 {fav}번 약실만 오면 도망치더라. 다 적어놨어.', '{fav}번. 네가 제일 무서워하는 숫자. 맞지?']],
+  [c => c.human && c.streak >= 3, 3, ['{streak}연승? 운 다 떨어질 때 됐다. 느껴지지?', '연승하는 놈들은 꼭 이런 데서 뒈지더라.']],
+  [c => c.human && c.tour && c.lives === 1, 5, ['목숨 하나 남았다며? 이번이 진짜 마지막이다.', '마지막 목숨. 여기서 죽으면 처음부터. 부담되지?']],
+  [c => c.injured, 4, ['피 흘리면서 잘도 버티네. 손 미끄럽지?', '다친 손으로 방아쇠가 당겨지냐? 해봐.']],
+  [c => c.pot >= 800, 2, ['판돈 {pot}. 그 돈이면 네 장례식 치르고도 남는다.', '{pot}짜리 판이야. 네 목숨값보다 비싸.']],
+  [c => c.left <= 2 && c.p < 1, 3, ['남은 칸 {left}개. 이제 숨을 데가 없어.']],
+];
+const PROV_REACT = {
+  fire: [ // 방아쇠를 거는 순간
+    [c => c.p >= .5, 4, ['당겨! 당겨봐, 씨발!', '눈 감지 마. 끝까지 봐, {opp}.', '그래, 그렇게 떨면서 당기는 거야.', '{pct}%. 네 대가리가 버틸까?']],
+    [c => c.p < .25, 3, ['그 확률로 폼 잡지 마라.', '{pct}%짜리 당기면서 영웅인 척하긴.']],
+    [c => true, 2, ['손가락에 힘 들어가는 거 보인다.', '방아쇠 당길 때 눈 감을 거지? 다 보고 있다.']],
+  ],
+  spin: [
+    [c => c.p < .25, 4, ['{pct}%에서 스핀? 좆도 아닌 확률에 도망을 치네.', '그 정도 확률에 스핀이라니. 역겹다.']],
+    [c => c.p >= .5, 3, ['그래, 살고 싶겠지. 근데 그 버튼 누를 때 표정 봤냐?', '도망쳐도 실린더는 다시 돌아와. 너한테.']],
+    [c => true, 2, ['겁쟁이.', '돌려봤자 겁은 안 빠진다.']],
+  ],
+  pass: [
+    [c => c.p >= .4, 4, ['사내새끼가 {pct}%를 남한테 떠넘기냐. 역겹다.', '나한테 넘겨? 좋아. 대신 네 겁은 내가 기억해둔다.']],
+    [c => true, 2, ['비겁한 놈.', '떠넘기는 것도 실력이라고 생각하지? 아니야, 그냥 쫄보야.']],
+  ],
+  raise: [
+    [c => true, 3, ['오호, 불알은 달렸네? 근데 그거 허세지. 손끝이 하얘졌어.', '한 발 더? 좋아, 그 한 발에 네 이름 새겨줄게.', '허세 부리는 놈들이 제일 먼저 뒈져.']],
+  ],
+  skip: [
+    [c => true, 3, ['잔머리 굴리는 거 보니 계산은 되나 보네. 겁은 계산 안 되지?', '한 칸 건너뛴다고 운명이 건너뛰냐?']],
+  ],
+  fast: [[c => true, 1, ['빨리 누른 척해도 소용없어. 다 보여.', '생각도 안 하고 누르네. 그게 용기냐, 포기냐?']]],
+  slow: [[c => true, 1, ['{t}초. 그 {t}초 동안 무슨 생각 했냐? 엄마?', '{t}초나 걸렸네. 그게 네 용기의 무게다.']]],
+};
+const PROV_WAIT = [
+  ['{t}초째다. 째깍, 째깍.', '뭘 그렇게 재? 계산기 두드려도 답은 똑같아.', '숨 쉬어, {opp}. 아, 숨도 못 쉬겠지?', '손가락이 안 움직이지? 그게 공포라는 거야.'],
+  ['씨발, 잠들었냐? 당기든가 꺼지든가.', '{t}초. 다들 기다리잖아, 겁쟁이 새끼야.', '그렇게 오래 쳐다본다고 총알이 빠지진 않아.'],
+];
+
+function provCtx(t) {
+  const s = state.seats[t], cn = canOf(t), p = t === state.turn ? risk() : (state.turnP != null ? state.turnP : risk());
+  return { s, p, pct: Math.round(p * 100), ch: nextCh(), left: state.N - state.shot, live: remLive(), think: state.lastThink[t] || 0, last: state.lastAction[t],
+    esc: cn.spin || cn.pass, noEsc: !cn.spin && !cn.pass, any: flickedAny(), flicked: !!(state.flickUsed && state.flickUsed[t]),
+    human: s.kind === 'human', profN: prof.n, fav: profEsc(), streak, tour: state.mode === 'tour', lives: tour.lives, injured: !!s.injured, pot: state.pot };
+}
+function provFmt(i, str, c) {
+  return fmt(i, str).replace(/\{pct\}/g, c.pct).replace(/\{ch\}/g, c.ch).replace(/\{left\}/g, c.left).replace(/\{live\}/g, c.live)
+    .replace(/\{t\}/g, Math.max(1, Math.round(c.think / 1000))).replace(/\{pot\}/g, won(c.pot)).replace(/\{fav\}/g, c.fav).replace(/\{streak\}/g, c.streak).replace(/\{lives\}/g, c.lives);
+}
+const provLast = {};
+function provPick(i, table, c) {
+  const ok = table.filter(([f]) => { try { return f(c); } catch (e) { return false; } }); if (!ok.length) return null;
+  let r = Math.random() * ok.reduce((a, x) => a + x[1], 0), g = ok[0];
+  for (const x of ok) { r -= x[1]; if (r <= 0) { g = x; break; } }
+  let pool = g[2].filter(x => x !== provLast[i]); if (!pool.length) pool = g[2];
+  const t = pick(pool); provLast[i] = t; return provFmt(i, t, c);
+}
+const isProv = i => { const s = state.seats[i]; return s && s.kind === 'ai' && s.pers === 'provocateur'; };
+async function provSpeak(i, text, tok, dur = 2800) {
+  const el = seatEls[i].querySelector('.bubble'), rem = (el._until || 0) - performance.now();
+  if (rem > 0) { if (rem > 1800) return; await wait(rem + 150); }
+  if (tok !== state.token || state.over) return;
+  el.classList.remove('emo'); bubble(i, text, dur);
+}
+// 상대 차례 시작: 상황을 찔러본다 + 사람이 망설이면 시간을 세며 조인다
+function provTurn(t, tok) {
+  const o = 1 - t; if (!isProv(o) || state.seats[t].pers === 'provocateur') return;
+  const c = provCtx(t);
+  if (Math.random() < (c.p >= .5 ? .8 : .55)) setTimeout(() => { if (tok === state.token && state.turn === t) { const x = provPick(o, PROV_TURN, provCtx(t)); if (x) provSpeak(o, x, tok); } }, 700);
+  if (c.human) { const ts = state.turnStart;
+    [[5500, 0], [11000, 1]].forEach(([ms, lv]) => (async () => {
+      await wait(ms); if (tok !== state.token || state.turn !== t || state.turnStart !== ts || state.busy || state.over) return;
+      if (Math.random() < .75) provSpeak(o, provFmt(o, pick(PROV_WAIT[lv]), { ...provCtx(t), think: performance.now() - ts }), tok);
+    })()); }
+}
+// 상대 행동 직후: 상황 맞춤 반응 (없으면 기존 반응 대사)
+function provReact(o, actor, act, tok, delay) {
+  const c = { ...provCtx(actor), p: state.turnP != null ? state.turnP : 0 }; c.pct = Math.round(c.p * 100);
+  let x = null;
+  if (c.human && c.think > 0 && c.think < 1000 && Math.random() < .3) x = provPick(o, PROV_REACT.fast, c);
+  else if (c.human && c.think >= 7000 && Math.random() < .4) x = provPick(o, PROV_REACT.slow, c);
+  if (!x && PROV_REACT[act]) x = provPick(o, PROV_REACT[act], c);
+  if (!x) return false;
+  setTimeout(() => { if (tok === state.token) provSpeak(o, x, tok, 2400); }, delay);
+  return true;
+}
 })();
 </script>
 </body>
