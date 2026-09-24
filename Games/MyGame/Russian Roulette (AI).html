@@ -568,6 +568,7 @@ body.auto .chat-in{display:none}
 #tcRu:empty{display:none}
 /* 러시아어 제거 후: 한글 라벨은 자간 좁게 */
 .rlbl,.gunlbl,.chat-t,.btn.fire .s,.turnflag,.tc-ru,.rechead,.card h3,.spectate,.pl,.w1{letter-spacing:.06em;font-family:var(--f-kr);font-weight:700}
+.lbtabs{display:flex;gap:3px}.lbtabs button{font:inherit;font-size:11px;font-weight:700;letter-spacing:0;padding:3px 9px;border-radius:999px;border:1px solid transparent;background:none;color:var(--dim);cursor:pointer}.lbtabs button.on{border-color:var(--line);background:rgba(255,255,255,.06);color:var(--brass2)}
 </style>
 </head>
 <body>
@@ -671,7 +672,7 @@ body.auto .chat-in{display:none}
   <div class="rechead"><span>기록</span><button class="ibtn" id="recClose">✕ 닫기</button></div>
   <div class="lower">
     <div class="card"><h3>진행 기록</h3><ul class="log" id="log"></ul></div>
-    <div class="card"><h3>AI 성격별 전적</h3><table class="lb" id="lb"></table><div class="hist-h">약실별 사망 분포</div><div class="hist" id="hist"></div><div class="me" id="meStat"></div></div>
+    <div class="card"><h3><span id="lbTitle">AI 성격별 전적</span><span class="lbtabs" id="lbTabs"><button data-m="vs">1:1</button><button data-m="tour">토너먼트</button><button data-m="auto">AI 관전</button></span></h3><table class="lb" id="lb"></table><div class="hist-h">약실별 사망 분포</div><div class="hist" id="hist"></div><div class="me" id="meStat"></div></div>
   </div>
   </div></div>
 </div>
@@ -1161,8 +1162,16 @@ const state = {
 if (!['vs', 'tour', 'auto'].includes(state.mode)) state.mode = 'vs';
 let deaths = S.get('deaths', null);
 if (!deaths) { deaths = { human: parseInt(S.raw('playerDeathCount')) || 0, ai: parseInt(S.raw('opponentDeathCount')) || 0 }; S.set('deaths', deaths); }
-let stats = S.get('stats', {});
-let killHist = S.get('killhist', []); while (killHist.length < 7) killHist.push(0);
+// 기록은 모드별로 따로: vs(1:1) · tour(토너먼트) · auto(AI 관전). 예전 통합 기록은 AI 관전으로 옮긴다
+const REC_MODES = ['vs', 'tour', 'auto'];
+let statsM = S.get('statsM', null);
+if (!statsM) { statsM = { vs: {}, tour: {}, auto: S.get('stats', {}) }; S.set('statsM', statsM); }
+let killHistM = S.get('killhistM', null);
+if (!killHistM) killHistM = { vs: [], tour: [], auto: S.get('killhist', []) };
+REC_MODES.forEach(m => { statsM[m] = statsM[m] || {}; killHistM[m] = killHistM[m] || []; while (killHistM[m].length < 7) killHistM[m].push(0); });
+S.set('killhistM', killHistM);
+const killSum = () => [0, 1, 2, 3, 4, 5, 6].map(j => REC_MODES.reduce((a, m) => a + killHistM[m][j], 0));
+let lbView = null; // 기록 창에서 보는 모드 (null이면 현재 모드)
 let bank = S.get('bank', 1000), loans = S.get('loans', 0);
 let tbank = S.get('tbank', 1000); // 토너먼트 전용 지갑 (1:1과 별개)
 const money = { get v() { return state.mode === 'tour' ? tbank : bank; }, set v(x) { if (state.mode === 'tour') tbank = x; else bank = x; } };
@@ -1257,7 +1266,7 @@ function randomLive(b) { // b발을 무작위 격발 번호에 배치
 }
 
 // ══════════════════ 렌더 ══════════════════
-const persRecord = id => stats[id] || { w: 0, l: 0 };
+const persRecord = (id, m = 'auto') => (statsM[m] || {})[id] || { w: 0, l: 0 };
 const hearts = n => '<span class="hearts">' + Array.from({ length: Math.max(3, n) }, (_, j) => j).map(j => j < n ? '♥' : '<span class="off">♥</span>').join('') + '</span>';
 function setH(node, h) { if (node && node._h !== h) { node.innerHTML = h; node._h = h; } } // 내용이 같으면 DOM을 건드리지 않음 (깜빡임 방지)
 function renderSeat(i) {
@@ -1274,7 +1283,7 @@ function renderSeat(i) {
   const tk = (k, label) => `<span class="token t-${k} ${s.used[k] ? 'used' : ''}">${label}</span>`;
   setH(el.querySelector('.tokens'), bossRule() === 'noitems' ? '<span class="token used">아이템 금지</span>' : tk('spin', s.spinExtra ? '스핀 ×2' : '스핀') + tk('pass', '양보') + tk('raise', '+1발') + `<span class="token t-skip ${(state.flickUsed && state.flickUsed[i]) || (state.turn === i && !state.busyLoad && !canOf(i).skip) ? 'used' : ''}" title="${state.flickUsed && state.flickUsed[i] ? '이번 스핀에 이미 사용 — 스핀하면 다시 충전' : '방아쇠 연타'}">플릭샷</span>`);
   let stat;
-  if (state.mode === 'auto') { const r = persRecord(s.pers); stat = `생존<b>${r.w}</b> 사망<b>${r.l}</b>`; }
+  if (state.mode === 'auto') { const r = persRecord(s.pers, 'auto'); stat = `생존<b>${r.w}</b> 사망<b>${r.l}</b>`; }
   else if (human) stat = `<b>${won(money.v)}</b>` + (streak >= 2 ? `<span class="streak">${streak}연승</span>` : '');
   else stat = state.mode === 'tour' ? `지하 <b>B${tour.floor}</b>` : `사망<b>${deaths.ai}</b>`;
   if (!human && s.pers === 'drunk' && s.drink != null) { const n = Math.round(s.drink / 20); stat += `<span class="drinkbar" title="취기">취기 ${[0,1,2,3,4].map(j => `<i class="${j < n ? 'on' : ''}"></i>`).join('')}</span>`; }
@@ -1312,14 +1321,22 @@ function renderStage() {
 }
 function renderAll() { renderSeat(0); renderSeat(1); renderStage(); renderLB(); renderShop(); if (state.debug) refreshDbg(); }
 function renderLB() {
-  const rows = PERS_IDS.map(id => ({ id, ...persRecord(id) })).filter(r => r.w + r.l > 0)
+  const m = lbView || state.mode, st = statsM[m], me = m !== 'auto'; // me: 플레이어 기준 (AI의 패 = 내 승)
+  document.querySelectorAll('#lbTabs button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+  $('#lbTitle').textContent = me ? '상대 성격별 내 전적' : 'AI 성격별 전적';
+  const rows = PERS_IDS.map(id => { const r = persRecord(id, m); return { id, w: me ? r.l : r.w, l: me ? r.w : r.l }; }).filter(r => r.w + r.l > 0)
     .sort((a, b) => (b.w / (b.w + b.l)) - (a.w / (a.w + a.l)) || (b.w + b.l) - (a.w + a.l));
+  const empty = { vs: '아직 기록 없음 — 1:1 대결을 해보세요', tour: '아직 기록 없음 — 토너먼트에 내려가 보세요', auto: '아직 기록 없음 — AI 관전 모드로 성격끼리 붙여보세요' }[m];
   $('#lb').innerHTML = rows.length ? rows.map(r => { const p = PERS[r.id], rate = Math.round(r.w / (r.w + r.l) * 100);
-    return `<tr><td class="nm"><i style="background:${p.color}"></i>${p.ko}</td><td class="bar"><div><span style="width:${rate}%;background:${p.color}"></span></div></td><td class="rec">${rate}% · ${r.w}W ${r.l}L</td></tr>`; }).join('')
-    : '<tr><td class="empty">아직 기록 없음 — AI 관전 모드로 성격끼리 붙여보세요</td></tr>';
-  const mx = Math.max(1, ...killHist);
-  $('#hist').innerHTML = killHist.map((v, j) => `<div><span style="height:${Math.round(v / mx * 40)}px" title="${v}"></span><em>${j + 1}</em></div>`).join('');
-  $('#meStat').innerHTML = `1:1 소지금 <b>${won(bank)}</b>${loans ? ` · 빚 <b>${loans}</b>회` : ''} · 토너먼트 지갑 <b>${won(tbank)}</b> · 승리 <b>${wins}</b> · 사망 <b>${deaths.human}</b><br>토너먼트 최고 기록 <b>${tourBest ? 'B' + tourBest : '—'}</b>${prof.n >= 3 ? ` · 당신이 주로 피하는 약실 <b>${profEsc()}번</b>` : ''}`;
+    return `<tr><td class="nm"><i style="background:${p.color}"></i>${me ? 'vs ' : ''}${p.ko}</td><td class="bar"><div><span style="width:${rate}%;background:${p.color}"></span></div></td><td class="rec">${rate}% · ${r.w}승 ${r.l}패</td></tr>`; }).join('')
+    : `<tr><td class="empty">${empty}</td></tr>`;
+  const kh = killHistM[m], mx = Math.max(1, ...kh);
+  $('#hist').innerHTML = kh.map((v, j) => `<div><span style="height:${Math.round(v / mx * 40)}px" title="${v}"></span><em>${j + 1}</em></div>`).join('');
+  const W = Object.values(st).reduce((a, r) => a + r.l, 0), L = Object.values(st).reduce((a, r) => a + r.w, 0);
+  const esc_ = prof.n >= 3 ? ` · 당신이 주로 피하는 약실 <b>${profEsc()}번</b>` : '';
+  $('#meStat').innerHTML = m === 'vs' ? `1:1 소지금 <b>${won(bank)}</b>${loans ? ` · 빚 <b>${loans}</b>회` : ''} · 승리 <b>${W}</b> · 사망 <b>${L}</b>${esc_}`
+    : m === 'tour' ? `토너먼트 지갑 <b>${won(tbank)}</b> · 승리 <b>${W}</b> · 사망 <b>${L}</b><br>최고 기록 <b>${tourBest ? 'B' + tourBest : '—'}</b>${esc_}`
+    : `관전한 판 <b>${W}</b>`;
 }
 function gainPop(i, text) { const g = seatEls[i].querySelector('.gainpop'); g.textContent = text; g.classList.remove('go'); void g.offsetWidth; g.classList.add('go'); }
 function bumpPot() { const e = $('#pot'); e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
@@ -1381,7 +1398,7 @@ function prepAI(s) {
   s.mood = pick(['평온', '평온', '숙취', '자신감', '초조']);
   if (s.pers === 'drunk') s.drink = 20 + rand(25);
   if (s.pers === 'fatalist') s.n = 2 + rand(state.N - 2);
-  if (s.pers === 'veteran') { let best = 3; for (let j = 1; j < state.N - 1; j++) if (killHist[j] > killHist[best]) best = j; s.n = Math.min(best, state.N - 2) + 1; }
+  if (s.pers === 'veteran') { let best = 3; const kh = killSum(); for (let j = 1; j < state.N - 1; j++) if (kh[j] > kh[best]) best = j; s.n = Math.min(best, state.N - 2) + 1; }
 }
 function humanN() {
   const id = voiceRandom() ? curVoiceId() : voice.mode === 'preset' ? voice.preset : voice.base;
@@ -1988,11 +2005,12 @@ async function death(i, tok, forced) {
   chEl(phys(chamber)).classList.add('reveal');
   // 기록
   if (state.mode !== 'auto') { deaths[dead.kind === 'human' ? 'human' : 'ai']++; S.set('deaths', deaths); }
-  if (dead.kind === 'ai') { stats[dead.pers] = persRecord(dead.pers); stats[dead.pers].l++; }
-  if (win.kind === 'ai') { stats[win.pers] = persRecord(win.pers); stats[win.pers].w++; }
+  { const st = statsM[state.mode]; // 모드별로 따로 기록
+    if (dead.kind === 'ai') { st[dead.pers] = persRecord(dead.pers, state.mode); st[dead.pers].l++; }
+    if (win.kind === 'ai') { st[win.pers] = persRecord(win.pers, state.mode); st[win.pers].w++; } }
   if (dead.kind === 'ai' && win.kind === 'ai') { const k = win.pers + '>' + dead.pers; riv[k] = (riv[k] || 0) + 1; S.set('riv', riv); }
-  S.set('stats', stats);
-  killHist[chamber - 1]++; S.set('killhist', killHist);
+  S.set('statsM', statsM);
+  killHistM[state.mode][chamber - 1]++; S.set('killhistM', killHistM);
   S.del('save');
   // 정산: 승자가 판돈 + 양쪽 보너스
   const prize = state.pot + state.gain[0] + state.gain[1];
@@ -2269,7 +2287,8 @@ seatEls[0].addEventListener('click', e => { if (e.target.classList.contains('edi
 
 // ── 기록 보기 팝업 (진행 기록 · 전적)
 const recOv = $('#recOv');
-function recToggle(on) { recOv.classList.toggle('hide', !on); if (on) { $('#setPop').classList.remove('open'); $('#shopPop').classList.remove('open'); } }
+$('#lbTabs').addEventListener('click', e => { const m = e.target.dataset.m; if (!m) return; lbView = m; renderLB(); });
+function recToggle(on) { if (on) { lbView = null; renderLB(); } recOv.classList.toggle('hide', !on); if (on) { $('#setPop').classList.remove('open'); $('#shopPop').classList.remove('open'); } }
 $('#recBtn').addEventListener('click', e => { e.stopPropagation(); recToggle(recOv.classList.contains('hide')); });
 $('#recClose').addEventListener('click', () => recToggle(false));
 recOv.addEventListener('click', e => { if (e.target === recOv) recToggle(false); });
@@ -2330,7 +2349,7 @@ $('#dApplyPers').addEventListener('click', () => {
   save(); renderAll();
 });
 $('#dReset').addEventListener('click', () => { deaths = { human: 0, ai: 0 }; S.set('deaths', deaths); bank = 1000; tbank = 1000; loans = 0; saveMoney(); renderAll(); });
-$('#dResetStats').addEventListener('click', () => { stats = {}; riv = {}; S.set('stats', stats); S.set('riv', riv); killHist = [0, 0, 0, 0, 0, 0, 0]; S.set('killhist', killHist); prof = { esc: [0, 0, 0, 0, 0, 0, 0], n: 0, fires: 0 }; S.set('prof', prof); renderAll(); });
+$('#dResetStats').addEventListener('click', () => { statsM = { vs: {}, tour: {}, auto: {} }; riv = {}; S.set('statsM', statsM); S.set('riv', riv); killHistM = { vs: [0, 0, 0, 0, 0, 0, 0], tour: [0, 0, 0, 0, 0, 0, 0], auto: [0, 0, 0, 0, 0, 0, 0] }; S.set('killhistM', killHistM); prof = { esc: [0, 0, 0, 0, 0, 0, 0], n: 0, fires: 0 }; S.set('prof', prof); renderAll(); });
 
 
 // ══════════════════ 이모티콘 ══════════════════
