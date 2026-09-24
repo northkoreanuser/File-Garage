@@ -1064,7 +1064,8 @@ const PERS = {
     desc: '보드카 한 병째. 판단이 오락가락하고 마지막 약실도 가끔 헷갈린다.',
     decide: c => {
       const dk = (c.seat.drink || 0) / 100; // 취기 0~1
-      if (c.p >= 1) return Math.random() < .04 + dk * .12 ? 'fire' : escape(c); // 4%(+취기) 헛발질
+      if (c.p >= 1) { const fl = state.flickUsed[0] || state.flickUsed[1]; // 플릭 있었으면 도박수, 없어도 술김에 가끔 그냥 당김
+        return Math.random() < (fl ? .04 + dk * .12 : .03 + dk * .07) ? 'fire' : escape(c); } // 4%(+취기) 헛발질
       if (Math.random() < .25 + dk * .25) return weighted(c, { fire: 1, spin: 1, pass: 1, raise: .6, skip: .5 });
       return c.p >= .5 ? escape(c) : 'fire'; },
     lines: { intro: ['За здоровье! 건배!', '딸꾹… 누구세요?'], fire: ['딸꾹… 건배!', '보드카 한 잔 더!', '어… 이게 방아쇠야?'], spin: ['빙글빙글~', '세상이 돈다~'], pass: ['자, 너도 한 잔… 아니 한 발!'], raise: ['한 발 더! 한 잔 더!'], survive: ['히끅… 살았네?'], die: ['건… 배…'], win: ['한 잔 더 해야겠군!'] } },
@@ -1092,7 +1093,7 @@ const PAIRS = {
 // ══════════════════ 상태 ══════════════════
 const state = {
   mode: S.get('mode', 'vs'), name: S.get('name', null), N: settings.gun,
-  seats: [null, null], turn: 0, shot: 0, fired: new Set(), flickWindow: -1, flickHit: -1, flickReq: -1, c0: 1, live: new Set(), rot: 0,
+  seats: [null, null], turn: 0, shot: 0, fired: new Set(), flickWindow: -1, flickHit: -1, flickReq: -1, flickUsed: [false, false], c0: 1, live: new Set(), rot: 0,
   busy: true, busyLoad: false, over: false, token: 0, round: S.get('round', 0), paused: false, started: false, debug: false,
   lastAction: [null, null], lastThink: [0, 0], turnStart: 0, pot: 0, gain: [0, 0],
 };
@@ -1179,7 +1180,10 @@ const chAt = t => ((t - 1) % state.N) + 1;
 const nextCh = () => chAt(state.shot + 1);
 const unknownCount = () => state.N - state.fired.size;
 function remLive() { return state.live.size; }
-function risk() { if (state.fired.has(nextCh())) return 0; const u = unknownCount(); return u > 0 ? state.live.size / u : 0; }
+// 표기(체감) 확률: 이번 바퀴에 남은 칸 수 기준. 플릭으로 건너뛴 칸은 모두가 '지나간 칸'으로 착각한다.
+// → 6/6에선 실제로 탄이 없어도 100%로 보인다. AI 판단도 이 확률을 쓴다. 생사는 실제 탄 위치(live)로만 결정.
+function risk() { const r = state.N - state.shot; return r > 0 ? Math.min(1, state.live.size / r) : 1; }
+function trueRisk() { const q = nextCh(); return state.live.has(q) ? 1 : 0; } // 디버그용 (다음 칸의 실제 탄 여부)
 function paintChambers() {
   const fired = new Set([...state.fired].map(phys));
   const lp = new Set([...state.live].map(phys));
@@ -1216,16 +1220,17 @@ function renderSeat(i) {
   el.classList.toggle('active', state.turn === i && !state.busyLoad && !state.over);
 }
 function canOf(i) {
-  const s = state.seats[i], b = remLive(), rem = unknownCount();
+  const s = state.seats[i], b = remLive(), rem = state.N - state.shot;
   if (bossRule() === 'noitems') return { fire: true, spin: false, pass: false, raise: false, skip: false };
-  return { fire: true, spin: !s.used.spin, pass: !s.used.pass, raise: !s.used.raise && b + 1 < rem, skip: !s.used.skip && risk() < 1 && !state.fired.has(chAt(state.shot + 2)) }; // 플릭샷: 100% 불가 + 이미 빈 걸로 확인된 칸으로는 못 튕김(무한 플릭 방지) // 플릭샷: 매 차례 가능, 단 100%에선 불가
+  return { fire: true, spin: !s.used.spin, pass: !s.used.pass, raise: !s.used.raise && b + 1 < rem, skip: !(state.flickUsed && state.flickUsed[i]) && risk() < 1 && state.shot + 2 <= state.N }; // 플릭샷: 각자 스핀(어떤 스핀이든)당 1회 · 표기 100% 불가 · 마지막 칸을 넘기는 플릭 불가
 }
 function renderStage() {
   const N = state.N, nc = nextCh(), p = risk(), pct = Math.round(p * 100), b = remLive();
   const dc = p >= 1 ? '#ff3b3b' : p >= .5 ? '#ff6a3a' : p >= 1 / 3 ? '#ff9b3a' : p >= .25 ? '#e8c14a' : '#d6a64e';
   const dg = $('#danger'); dg.style.setProperty('--dc', state.over ? '#ff3b3b' : dc);
-  $('#dpct').textContent = state.over ? '탕' : state.busyLoad ? '—' : pct + '%';
-  $('#dlbl').textContent = state.over ? '라운드 종료' : state.busyLoad ? '장전 중' : `${nc}/${N} 약실 · 실탄 ${b}발`;
+  const lap = state.shot >= N;
+  $('#dpct').textContent = state.over ? '탕' : state.busyLoad || lap ? '—' : pct + '%';
+  $('#dlbl').textContent = state.over ? '라운드 종료' : state.busyLoad ? '장전 중' : lap ? '딜러가 탄을 다시 꽂는다' : `${nc}/${N} 약실 · 실탄 ${b}발`;
   $('#pips').innerHTML = Array.from({ length: N }, (_, j) => `<i class="pip ${state.fired.has(j + 1) ? 'fired' : ''} ${j + 1 === nc && !state.busyLoad && !state.over ? 'next' : ''}"></i>`).join('');
   $('#roundLbl').innerHTML = state.mode === 'tour' ? `지하 B${tour.floor} / B${FLOORS}` + (BOSS_TXT[bossRule()] ? ` · <span style="color:#ff8a6a">${BOSS_TXT[bossRule()]}</span>` : '') : 'РАУНД ' + state.round;
   $('#pot').textContent = won(state.pot);
@@ -1528,7 +1533,7 @@ function kickFx() {
 
 // ══════════════════ 게임 흐름 ══════════════════
 function ctxFor(i) {
-  const me = state.seats[i], op = state.seats[1 - i], k = state.fired.size, N = state.N, b = remLive(), rem = unknownCount();
+  const me = state.seats[i], op = state.seats[1 - i], k = state.shot, N = state.N, b = remLive(), rem = N - state.shot;
   const can = canOf(i), oppCan = { spin: !op.used.spin, pass: !op.used.pass, raise: !op.used.raise };
   return { k, N, b, rem, p: risk(), chamber: nextCh(), can, oppCan, oppEsc: oppCan.spin || oppCan.pass,
     oppLast: state.lastAction[1 - i], oppThink: state.lastThink[1 - i], seat: me, opp: op };
@@ -1539,6 +1544,11 @@ function aiDecide(i) {
   a = aiAdjust(i, a);
   if (a !== 'fire' && !c.can[a]) a = 'fire';
   if (a === 'fire' && c.p >= 1 && c.seat.pers !== 'drunk') a = escape(c);
+  // 표기 100%인데 피할 수단이 있어도 드물게 제 발로 당긴다 (성격별 이유). 전략가·계산기는 안 함.
+  const bv = BRAVE[c.seat.pers];
+  const flicked = state.flickUsed[0] || state.flickUsed[1]; // 이번 실린더에서 누군가 플릭 → 100%가 가짜(공란)일 수도
+  if (bv && flicked && c.p >= 1 && a !== 'fire' && (c.can.spin || c.can.pass) && Math.random() < (typeof bv.p === 'function' ? bv.p(c) : bv.p)) a = 'fire';
+  if ((c.seat.pers === 'calculator' || c.seat.pers === 'strategist') && c.p >= 1 && a === 'fire') a = escape(c); // 계산형·전략가: 100%에선 절대 안 쏜다
   return a;
 }
 function thinkTime(i) {
@@ -1580,9 +1590,9 @@ async function newRound(tok, eject) {
   else { const a = makeAI(); state.seats = [a, makeAI(a.name, a.pers)]; }
   state.seats.forEach(prepAI);
   { const nem = state.seats.some(x => x.nemesis); Music.switchTo(nem ? 'nemesis' : null); if (nem) A.sting(); } // 숙적이면 즉시 전환
-  state.lastAction = [null, null]; state.lastThink = [0, 0]; state.gain = [0, 0]; state.vodka = false; state.spinTicket = false; laughCount = [0, 0]; state.playerEmoUsed = false; renderEmotes(); state.forcedBy = -1; state.blunder = -1;
+  state.lastAction = [null, null]; state.lastThink = [0, 0]; state.gain = [0, 0]; state.vodka = false; state.spinTicket = false; laughCount = [0, 0]; state.playerEmoUsed = false; renderEmotes(); state.forcedBy = -1; state.blunder = -1; state.braveWords = null;
   state.seats.forEach(x => { if (x.kind === 'ai' && x.pers === 'drunk') x.gag = Math.random() < .5; });
-  state.live = new Set(); state.shot = 0; state.fired = new Set();
+  state.live = new Set(); state.shot = 0; state.fired = new Set(); state.flickUsed = [false, false];
   // 판돈
   state.pot = ANTE * 2 * (state.mode === 'tour' ? tour.floor : 1);
   if (state.mode !== 'auto') {
@@ -1632,7 +1642,6 @@ async function newRound(tok, eject) {
 function nextTurn(tok) {
   if (tok !== state.token) return;
   const i = state.turn, s = state.seats[i], p = risk();
-  s.used.skip = false; // 차례가 넘어올 때마다 플릭샷 재충전 (100%면 canOf에서 막힘)
   Heart.set(p); A.duck(p >= .5 ? .22 : p >= 1 / 3 ? .34 : .5);
   if (A.crowd) A.crowdLevel(p >= 1 ? 0 : p >= .5 ? .02 : A.crowdBase, 1.2);
   if (s.kind === 'human') {
@@ -1688,7 +1697,8 @@ const DRUNK_HURRY = ['야~ 빨리 해! 딸꾹!', '뭐 해? 빨리 쏴~', '기다
 const DRUNK_HURRY2 = ['딸꾹… 왜 안 쏴? {opp}, 자냐~?', '이봐~ 딜러! 저 친구 자는데?'];
 const DRUNK_WAKE = ['…네 차례거든?', '너다, 술고래.', '…진심이냐?'];
 const DRUNK_TIMEOUT_DIE = ['…어? 내 차례였어…?', '딸꾹… 내… 차례였던 거야…?', '빨리 하라니까… 아, 나였구나…'];
-const DRUNK_BLUNDER_DIE = ['…딸꾹. 방금 그건… 좀 멍청했다…', '스핀도 있었는데… 왜 당겼지… 나 바보냐…', '보드카가… 이겼네… 멍청한 놈…'];
+const DRUNK_DUMB_PRE = ['딸꾹… 100? 그게 뭐야~ 당겨~', '어… 이거 쏘는 거 맞지? 건배!', '숫자 같은 거 안 봐~ 딸꾹!', '스핀? 그게 뭐였더라~ 그냥 쏘자~'];
+const DRUNK_BLUNDER_DIE = ['100%라고… 써 있었네… 딸꾹…', '…딸꾹. 방금 그건… 좀 멍청했다…', '스핀도 있었는데… 왜 당겼지… 나 바보냐…', '보드카가… 이겼네… 멍청한 놈…'];
 const DRUNK_TIMEOUT_LIVE = ['어? 살았네? 내 차례였구나~ 딸꾹!', '헤헤… 나였어? 몰랐지~'];
 function isDrunkVoice(i) { const s = state.seats[i]; if (!s) return false;
   return s.kind === 'ai' ? s.pers === 'drunk' : (voiceRandom() ? curVoiceId() === 'drunk' : voice.mode === 'preset' && voice.preset === 'drunk'); }
@@ -1731,19 +1741,55 @@ async function aiTurn(i, tok) {
   bubble(i, '', Math.max(300, delay - hold), true);
   await wait(Math.max(300, delay - hold)); if (tok !== state.token) return;
   state.lastThink[i] = delay;
-  if (state.seats[i].pers === 'drunk' && act === 'fire' && c.p >= 1 && (c.can.spin || c.can.pass)) state.blunder = i;
-  const ak = actKey(i, act, c), t = line(i, ak) || line(i, act); say(i, ak, t, c.p >= 1 ? 2800 : 1900);
-  await wait(c.p >= 1 ? 1100 : 520); if (tok !== state.token) return;
+  const brave = act === 'fire' && c.p >= 1 && (c.can.spin || c.can.pass); // 피할 수 있는데 당긴다
+  const dumb = brave && state.seats[i].pers === 'drunk' && !(state.flickUsed[0] || state.flickUsed[1]); // 플릭도 없는데 술김에 100%를 당김
+  if (dumb) { const w = pick(DRUNK_DUMB_PRE); state.braveWords = { i, text: pick(DRUNK_BLUNDER_DIE), dumb: true }; bubble(i, w, 3200); setMsg(`${state.seats[i].name}… 100%인데 그냥 당긴다?!`, 'danger'); }
+  else if (brave) { const w = fmt(i, pick((BRAVE[state.seats[i].pers] || BRAVE.drunk).lines)); state.braveWords = { i, text: w }; bubble(i, w, 3200); setMsg(`${state.seats[i].name}, 피하지 않는다…!`, 'danger'); }
+  else { const ak = actKey(i, act, c), t = line(i, ak) || line(i, act); say(i, ak, t, c.p >= 1 ? 2800 : 1900); }
+  await wait(brave ? 2000 : c.p >= 1 ? 1100 : 520); if (tok !== state.token) return;
   ACT[act](i, tok); // 베팅은 격발 결과 직전까지 열려 있음
 }
-async function endTurn(i, tok, ms) { await wait(ms); if (tok !== state.token) return; state.turn = 1 - i; save(); nextTurn(tok); }
+// 100%에서 제 발로 당기는 건 '누군가 플릭을 써서 마지막 칸이 공란일 수도 있을 때'만 — 그 도박수를 각자 이유로 감수한다
+const BRAVE = {
+  berserker: { p: .15, lines: ['튕긴 놈이 있었지. 빈 칸일지도 모르는 걸 피해? 당긴다!', '100%든 아니든, 광전사는 당긴다!', '공란일 수도 있다고? 그럼 더 좋지. 간다!'] },
+  gambler: { p: .10, lines: ['누가 한 칸 튕겼지. 그럼 이 100%는 가짜일 수도. 콜.', '공란에 건다. 올인.', '딜러 패가 거짓말일 확률, 거기에 레이즈.'] },
+  fatalist: { p: .10, lines: ['튕겨진 칸이 운명을 비틀었을지도. 맡겨보지.', '운명이 빈 칸을 남겨뒀다면, 받겠다.', '숫자는 100이라 해도, 운명은 모른다.'] },
+  mindgamer: { p: .08, lines: ['플릭 이후 딜러 표정이 달라졌어. 여긴 비었다.', '다들 100%라 믿지. 누가 튕긴 걸 잊었군.', '딜러 눈썹이 떨렸어. 공란이다.'] },
+  veteran: { p: .08, lines: ['튕긴 칸이 있었지. 늙은이가 걸어볼 만한 판이야.', '살 날도 얼마 안 남았다. 빈 칸에 걸지.', '전장에선 이보다 나쁜 확률에도 걸었다.'] },
+  drunk: { p: 0, lines: ['딸꾹… 누가 튕겼잖아~ 비었을 거야~', '술김에 간다~ 빈 칸이다~!', '100? 튕겼으니까 0이지~ 딸꾹!'] }, // 술꾼은 자체 판단(취기)으로
+  provocateur: { p: .10, lines: ['튕긴 거 봤지? 이건 허세가 아니라 계산된 허세다.', '겁쟁이들은 100%만 보지. 난 당긴다.', '빈 칸이면 넌 평생 날 못 이겨.'] },
+  coward: { p: .06, lines: ['튕… 튕겼으니까… 비었을지도… 제발…', '어차피 죽을 거면… 빈 칸에 걸래요…', '엄마… 비었다고 해줘…'] },
+  mimic: { p: c => c.oppLast === 'fire' || c.oppLast === 'skip' ? .12 : .03, lines: ['너도 튕겼잖아. 나도 빈 칸에 건다.', '따라 하는 게 내 방식이야. 100%라도.', '네가 나였으면 당겼겠지? 그럼 나도.'] },
+};
+const PLAYER_BRAVE = ['피하지 않겠다. 당긴다.', '100%든 뭐든, 내 손으로 끝낸다.', '…운에 맡긴다.'];
+const MIRACLE_SELF = ['…살았어? 분명 마지막 칸이었는데.', '뭐야… 탄이 어디 갔지?', '…신이 있긴 한가 보군.', '하… 하하… 없어? 없다고?'];
+const MIRACLE_OPP = ['뭐?! 어떻게…', '말도 안 돼. 거긴 무조건 탄이었어.', '…속임수냐, 딜러?', '탄이… 없었다고?'];
+async function endTurn(i, tok, ms) {
+  await wait(ms); if (tok !== state.token) return; state.turn = 1 - i;
+  // 플릭샷으로 탄을 건너뛴 채 마지막 칸까지 살아남으면(= 다음이 다시 1번) 탄 위치가 드러난 셈 →
+  // 딜러가 탄을 전부 빼서 무작위로 다시 꽂고 스핀을 건다.
+  // 마지막 칸 차례인데 뒤에 플릭으로 건너뛴 칸이 남아 있으면(예: 6/6인데 100%가 아님) 이미 들킨 상태 → 여기서 바로 다시 꽂는다
+  if (state.shot >= state.N) { // 한 바퀴 돌아 1번으로 돌아옴 (= 플릭으로 탄을 건너뛰었었다)
+    const b = remLive();
+    setMsg(`${DEALER}: 한 바퀴 돌았군. 탄을 다시 꽂고 돌린다.`, 'info'); log(`한 바퀴 — 딜러가 ${b}발을 다시 꽂고 스핀.`, 'sys');
+    cylWrap.classList.add('open'); A.latch(false); await wait(450); if (tok !== state.token) return;
+    A.slide(); await wait(450); if (tok !== state.token) return; // 탄을 손바닥에 털어낸다
+    for (let k = 0; k < b; k++) { await insertRound(tok); if (tok !== state.token) return; await wait(150); }
+    for (let j = 0; j < state.N; j++) chEl(j).classList.remove('loaded');
+    const start = rand(state.N); state.c0 = (start + 1) % state.N; randomLive(b); state.shot = 0; state.fired = new Set(); state.flickUsed = [false, false];
+    A.spin(1.2); rotateTo(start, 3, 1250, 'cubic-bezier(.12,.75,.2,1)'); cylRot.classList.add('blur'); setTimeout(() => cylRot.classList.remove('blur'), 800);
+    await wait(1300); if (tok !== state.token) return;
+    cylWrap.classList.remove('open'); A.latch(true); paintChambers(); renderAll(); await wait(400); if (tok !== state.token) return;
+  }
+  save(); nextTurn(tok);
+}
 
 async function doFire(i, tok) {
   const forced = state.forcedBy === i; state.forcedBy = -1;
   const planned = state.flickReq === i; state.flickReq = -1; // AI가 미리 정한 플릭샷
   state.busy = true; state.lastAction[i] = state.skipping === i ? 'skip' : 'fire'; state.skipping = -1; stopTimer(); renderStage(); Heart.stop();
   const s = state.seats[i]; let pBefore = risk();
-  const flickable = pBefore < 1 && !forced && !state.fired.has(chAt(state.shot + 2)); // 100% 불가, 빈 칸 확정된 곳으로 착지 불가
+  const flickable = pBefore < 1 && !forced && !state.flickUsed[i] && state.shot + 2 <= state.N; // 각자 스핀당 1회 · 표기 100% 불가 · 마지막 칸 넘기기 불가
   counterHide(); willHide(); aimOn(i, pBefore);
   if (s.kind === 'ai' && !planned && pBefore >= 1 / 3 && Math.random() < pBefore * .6) { // 망설임: 걸었다 떼기
     hammer.classList.add('cocked'); A.cock(); setMsg(`${s.name}의 손가락이 멈춘다…`, 'danger');
@@ -1762,11 +1808,12 @@ async function doFire(i, tok) {
   let flickBonus = 0;
   if (flickable && (planned || state.flickHit === i)) {
     flickBonus = Math.round((40 + 300 * pBefore) / 10) * 10; // 튕겨 넘긴 칸이 위험했을수록 더 줌
+    state.flickUsed[i] = true; // 다음 스핀 전까지 이 사람은 플릭 봉인
     // 플릭샷: 첫 당김은 그냥 돌린 셈 — 방아쇠가 실린더를 한 칸 더 돌려 다음 칸을 때린다
     state.flickHit = -1; state.lastAction[i] = 'skip';
     hammer.classList.remove('cocked'); A.handTurn();
     setMsg(`플릭샷! ${q}번은 튕겨 넘기고 다음 칸으로…`, 'spin');
-    log(`${esc(s.name)} — 플릭샷! ${q}번째 약실을 튕겨 넘김 (실탄이면 한 바퀴 뒤에 돌아온다).`, 'spin');
+    log(`${esc(s.name)} — 플릭샷! ${q}번째 약실을 튕겨 넘김.`, 'spin');
     react(i, 'skip', risk(), tok, 200);
     pBefore = risk(); aimOn(i, pBefore);
     await wait(400); if (tok !== state.token) return;
@@ -1782,15 +1829,22 @@ async function doFire(i, tok) {
   state.fired.add(q); betSettle(i, false); setTimeout(aimOff, 450); if (pBefore >= .5 && A.crowd) A.cheer();
   A.dry(); const e = chEl(top); e.classList.remove('miss'); void e.getBBox(); e.classList.add('miss');
   cylWrap.classList.remove('nudge'); void cylWrap.offsetWidth; cylWrap.classList.add('nudge');
-  const g = payout(pBefore) + flickBonus; state.gain[i] += g; setTimeout(() => { gainPop(i, '+' + won(g) + (flickBonus ? ' 플릭!' : '')); A.coin(g >= 100 ? 4 : 2); }, 300);
+  state.braveWords = null;
+  const miracle = pBefore >= 1; // 표기상 100%였는데 빈 칸 (플릭으로 건너뛴 탄)
+  const g = (miracle ? 500 : payout(pBefore)) + flickBonus; state.gain[i] += g; setTimeout(() => { gainPop(i, '+' + won(g) + (flickBonus ? ' 플릭!' : '')); A.coin(g >= 100 ? 4 : 2); }, 300);
   paintChambers(); renderStage();
   if (s.kind === 'human') prof.fires++, S.set('prof', prof);
   log(`${esc(s.name)} — 찰칵. ${q}번째 약실 빈 칸. +${won(g)}${flickBonus ? ` (플릭 보너스 ${won(flickBonus)} 포함)` : ''}`);
-  if (forced && isDrunkVoice(i)) setTimeout(() => { if (tok === state.token) bubble(i, pick(DRUNK_TIMEOUT_LIVE), 2000); }, 350);
+  if (miracle) {
+    log(`<b>${esc(s.name)}</b> — 100%였는데 살았다?! 탄이 없다.`, 'spin'); if (A.crowd) A.cheer();
+    setTimeout(() => { if (tok !== state.token) return; bubble(i, pick(MIRACLE_SELF), 2600); }, 350);
+    setTimeout(() => { if (tok !== state.token) return; const o = 1 - i; if (linesOf(o)) bubble(o, pick(MIRACLE_OPP), 2400); }, 1300);
+  }
+  else if (forced && isDrunkVoice(i)) setTimeout(() => { if (tok === state.token) bubble(i, pick(DRUNK_TIMEOUT_LIVE), 2000); }, 350);
   else if (Math.random() < .55) setTimeout(() => { if (tok === state.token) say(i, 'survive', line(i, 'survive'), 1600); }, 350);
   if (s.kind === 'ai' && Math.random() < .2) setTimeout(() => { if (tok === state.token) aiEmote(i, tok); }, 2100);
-  setMsg(`찰칵. ${s.name} 생존.`, 'safe');
-  return endTurn(i, tok, 900);
+  setMsg(miracle ? `찰칵…?! ${s.name}, 마지막 칸인데 탄이 없다!` : `찰칵. ${s.name} 생존.`, 'safe');
+  return endTurn(i, tok, miracle ? 2600 : 900);
 }
 
 async function doSpin(i, tok) {
@@ -1802,7 +1856,7 @@ async function doSpin(i, tok) {
   resetGag(s);
   const physLive = [...state.live].map(phys); // 꽂힌 탄의 물리적 약실은 그대로
   const start = rand(state.N); state.c0 = (start + 1) % state.N;
-  state.live = new Set(physLive.map(P => ((P - state.c0 + state.N) % state.N) + 1)); state.shot = 0; state.fired = new Set();
+  state.live = new Set(physLive.map(P => ((P - state.c0 + state.N) % state.N) + 1)); state.shot = 0; state.fired = new Set(); state.flickUsed = [false, false];
   renderAll();
   A.spin(1.05); rotateTo(start, 2, 1100, 'cubic-bezier(.15,.8,.25,1)');
   cylRot.classList.add('blur'); setTimeout(() => cylRot.classList.remove('blur'), 650);
@@ -1832,7 +1886,8 @@ async function doRaise(i, tok) {
   betSettle(i, null); betClose();
   react(i, 'raise', risk(), tok, 900);
   resetGag(s);
-  const avail = []; for (let x = 1; x <= state.N; x++) if (!state.live.has(x) && !state.fired.has(x)) avail.push(x);
+  let avail = []; for (let x = state.shot + 1; x <= state.N; x++) if (!state.live.has(x)) avail.push(x);
+  if (!avail.length) for (let x = 1; x <= state.N; x++) if (!state.live.has(x) && !state.fired.has(x)) avail.push(x);
   state.live.add(pick(avail));
   state.pot *= 2; renderAll();
   cylWrap.classList.add('open'); A.latch(false); await wait(420); if (tok !== state.token) return;
@@ -1882,9 +1937,10 @@ async function death(i, tok, forced) {
   const r = seatEls[i].querySelector('.portrait').getBoundingClientRect();
   Blood.splat(r.left + r.width / 2, r.top + r.height / 2);
   seatEls[i].classList.add('dead'); bleedCard(i);
-  const blunder = state.blunder === i; state.blunder = -1;
+  const bwo = state.braveWords && state.braveWords.i === i ? state.braveWords : null, bw = bwo && bwo.text; state.braveWords = null;
   const will = dead.kind === 'human' && state.will; state.will = '';
-  showDeath(dead, will ? will : blunder ? pick(DRUNK_BLUNDER_DIE) : forced && isDrunkVoice(i) ? pick(DRUNK_TIMEOUT_DIE) : line(i, 'die'), chamber);
+  showDeath(dead, will ? will : bw ? bw : forced && isDrunkVoice(i) ? pick(DRUNK_TIMEOUT_DIE) : line(i, 'die'), chamber);
+  if (bw) $('#dzSub').textContent += bwo.dumb ? ' · 술김에 100%를 당겼다' : ' · 피할 수 있었지만 당겼다';
   setMsg(`탕. ${dead.name} 사망. ${win.name}이(가) ${won(prize)}을 가져간다.`, 'danger');
   log(`<b>${esc(dead.name)}</b> 사망 — ${chamber}번째 약실. ${esc(win.name)} ${won(prize)} 획득.`, 'kill');
   renderAll();
@@ -1946,7 +2002,10 @@ function humanAct(kind, forced) {
   state.lastThink[i] = performance.now() - state.turnStart;
   if (!forced && (kind === 'spin' || kind === 'pass')) { prof.esc[nextCh() - 1] = (prof.esc[nextCh() - 1] || 0) + 1; prof.n++; S.set('prof', prof); }
   state.busy = true; stopTimer(); state.forcedBy = forced ? i : -1; counterHide(); if (kind !== 'fire') willHide();
-  const vt = line(i, actKey(i, kind, ctxFor(i))) || line(i, kind); if (vt && !(s.muteUntil > performance.now())) bubble(i, vt, risk() >= 1 ? 2600 : 1800);
+  const cn = canOf(i);
+  if (kind === 'fire' && risk() >= 1 && (cn.spin || cn.pass)) { // 플레이어도 피할 수 있는데 100%에서 당김
+    const w = pick(PLAYER_BRAVE); state.braveWords = { i, text: w }; bubble(i, w, 3000); setMsg(`${s.name}, 피하지 않는다…!`, 'danger');
+  } else { const vt = line(i, actKey(i, kind, ctxFor(i))) || line(i, kind); if (vt && !(s.muteUntil > performance.now())) bubble(i, vt, risk() >= 1 ? 2600 : 1800); }
   ACT[kind](i, state.token);
 }
 function firePress() { // 격철이 걸린 순간 한 번 더 → 플릭샷
@@ -2452,6 +2511,7 @@ ACT.skip = doSkip;
 // ── AI 판단 보정: 도발 수락 · 컨디션 · 연승 경계
 function aiAdjust(i, a) {
   const c = ctxFor(i), s = c.seat;
+  if (s.pers === 'mimic' && c.oppLast && a === c.oppLast) return a; // 따라 하기가 최우선
   if (c.oppLast === 'raise' && c.can.raise && c.p < .5) { const ch = { berserker: .7, provocateur: .6, mimic: .5, gambler: .35, drunk: .3 }[s.pers] || 0; if (Math.random() < ch) return 'raise'; }
   if (c.can.skip && c.p > 0 && c.p < 1) { // 건너뛰기: 성격에 맞게
     const skipCh = { fatalist: c.chamber === s.n ? .6 : 0, veteran: c.chamber === s.n ? .5 : 0, mindgamer: c.p >= .25 ? .15 : .05,
