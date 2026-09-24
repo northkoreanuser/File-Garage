@@ -746,6 +746,8 @@ body.auto .chat-in{display:none}
 <script>
 (() => {
 'use strict';
+// ▼ 디버그 모드: 1 = 켜기(DEBUG 버튼 · ` 키), 0 = 숨기기
+const DEBUG_MODE = 0;
 const $ = s => document.querySelector(s);
 const rand = n => Math.floor(Math.random() * n);
 const pick = a => a[rand(a.length)];
@@ -1252,25 +1254,26 @@ function randomLive(b) { // b발을 무작위 격발 번호에 배치
 // ══════════════════ 렌더 ══════════════════
 const persRecord = id => stats[id] || { w: 0, l: 0 };
 const hearts = n => '<span class="hearts">' + Array.from({ length: Math.max(3, n) }, (_, j) => j).map(j => j < n ? '♥' : '<span class="off">♥</span>').join('') + '</span>';
+function setH(node, h) { if (node && node._h !== h) { node.innerHTML = h; node._h = h; } } // 내용이 같으면 DOM을 건드리지 않음 (깜빡임 방지)
 function renderSeat(i) {
   const s = state.seats[i], el = seatEls[i]; if (!s) return;
   const human = s.kind === 'human', p = human ? null : PERS[s.pers];
   el.style.setProperty('--pc', human ? '#d6a64e' : (s.boss ? '#ff3b3b' : p.color));
-  el.querySelector('.ini').textContent = [...s.name][0] || '?';
-  el.querySelector('.sname').innerHTML = esc(s.name) + (human ? ' <button class="edit" title="이름 변경">✎</button>' : '');
+  setH(el.querySelector('.ini'), esc([...s.name][0] || '?'));
+  { const nm = el.querySelector('.sname'), h = esc(s.name) + (human ? ' <button class="edit" title="이름 변경">✎</button>' : ''); if (nm._h !== h) { nm.innerHTML = h; nm._h = h; } } // 바뀔 때만 다시 그림 (깜빡임 방지)
   let chip;
   if (human) chip = state.mode === 'tour' ? `${hearts(tour.lives)} ${s.injured ? '<span class="ru">부상</span>' : '<span class="ru">ИГРОК</span>'}` : '플레이어 <span class="ru">ИГРОК №1</span>';
   else chip = `${s.boss ? '보스 · ' : ''}${s.nemesis ? '<span class="nemtag">숙적</span> · ' : ''}${p.ko} <span class="ru">${p.ru}</span>`;
-  el.querySelector('.chip').innerHTML = chip;
-  el.querySelector('.sdesc').innerHTML = human ? esc(`말투: ${voiceLabel()} · ` + (s.injured ? '피가 멎지 않는다. 손이 떨리고 시간이 짧아진다.' : '방아쇠는 당신 손에 있다.')) : (s.mood ? `<span class="moodtag">${s.mood}</span>` : '') + esc(p.desc);
+  setH(el.querySelector('.chip'), chip);
+  setH(el.querySelector('.sdesc'), human ? esc(`말투: ${voiceLabel()} · ` + (s.injured ? '피가 멎지 않는다. 손이 떨리고 시간이 짧아진다.' : '방아쇠는 당신 손에 있다.')) : (s.mood ? `<span class="moodtag">${s.mood}</span>` : '') + esc(p.desc));
   const tk = (k, label) => `<span class="token t-${k} ${s.used[k] ? 'used' : ''}">${label}</span>`;
-  el.querySelector('.tokens').innerHTML = bossRule() === 'noitems' ? '<span class="token used">아이템 금지</span>' : tk('spin', s.spinExtra ? '스핀 ×2' : '스핀') + tk('pass', '양보') + tk('raise', '+1발') + `<span class="token t-skip ${(state.flickUsed && state.flickUsed[i]) || (state.turn === i && !state.busyLoad && !canOf(i).skip) ? 'used' : ''}" title="${state.flickUsed && state.flickUsed[i] ? '이번 스핀에 이미 사용 — 스핀하면 다시 충전' : '방아쇠 연타'}">플릭샷</span>`;
+  setH(el.querySelector('.tokens'), bossRule() === 'noitems' ? '<span class="token used">아이템 금지</span>' : tk('spin', s.spinExtra ? '스핀 ×2' : '스핀') + tk('pass', '양보') + tk('raise', '+1발') + `<span class="token t-skip ${(state.flickUsed && state.flickUsed[i]) || (state.turn === i && !state.busyLoad && !canOf(i).skip) ? 'used' : ''}" title="${state.flickUsed && state.flickUsed[i] ? '이번 스핀에 이미 사용 — 스핀하면 다시 충전' : '방아쇠 연타'}">플릭샷</span>`);
   let stat;
   if (state.mode === 'auto') { const r = persRecord(s.pers); stat = `생존<b>${r.w}</b> 사망<b>${r.l}</b>`; }
   else if (human) stat = `<b>${won(money.v)}</b>` + (streak >= 2 ? `<span class="streak">${streak}연승</span>` : '');
   else stat = state.mode === 'tour' ? `지하 <b>B${tour.floor}</b>` : `사망<b>${deaths.ai}</b>`;
   if (!human && s.pers === 'drunk' && s.drink != null) { const n = Math.round(s.drink / 20); stat += `<span class="drinkbar" title="취기">취기 ${[0,1,2,3,4].map(j => `<i class="${j < n ? 'on' : ''}"></i>`).join('')}</span>`; }
-  el.querySelector('.stat').innerHTML = stat;
+  setH(el.querySelector('.stat'), stat);
   el.classList.toggle('active', state.turn === i && !state.busyLoad && !state.over);
 }
 function canOf(i) {
@@ -2249,7 +2252,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && !recOv.classList.contains('hide')) { recToggle(false); return; }
   if ((e.key === 'l' || e.key === 'L' || e.key === 'д') && state.started) { recToggle(recOv.classList.contains('hide')); return; }
   if (!recOv.classList.contains('hide')) return;
-  if (e.key === 'Pause' || e.key === '`') { toggleDbg(); return; }
+  if (DEBUG_MODE && (e.key === 'Pause' || e.key === '`')) { toggleDbg(); return; }
   if (!state.started) return;
   const k = e.key.toLowerCase();
   if (k === 'f' || k === 'а') { if (!e.repeat) firePress(); }
@@ -2269,6 +2272,7 @@ document.addEventListener('keydown', e => {
 const dbg = $('#dbg');
 function toggleDbg() { state.debug = !state.debug; dbg.classList.toggle('open', state.debug); paintChambers(); if (state.debug) syncDbg(); }
 $('#dbgBtn').addEventListener('click', toggleDbg);
+if (!DEBUG_MODE) $('#dbgBtn').style.display = 'none'; // 숨김: 버튼 안 보임 · 단축키도 막힘
 ['#dPers0', '#dPers1'].forEach(sel => $(sel).innerHTML = PERS_IDS.map(id => `<option value="${id}">${PERS[id].ko}</option>`).join(''));
 function syncDbg() {
   if (!state.seats[0]) return;
@@ -2620,7 +2624,7 @@ function turnExtras(i, tok, p) {
   } else {
     if (s.pers === 'drunk') { s.drink = Math.min(100, (s.drink || 0) + 12); }
     betOffer(i);
-    if (p >= 1) setMsg(flickedAny() ? `${DEALER}: ${s.name}, 탄이 있을 수도 있습니다. 누군가 한 칸을 넘겼으니까요.` : `${DEALER}: ${s.name}, 이 약실엔 반드시 탄이 있습니다.`, 'danger');
+    if (p >= 1) setMsg(flickedAny() ? `${DEALER}: ${s.name}, 탄이 있을 수도 있습니다. 누군가 한 칸을 튕겨 넘겼으니까요.` : `${DEALER}: ${s.name}, 이 약실엔 반드시 탄이 있습니다.`, 'danger');
   }
 }
 
@@ -2704,7 +2708,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.activeElement === document.body && state.started && state.mode !== 'auto' && $('#recOv').classList.contains('hide')) { e.preventDefault(); inp.focus(); }
   else if (e.key === 'Escape' && document.activeElement === inp) inp.blur();
 });
-const chatMeSync = () => { $('#chatMe').textContent = state.name || '나'; };
+const chatMeSync = () => { const el = $('#chatMe'), v = state.name || '나'; if (el.textContent !== v) el.textContent = v; }; // 같으면 건드리지 않음 (다시 그리면 깜빡임)
 chatMeSync(); setInterval(chatMeSync, 2000);
 // 사망 기록 (회색)
 function chatDeath(seat, quote, sub) { chatAdd('death', '', `☠ ${seat.name} 사망${quote ? ' — ' + quote : ''} · ${sub}`); }
