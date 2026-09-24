@@ -521,6 +521,48 @@ body.dark .actions{filter:brightness(4)}
 .lower .card{display:flex;flex-direction:column;min-width:0}
 .lower .log{flex:1 1 auto;height:0;min-height:300px;max-height:none}
 @media (max-width:699px){.lower .log{height:auto;min-height:0;max-height:320px}}
+
+/* 기록 보기 팝업 */
+.recov{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.72);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px;transition:opacity .2s}
+.recov.hide{display:none}
+.recbox{width:min(1040px,100%);max-height:calc(100vh - 32px);overflow:auto;background:var(--bg,#0b0908);border:1px solid var(--line);border-radius:18px;padding:16px}
+.rechead{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-family:var(--f-ru);letter-spacing:.25em;color:var(--brass);font-size:13px}
+.recov .lower{margin-top:0}
+.recov .lower .log{min-height:340px;max-height:60vh}
+@media (max-width:699px){#recBtn .rlong{display:none}}
+@media (max-width:699px){.recov .lower .log{min-height:0;max-height:300px}}
+
+/* 채팅 로그 */
+#app{display:flex;flex-direction:column;min-height:100vh;box-sizing:border-box}
+.chat{flex:1 1 auto;min-height:170px;margin-top:18px;display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(18,14,12,.92),rgba(8,6,5,.95));border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.chat-h{display:flex;justify-content:space-between;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line);background:rgba(0,0,0,.35)}
+.chat-t{font-family:var(--f-ru);font-size:11px;letter-spacing:.3em;color:var(--brass)}
+.chat-tabs{display:flex;gap:4px}
+.chat-tabs button{font:inherit;font-size:12px;font-weight:700;padding:4px 11px;border-radius:999px;border:1px solid transparent;background:none;color:var(--dim);cursor:pointer}
+.chat-tabs button.on{border-color:var(--line);background:rgba(255,255,255,.06);color:var(--brass2)}
+.chat-list{flex:1 1 auto;height:0;min-height:80px;overflow-y:auto;list-style:none;margin:0;padding:8px 14px;font-size:14px;line-height:1.55;scrollbar-width:thin}
+.chat-list li{padding:2px 0;word-break:break-word;animation:chatIn .25s ease-out}
+@keyframes chatIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.chat-list .tm{color:#5c554c;font-size:11px;margin-right:7px;font-variant-numeric:tabular-nums}
+.chat-list .nm{font-weight:800;margin-right:6px}
+.chat-list .nm::after{content:':';font-weight:400;color:var(--dim)}
+.chat-list .p0 .nm{color:#8fd0f0}.chat-list .p1 .nm{color:#ff8a7a}
+.chat-list .me .nm{color:var(--brass2)}
+.chat-list .emo .tx{font-size:20px;line-height:1}
+.chat-list .dl .nm{color:var(--brass)}.chat-list .dl .tx{color:#e9d8b0;font-style:italic}
+.chat-list .sys{color:#8a8277;font-size:13px}
+.chat-list .sys .tx::before{content:'▸ ';color:#5c554c}
+.chat-list .sys.c-danger{color:#ff6a6a}.chat-list .sys.c-safe{color:#7fe0a0}.chat-list .sys.c-spin{color:#8fd0f0}.chat-list .sys.c-info{color:#cdb88a}
+.chat-list.f-talk .sys,.chat-list.f-game .say{display:none}
+.chat-list .death{color:#77716a;font-style:italic;padding:5px 0;border-top:1px dashed rgba(255,255,255,.06);border-bottom:1px dashed rgba(255,255,255,.06);margin:3px 0}
+.chat-list .death .tx{text-decoration:line-through;text-decoration-color:rgba(160,20,20,.55);text-decoration-thickness:1px}
+.chat-in{display:flex;gap:8px;align-items:center;padding:8px 10px;border-top:1px solid var(--line);background:rgba(0,0,0,.4)}
+.chat-me{font-size:12px;font-weight:800;color:var(--brass2);white-space:nowrap;max-width:90px;overflow:hidden;text-overflow:ellipsis}
+.chat-in input{flex:1;min-width:0;height:34px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--text);padding:0 12px;font:inherit;font-size:14px;outline:none}
+.chat-in input:focus{border-color:var(--brass)}
+.chat-in .ibtn{height:34px}
+body.auto .chat-in{display:none}
+@media (max-width:699px){.chat{min-height:260px}.chat-list{font-size:13px}}
 </style>
 </head>
 <body>
@@ -546,12 +588,15 @@ body.dark .actions{filter:brightness(4)}
           <div class="pl">시간 제한 (사람 차례 15초)</div>
           <div class="seg" id="timerSeg"><button data-t="1">켜기</button><button data-t="0">끄기</button></div>
           <div class="pdesc" id="timerDesc"></div>
+          <div class="pl">화면 누르면 전체 화면</div>
+          <div class="seg" id="fsSeg"><button data-f="1">켜기</button><button data-f="0">끄기</button></div>
           <div class="pl">내 대사</div>
           <button class="ibtn wide" id="voiceBtn">대사 유형 · 커스텀 편집 <span id="voiceCur" class="vcur"></span></button>
         </div></div>
       <div class="popwrap" id="shopWrap"><button class="ibtn" id="shopBtn">암시장 <span id="shopBank" class="sbank"></span></button>
         <div class="pop shop" id="shopPop"><div class="pl">ЧЁРНЫЙ РЫНОК · 암시장</div><div id="shopList"></div></div></div>
       <button class="ibtn" id="pauseBtn">❚❚ 일시정지</button>
+      <button class="ibtn" id="recBtn" title="기록 보기 (L)">📊 기록<span class="rlong"> 보기</span></button>
       <button class="ibtn" id="musicBtn" title="음악 (M)"><span class="bars"><i></i><i></i><i></i></span> 음악</button>
     </div>
   </header>
@@ -608,13 +653,22 @@ body.dark .actions{filter:brightness(4)}
     </div>
   </main>
 
+  <section class="chat" id="chat">
+    <div class="chat-h"><span class="chat-t">ЧАТ · 채팅</span>
+      <div class="chat-tabs" id="chatTabs"><button data-f="all" class="on">전체</button><button data-f="talk">대화</button><button data-f="game">진행</button></div></div>
+    <ul class="chat-list" id="chatList"></ul>
+    <form class="chat-in" id="chatForm" autocomplete="off"><span class="chat-me" id="chatMe">나</span><input id="chatInput" maxlength="60" placeholder="Enter로 채팅 — 상대가 대꾸할 수도 있다"><button class="ibtn" type="submit">전송</button></form>
+  </section>
 
   <div class="spectate">— НАБЛЮДЕНИЕ · 관전 중 —</div>
 
+  <div class="recov hide" id="recOv"><div class="recbox">
+  <div class="rechead"><span>ЗАПИСИ · 기록</span><button class="ibtn" id="recClose">✕ 닫기</button></div>
   <div class="lower">
     <div class="card"><h3>ЖУРНАЛ <small>기록</small></h3><ul class="log" id="log"></ul></div>
     <div class="card"><h3>ДОСЬЕ <small>AI 성격별 전적</small></h3><table class="lb" id="lb"></table><div class="hist-h">약실별 사망 분포</div><div class="hist" id="hist"></div><div class="me" id="meStat"></div></div>
   </div>
+  </div></div>
 </div>
 
 <!-- 계약서 (최초 이름 입력) -->
@@ -995,7 +1049,7 @@ const GUNS = {
 };
 const ANTE = 100, LOAN = 1000, FLOORS = 7;
 const TOUR_TIERS = [['drunk', 'coward'], ['gambler', 'mimic'], ['fatalist', 'berserker'], ['veteran', 'calculator'], ['provocateur'], ['mindgamer'], ['strategist']];
-let settings = Object.assign({ gun: 6, timer: true }, S.get('settings', {}));
+let settings = Object.assign({ gun: 6, timer: true, fs: true }, S.get('settings', {}));
 if (!GUNS[settings.gun]) settings.gun = 6;
 
 // ══════════════════ 최적 전략 (게임이론 DP) ══════════════════
@@ -1123,7 +1177,7 @@ const msgEl = $('#msg'), fireBtn = $('#fireBtn'), spinBtn = $('#spinBtn'), passB
 const BTN = { fire: fireBtn, spin: spinBtn, pass: passBtn, raise: raiseBtn };
 
 async function wait(ms) { let left = ms; while (left > 0) { const s = Math.min(left, 80); await sleep(s); if (!state.paused) left -= s; } }
-function setMsg(t, cls = '') { msgEl.textContent = t; msgEl.className = 'msg ' + cls; }
+function setMsg(t, cls = '') { msgEl.textContent = t; msgEl.className = 'msg ' + cls; chatMsg(t, cls); }
 function log(html, cls = '') {
   const li = document.createElement('li'); li.className = cls;
   li.innerHTML = `<span class="r">${state.mode === 'tour' ? 'B' + tour.floor : 'R' + state.round}</span>` + html;
@@ -1210,7 +1264,7 @@ function renderSeat(i) {
   el.querySelector('.chip').innerHTML = chip;
   el.querySelector('.sdesc').innerHTML = human ? esc(`말투: ${voiceLabel()} · ` + (s.injured ? '피가 멎지 않는다. 손이 떨리고 시간이 짧아진다.' : '방아쇠는 당신 손에 있다.')) : (s.mood ? `<span class="moodtag">${s.mood}</span>` : '') + esc(p.desc);
   const tk = (k, label) => `<span class="token t-${k} ${s.used[k] ? 'used' : ''}">${label}</span>`;
-  el.querySelector('.tokens').innerHTML = bossRule() === 'noitems' ? '<span class="token used">아이템 금지</span>' : tk('spin', s.spinExtra ? '스핀 ×2' : '스핀') + tk('pass', '양보') + tk('raise', '+1발') + `<span class="token t-skip ${state.turn === i && !state.busyLoad && risk() >= 1 ? 'used' : ''}">플릭샷</span>`;
+  el.querySelector('.tokens').innerHTML = bossRule() === 'noitems' ? '<span class="token used">아이템 금지</span>' : tk('spin', s.spinExtra ? '스핀 ×2' : '스핀') + tk('pass', '양보') + tk('raise', '+1발') + `<span class="token t-skip ${(state.flickUsed && state.flickUsed[i]) || (state.turn === i && !state.busyLoad && !canOf(i).skip) ? 'used' : ''}" title="${state.flickUsed && state.flickUsed[i] ? '이번 스핀에 이미 사용 — 스핀하면 다시 충전' : '방아쇠 연타'}">플릭샷</span>`;
   let stat;
   if (state.mode === 'auto') { const r = persRecord(s.pers); stat = `생존<b>${r.w}</b> 사망<b>${r.l}</b>`; }
   else if (human) stat = `<b>${won(money.v)}</b>` + (streak >= 2 ? `<span class="streak">${streak}연승</span>` : '');
@@ -1268,6 +1322,7 @@ function bubble(i, text, dur = 2200, dots = false) {
   if (dots) el.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>'; else el.textContent = text;
   el.classList.add('show'); el._t = setTimeout(() => el.classList.remove('show'), dur);
   el._until = performance.now() + dur; el._dots = dots;
+  if (!dots && text) chatSay(i, text);
 }
 function fmt(i, str) {
   const s = state.seats[i], o = state.seats[1 - i];
@@ -1329,7 +1384,10 @@ function tourOpp() {
   if (tour.opp && tour.opp.pers === tour.voice) tour.opp = null; // 플레이어 말투와 같은 성격은 상대로 안 나옴
   if (!tour.opp) { let tier = TOUR_TIERS[tour.floor - 1].filter(x => x !== tour.voice || x === 'drunk'); // 술꾼끼리는 만날 수 있다 if (!tier.length) tier = ['veteran', 'calculator'];
     const pers = pick(tier); tour.opp = { name: tour.floor === FLOORS ? '볼코프' : pick(NAMES), pers }; S.set('tour', tour); }
-  return { kind: 'ai', name: tour.opp.name, pers: tour.opp.pers, used: freshUsed(), n: 0, boss: tour.floor === FLOORS };
+  // 숙적: 나를 죽인 층에 같은 이름·성격으로 기다린다
+  if (nemesis && nemesis.floor === tour.floor && PERS[nemesis.pers] && nemesis.pers !== tour.voice && (tour.opp.name !== nemesis.name || tour.opp.pers !== nemesis.pers)) { tour.opp = { name: nemesis.name, pers: nemesis.pers }; S.set('tour', tour); }
+  const nem = !!(nemesis && nemesis.floor === tour.floor && tour.opp.name === nemesis.name && tour.opp.pers === nemesis.pers);
+  return { kind: 'ai', name: tour.opp.name, pers: tour.opp.pers, used: freshUsed(), n: 0, boss: tour.floor === FLOORS, nemesis: nem };
 }
 
 // ══════════════════ 추가 대사: 반응 / 100% 상황 ══════════════════
@@ -1571,6 +1629,7 @@ function saveMoney() { S.set('bank', bank); S.set('tbank', tbank); S.set('loans'
 
 // 토너먼트 사망 몰수 비율: B1 10% → B7 100% (층마다 15%씩)
 const tourLossRate = () => Math.min(1, .1 + .15 * (tour.floor - 1));
+const flickedAny = () => !!(state.flickUsed && (state.flickUsed[0] || state.flickUsed[1])); // 이번 실린더에 누구든 플릭샷을 썼는가
 async function newRound(tok, eject) {
   state.busy = true; state.busyLoad = true; state.over = false; stopTimer();
   aimOff(); counterHide(); willHide(); clearDark(); state.will = ''; if (state.bet) { money.v += state.bet.stake; saveMoney(); } state.bet = null; betClose();
@@ -1580,7 +1639,7 @@ async function newRound(tok, eject) {
   state.noItems = state.mode === 'tour' && tour.floor < FLOORS && Math.random() < .05; // 아이템 금지 판 (5%)
   if (state.mode === 'vs' || state.mode === 'tour') {
     // 토너먼트: 말투는 게임오버까지 고정. 상대가 말투를 피해서 뽑힌다.
-    if (state.mode === 'tour' && !tour.voice) { tour.voice = rollVoice(tour.lastVoice); S.set('tour', tour); }
+    if (state.mode === 'tour' && (!tour.voice || tour.voice === 'drunk')) { let v, k = 0; do v = rollVoice(tour.lastVoice, 'drunk'); while (nemesis && nemesis.floor && v === nemesis.pers && ++k < 20); tour.voice = v; S.set('tour', tour); } // 토너먼트는 진지한 판: 플레이어 랜덤 말투에서 술꾼 제외
     let opp = state.mode === 'vs' ? makeAI() : tourOpp();
     if (state.mode === 'vs' && nemesis && PERS[nemesis.pers] && Math.random() < .2) opp = { kind: 'ai', name: nemesis.name, pers: nemesis.pers, used: freshUsed(), n: 0, nemesis: true };
     // 1:1: 매 판 새로, 상대 AI 성격과 겹치지 않게
@@ -1647,7 +1706,7 @@ function nextTurn(tok) {
   if (s.kind === 'human') {
     state.busy = false; state.turnStart = performance.now();
     const pct = Math.round(p * 100);
-    setMsg(p >= 1 ? `${s.name}, 이 약실엔 반드시 탄이 있다.` : p >= 1 / 3 ? `${s.name}, 사망 확률 ${pct}%. 선택하라.` : `${s.name}의 차례. 당기거나, 피하거나.`, p >= 1 / 3 ? 'danger' : '');
+    setMsg(p >= 1 ? (flickedAny() ? `${s.name}, 계산상 100%. 하지만 누군가 튕겨 넘긴 칸이 있다 — 비어 있을 수도 있다.` : `${s.name}, 이 약실엔 반드시 탄이 있다.`) : p >= 1 / 3 ? `${s.name}, 사망 확률 ${pct}%. 선택하라.` : `${s.name}의 차례. 당기거나, 피하거나.`, p >= 1 / 3 ? 'danger' : '');
     startTimer(tok);
     const cn = canOf(i); if (p >= 1 && !cn.spin && !cn.pass && state.seats[1 - i].kind === 'ai') setTimeout(() => { if (tok === state.token) { const t = line(1 - i, 'doomOpp'); if (t) bubble(1 - i, t, 2600); } }, 500);
   } else { state.busy = true; setMsg(`${s.name}이(가) 리볼버를 든다…`); aiTurn(i, tok); }
@@ -1931,7 +1990,7 @@ async function death(i, tok, forced) {
   const prize = state.pot + state.gain[0] + state.gain[1];
   if (win.kind === 'human') { money.v += prize; wins++; S.set('wins', wins); saveMoney(); streak++; S.set('streak', streak);
     if (dead.nemesis || (nemesis && dead.name === nemesis.name && dead.pers === nemesis.pers)) { nemesis = null; S.del('nemesis'); log('숙적을 쓰러뜨렸다.', 'spin'); } }
-  if (dead.kind === 'human') { streak = 0; S.set('streak', 0); if (win.kind === 'ai') { nemesis = { name: win.name, pers: win.pers }; S.set('nemesis', nemesis); } }
+  if (dead.kind === 'human') { streak = 0; S.set('streak', 0); if (win.kind === 'ai') { nemesis = { name: win.name, pers: win.pers }; if (state.mode === 'tour') nemesis.floor = tour.floor; S.set('nemesis', nemesis); } } // 숙적은 하나만 (덮어씀), 토너먼트면 죽은 층도 기억
   if (dead.kind === 'human' && state.mode === 'tour') { const rate = tourLossRate(), loss = Math.min(money.v, Math.round(state.pot * rate)); money.v -= loss; saveMoney(); if (loss) log(`사망 — 판돈의 ${Math.round(rate * 100)}% ${won(loss)} 몰수.`, 'kill'); }
   // 피
   const r = seatEls[i].querySelector('.portrait').getBoundingClientRect();
@@ -1941,6 +2000,7 @@ async function death(i, tok, forced) {
   const will = dead.kind === 'human' && state.will; state.will = '';
   showDeath(dead, will ? will : bw ? bw : forced && isDrunkVoice(i) ? pick(DRUNK_TIMEOUT_DIE) : line(i, 'die'), chamber);
   if (bw) $('#dzSub').textContent += bwo.dumb ? ' · 술김에 100%를 당겼다' : ' · 피할 수 있었지만 당겼다';
+  chatDeath(dead, $('#dzQuote').textContent, $('#dzSub').textContent);
   setMsg(`탕. ${dead.name} 사망. ${win.name}이(가) ${won(prize)}을 가져간다.`, 'danger');
   log(`<b>${esc(dead.name)}</b> 사망 — ${chamber}번째 약실. ${esc(win.name)} ${won(prize)} 획득.`, 'kill');
   renderAll();
@@ -1984,8 +2044,9 @@ async function tourAfter(humanDied) {
   tourBest = Math.max(tourBest, tour.floor); S.set('tourBest', tourBest);
   if (tour.floor >= FLOORS) {
     money.v += 5000; saveMoney(); tourReset(); renderAll();
-    await tourOverlay('ПОБЕДА', '살아서 나간다', 'good', `일곱 층을 모두 돌파했다. 볼코프는 쓰러졌다.<br>상금 ${won(5000 + reward)}`, '다시 지하로');
-    log('토너먼트 우승!', 'spin');
+    await tourOverlay('ПОБЕДА', '살아서 나간다', 'good', `일곱 층을 모두 돌파했다. 볼코프는 쓰러졌다.<br>상금 ${won(5000 + reward)}`, '일반 모드로 돌아간다');
+    log('토너먼트 우승! 1:1 대결 모드로 복귀.', 'spin');
+    state.mode = 'vs'; S.set('mode', 'vs'); S.del('save'); applyModeUI(); restart(); return false; // 우승하면 일반 모드로
   } else {
     tour.floor++; tour.opp = null; S.set('tour', tour);
     log(`층 돌파! 상금 ${won(reward)}. 지하 B${tour.floor}로 내려간다.`, 'spin');
@@ -2067,6 +2128,20 @@ $('#timerSeg').addEventListener('click', e => {
   settings.timer = t === '1'; S.set('settings', settings); applyModeUI();
   if (!settings.timer) stopTimer(); else if (state.started && !state.busy) startTimer(state.token);
 });
+// ── 전체 화면: 화면을 누를 때마다 다시 건다 (설정에서 끌 수 있음)
+const fsUI = () => document.querySelectorAll('#fsSeg button').forEach(b => b.classList.toggle('on', (b.dataset.f === '1') === !!settings.fs));
+fsUI();
+$('#fsSeg').addEventListener('click', e => {
+  const f = e.target.dataset.f; if (f === undefined) return;
+  settings.fs = f === '1'; S.set('settings', settings); fsUI();
+  if (!settings.fs && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+});
+document.addEventListener('pointerdown', e => {
+  if (!settings.fs || document.fullscreenElement || document.webkitFullscreenElement) return;
+  if (e.target.closest('#fsSeg')) return;
+  const el = document.documentElement, rq = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (rq) try { const r = rq.call(el); if (r && r.catch) r.catch(() => {}); } catch (_) {}
+}, true);
 const musicBtn = $('#musicBtn');
 let musicOn = S.get('music', true);
 function applyMusicUI() { musicBtn.classList.toggle('off', !musicOn); }
@@ -2084,7 +2159,7 @@ function applyPause() {
 }
 function autoPause(why, on) { on ? pauseWhy.add(why) : pauseWhy.delete(why); applyPause(); }
 $('#pauseBtn').addEventListener('click', e => { e.stopPropagation(); manualPause = !manualPause; applyPause(); });
-const menuOpen = () => $('#setPop').classList.contains('open') || $('#shopPop').classList.contains('open') || !$('#voiceOv').classList.contains('hide');
+const menuOpen = () => $('#setPop').classList.contains('open') || $('#shopPop').classList.contains('open') || !$('#voiceOv').classList.contains('hide') || !$('#tourOv').classList.contains('hide') || !$('#recOv').classList.contains('hide'); // 토너먼트 알림(떠나기 경고 등) 중에도 일시정지
 new MutationObserver(() => autoPause('menu', menuOpen())).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
 document.addEventListener('visibilitychange', () => autoPause('tab', document.hidden));
 window.addEventListener('blur', () => autoPause('blur', true));
@@ -2163,8 +2238,17 @@ welcome.addEventListener('click', e => {
 });
 seatEls[0].addEventListener('click', e => { if (e.target.classList.contains('edit')) openContract(); });
 
+// ── 기록 보기 팝업 (ЖУРНАЛ · ДОСЬЕ)
+const recOv = $('#recOv');
+function recToggle(on) { recOv.classList.toggle('hide', !on); if (on) { $('#setPop').classList.remove('open'); $('#shopPop').classList.remove('open'); } }
+$('#recBtn').addEventListener('click', e => { e.stopPropagation(); recToggle(recOv.classList.contains('hide')); });
+$('#recClose').addEventListener('click', () => recToggle(false));
+recOv.addEventListener('click', e => { if (e.target === recOv) recToggle(false); });
 document.addEventListener('keydown', e => {
   if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
+  if (e.key === 'Escape' && !recOv.classList.contains('hide')) { recToggle(false); return; }
+  if ((e.key === 'l' || e.key === 'L' || e.key === 'д') && state.started) { recToggle(recOv.classList.contains('hide')); return; }
+  if (!recOv.classList.contains('hide')) return;
   if (e.key === 'Pause' || e.key === '`') { toggleDbg(); return; }
   if (!state.started) return;
   const k = e.key.toLowerCase();
@@ -2536,19 +2620,94 @@ function turnExtras(i, tok, p) {
   } else {
     if (s.pers === 'drunk') { s.drink = Math.min(100, (s.drink || 0) + 12); }
     betOffer(i);
-    if (p >= 1) setMsg(`${DEALER}: ${s.name}, 이 약실엔 반드시 탄이 있습니다.`, 'danger');
+    if (p >= 1) setMsg(flickedAny() ? `${DEALER}: ${s.name}, 탄이 있을 수도 있습니다. 누군가 한 칸을 넘겼으니까요.` : `${DEALER}: ${s.name}, 이 약실엔 반드시 탄이 있습니다.`, 'danger');
   }
 }
 
 // ══════════════════ 화면 맞춤: 700~1100px은 데스크톱 배치를 축소 ══════════════════
 const DESIGN_W = 1100;
-function fitScreen() { const w = document.documentElement.clientWidth; $('#app').style.zoom = (w >= 700 && w < DESIGN_W) ? (w / DESIGN_W).toFixed(3) : ''; }
+function fitScreen() { const w = document.documentElement.clientWidth, z = (w >= 700 && w < DESIGN_W) ? w / DESIGN_W : 0; $('#app').style.zoom = z ? z.toFixed(3) : ''; $('#app').style.minHeight = z ? `calc(100vh / ${z.toFixed(3)})` : ''; }
 window.addEventListener('resize', fitScreen); fitScreen();
 
 // ══════════════════ 초기화 ══════════════════
 buildCylinder(); applyModeUI(); applyMusicUI(); renderLB();
 if (state.name) { $('#wName').textContent = state.name; welcome.classList.remove('hide'); }
 else openContract();
+
+// ══════════════════ 채팅 로그 ══════════════════
+var chatLast = { k: '', t: 0 };
+function chatAdd(cls, name, text) {
+  const chatList = document.getElementById('chatList'); if (!chatList) return;
+  const atBottom = chatList.scrollHeight - chatList.scrollTop - chatList.clientHeight < 40;
+  const d = new Date(), tm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  const li = document.createElement('li'); li.className = cls;
+  li.innerHTML = `<span class="tm">${tm}</span>${name ? `<span class="nm">${esc(name)}</span>` : ''}<span class="tx">${esc(text)}</span>`;
+  chatList.appendChild(li); while (chatList.children.length > 200) chatList.firstChild.remove();
+  if (atBottom) chatList.scrollTop = chatList.scrollHeight;
+}
+// 말풍선 → 채팅
+function chatSay(i, text) {
+  const s = state.seats && state.seats[i]; if (!s) return;
+  const k = i + '|' + text, now = performance.now();
+  if (chatLast.k === k && now - chatLast.t < 1500) return; chatLast = { k, t: now };
+  const emo = typeof isEmo === 'function' && isEmo(text);
+  chatAdd(`say p${i}${s.kind === 'human' ? ' me' : ''}${emo ? ' emo' : ''}`, s.name, text);
+}
+// 상단 메시지 → 채팅 (딜러 대사는 딜러 이름으로)
+var chatMsgLast = '';
+function chatMsg(t, cls) {
+  if (!t || t === chatMsgLast) return; chatMsgLast = t;
+  const m = /^딜러 아르카디: ([\s\S]*)$/.exec(t);
+  if (m) chatAdd('say dl', '딜러 아르카디', m[1]); else chatAdd('sys' + (cls ? ' c-' + cls.split(' ')[0] : ''), '', t);
+}
+
+// 탭
+$('#chatTabs').addEventListener('click', e => {
+  const f = e.target.dataset.f; if (!f) return;
+  document.querySelectorAll('#chatTabs button').forEach(b => b.classList.toggle('on', b === e.target));
+  const cl = $('#chatList'); cl.className = 'chat-list' + (f === 'all' ? '' : ' f-' + f); cl.scrollTop = cl.scrollHeight;
+});
+
+// ── 플레이어 채팅 + AI 대꾸
+const CHAT_RUDE = /씨발|시발|ㅅㅂ|병신|ㅄ|개새|꺼져|닥쳐|멍청|바보|겁쟁이|쫄|찐따|fuck|좆|ㅈ같/i;
+const CHAT_REPLY = {
+  berserker: { any: ['말은 됐고. 쏴.', '입 말고 방아쇠를 움직여!', '하하! 좋아, 떠들어라!', '시끄럽다. 피 냄새나 맡아.'], rude: ['그 입, 곧 영원히 다물게 될 거다.', '하하하! 화났냐? 좋아!', '욕할 힘으로 방아쇠나 당겨.'] },
+  coward: { any: ['어, 어… 그래요…', '말 걸지 마세요, 집중 중이에요…', '제발 빨리 끝났으면…', '(손을 떨며 고개만 끄덕인다)'], rude: ['히익… 죄송해요…', '왜, 왜 저한테 그래요…', '(눈물이 맺힌다)'] },
+  gambler: { any: ['판돈 얘기라면 언제든 환영이지.', '말 좋네. 근데 운은 말 안 들어.', '한 판 더 걸 생각 있어?', '크크, 오늘 느낌 좋은데?'], rude: ['화내면 지는 거야, 친구.', '욕은 공짜지. 총알은 아니고.', '열 받았어? 판돈 올려.'] },
+  calculator: { any: ['잡담은 확률에 영향을 주지 않습니다.', '그 발언의 기대값은 0입니다.', '계산 중입니다. 조용히.', '흥미롭군요. 무의미하지만.'], rude: ['감정적 발언 기록했습니다.', '욕설로 확률은 바뀌지 않습니다.', '당신의 심박수가 올라가고 있군요.'] },
+  strategist: { any: ['말이 많군. 수를 숨기려는 건가.', '대화도 전략이지.', '네 다음 수가 보인다.', '좋은 시도다.'], rude: ['도발은 통하지 않는다.', '흥분하면 판단이 흐려지지.', '그게 네 전략이라면 실망이군.'] },
+  fatalist: { any: ['말해 봐야 운명은 정해져 있다.', '…그래. 어차피 같은 결말이다.', '신경 쓰지 마라. 총이 정한다.', '말은 바람이다.'], rude: ['분노도 운명의 일부지.', '욕해도 탄은 그 자리에 있다.', '…그래.'] },
+  mimic: { any: ['{last}', '방금 그 말, 나도 할래. "{last}"', '크크, {last}', '따라 하는 거 싫어?'], rude: ['{last}', '너도 {last}!', '크크크, 똑같이 돌려줄게.'] },
+  mindgamer: { any: ['손이 떨리는 게 말투에서 다 보여.', '떠들수록 속이 보이지.', '재밌네. 계속 해 봐.', '방금 그 말, 거짓말이지?'], rude: ['화났네? 내가 이겼다.', '욕은 겁먹었다는 뜻이야.', '그래그래, 무섭지?'] },
+  veteran: { any: ['젊은 친구, 말보다 숨을 아껴.', '이 테이블에서 말 많은 놈은 오래 못 갔지.', '허허. 그래.', '집중해라.'], rude: ['나도 그 나이 땐 그랬지.', '욕한다고 살아남는 거 아니다.', '…어리군.'] },
+  drunk: { any: ['끄윽… 뭐라고? 한 잔 더 해!', '너 좋은 놈이구나~ 딸꾹', '으하하! 건배!', '어? 너 둘이야?'], rude: ['뭐?! 너 나와! …아니다 앉아 있을래', '딸꾹… 욕도 취해서 들리네~', '크하하 너 웃긴다'] },
+  provocateur: { any: ['그 말 할 시간에 유서나 써.', '어머, 말도 할 줄 알아?', '떨리는 목소리 다 들린다~', '계속 떠들어, 마지막 말이 될지도 모르니까.'], rude: ['오~ 이제야 좀 재밌네.', '욕밖에 할 줄 몰라? 불쌍해라.', '화났구나? 귀여워~'] },
+};
+let chatCool = 0;
+$('#chatForm').addEventListener('submit', e => {
+  e.preventDefault(); const inp = $('#chatInput'), t = inp.value.trim().slice(0, 60); if (!t) return;
+  if (!state.started || state.mode === 'auto') return;
+  const now = performance.now(); if (now < chatCool) return; chatCool = now + 1200;
+  const i = state.seats.findIndex(s => s && s.kind === 'human'); if (i < 0) return;
+  inp.value = ''; seatEls[i].querySelector('.bubble').classList.remove('emo'); bubble(i, t, 2600);
+  const o = 1 - i, ai = state.seats[o], tok = state.token;
+  if (!ai || ai.kind === 'human' || state.over || (ai.muteUntil && now < ai.muteUntil)) return;
+  if (Math.random() > .6) return;
+  ai.muteUntil = now + 3000;
+  const P = CHAT_REPLY[ai.pers] || CHAT_REPLY.veteran, pool = CHAT_RUDE.test(t) ? P.rude : P.any;
+  const r = pick(pool).replace(/\{last\}/g, t.slice(0, 30));
+  setTimeout(() => { if (tok === state.token && !state.over) sayOrEmote(o, fmt(o, r), 2600); }, 900 + Math.random() * 900);
+});
+// Enter: 채팅창으로 바로 이동 / Esc: 빠져나오기
+document.addEventListener('keydown', e => {
+  const inp = $('#chatInput');
+  if (e.key === 'Enter' && document.activeElement === document.body && state.started && state.mode !== 'auto' && $('#recOv').classList.contains('hide')) { e.preventDefault(); inp.focus(); }
+  else if (e.key === 'Escape' && document.activeElement === inp) inp.blur();
+});
+const chatMeSync = () => { $('#chatMe').textContent = state.name || '나'; };
+chatMeSync(); setInterval(chatMeSync, 2000);
+// 사망 기록 (회색)
+function chatDeath(seat, quote, sub) { chatAdd('death', '', `☠ ${seat.name} 사망${quote ? ' — ' + quote : ''} · ${sub}`); }
 })();
 </script>
 </body>
