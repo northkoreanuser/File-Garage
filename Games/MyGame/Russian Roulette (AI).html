@@ -58,8 +58,12 @@ button{font-family:inherit}
 .bars i{width:3px;background:currentColor;border-radius:1px;animation:eq 1s ease-in-out infinite}
 .bars i:nth-child(2){animation-delay:-.3s}.bars i:nth-child(3){animation-delay:-.6s}
 @keyframes eq{0%,100%{height:4px}50%{height:14px}}
-#pauseBtn{display:none}
-body.auto #pauseBtn{display:inline-flex}
+#pauseBtn{display:inline-flex}
+body.auto #pauseBtn{display:none}
+#pauseTag{position:fixed;left:50%;top:84px;transform:translate(-50%,-10px);z-index:950;padding:9px 18px;border-radius:999px;background:rgba(10,8,6,.92);border:1px solid var(--brass);color:var(--brass2);font-weight:700;font-size:13px;opacity:0;pointer-events:none;transition:.25s;box-shadow:0 10px 30px rgba(0,0,0,.6)}
+body.paused #pauseTag{opacity:1;transform:translate(-50%,0)}
+body.paused .stage{filter:saturate(.4) brightness(.8)}
+#pauseBtn.on{border-color:var(--brass);color:var(--brass2)}
 
 /* ── ARENA ── */
 .arena{display:grid;grid-template-columns:1fr minmax(300px,1.3fr) 1fr;gap:18px;align-items:stretch}
@@ -125,7 +129,8 @@ body.auto #pauseBtn{display:inline-flex}
 @keyframes kick{0%{transform:translateY(0)}20%{transform:translateY(-14px) rotate(-3deg)}100%{transform:translateY(0)}}
 .cyl-wrap.nudge{animation:nudge2 .25s ease-out}
 @keyframes nudge2{0%,100%{transform:none}40%{transform:translateY(-3px)}}
-.cyl-rot{position:absolute;inset:0;will-change:transform}
+.cyl-rot{position:absolute;inset:0;will-change:transform;transition:filter .3s}
+.cyl-rot.blur{filter:blur(2.5px)}
 .cyl-rot svg{width:100%;height:100%;display:block;filter:drop-shadow(0 20px 30px rgba(0,0,0,.75))}
 .ch .ch-round{opacity:0;transition:opacity .35s}
 .ch .dent,.ch .ch-soot,.ch .ch-flash{opacity:0;transition:opacity .3s}
@@ -299,7 +304,7 @@ body.auto .spectate{display:block}
 .db:hover{background:var(--brass);color:#000}
 #dbgLive{color:#bbb;line-height:1.7;white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:11px}
 
-@media (max-width:860px){
+@media (max-width:699px){
   .arena{grid-template-columns:1fr 1fr;grid-template-areas:"stage stage" "a b"}
   #seat0{grid-area:a}#seat1{grid-area:b}.stage{grid-area:stage}
   .seat{min-height:0;padding-top:26px;margin-top:64px}
@@ -316,6 +321,151 @@ body.auto .spectate{display:block}
   .dpct{font-size:38px;min-width:92px}
   .arena{gap:10px}
 }
+
+/* ── v3 추가 ── */
+.popwrap{position:relative}
+.pop{position:absolute;right:0;top:calc(100% + 8px);width:290px;background:rgba(16,12,10,.97);border:1px solid var(--line2);border-radius:14px;padding:14px;z-index:50;display:none;box-shadow:0 20px 50px rgba(0,0,0,.6)}
+.pop.open{display:block}
+.pop .pl{font-size:11px;color:var(--muted);letter-spacing:.08em;margin:10px 0 6px}
+.pop .pl:first-child{margin-top:0}
+.pop .seg{width:100%}.pop .seg button{flex:1;padding:8px 6px}
+.pdesc{font-size:11.5px;color:var(--brass2);margin-top:6px;min-height:16px}
+.gunlbl{font-family:var(--f-ru);font-size:10.5px;letter-spacing:.22em;color:var(--dim)}
+.pot{font-family:var(--f-ru);font-size:15px;color:var(--brass2);text-shadow:0 0 14px rgba(214,166,78,.35);transition:transform .25s}
+.pot.bump{animation:bump .5s}
+@keyframes bump{30%{transform:scale(1.35);color:#fff}}
+.tokens{display:inline-flex;gap:4px;flex-wrap:wrap;justify-content:center}
+.token{font-family:var(--f-kr);font-weight:700;letter-spacing:0}
+.token.t-pass{border-color:#6b5a2a;color:#f0d58a;background:rgba(214,166,78,.12)}
+.token.t-raise{border-color:#7a2a2a;color:#ff9a9a;background:rgba(196,22,28,.14)}
+.token.used{color:var(--dim)!important;border-color:var(--line)!important;background:transparent!important}
+.hearts{color:#ff4a4a;letter-spacing:2px}
+.hearts .off{color:#3a2a26}
+.gainpop{position:absolute;left:50%;top:44%;transform:translate(-50%,0);font-family:var(--f-ru);font-size:22px;color:#ffd97a;text-shadow:0 0 14px rgba(255,200,80,.6);opacity:0;pointer-events:none;z-index:7;white-space:nowrap}
+.gainpop.go{animation:gain 1.4s ease-out}
+@keyframes gain{0%{opacity:0;transform:translate(-50%,10px)}20%{opacity:1}100%{opacity:0;transform:translate(-50%,-50px)}}
+.tbar{width:100%;height:4px;border-radius:2px;background:#221b16;overflow:hidden;visibility:hidden}
+.tbar.on{visibility:visible}
+.tbar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ff3b3b,#d6a64e);transform-origin:left;transition:transform .1s linear}
+.tbar.low i{background:#ff3b3b;animation:blink .5s infinite}
+.actions{grid-template-columns:1.25fr 1fr;grid-template-rows:repeat(3,auto)}
+.btn.fire{grid-row:span 3}
+.btn.fire .t{font-size:40px}
+.btn.spin,.btn.pass,.btn.raise{padding:10px 14px}
+.btn.spin .t,.btn.pass .t,.btn.raise .t{font-size:20px}
+.btn.pass{background:linear-gradient(135deg,#5c4a1c,#221a0a);border-color:#b08c3a;box-shadow:0 10px 26px rgba(160,120,40,.18),inset 0 1px 0 rgba(255,255,255,.15)}
+.btn.raise{background:linear-gradient(135deg,#6a1420,#260509);border-color:#b8323e;box-shadow:0 10px 26px rgba(160,30,40,.2),inset 0 1px 0 rgba(255,255,255,.15)}
+.btn.urge{animation:hvy .33s infinite;box-shadow:0 0 22px 7px rgba(255,210,120,.75),0 0 50px 14px rgba(255,190,90,.35)!important}
+.cyl-area.sh1{animation:hand1 .5s infinite}.cyl-area.sh2{animation:hand2 .28s infinite}.cyl-area.sh3{animation:hand3 .16s infinite}
+@keyframes hand1{0%,100%{transform:translate(0,0)}50%{transform:translate(.8px,-.6px)}}
+@keyframes hand2{0%,100%{transform:translate(0,0) rotate(0)}25%{transform:translate(-1.6px,1px) rotate(-.4deg)}75%{transform:translate(1.6px,-1px) rotate(.4deg)}}
+@keyframes hand3{0%,100%{transform:translate(0,0) rotate(0)}25%{transform:translate(-3px,2px) rotate(-.9deg)}75%{transform:translate(3px,-2px) rotate(.9deg)}}
+body.tense .lamp{animation:lamp 6.5s ease-in-out infinite alternate,flick 3.2s steps(1) infinite}
+@keyframes flick{0%,100%{opacity:1}7%{opacity:.35}9%{opacity:1}52%{opacity:.6}54%{opacity:1}56%{opacity:.25}58%{opacity:1}}
+.round-in.mid{top:50%}
+.hist-h{font-size:11px;color:var(--muted);margin:14px 0 6px}
+.hist{display:flex;align-items:flex-end;gap:6px;height:56px}
+.hist div{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;height:100%;justify-content:flex-end}
+.hist span{display:block;width:100%;background:linear-gradient(180deg,#c4161c,#5c0005);border-radius:3px 3px 0 0;min-height:2px}
+.hist em{font-style:normal;font-family:var(--f-ru);font-size:10px;color:var(--dim)}
+.me{margin-top:12px;font-size:12px;color:var(--muted);line-height:1.7;border-top:1px dashed var(--line);padding-top:10px}
+.me b{color:var(--brass2);font-family:var(--f-ru);font-weight:400}
+.tour-card{text-align:center;max-width:560px}
+.tc-ru{font-family:var(--f-ru);letter-spacing:.5em;color:var(--brass);font-size:13px}
+.tc-h{font-family:var(--f-big);font-size:clamp(48px,11vw,110px);line-height:1;margin:14px 0}
+.tc-h.bad{color:#e0141c;text-shadow:0 0 40px rgba(255,0,0,.4)}.tc-h.good{color:var(--brass2);text-shadow:0 0 40px rgba(255,210,120,.35)}
+.tc-btns{display:flex;gap:10px;justify-content:center}
+.p-btn.ghost{background:transparent;border:1px solid var(--line2);color:var(--muted)}
+.p-btn.ghost:hover{background:rgba(255,255,255,.06);color:var(--text)}
+.pdesc .warn2{display:block;color:#ff6a6a;margin-top:4px}
+.tc-p{font-size:16px;color:var(--text);line-height:1.7;margin-bottom:26px}
+.window{position:fixed;left:max(12px,calc(50% - 700px));top:140px;width:150px;height:210px;z-index:0;opacity:.55;pointer-events:none;border-radius:6px 6px 2px 2px;overflow:hidden;
+  background:linear-gradient(180deg,#0d1726,#1a2536 70%,#2a3444);box-shadow:0 0 60px rgba(120,160,220,.08)}
+.window canvas{position:absolute;inset:0}
+.wframe{position:absolute;inset:0;border:8px solid #1c140f;border-radius:6px 6px 2px 2px;background:linear-gradient(90deg,transparent 47%,#1c140f 47% 53%,transparent 53%),linear-gradient(180deg,transparent 42%,#1c140f 42% 47%,transparent 47%)}
+@media (max-width:1250px){.window{display:none}}
+@media (max-width:699px){
+  .actions{grid-template-columns:1fr 1fr 1fr;grid-template-rows:auto auto}
+  .btn.fire{grid-row:auto;grid-column:1 / -1}
+  .btn.fire .t{font-size:30px}
+  .btn.spin .s,.btn.pass .s,.btn.raise .s{display:none}
+  .btn kbd{display:none}
+  .pop{right:auto;left:0}
+}
+
+/* ── v4: 버튼을 오른쪽 세로 배치 ── */
+#app{max-width:1320px}
+.arena{grid-template-columns:1fr minmax(300px,1.25fr) 1fr 210px}
+body.auto .arena{grid-template-columns:1fr minmax(300px,1.3fr) 1fr}
+.arena .actions{display:flex;flex-direction:column;gap:10px;margin:0;max-width:none;width:auto}
+.arena .btn.fire{flex:1;flex-direction:column;align-items:flex-start;justify-content:space-between;grid-row:auto;min-height:150px}
+.arena .btn.fire .t{font-size:38px}
+.arena .btn{padding:12px 14px}
+body.auto .arena .actions{display:none}
+.arena .btn:not(.fire) .s{letter-spacing:.06em;white-space:nowrap}
+.arena .btn:not(.fire) .t{white-space:nowrap}
+.chip{white-space:nowrap}
+@media (max-width:480px){.chip .ru{display:none}}
+.spectate{margin-top:14px}
+
+@media (max-width:699px){
+  .arena{grid-template-columns:1fr 1fr;grid-template-areas:"stage stage" "act act" "a b"}
+  .arena .actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .arena .btn.fire{grid-column:1 / -1}
+}
+
+/* ── v5: 암시장 ── */
+.sbank{font-family:var(--f-ru);font-weight:400;color:var(--brass2);font-size:12px}
+body.auto #shopWrap{display:none}
+.pop.shop{width:320px}
+.pop .pl:first-child{font-family:var(--f-ru);letter-spacing:.2em;color:var(--brass)}
+.si{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px dashed var(--line)}
+.si:first-child{border-top:0}
+.si .ic{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;flex:none;font-family:var(--f-ru);font-size:13px;background:rgba(255,255,255,.04);border:1px solid var(--line2)}
+.si .tx{flex:1;min-width:0}
+.si .nm{font-weight:700;font-size:13.5px}
+.si .ds{font-size:11.5px;color:var(--muted);line-height:1.45;margin-top:2px}
+.si .ds em{font-style:normal;color:#ff8a6a}
+.si button{flex:none;min-width:78px;border:1px solid #8a6a2a;background:linear-gradient(180deg,#3a2c12,#1e160a);color:var(--brass2);border-radius:8px;padding:8px 8px;font-family:var(--f-ru);font-size:12px;cursor:pointer}
+.si button:hover:not(:disabled){filter:brightness(1.25)}
+.si button:disabled{opacity:.35;cursor:not-allowed}
+.si.owned button{border-color:#2f6a45;color:#7fe0a0;background:transparent}
+
+/* ── v6: 내 대사 / 이모티콘 ── */
+.ibtn.wide{width:100%;justify-content:space-between;border-radius:10px}
+.vcur{font-size:11px;color:var(--brass2)}
+.emotes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:2px}
+.emotes button{font-size:21px;line-height:1;padding:7px 0;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.35);cursor:pointer;transition:transform .12s,background .2s}
+.emotes button:hover:not(:disabled){transform:translateY(-2px) scale(1.08);background:rgba(214,166,78,.12)}
+.emotes button:disabled{opacity:.35;cursor:default}
+.bubble.emo{font-size:40px;line-height:1;padding:6px 12px;background:rgba(239,227,200,.95)}
+.bubble.emo.show{animation:emoPop .45s cubic-bezier(.2,1.6,.4,1)}
+@keyframes emoPop{0%{transform:translate(-50%,10px) scale(.4)}100%{transform:translate(-50%,0) scale(1)}}
+.vcard{width:min(760px,100%);max-height:92vh;display:flex;flex-direction:column;background:#15100d;border:1px solid var(--line2);border-radius:18px;padding:20px 22px;box-shadow:0 30px 80px rgba(0,0,0,.8)}
+.vhead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.vtitle{font-family:var(--f-big);font-size:30px;margin-top:6px}
+.vsel{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.vsel select{background:#221a14;border:1px solid var(--line2);color:var(--text);border-radius:8px;padding:8px 10px;font-size:14px;font-family:var(--f-kr)}
+.vhint{font-size:12px;color:var(--muted);margin:12px 0;line-height:1.6}
+.vhint b{color:var(--brass2)}
+.vform{overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;padding-right:4px;flex:1}
+.vf label{display:block;font-size:12px;font-weight:700;color:var(--brass2);margin-bottom:4px}
+.vf label small{color:var(--dim);font-weight:400;margin-left:4px}
+.vf textarea{width:100%;min-height:58px;resize:vertical;background:#0d0a08;border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:var(--f-kr);font-size:13px;line-height:1.5;padding:7px 9px}
+.vf textarea:focus{outline:none;border-color:var(--brass)}
+.vf.sec{grid-column:1/-1;font-family:var(--f-ru);font-size:10.5px;letter-spacing:.25em;color:var(--dim);border-top:1px dashed var(--line);padding-top:10px;margin-top:4px}
+.vfoot{display:flex;gap:10px;justify-content:flex-end;align-items:center;margin-top:14px}
+.vstate{margin-right:auto;font-size:12px;color:var(--muted)}
+.vstate.edited{color:#ffb86a}
+.vtop{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.vrand{font-size:13px;font-weight:700;color:var(--brass2);display:flex;align-items:center;gap:7px;cursor:pointer}
+.vrand input{width:17px;height:17px;accent-color:#d6a64e}
+.vrand small{font-weight:400;color:var(--muted)}
+.vcard.rand .vform{opacity:.45;pointer-events:none}
+.vcard.rand .vsel{opacity:.4;pointer-events:none}
+.seg button:disabled{opacity:.4;cursor:not-allowed}
+.vcard .p-btn:not(.ghost),.tour-card .p-btn:not(.ghost){background:linear-gradient(180deg,#e0b25c,#a67a2a);color:#1a1108}
+@media (max-width:699px){.vform{grid-template-columns:1fr}.emotes{grid-column:1/-1;grid-template-columns:repeat(8,1fr)}.emotes button{font-size:18px}}
 </style>
 </head>
 <body>
@@ -330,8 +480,22 @@ body.auto .spectate{display:block}
     <div class="ctrls">
       <div class="seg" id="modeSeg">
         <button data-mode="vs">1:1 대결</button>
+        <button data-mode="tour">토너먼트</button>
         <button data-mode="auto">AI 관전</button>
       </div>
+      <div class="popwrap"><button class="ibtn" id="setBtn">⚙ 설정</button>
+        <div class="pop" id="setPop">
+          <div class="pl">리볼버</div>
+          <div class="seg" id="gunSeg"><button data-gun="5">5연발</button><button data-gun="6">6연발</button><button data-gun="7">나강 7연발</button></div>
+          <div class="pdesc" id="gunDesc"></div>
+          <div class="pl">시간 제한 (사람 차례 15초)</div>
+          <div class="seg" id="timerSeg"><button data-t="1">켜기</button><button data-t="0">끄기</button></div>
+          <div class="pdesc" id="timerDesc"></div>
+          <div class="pl">내 대사</div>
+          <button class="ibtn wide" id="voiceBtn">대사 유형 · 커스텀 편집 <span id="voiceCur" class="vcur"></span></button>
+        </div></div>
+      <div class="popwrap" id="shopWrap"><button class="ibtn" id="shopBtn">암시장 <span id="shopBank" class="sbank"></span></button>
+        <div class="pop shop" id="shopPop"><div class="pl">ЧЁРНЫЙ РЫНОК · 암시장</div><div id="shopList"></div></div></div>
       <button class="ibtn" id="pauseBtn">❚❚ 일시정지</button>
       <button class="ibtn" id="musicBtn" title="음악 (M)"><span class="bars"><i></i><i></i><i></i></span> 음악</button>
     </div>
@@ -339,18 +503,18 @@ body.auto .spectate{display:block}
 
   <main class="arena">
     <section class="seat" id="seat0">
-      <div class="bubble"></div><div class="turnflag">ХОД · 차례</div><div class="killed">УБИТ</div><div class="bleed"></div>
+      <div class="bubble"></div><div class="gainpop"></div><div class="turnflag">ХОД · 차례</div><div class="killed">УБИТ</div><div class="bleed"></div>
       <div class="inner">
         <div class="portrait"><span class="ini"></span></div>
         <div class="sname"></div>
         <div class="chip"></div>
         <div class="sdesc"></div>
-        <div class="smeta"><span class="token">SPIN ×1</span><span class="stat"></span></div>
+        <div class="smeta"><span class="tokens"></span><span class="stat"></span></div>
       </div>
     </section>
 
     <section class="stage">
-      <div class="stage-top"><span class="rlbl" id="roundLbl">РАУНД 0</span><span class="holder" id="holder"></span></div>
+      <div class="stage-top"><span class="rlbl" id="roundLbl">РАУНД 0</span><span class="gunlbl" id="gunLbl"></span><span class="pot" id="pot">₽ 0</span></div>
       <div class="cyl-area">
         <div class="arrow l" id="arL"></div><div class="arrow r" id="arR"></div>
         <svg class="frame" viewBox="0 0 120 56"><path d="M4 56 Q8 30 34 22 L86 22 Q112 30 116 56" fill="none" stroke="#2b2e33" stroke-width="10" stroke-linecap="round"/><path d="M4 56 Q8 30 34 22 L86 22 Q112 30 116 56" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="2"/></svg>
@@ -365,29 +529,34 @@ body.auto .spectate{display:block}
       </div>
       <div class="warn" id="warn"><span>⚠ ПОСЛЕДНИЙ ПАТРОН // 마지막 약실 // ПОСЛЕДНИЙ ПАТРОН // 마지막 약실 //</span></div>
       <div class="msg" id="msg"></div>
+      <div class="tbar" id="tbar"><i></i></div>
     </section>
 
     <section class="seat" id="seat1">
-      <div class="bubble"></div><div class="turnflag">ХОД · 차례</div><div class="killed">УБИТ</div><div class="bleed"></div>
+      <div class="bubble"></div><div class="gainpop"></div><div class="turnflag">ХОД · 차례</div><div class="killed">УБИТ</div><div class="bleed"></div>
       <div class="inner">
         <div class="portrait"><span class="ini"></span></div>
         <div class="sname"></div>
         <div class="chip"></div>
         <div class="sdesc"></div>
-        <div class="smeta"><span class="token">SPIN ×1</span><span class="stat"></span></div>
+        <div class="smeta"><span class="tokens"></span><span class="stat"></span></div>
       </div>
     </section>
+  <div class="actions">
+      <button class="btn fire" id="fireBtn" disabled><span><span class="t">방아쇠</span><span class="s">СПУСК · 당기기</span></span><kbd>F</kbd></button>
+      <button class="btn spin" id="spinBtn" disabled><span><span class="t">스핀</span><span class="s">КРУТИТЬ · 초기화</span></span><kbd>S</kbd></button>
+      <button class="btn pass" id="passBtn" disabled><span><span class="t">양보</span><span class="s">ПАС · 그대로</span></span><kbd>D</kbd></button>
+      <button class="btn raise" id="raiseBtn" disabled><span><span class="t">+1발</span><span class="s">ЕЩЁ · 판돈×2</span></span><kbd>R</kbd></button>
+    <div class="emotes" id="emotes"></div>
+    </div>
   </main>
 
-  <div class="actions">
-    <button class="btn fire" id="fireBtn" disabled><span><span class="t">방아쇠</span><span class="s">СПУСК · FIRE</span></span><kbd>F</kbd></button>
-    <button class="btn spin" id="spinBtn" disabled><span><span class="t">스핀</span><span class="s">КРУТИТЬ · 1회</span></span><kbd>S</kbd></button>
-  </div>
+
   <div class="spectate">— НАБЛЮДЕНИЕ · 관전 중 —</div>
 
   <div class="lower">
     <div class="card"><h3>ЖУРНАЛ <small>기록</small></h3><ul class="log" id="log"></ul></div>
-    <div class="card"><h3>ДОСЬЕ <small>AI 성격별 전적</small></h3><table class="lb" id="lb"></table></div>
+    <div class="card"><h3>ДОСЬЕ <small>AI 성격별 전적</small></h3><table class="lb" id="lb"></table><div class="hist-h">약실별 사망 분포</div><div class="hist" id="hist"></div><div class="me" id="meStat"></div></div>
   </div>
 </div>
 
@@ -421,6 +590,18 @@ body.auto .spectate{display:block}
   </div>
 </div>
 
+<div class="ov hide" id="tourOv"><div class="tour-card"><div class="tc-ru" id="tcRu"></div><div class="tc-h" id="tcH"></div><div class="tc-p" id="tcP"></div><div class="tc-btns"><button class="p-btn ghost" id="tcNo">취소</button><button class="p-btn" id="tcBtn">계속</button></div></div></div>
+<div class="window" aria-hidden="true"><canvas id="snow" width="150" height="210"></canvas><div class="wframe"></div></div>
+<div class="ov hide" id="voiceOv">
+  <div class="vcard">
+    <div class="vhead"><div><div class="tc-ru">ГОЛОС · 내 대사</div><div class="vtitle">테이블에서 할 말</div></div>
+      <div class="vtop"><label class="vrand"><input type="checkbox" id="voiceRand"> 프리셋 랜덤 <small>(광전사 · 도박꾼 · 도발꾼)</small></label><label class="vsel">유형 <select id="voicePreset"></select></label></div></div>
+    <div class="vhint">프리셋을 고르면 아래 칸이 그 AI의 대사로 채워진다. 그대로 저장하면 프리셋, 고쳐서 저장하면 커스텀. 한 줄에 대사 하나, <b>{opp}</b>는 상대 이름.</div>
+    <div class="vform" id="voiceForm"></div>
+    <div class="vfoot"><span id="voiceState" class="vstate"></span><button class="p-btn ghost" id="voiceCancel">취소</button><button class="p-btn" id="voiceSave">저장</button></div>
+  </div>
+</div>
+<div id="pauseTag"></div>
 <div id="deathBg"></div>
 <div id="blood"><canvas id="bStain"></canvas><canvas id="bFx"></canvas></div>
 <div id="death"><div class="dz-top">УБИТ · 사망</div><div class="dz-name" id="dzName"></div><div class="dz-sub" id="dzSub"></div><div class="dz-quote" id="dzQuote"></div></div>
@@ -431,11 +612,10 @@ body.auto .spectate{display:block}
   <h4>DEBUG</h4>
   <div class="dsec"><div class="dl">실시간 상태</div><div id="dbgLive"></div></div>
   <div class="dsec"><div class="dl">상태 수정</div>
-    <div class="dr"><label>실탄 격발 번호 (1~6)</label><input type="number" id="dBullet" min="1" max="6"></div>
-    <div class="dr"><label>현재 약실 (1~6)</label><input type="number" id="dShot" min="1" max="6"></div>
+    <div class="dr"><label>실탄 격발 번호 (예: 3,5)</label><input type="text" id="dBullet" style="width:70px"></div>
+    <div class="dr"><label>현재 약실 (1~N)</label><input type="number" id="dShot" min="1" max="7"></div>
     <div class="dr"><label>턴</label><select id="dTurn"><option value="0">좌석 A</option><option value="1">좌석 B</option></select></div>
-    <div class="dr"><label>A 스핀 사용</label><input type="checkbox" id="dSpin0"></div>
-    <div class="dr"><label>B 스핀 사용</label><input type="checkbox" id="dSpin1"></div>
+    <div class="dr"><label>아이템 전부 복구</label><input type="checkbox" id="dItems"></div>
     <button class="db" id="dApply">▶ 상태 적용</button>
   </div>
   <div class="dsec"><div class="dl">AI 성격</div>
@@ -445,7 +625,7 @@ body.auto .spectate{display:block}
   </div>
   <div class="dsec"><div class="dl">AI 판단 미리보기</div><div id="dbgAi" style="color:#aaa;line-height:1.6;white-space:pre-wrap"></div></div>
   <div class="dsec"><div class="dl">초기화</div>
-    <button class="db" id="dReset" style="color:#ff6a6a">✕ 사망 횟수 초기화</button>
+    <button class="db" id="dReset" style="color:#ff6a6a">✕ 사망·소지금 초기화</button>
     <button class="db" id="dResetStats" style="color:#ff6a6a">✕ 성격 전적 초기화</button>
   </div>
 </div>
@@ -695,127 +875,196 @@ const Music = {
 // 심장 박동 (긴장)
 const Heart = {
   timer: null, rate: 0,
-  set(chamber) {
-    const r = chamber >= 6 ? 140 : chamber >= 5 ? 108 : chamber >= 4 ? 82 : 0;
+  set(p) {
+    const r = p >= 1 ? 140 : p >= .5 ? 108 : p >= 1 / 3 ? 82 : 0;
     if (r === this.rate) return; this.rate = r; clearTimeout(this.timer);
     if (!r) return;
-    const beat = () => { if (!this.rate) return; A.heart(chamber >= 6 ? 1.1 : .8); this.timer = setTimeout(beat, 60000 / this.rate); };
+    const beat = () => { if (!this.rate) return; A.heart(this.rate >= 140 ? 1.1 : .8); this.timer = setTimeout(beat, 60000 / this.rate); };
     beat();
   },
   stop() { this.rate = 0; clearTimeout(this.timer); },
 };
 
-// ══════════════════ AI 성격 ══════════════════
-// 최적 전략 (게임이론 DP): V = 현재 차례인 사람이 이번 판에 죽을 확률
-const DP = {};
-function optimal(k, me, op) {
-  const key = k + '' + (+me) + (+op); if (DP[key]) return DP[key];
-  const p = 1 / (6 - k);
-  const f = k === 5 ? 1 : p + (1 - p) * (1 - optimal(k + 1, op, me).v);
-  let r = { v: f, a: 'fire' };
-  if (me) { const s = 1 - optimal(0, op, false).v; if (s < f - 1e-9) r = { v: s, a: 'spin' }; }
-  return (DP[key] = r);
-}
+// ══════════════════ 추가 효과음 ══════════════════
+Object.assign(A, {
+  misfire() { if (!this.ctx) return; this.dry(); const t = this.now() + .03, b = this.bus(1, 0, .3);
+    this.burst(t, .35, 'lowpass', 900, .7, .35, b); this.thump(t, 140, 60, .12, .5, b); },
+  coin(n = 3) { if (!this.ctx) return; const t = this.now(), b = this.bus(.8, .2, .25);
+    for (let i = 0; i < n; i++) this.modal(t + i * .07 + Math.random() * .03, [3400, 5200, 7900], [.12, .09, .06], [.12, .08, .05], b, .05); },
+  tick() { if (!this.ctx) return; const t = this.now(), b = this.bus(.7, 0, 0); this.modal(t, [1200, 2400], [.03, .02], [.25, .1], b); },
+  glass() { if (!this.ctx) return; const t = this.now(), b = this.bus(.9, .15, .3);
+    this.modal(t, [2600, 4100, 6300], [.35, .25, .15], [.14, .09, .05], b); this.modal(t + .09, [2650, 4150], [.25, .18], [.08, .05], b);
+    this.burst(t + .35, .25, 'lowpass', 500, .8, .25, b); },
+  slide() { if (!this.ctx) return; const t = this.now(), b = this.bus(1, 0, .2), s = this.noiseSrc(t, .4), f = this.ctx.createBiquadFilter();
+    f.type = 'bandpass'; f.Q.value = 1.2; f.frequency.setValueAtTime(700, t); f.frequency.exponentialRampToValueAtTime(260, t + .38);
+    const g = this.env(t, .35, .36, .06); s.connect(f); f.connect(g); g.connect(b); this.thump(t + .36, 150, 70, .06, .4, b); },
+  crowdStart() {
+    if (!this.ctx || this.crowd) return; const c = this.ctx, g = c.createGain(); g.gain.value = 0; g.connect(this.master);
+    const voices = [];
+    for (let v = 0; v < 6; v++) { const s = c.createBufferSource(); s.buffer = this.noise; s.loop = true;
+      const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 280 + v * 170; f.Q.value = 5;
+      const vg = c.createGain(); vg.gain.value = 0; s.connect(f); f.connect(vg); vg.connect(g); s.start(); voices.push(vg); }
+    const iv = setInterval(() => { const t = this.now(); voices.forEach(vg => vg.gain.setTargetAtTime(Math.random() < .45 ? 0 : Math.random(), t, .1)); }, 200);
+    this.crowd = { g, iv }; this.crowdLevel(this.crowdBase = .05, 2);
+  },
+  crowdLevel(v, time = .8) { if (!this.crowd) return; const g = this.crowd.g.gain, t = this.now(); g.cancelScheduledValues(t); g.setValueAtTime(g.value, t); g.linearRampToValueAtTime(v, t + time); },
+  crowdStop() { if (!this.crowd) return; const cr = this.crowd; this.crowdLevel(0, .5); this.crowd = null; setTimeout(() => { clearInterval(cr.iv); cr.g.disconnect(); }, 700); },
+  gasp() { if (!this.crowd) return; this.crowdLevel(.2, .08); setTimeout(() => this.crowdLevel(this.crowdBase, 2), 900); },
+});
 
+// ══════════════════ 상수 ══════════════════
+const GUNS = {
+  5: { ko: '스너브노즈', ru: 'КОРОТЫШ', desc: '5연발 · 첫 격발부터 20%. 빠르고 잔인하다.' },
+  6: { ko: '리볼버', ru: 'РЕВОЛЬВЕР', desc: '6연발 · 표준 룰렛.' },
+  7: { ko: '나강 M1895', ru: 'НАГАН', desc: '7연발 · 러시아 제국군 제식 리볼버. 오래 버틴다.' },
+};
+const ANTE = 100, LOAN = 1000, FLOORS = 7;
+const TOUR_TIERS = [['drunk', 'coward'], ['gambler', 'mimic'], ['fatalist', 'berserker'], ['veteran', 'calculator'], ['provocateur'], ['mindgamer'], ['strategist']];
+let settings = Object.assign({ gun: 6, timer: true }, S.get('settings', {}));
+if (!GUNS[settings.gun]) settings.gun = 6;
+
+// ══════════════════ 최적 전략 (게임이론 DP) ══════════════════
+// V = 차례인 사람이 이번 판에 죽을 확률. me/op = 남은 아이템 비트 (1 스핀, 2 양보, 4 +1발)
+const DP = {};
+function optimal(N, k, b, me, op) {
+  const key = N + ',' + k + ',' + b + ',' + me + ',' + op; if (DP[key]) return DP[key];
+  const rem = N - k, p = b / rem, opts = [];
+  opts.push(['fire', p >= 1 ? 1 : p + (1 - p) * (1 - optimal(N, k + 1, b, op, me).v)]);
+  if (me & 2) opts.push(['pass', 1 - optimal(N, k, b, op, me & ~2).v]);
+  if (me & 1) opts.push(['spin', 1 - optimal(N, 0, b, op, me & ~1).v]);
+  if ((me & 4) && b + 1 < rem) opts.push(['raise', 1 - optimal(N, k, b + 1, op, me & ~4).v]);
+  let best = opts[0]; for (const o of opts) if (o[1] < best[1] - 1e-9) best = o;
+  return (DP[key] = { a: best[0], v: best[1] });
+}
+const maskOf = s => (s.used.spin ? 0 : 1) | (s.used.pass ? 0 : 2) | (s.used.raise ? 0 : 4);
+function escape(c) { if (c.p >= .5 && c.can.pass) return 'pass'; if (c.can.spin) return 'spin'; if (c.can.pass) return 'pass'; return 'fire'; }
+function weighted(c, w) { const opts = Object.entries(w).filter(([a]) => a === 'fire' || c.can[a]); let t = opts.reduce((x, [, v]) => x + v, 0), r = Math.random() * t;
+  for (const [a, v] of opts) { if ((r -= v) <= 0) return a; } return 'fire'; }
+
+// ══════════════════ AI 성격 ══════════════════
 const PERS = {
   berserker: { ko: '광전사', ru: 'БЕРСЕРК', color: '#ff5a3d', tempo: [250, 700],
-    desc: '스핀은 겁쟁이의 도구. 마지막 약실이 아니면 무조건 당긴다.',
-    decide: c => c.chamber >= 6 ? 'spin' : 'fire',
-    lines: { intro: ['빨리 시작하지.', '피가 끓는군.'], fire: ['하하! 당겨!', '겁 따윈 없다.', '이게 사는 맛이지!'], spin: ['…전략적 후퇴다.', '딱 한 번만이다.'], survive: ['봤냐?', '다음은 네 차례다, {opp}.'], die: ['후회는… 없다…'], win: ['약해빠진 놈.'] } },
+    desc: '피할 줄 모른다. 오히려 초반에 한 발 더 넣고 판을 키운다.',
+    decide: c => c.p >= 1 ? escape(c) : (c.can.raise && c.k <= 1 && c.b === 1 && Math.random() < .6) ? 'raise' : 'fire',
+    lines: { intro: ['빨리 시작하지.', '피가 끓는군.'], fire: ['하하! 당겨!', '겁 따윈 없다.', '이게 사는 맛이지!'], spin: ['…전략적 후퇴다.'], pass: ['받아라. 이것도 싸움이다.'], raise: ['한 발로는 심심하지!', '판을 키우자고!'], survive: ['봤냐?', '다음은 네 차례다, {opp}.'], die: ['후회는… 없다…'], win: ['약해빠진 놈.'] } },
   coward: { ko: '겁쟁이', ru: 'ТРУС', color: '#b8c4a0', tempo: [1600, 3600],
-    desc: '두 번째 약실부터 손이 떨린다. 스핀을 너무 일찍 써버리는 게 약점.',
-    decide: c => c.chamber === 1 ? (Math.random() < .1 ? 'spin' : 'fire') : (c.chamber >= 6 || Math.random() < .75 ? 'spin' : 'fire'),
-    lines: { intro: ['저, 저는 그냥 구경만…', '집에 가고 싶어…'], fire: ['제, 제발…', '엄마…', '눈 감고 당길게요…'], spin: ['돌려! 돌려야 해!', '안 돼, 못 해!'], survive: ['사, 살았다…', '심장이 멎는 줄…'], die: ['싫어…'], win: ['내가… 이겼어?'] } },
+    desc: '두 번째 약실부터 손이 떨린다. 아이템을 너무 일찍 써버리는 게 약점.',
+    decide: c => (c.can.raise && c.p < 1 && Math.random() < .04) ? 'raise' // 공포에 질린 헛손질 (드묾)
+      : c.k === 0 ? (Math.random() < .1 ? escape(c) : 'fire') : (c.p >= .25 && Math.random() < .8 ? escape(c) : 'fire'),
+    lines: { intro: ['저, 저는 그냥 구경만…', '집에 가고 싶어…'], fire: ['제, 제발…', '엄마…', '눈 감고 당길게요…'], spin: ['돌려! 돌려야 해!', '안 돼, 못 해!'], pass: ['너, 너가 먼저 해!', '저 말고요!'], raise: ['제, 제발… 이번엔 저쪽에서 터져라…', '뭐라도 해야 할 것 같아서… 제발 저한테만 오지 마…', '눈 감고 넣었어요… 제발, 제발 저쪽이길…'], survive: ['사, 살았다…', '심장이 멎는 줄…'], die: ['싫어…'], win: ['내가… 이겼어?'] } },
   gambler: { ko: '도박꾼', ru: 'ИГРОК', color: '#e8c14a', tempo: [600, 1400],
-    desc: '첫 약실은 무조건 당기고, 그다음부터는 동전 던지기로 정한다.',
-    decide: c => c.chamber === 1 ? 'fire' : c.chamber >= 6 ? 'spin' : (Math.random() < .5 ? 'spin' : 'fire'),
-    lines: { intro: ['자, 판을 벌여볼까.', '오늘 운은 좋은 편이야.'], fire: ['앞면이 나왔군.', '판돈을 올리지.', '홀짝이지 뭐.'], spin: ['패를 바꾸지.', '셔플.'], survive: ['하우스는 늘 이기지.'], die: ['올인… 실패.'], win: ['잭팟.'] } },
+    desc: '첫 약실은 무조건 당기고, 그다음부터는 주사위를 굴려 정한다.',
+    decide: c => c.p >= 1 ? escape(c) : c.k === 0 ? 'fire' : weighted(c, { fire: .45, spin: .2, pass: .2, raise: .15 }),
+    lines: { intro: ['자, 판을 벌여볼까.', '오늘 운은 좋은 편이야.'], fire: ['앞면이 나왔군.', '홀짝이지 뭐.'], spin: ['패를 바꾸지.', '셔플.'], pass: ['이번 패는 넘기지.'], raise: ['레이즈.', '판돈을 올리지.'], survive: ['하우스는 늘 이기지.'], die: ['올인… 실패.'], win: ['잭팟.'] } },
   calculator: { ko: '계산기', ru: 'СЧЁТЧИК', color: '#4fd18b', tempo: [900, 1500],
-    desc: '사망 확률 33%를 넘으면 스핀. 감정 없이 숫자만 본다.',
-    decide: c => c.chamber >= 4 ? 'spin' : 'fire',
-    lines: { intro: ['변수 입력 완료.'], fire: ['사망 확률 {p}%. 허용 범위.', '계산 완료. 격발.'], spin: ['{p}%는 임계치 초과.', '기대값상 스핀이 우월.'], survive: ['예측대로.'], die: ['오차… 범위…'], win: ['확률은 거짓말하지 않는다.'] } },
+    desc: '사망 확률 33%를 넘으면 피한다. 상대가 피할 수단이 없을 때만 판을 키운다.',
+    decide: c => c.p >= 1 / 3 ? escape(c) : (c.can.raise && !c.oppEsc && c.p <= .25) ? 'raise' : 'fire',
+    lines: { intro: ['변수 입력 완료.'], fire: ['사망 확률 {p}%. 허용 범위.', '계산 완료. 격발.'], spin: ['{p}%는 임계치 초과.', '기대값상 스핀이 우월.'], pass: ['{p}%는 네 몫이다.'], raise: ['네 회피 수단은 0. 변수를 늘린다.'], survive: ['예측대로.'], die: ['오차… 범위…'], win: ['확률은 거짓말하지 않는다.'] } },
   strategist: { ko: '전략가', ru: 'СТРАТЕГ', color: '#5aa9ff', tempo: [1100, 2300],
-    desc: '게임 이론으로 푼 최적해를 따른다. 스핀은 정말 필요할 때까지 아낀다.',
-    decide: c => optimal(c.k, true, c.oppCanSpin).a,
-    lines: { intro: ['최적해는 이미 나와 있다.'], fire: ['이 수가 최선이다.', '네가 스핀을 쓸 때까지 기다리지.'], spin: ['턴을 넘기겠다.', '{opp}, 이제 네 몫이다.'], survive: ['수읽기대로.'], die: ['체크메이트… 당했군.'], win: ['게임 이론의 승리다.'] } },
+    desc: '게임 이론으로 푼 최적해를 따른다. 모든 아이템의 가치를 계산한다.',
+    decide: c => optimal(c.N, c.k, c.b, maskOf(c.seat), maskOf(c.opp)).a,
+    lines: { intro: ['최적해는 이미 나와 있다.'], fire: ['이 수가 최선이다.', '아이템은 아껴두지.'], spin: ['턴을 넘기겠다.', '{opp}, 이제 네 몫이다.'], pass: ['이 확률은 네가 짊어져라.'], raise: ['이 한 발이 승부를 가른다.'], survive: ['수읽기대로.'], die: ['체크메이트… 당했군.'], win: ['게임 이론의 승리다.'] } },
   fatalist: { ko: '운명론자', ru: 'ФАТАЛИСТ', color: '#b07cff', tempo: [900, 1900],
-    desc: '판마다 불길한 숫자를 하나 정한다. 그 약실에서만 스핀.',
-    decide: c => (c.chamber === c.seat.n || c.chamber >= 6) ? 'spin' : 'fire',
-    lines: { intro: ['오늘 내 불길한 숫자는 {n}.', '{n}번… 오늘은 {n}번이 느낌이 안 좋아.'], fire: ['운명이 정할 일.', '신이 원한다면.'], spin: ['{n}… 불길한 숫자다.', '이 숫자에선 당기지 않는다.'], survive: ['아직 때가 아니군.'], die: ['정해진 일이었다.'], win: ['운명은 너를 택했다.'] } },
+    desc: '판마다 불길한 숫자를 하나 정한다. 그 약실에서만 피한다.',
+    decide: c => (c.chamber === c.seat.n || c.p >= 1) ? escape(c) : 'fire',
+    lines: { intro: ['오늘 내 불길한 숫자는 {n}.', '{n}번… 오늘은 {n}번이 느낌이 안 좋아.'], fire: ['운명이 정할 일.', '신이 원한다면.'], spin: ['{n}… 불길한 숫자다.'], pass: ['{n}번은 내 몫이 아니다.'], raise: ['운명이 늦장을 부리는군. 한 발 거들어주지.', '정해진 결말이라면… 조금 앞당겨도 되겠지.', '신이 주사위를 굴리지 않는다면, 내가 한 발 얹어주마.'], survive: ['아직 때가 아니군.'], die: ['정해진 일이었다.'], win: ['운명은 너를 택했다.'] } },
   mimic: { ko: '따라쟁이', ru: 'ЭХО', color: '#ff8fc8', tempo: [700, 1600],
     desc: '상대가 방금 한 행동을 그대로 따라 한다. 생각하는 시간까지.',
-    decide: c => c.chamber >= 6 ? 'spin' : (c.oppLast === 'spin' ? 'spin' : 'fire'),
-    lines: { intro: ['네 거울이 되어주지, {opp}.'], fire: ['네가 당겼으니 나도.', '따라 해볼까.'], spin: ['네가 돌렸으니 나도.'], survive: ['똑같이 살아남았네.'], die: ['따라… 가는 건가.'], win: ['거울은 깨지지 않는다.'] } },
+    decide: c => c.p >= 1 ? escape(c) : (c.oppLast && c.oppLast !== 'fire' && c.can[c.oppLast]) ? c.oppLast : 'fire',
+    lines: { intro: ['네 거울이 되어주지, {opp}.'], fire: ['네가 당겼으니 나도.', '따라 해볼까.'], spin: ['네가 돌렸으니 나도.'], pass: ['너도 넘겼잖아.'], raise: ['너도 넣었으니 나도.'], survive: ['똑같이 살아남았네.'], die: ['따라… 가는 건가.'], win: ['거울은 깨지지 않는다.'] } },
   mindgamer: { ko: '심리전', ru: 'ПСИХОЛОГ', color: '#ff9a3c', tempo: [1200, 2600],
-    desc: '상대가 오래 망설이면 더 과감해진다. 상대 스핀이 남아있으면 신중하게.',
+    desc: '상대가 오래 망설이면 판을 키워 압박한다. 사람의 습관을 기억한다.',
     decide: c => {
-      if (c.chamber >= 6) return 'spin';
-      if (c.oppThink > 2500) return c.chamber >= 5 ? 'spin' : 'fire';
-      if (c.oppCanSpin) return c.chamber >= 4 ? 'spin' : 'fire';
-      return optimal(c.k, true, false).a; },
-    lines: { intro: ['네 얼굴부터 읽어볼까.'], fire: ['손이 떨리던데, {opp}?', '눈빛이 흔들리는군.', '망설임이 다 보여.'], spin: ['서두를 필요 없지.', '여기선 넘기지.'], survive: ['표정 관리 잘 봐.'], die: ['읽혔…나.'], win: ['처음부터 보였어.'] } },
+      if (c.p >= 1) return escape(c);
+      if (c.oppThink > 2500) { if (c.can.raise && c.p <= .34) return 'raise'; return c.p >= .5 ? escape(c) : 'fire'; }
+      if (c.opp.kind === 'human' && prof.n >= 3) { const m = profEsc(); if (c.chamber < m && c.p < .5) return 'fire'; }
+      if (c.oppEsc) return c.p >= 1 / 3 ? escape(c) : 'fire';
+      return optimal(c.N, c.k, c.b, maskOf(c.seat), maskOf(c.opp)).a; },
+    lines: { intro: ['네 얼굴부터 읽어볼까.'], fire: ['손이 떨리던데, {opp}?', '망설임이 다 보여.'], spin: ['서두를 필요 없지.'], pass: ['자, 네 표정을 보여줘.'], raise: ['떨고 있군. 한 발 더 넣어주지.'], survive: ['표정 관리 잘 봐.'], die: ['읽혔…나.'], win: ['처음부터 보였어.'] } },
   veteran: { ko: '노병', ru: 'ВЕТЕРАН', color: '#9fb3c8', tempo: [1000, 2000],
     desc: '지금까지의 사망 기록을 기억한다. 가장 많이 죽은 약실을 피한다 (도박사의 오류).',
-    decide: c => (c.chamber === c.seat.n || c.chamber >= 5) ? 'spin' : 'fire',
-    lines: { intro: ['내 경험상 {n}번이 제일 위험해.', '{n}번에서 많이들 죽었지.'], fire: ['아직은 괜찮아.', '이 정도는 수백 번 해봤다.'], spin: ['{n}번… 여기서 많이 죽었지.', '이 자리는 안 좋아.'], survive: ['전장보다 쉽군.'], die: ['결국… 여기까지.'], win: ['또 살아남았군.'] } },
+    decide: c => (c.chamber === c.seat.n || c.p >= .5) ? escape(c) : 'fire',
+    lines: { intro: ['내 경험상 {n}번이 제일 위험해.', '{n}번에서 많이들 죽었지.'], fire: ['아직은 괜찮아.', '이 정도는 수백 번 해봤다.'], spin: ['{n}번… 여기서 많이 죽었지.'], pass: ['이 자리는 안 좋아. 네가 앉아라.'], survive: ['전장보다 쉽군.'], die: ['결국… 여기까지.'], win: ['또 살아남았군.'] } },
   drunk: { ko: '술꾼', ru: 'ПЬЯНИЦА', color: '#e0703a', tempo: [300, 3800],
     desc: '보드카 한 병째. 판단이 오락가락하고 마지막 약실도 가끔 헷갈린다.',
     decide: c => {
-      if (c.chamber >= 6) return Math.random() < .2 ? 'fire' : 'spin';
-      if (Math.random() < .25) return Math.random() < .5 ? 'spin' : 'fire';
-      return c.chamber >= 5 ? 'spin' : 'fire'; },
-    lines: { intro: ['За здоровье! 건배!', '딸꾹… 누구세요?'], fire: ['딸꾹… 건배!', '보드카 한 잔 더!', '어… 이게 방아쇠야?'], spin: ['빙글빙글~', '세상이 돈다~'], survive: ['히끅… 살았네?'], die: ['건… 배…'], win: ['한 잔 더 해야겠군!'] } },
+      if (c.p >= 1) return Math.random() < .04 ? 'fire' : escape(c); // 4% 헛발질
+      if (Math.random() < .25) return weighted(c, { fire: 1, spin: 1, pass: 1, raise: .6 });
+      return c.p >= .5 ? escape(c) : 'fire'; },
+    lines: { intro: ['За здоровье! 건배!', '딸꾹… 누구세요?'], fire: ['딸꾹… 건배!', '보드카 한 잔 더!', '어… 이게 방아쇠야?'], spin: ['빙글빙글~', '세상이 돈다~'], pass: ['자, 너도 한 잔… 아니 한 발!'], raise: ['한 발 더! 한 잔 더!'], survive: ['히끅… 살았네?'], die: ['건… 배…'], win: ['한 잔 더 해야겠군!'] } },
   provocateur: { ko: '도발꾼', ru: 'ПРОВОКАТОР', color: '#ff4f7a', tempo: [500, 1300],
-    desc: '상대 스핀이 남아있으면 계속 당겨 압박하고, 상대가 스핀을 쓰면 부담을 떠넘긴다.',
+    desc: '상대의 회피 수단이 바닥나는 순간 한 발 더 넣어 몰아붙인다.',
     decide: c => {
-      if (c.chamber >= 6) return 'spin';
-      if (c.oppCanSpin) return c.chamber >= 5 ? 'spin' : 'fire';
-      return c.chamber >= 3 ? 'spin' : 'fire'; },
-    lines: { intro: ['{opp}, 손 떨리는 거 다 보여.'], fire: ['봐, 쉽잖아.', '네 차례다, 겁쟁이.'], spin: ['자, 부담은 네가 져.', '선물이다, {opp}.'], survive: ['떨리냐?'], die: ['웃기지… 마…'], win: ['말했잖아.'] } },
+      if (c.p >= 1) return escape(c);
+      if (!c.oppEsc && c.can.raise) return 'raise';
+      if (c.oppEsc) return c.p >= .5 ? escape(c) : 'fire';
+      return c.p >= 1 / 3 ? escape(c) : 'fire'; },
+    lines: { intro: ['{opp}, 손 떨리는 거 다 보여.'], fire: ['봐, 쉽잖아.', '네 차례다, 겁쟁이.'], spin: ['자, 부담은 네가 져.'], pass: ['선물이다, {opp}.'], raise: ['도망칠 곳이 없지? 한 발 더.', '이제 진짜 게임이다.'], survive: ['떨리냐?'], die: ['웃기지… 마…'], win: ['말했잖아.'] } },
 };
 const PERS_IDS = Object.keys(PERS);
 const NAMES = ['이반', '드미트리', '세르게이', '니콜라이', '알렉세이', '미하일', '유리', '보리스', '표도르', '빅토르', '아나톨리', '올가', '나탈리야', '타티야나', '스베틀라나', '이리나', '그리고리', '레프', '야코프', '바실리', '카탸', '안드레이'];
+const HURRY = ['빨리 해.', '손 떨리는 거 다 보여.', '시간 끌지 마.', '딜러, 시계 좀 봐.', '밤새 기다릴 순 없어.'];
+const GRUDGE = ['{opp}… 지난번 빚, 오늘 갚는다.', '또 만났군, {opp}. 이번엔 다를 거다.', '지난번엔 운이 좋았지, {opp}.'];
+const PAIRS = {
+  'coward|drunk': ['drunk', '겁쟁이 친구! 한 잔 하고 해!'], 'berserker|provocateur': ['berserker', '입만 산 놈, 오늘 끝장내주지.'],
+  'calculator|gambler': ['calculator', '도박꾼의 기대값은 음수다.'], 'mimic|strategist': ['strategist', '최적해를 따라 하겠다고? 해봐라.'],
+  'fatalist|veteran': ['veteran', '숫자 따위 믿지 마라, 젊은이.'], 'coward|mindgamer': ['mindgamer', '네 얼굴엔 다 쓰여 있어.'],
+  'berserker|coward': ['coward', '저, 저 사람이랑요…?'], 'drunk|strategist': ['drunk', '이봐 교수 양반! 딸꾹!'],
+  'gambler|provocateur': ['provocateur', '도박꾼? 그럼 판을 키워볼까.'], 'fatalist|mimic': ['fatalist', '거울 속에도 운명은 있지.'],
+};
 
 // ══════════════════ 상태 ══════════════════
 const state = {
-  mode: S.get('mode', 'vs'),
-  name: S.get('name', null),
-  seats: [null, null],
-  turn: 0, bullet: 1, shot: 0, P: 0, c0: 1, rot: 0,
-  busy: true, token: 0, round: S.get('round', 0), paused: false, started: false, debug: false,
-  lastAction: [null, null], lastThink: [0, 0], turnStart: 0, prevDeadAt: null,
+  mode: S.get('mode', 'vs'), name: S.get('name', null), N: settings.gun,
+  seats: [null, null], turn: 0, shot: 0, c0: 1, live: new Set(), rot: 0,
+  busy: true, busyLoad: false, over: false, token: 0, round: S.get('round', 0), paused: false, started: false, debug: false,
+  lastAction: [null, null], lastThink: [0, 0], turnStart: 0, pot: 0, gain: [0, 0],
 };
+if (!['vs', 'tour', 'auto'].includes(state.mode)) state.mode = 'vs';
 let deaths = S.get('deaths', null);
 if (!deaths) { deaths = { human: parseInt(S.raw('playerDeathCount')) || 0, ai: parseInt(S.raw('opponentDeathCount')) || 0 }; S.set('deaths', deaths); }
 let stats = S.get('stats', {});
-let killHist = S.get('killhist', [0, 0, 0, 0, 0, 0]);
+let killHist = S.get('killhist', []); while (killHist.length < 7) killHist.push(0);
+let bank = S.get('bank', 1000), loans = S.get('loans', 0);
+let tbank = S.get('tbank', 1000); // 토너먼트 전용 지갑 (1:1과 별개)
+const money = { get v() { return state.mode === 'tour' ? tbank : bank; }, set v(x) { if (state.mode === 'tour') tbank = x; else bank = x; } };
+let prof = Object.assign({ esc: [0, 0, 0, 0, 0, 0, 0], n: 0, fires: 0 }, S.get('prof', {}));
+let riv = S.get('riv', {});
+let wins = S.get('wins', 0), lifeBought = S.get('lifeBought', 0);
+let tour = S.get('tour', null); let tourBest = S.get('tourBest', 0);
+function tourReset() { const lv = tour && tour.voice; tour = { floor: 1, lives: 3, opp: null, lastVoice: lv }; S.set('tour', tour); }
+if (!tour) tourReset();
+const profEsc = () => { let m = 0; prof.esc.forEach((v, j) => { if (v > prof.esc[m]) m = j; }); return m + 1; };
 
 const seatEls = [$('#seat0'), $('#seat1')];
-const cylRot = $('#cylRot'), cylWrap = $('#cylWrap'), hammer = $('#hammer');
-const msgEl = $('#msg'), fireBtn = $('#fireBtn'), spinBtn = $('#spinBtn');
+const cylRot = $('#cylRot'), cylWrap = $('#cylWrap'), cylArea = $('.cyl-area'), hammer = $('#hammer');
+const msgEl = $('#msg'), fireBtn = $('#fireBtn'), spinBtn = $('#spinBtn'), passBtn = $('#passBtn'), raiseBtn = $('#raiseBtn');
+const BTN = { fire: fireBtn, spin: spinBtn, pass: passBtn, raise: raiseBtn };
 
 async function wait(ms) { let left = ms; while (left > 0) { const s = Math.min(left, 80); await sleep(s); if (!state.paused) left -= s; } }
 function setMsg(t, cls = '') { msgEl.textContent = t; msgEl.className = 'msg ' + cls; }
 function log(html, cls = '') {
   const li = document.createElement('li'); li.className = cls;
-  li.innerHTML = `<span class="r">R${state.round}</span>` + html;
+  li.innerHTML = `<span class="r">${state.mode === 'tour' ? 'B' + tour.floor : 'R' + state.round}</span>` + html;
   const ul = $('#log'); ul.prepend(li); while (ul.children.length > 60) ul.lastChild.remove();
 }
 const esc = s => String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+const won = n => '₽ ' + n.toLocaleString('ko-KR');
 
 // ══════════════════ 실린더 ══════════════════
 function buildCylinder() {
-  const R = 68; let ch = '', fl = '';
-  for (let i = 0; i < 6; i++) {
-    const a = i * 60 * Math.PI / 180, x = (R * Math.sin(a)).toFixed(2), y = (-R * Math.cos(a)).toFixed(2);
+  const N = state.N, R = N === 5 ? 66 : N === 7 ? 72 : 68, cr = N === 5 ? 30 : N === 7 ? 24 : 27, hr = cr - 6, sc = hr / 21;
+  let ch = '', fl = '';
+  for (let i = 0; i < N; i++) {
+    const a = i * 360 / N * Math.PI / 180, x = (R * Math.sin(a)).toFixed(2), y = (-R * Math.cos(a)).toFixed(2);
     ch += `<g class="ch" id="ch${i}" transform="translate(${x} ${y})">
-      <circle class="ch-ring" r="27" fill="#24272c" stroke="#0b0c0e" stroke-width="2"/>
-      <circle class="ch-hole" r="21" fill="url(#gHole)"/>
-      <circle class="ch-flash" r="21" fill="rgba(255,240,200,.55)"/>
-      <g class="ch-round"><circle r="22.5" fill="url(#gBrass)" stroke="#5c3e0c" stroke-width="1.5"/><circle r="16" fill="none" stroke="rgba(60,35,5,.45)" stroke-width="1.2"/><circle r="7.5" fill="url(#gPrimer)" stroke="#5e5e5e"/><circle class="dent" r="2.6" fill="#1a1a1a"/></g>
-      <circle class="ch-soot" r="20" fill="none" stroke="rgba(0,0,0,.75)" stroke-width="6"/></g>`;
-    const b = (i * 60 + 30) * Math.PI / 180;
-    fl += `<ellipse cx="${(116 * Math.sin(b)).toFixed(2)}" cy="${(-116 * Math.cos(b)).toFixed(2)}" rx="13" ry="24" transform="rotate(${i * 60 + 30} ${(116 * Math.sin(b)).toFixed(2)} ${(-116 * Math.cos(b)).toFixed(2)})" fill="#0c0d10" stroke="rgba(255,255,255,.07)"/>`;
+      <circle class="ch-ring" r="${cr}" fill="#24272c" stroke="#0b0c0e" stroke-width="2"/>
+      <circle class="ch-hole" r="${hr}" fill="url(#gHole)"/>
+      <circle class="ch-flash" r="${hr}" fill="rgba(255,240,200,.55)"/>
+      <g class="ch-round" transform="scale(${sc.toFixed(3)})"><circle r="22.5" fill="url(#gBrass)" stroke="#5c3e0c" stroke-width="1.5"/><circle r="16" fill="none" stroke="rgba(60,35,5,.45)" stroke-width="1.2"/><circle r="7.5" fill="url(#gPrimer)" stroke="#5e5e5e"/><circle class="dent" r="2.6" fill="#1a1a1a"/></g>
+      <circle class="ch-soot" r="${hr - 1}" fill="none" stroke="rgba(0,0,0,.75)" stroke-width="6"/></g>`;
+    const bb = (i + .5) * 360 / N, b = bb * Math.PI / 180, fx = (116 * Math.sin(b)).toFixed(2), fy = (-116 * Math.cos(b)).toFixed(2);
+    fl += `<ellipse cx="${fx}" cy="${fy}" rx="${N === 7 ? 11 : 13}" ry="24" transform="rotate(${bb} ${fx} ${fy})" fill="#0c0d10" stroke="rgba(255,255,255,.07)"/>`;
   }
   cylRot.innerHTML = `<svg viewBox="-130 -130 260 260"><defs>
     <radialGradient id="gSteel" cx="35%" cy="28%" r="85%"><stop offset="0" stop-color="#8a9099"/><stop offset=".42" stop-color="#3b3f46"/><stop offset="1" stop-color="#111316"/></radialGradient>
@@ -826,98 +1075,249 @@ function buildCylinder() {
     <circle r="121" fill="url(#gSteel)" stroke="#07080a" stroke-width="3"/>
     <g clip-path="url(#cCyl)">${fl}</g>
     <circle r="118" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1.5"/>
-    <circle r="96" fill="none" stroke="rgba(0,0,0,.35)" stroke-width="1"/>
     ${ch}
-    <circle r="24" fill="#1b1d21" stroke="#4a4f57" stroke-width="2"/>
+    <circle r="${N === 7 ? 20 : 24}" fill="#1b1d21" stroke="#4a4f57" stroke-width="2"/>
     <polygon points="0,-13 11.3,-6.5 11.3,6.5 0,13 -11.3,6.5 -11.3,-6.5" fill="#2c3036" stroke="#555b63" stroke-width="1.2"/>
     <circle r="5" fill="#0a0a0a"/></svg>`;
+  state.rot = 0; cylRot.style.transition = 'none'; cylRot.style.transform = 'rotate(0deg)';
+  $('#gunLbl').textContent = GUNS[N].ru + ' · ' + N;
 }
 const chEl = i => document.getElementById('ch' + i);
+const STEP = () => 360 / state.N;
 function rotateTo(idx, extra = 0, dur = 0, ease = 'cubic-bezier(.2,.8,.25,1)') {
-  const target = -idx * 60, delta = (((state.rot - target) % 360) + 360) % 360;
+  const st = STEP(), target = -idx * st, delta = (((state.rot - target) % 360) + 360) % 360;
   state.rot = state.rot - delta - 360 * extra;
   cylRot.style.transition = dur ? `transform ${dur}ms ${ease}` : 'none';
   cylRot.style.transform = `rotate(${state.rot}deg)`;
 }
-const topIdx = () => ((Math.round(-state.rot / 60) % 6) + 6) % 6;
+const topIdx = () => ((Math.round(-state.rot / STEP()) % state.N) + state.N) % state.N;
+const phys = s => (state.c0 + s - 1) % state.N;           // 격발 번호 s → 물리 약실
+const startIdx = () => (state.c0 - 1 + state.N) % state.N; // 첫 격발 직전 맨 위 약실
+function remLive() { let n = 0; state.live.forEach(s => { if (s > state.shot) n++; }); return n; }
+function risk() { const r = state.N - state.shot; return r > 0 ? remLive() / r : 0; }
 function paintChambers() {
-  const fired = new Set(); for (let j = 0; j < state.shot; j++) fired.add((state.c0 + j) % 6);
-  for (let i = 0; i < 6; i++) { const e = chEl(i); e.classList.toggle('spent', fired.has(i)); e.classList.toggle('dbg', state.debug && i === state.P); }
+  const fired = new Set(); for (let j = 1; j <= state.shot; j++) fired.add(phys(j));
+  const lp = new Set([...state.live].map(phys));
+  for (let i = 0; i < state.N; i++) { const e = chEl(i); if (!e) continue; e.classList.toggle('spent', fired.has(i)); e.classList.toggle('dbg', state.debug && lp.has(i) && !fired.has(i)); }
 }
-function setBullet(b) { state.bullet = b; state.c0 = (state.P - (b - 1) + 6) % 6; }
+function randomLive(b) { // b발을 무작위 격발 번호에 배치
+  const arr = []; for (let s = 1; s <= state.N; s++) arr.push(s);
+  for (let i = arr.length - 1; i > 0; i--) { const j = rand(i + 1); [arr[i], arr[j]] = [arr[j], arr[i]]; }
+  state.live = new Set(arr.slice(0, b));
+}
 
 // ══════════════════ 렌더 ══════════════════
-function persRecord(id) { const r = stats[id] || { w: 0, l: 0 }; return r; }
+const persRecord = id => stats[id] || { w: 0, l: 0 };
+const hearts = n => '<span class="hearts">' + Array.from({ length: Math.max(3, n) }, (_, j) => j).map(j => j < n ? '♥' : '<span class="off">♥</span>').join('') + '</span>';
 function renderSeat(i) {
   const s = state.seats[i], el = seatEls[i]; if (!s) return;
   const human = s.kind === 'human', p = human ? null : PERS[s.pers];
-  el.style.setProperty('--pc', human ? '#d6a64e' : p.color);
+  el.style.setProperty('--pc', human ? '#d6a64e' : (s.boss ? '#ff3b3b' : p.color));
   el.querySelector('.ini').textContent = [...s.name][0] || '?';
   el.querySelector('.sname').innerHTML = esc(s.name) + (human ? ' <button class="edit" title="이름 변경">✎</button>' : '');
-  el.querySelector('.chip').innerHTML = human ? '플레이어 <span class="ru">ИГРОК №1</span>' : `${p.ko} <span class="ru">${p.ru}</span>`;
-  el.querySelector('.sdesc').textContent = human ? '방아쇠는 당신 손에 있다. 스핀은 한 번뿐.' : p.desc;
-  const tk = el.querySelector('.token'); tk.classList.toggle('used', s.spin); tk.textContent = s.spin ? 'SPIN 사용' : 'SPIN ×1';
+  let chip;
+  if (human) chip = state.mode === 'tour' ? `${hearts(tour.lives)} ${s.injured ? '<span class="ru">부상</span>' : '<span class="ru">ИГРОК</span>'}` : '플레이어 <span class="ru">ИГРОК №1</span>';
+  else chip = `${s.boss ? '보스 · ' : ''}${p.ko} <span class="ru">${p.ru}</span>`;
+  el.querySelector('.chip').innerHTML = chip;
+  el.querySelector('.sdesc').textContent = human ? `말투: ${voiceLabel()} · ` + (s.injured ? '피가 멎지 않는다. 손이 떨리고 시간이 짧아진다.' : '방아쇠는 당신 손에 있다.') : p.desc;
+  const tk = (k, label) => `<span class="token t-${k} ${s.used[k] ? 'used' : ''}">${label}</span>`;
+  el.querySelector('.tokens').innerHTML = tk('spin', s.spinExtra ? '스핀 ×2' : '스핀') + tk('pass', '양보') + tk('raise', '+1발');
   let stat;
-  if (state.mode === 'vs') stat = `사망<b>${human ? deaths.human : deaths.ai}</b>`;
-  else { const r = persRecord(s.pers); stat = `생존<b>${r.w}</b> 사망<b>${r.l}</b>`; }
+  if (state.mode === 'auto') { const r = persRecord(s.pers); stat = `생존<b>${r.w}</b> 사망<b>${r.l}</b>`; }
+  else if (human) stat = `<b>${won(money.v)}</b>`;
+  else stat = state.mode === 'tour' ? `지하 <b>B${tour.floor}</b>` : `사망<b>${deaths.ai}</b>`;
   el.querySelector('.stat').innerHTML = stat;
-  el.classList.toggle('active', state.turn === i && !state.busyLoad);
+  el.classList.toggle('active', state.turn === i && !state.busyLoad && !state.over);
+}
+function canOf(i) {
+  const s = state.seats[i], b = remLive(), rem = state.N - state.shot;
+  return { fire: true, spin: !s.used.spin, pass: !s.used.pass, raise: !s.used.raise && b + 1 < rem };
 }
 function renderStage() {
-  const k = state.shot, chamber = k + 1, p = 1 / (6 - k), pct = Math.round(p * 100);
-  const dc = chamber >= 6 ? '#ff3b3b' : chamber >= 5 ? '#ff6a3a' : chamber >= 4 ? '#ff9b3a' : chamber >= 3 ? '#e8c14a' : '#d6a64e';
-  const dg = $('#danger'); dg.style.setProperty('--dc', dc);
+  const N = state.N, k = state.shot, p = risk(), pct = Math.round(p * 100), b = remLive();
+  const dc = p >= 1 ? '#ff3b3b' : p >= .5 ? '#ff6a3a' : p >= 1 / 3 ? '#ff9b3a' : p >= .25 ? '#e8c14a' : '#d6a64e';
+  const dg = $('#danger'); dg.style.setProperty('--dc', state.over ? '#ff3b3b' : dc);
   $('#dpct').textContent = state.over ? '탕' : state.busyLoad ? '—' : pct + '%';
-  $('#dlbl').textContent = state.over ? '라운드 종료' : state.busyLoad ? '장전 중' : `${chamber}번째 약실 · 사망 확률`;
-  if (state.over) dg.style.setProperty('--dc', '#ff3b3b');
-  $('#pips').innerHTML = [0, 1, 2, 3, 4, 5].map(j => `<i class="pip ${j < k ? 'fired' : j === k && !state.busyLoad && !state.over ? 'next' : ''}"></i>`).join('');
-  $('#roundLbl').textContent = 'РАУНД ' + state.round;
+  $('#dlbl').textContent = state.over ? '라운드 종료' : state.busyLoad ? '장전 중' : `${k + 1}/${N} 약실 · 실탄 ${b}발`;
+  $('#pips').innerHTML = Array.from({ length: N }, (_, j) => `<i class="pip ${j < k ? 'fired' : j === k && !state.busyLoad && !state.over ? 'next' : ''}"></i>`).join('');
+  $('#roundLbl').innerHTML = state.mode === 'tour' ? `지하 B${tour.floor} / B${FLOORS}` : 'РАУНД ' + state.round;
+  $('#pot').textContent = won(state.pot);
+  const live = !state.busyLoad && !state.over;
+  $('#arL').classList.toggle('on', live && state.turn === 0);
+  $('#arR').classList.toggle('on', live && state.turn === 1);
+  $('#warn').classList.toggle('on', live && p >= 1);
+  document.body.classList.toggle('tense', live && p >= .5);
   const cur = state.seats[state.turn];
-  $('#holder').textContent = state.busyLoad || !cur ? '' : `▸ ${cur.name}`;
-  $('#arL').classList.toggle('on', !state.busyLoad && state.turn === 0);
-  $('#arR').classList.toggle('on', !state.busyLoad && state.turn === 1);
-  $('#warn').classList.toggle('on', !state.busyLoad && chamber === 6);
-  const humanTurn = cur && cur.kind === 'human' && !state.busy;
-  fireBtn.disabled = !humanTurn; spinBtn.disabled = !humanTurn || cur.spin;
-  fireBtn.classList.remove('urge-fire'); spinBtn.classList.remove('urge-spin');
-  if (humanTurn && chamber === 6) (cur.spin ? fireBtn : spinBtn).classList.add(cur.spin ? 'urge-fire' : 'urge-spin');
+  const humanTurn = cur && cur.kind === 'human' && !state.busy && live;
+  const can = cur ? canOf(state.turn) : {};
+  Object.entries(BTN).forEach(([a, el]) => { el.disabled = !humanTurn || !can[a]; el.classList.remove('urge'); });
+  if (humanTurn && p >= 1) { const e = can.pass ? passBtn : can.spin ? spinBtn : fireBtn; e.classList.add('urge'); }
+  cylArea.classList.remove('sh1', 'sh2', 'sh3');
+  if (humanTurn) { const lv = clamp((p >= 1 ? 3 : p >= .5 ? 2 : p >= 1 / 3 ? 1 : 0) + (cur.injured || 0) - (state.vodka ? 1 : 0), 0, 3); if (lv) cylArea.classList.add('sh' + lv); }
 }
-function renderAll() { renderSeat(0); renderSeat(1); renderStage(); renderLB(); if (state.debug) refreshDbg(); }
+function renderAll() { renderSeat(0); renderSeat(1); renderStage(); renderLB(); renderShop(); if (state.debug) refreshDbg(); }
 function renderLB() {
   const rows = PERS_IDS.map(id => ({ id, ...persRecord(id) })).filter(r => r.w + r.l > 0)
     .sort((a, b) => (b.w / (b.w + b.l)) - (a.w / (a.w + a.l)) || (b.w + b.l) - (a.w + a.l));
   $('#lb').innerHTML = rows.length ? rows.map(r => { const p = PERS[r.id], rate = Math.round(r.w / (r.w + r.l) * 100);
     return `<tr><td class="nm"><i style="background:${p.color}"></i>${p.ko}</td><td class="bar"><div><span style="width:${rate}%;background:${p.color}"></span></div></td><td class="rec">${rate}% · ${r.w}W ${r.l}L</td></tr>`; }).join('')
     : '<tr><td class="empty">아직 기록 없음 — AI 관전 모드로 성격끼리 붙여보세요</td></tr>';
+  const mx = Math.max(1, ...killHist);
+  $('#hist').innerHTML = killHist.map((v, j) => `<div><span style="height:${Math.round(v / mx * 40)}px" title="${v}"></span><em>${j + 1}</em></div>`).join('');
+  $('#meStat').innerHTML = `1:1 소지금 <b>${won(bank)}</b>${loans ? ` · 빚 <b>${loans}</b>회` : ''} · 토너먼트 지갑 <b>${won(tbank)}</b> · 승리 <b>${wins}</b> · 사망 <b>${deaths.human}</b><br>토너먼트 최고 기록 <b>${tourBest ? 'B' + tourBest : '—'}</b>${prof.n >= 3 ? ` · 당신이 주로 피하는 약실 <b>${profEsc()}번</b>` : ''}`;
 }
+function gainPop(i, text) { const g = seatEls[i].querySelector('.gainpop'); g.textContent = text; g.classList.remove('go'); void g.offsetWidth; g.classList.add('go'); }
+function bumpPot() { const e = $('#pot'); e.classList.remove('bump'); void e.offsetWidth; e.classList.add('bump'); }
 
 // ══════════════════ 말풍선 ══════════════════
 function bubble(i, text, dur = 2200, dots = false) {
   const el = seatEls[i].querySelector('.bubble'); clearTimeout(el._t);
   if (dots) el.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>'; else el.textContent = text;
   el.classList.add('show'); el._t = setTimeout(() => el.classList.remove('show'), dur);
+  el._until = performance.now() + dur; el._dots = dots;
 }
-function line(i, key, extra = {}) {
-  const s = state.seats[i]; if (!s || s.kind !== 'ai') return null;
-  const arr = PERS[s.pers].lines[key]; if (!arr) return null;
-  const o = state.seats[1 - i];
-  return pick(arr).replace(/\{opp\}/g, o ? o.name : '상대').replace(/\{n\}/g, s.n).replace(/\{p\}/g, extra.p ?? Math.round(100 / (6 - state.shot)));
+function fmt(i, str) {
+  const s = state.seats[i], o = state.seats[1 - i];
+  return str.replace(/\{opp\}/g, o ? o.name : '상대').replace(/\{n\}/g, s.n).replace(/\{p\}/g, Math.round(risk() * 100)).replace(/\{m\}/g, profEsc());
+}
+// 플레이어 대사 설정: { mode: 'none' | 'preset' | 'custom', preset, lines }
+let voice = S.get('voice', { mode: 'none' });
+const VOICE_POOL = ['berserker', 'gambler', 'provocateur', 'drunk'];
+const voiceRandom = () => voice.random !== false;
+function rollVoice(prev, avoid) { // 직전 말투, 상대 AI 성격과 겹치지 않게
+  let c = VOICE_POOL.filter(x => x !== prev && x !== avoid); if (!c.length) c = VOICE_POOL.filter(x => x !== avoid); if (!c.length) c = VOICE_POOL; return pick(c); }
+function curVoiceId() { return state.mode === 'tour' ? tour.voice : S.get('randVoice', null); }
+function voiceLines() {
+  if (voiceRandom()) { const id = curVoiceId(); return id && PERS[id] ? PERS[id].lines : null; }
+  if (voice.mode === 'custom') return voice.lines || null; if (voice.mode === 'preset' && PERS[voice.preset]) return PERS[voice.preset].lines; return null; }
+function linesOf(i) { const s = state.seats[i]; if (!s) return null; return s.kind === 'ai' ? PERS[s.pers].lines : voiceLines(); }
+function line(i, key) {
+  const L = linesOf(i); let arr = L && L[key];
+  if (arr && state.seats[i].kind === 'human') arr = arr.filter(x => !/^[^가-힣a-zA-Z0-9{]+$/.test(x.trim())); // 플레이어는 자동 이모티콘 금지
+  if (!arr || !arr.length) return null;
+  return fmt(i, pick(arr));
 }
 function speak(i, key, dur) { const t = line(i, key); if (t) bubble(i, t, dur); return t; }
+function introLine(i) {
+  const s = state.seats[i], o = state.seats[1 - i];
+  if (s.boss) return '여기까지 온 건 칭찬하지. 하지만 여기가 바닥이다.';
+  if (o.kind === 'ai') {
+    const key = [s.pers, o.pers].sort().join('|');
+    if (PAIRS[key] && PAIRS[key][0] === s.pers && Math.random() < .7) return PAIRS[key][1];
+    if ((riv[o.pers + '>' + s.pers] || 0) > (riv[s.pers + '>' + o.pers] || 0) && Math.random() < .6) return fmt(i, pick(GRUDGE));
+  } else if (prof.n >= 3 && ['mindgamer', 'veteran', 'provocateur', 'strategist', 'calculator'].includes(s.pers) && Math.random() < .6)
+    return fmt(i, pick(['지난번에도 {m}번째 약실에서 도망쳤지, {opp}?', '{opp}, 넌 늘 {m}번째에서 손을 떼더군.', '네 버릇은 기억하고 있다. {m}번째.']));
+  return line(i, 'intro');
+}
 
 // ══════════════════ 좌석 구성 ══════════════════
+const freshUsed = () => ({ spin: false, pass: false, raise: false });
 function makeAI(avoidName, avoidPers) {
   let pers; do pers = pick(PERS_IDS); while (pers === avoidPers);
   let name; do name = pick(NAMES); while (name === avoidName);
-  return { kind: 'ai', name, pers, spin: false, n: 0 };
+  return { kind: 'ai', name, pers, used: freshUsed(), n: 0 };
 }
 function prepAI(s) {
   if (s.kind !== 'ai') return;
-  if (s.pers === 'fatalist') s.n = 2 + rand(4);
-  if (s.pers === 'veteran') { let best = 3; killHist.forEach((v, j) => { if (j >= 1 && v > killHist[best]) best = j; }); s.n = best + 1; }
+  if (s.pers === 'fatalist') s.n = 2 + rand(state.N - 2);
+  if (s.pers === 'veteran') { let best = 3; for (let j = 1; j < state.N - 1; j++) if (killHist[j] > killHist[best]) best = j; s.n = Math.min(best, state.N - 2) + 1; }
 }
-function humanSeat() { return { kind: 'human', name: state.name || '무명', pers: null, spin: false, n: 0 }; }
+function humanN() {
+  const id = voiceRandom() ? curVoiceId() : voice.mode === 'preset' ? voice.preset : voice.base;
+  const t = { pers: id === 'veteran' ? 'veteran' : 'fatalist', kind: 'ai' }; prepAI(t); return t.n;
+}
+function humanSeat() { return { kind: 'human', name: state.name || '무명', pers: null, used: freshUsed(), n: humanN(), injured: state.mode === 'tour' ? Math.max(0, 3 - tour.lives) : 0, spinExtra: 0 }; }
+function tourOpp() {
+  if (tour.opp && tour.opp.pers === tour.voice) tour.opp = null; // 플레이어 말투와 같은 성격은 상대로 안 나옴
+  if (!tour.opp) { let tier = TOUR_TIERS[tour.floor - 1].filter(x => x !== tour.voice || x === 'drunk'); // 술꾼끼리는 만날 수 있다 if (!tier.length) tier = ['veteran', 'calculator'];
+    const pers = pick(tier); tour.opp = { name: tour.floor === FLOORS ? '볼코프' : pick(NAMES), pers }; S.set('tour', tour); }
+  return { kind: 'ai', name: tour.opp.name, pers: tour.opp.pers, used: freshUsed(), n: 0, boss: tour.floor === FLOORS };
+}
 
+// ══════════════════ 추가 대사: 반응 / 100% 상황 ══════════════════
+// r_* : 상대 행동에 대한 반응 · doom: 100%인데 피할 수단 없음 · doomOpp: 상대가 그 상태 · spin100/pass100: 100%에서 스핀/양보
+// oppSpin100: 상대가 100%에서 스핀 · curse: 100%를 떠넘겨 받았을 때 (욕설)
+const LINES2 = {
+  berserker: { r_fire: ['그래, 그게 사내지.', '좋아, 좋아!'], r_spin: ['쯧, 또 도망이냐.', '돌려봤자다.'], r_pass: ['비겁한 놈.', '받아주지. 두렵지 않다.'], r_raise: ['하! 마음에 드는군!', '그래, 판을 키워라!'],
+    doom: ['피할 곳? 필요 없다. 간다!', '마지막 한 발… 영광이다!'], doomOpp: ['끝이군, {opp}. 눈 감지 마라.', '도망칠 곳이 없지? 당겨라.'],
+    spin100: ['…살 놈은 산다. 돌린다!', '운명 따위 다시 굴려주지!'], oppSpin100: ['쥐새끼처럼 빠져나가는군.', '운 좋은 놈…'],
+    pass100: ['네가 가져가라, 이 한 발!', '전사의 선물이다. 받아라!'], curse: ['이 개자식이!', '비겁한 쥐새끼 같으니! Сука!'] },
+  coward: { r_fire: ['히익…', '저, 저걸 당기다니…'], r_spin: ['휴…', '돌렸다… 다행이다…'], r_pass: ['왜, 왜 나한테…', '안 돼 안 돼…'], r_raise: ['미, 미쳤어?!', '한 발 더라니!'],
+    doom: ['엄마… 미안해…', '하, 하나님… 제발…', '싫어 싫어 싫어…'], doomOpp: ['저, 저 사람 이제…', '못 보겠어…'],
+    spin100: ['살았다! 돌렸다! 살았어!', '으아아 돌려 돌려!'], oppSpin100: ['아, 안 돼… 다시 처음부터…', '저 사람도 무서웠구나…'],
+    pass100: ['죄, 죄송해요! 정말 죄송해요!', '저 말고요! 저 말고!'], curse: ['이, 이 나쁜 놈아!', '비… 빌어먹을… 흑…'] },
+  gambler: { r_fire: ['좋은 베팅.', '콜.'], r_spin: ['리셔플이군.', '새 패로군.'], r_pass: ['블러프?', '패스라… 재밌군.'], r_raise: ['레이즈 받지.', '판이 커졌어.'],
+    doom: ['올인이다. 뒤집어라.', '마지막 카드… 오픈.'], doomOpp: ['쇼다운이다, {opp}.', '패를 까볼까?'],
+    spin100: ['하우스 룰 발동. 다시 섞는다.', '이 패는 버린다.'], oppSpin100: ['꽤 비싼 셔플이었겠군.', '판을 엎었군.'],
+    pass100: ['이 패는 네 거다.', '조커는 네가 가져라.'], curse: ['이런 빌어먹을 딜러 같으니!', '판 깨는 개자식!'] },
+  calculator: { r_fire: ['생존. 확률 갱신.', '기록한다.'], r_spin: ['변수 초기화 확인.', '합리적이군.'], r_pass: ['위험 전가 확인.', '비효율적이지만 유효하다.'], r_raise: ['분모 변경. 재계산.', '비합리적… 아니, 공격적이군.'],
+    doom: ['100%. 계산할 것도 없군.', '오차 범위… 0.'], doomOpp: ['{opp}, 확률 100%. 결과는 확정이다.', '계산 종료.'],
+    spin100: ['100%를 초기화. 최적 행동.', '확률 리셋. 논리적 귀결.'], oppSpin100: ['예상했다.', '확률 초기화. 재계산 중.'],
+    pass100: ['100%는 네 몫이다. 계산상 당연하다.', '위험 전가, 완료.'], curse: ['계산에… 없던… 망할!', '이 비논리적인 개자식!'] },
+  strategist: { r_fire: ['예상 범위다.', '좋은 수.'], r_spin: ['그 수는 읽었다.', '시간을 버는군.'], r_pass: ['양보라… 계산된 수인가.', '흥미롭군.'], r_raise: ['공격적이군. 하지만 예상했다.', '판을 흔드는군.'],
+    doom: ['모든 수를 썼다. 남은 건 운뿐.', '…패배는 인정하지 않는다. 당긴다.'], doomOpp: ['{opp}, 체크메이트다.', '수읽기 끝.'],
+    spin100: ['최후의 수. 리셋.', '준비해 둔 한 수다.'], oppSpin100: ['아껴둔 수였군.', '마지막 방어라… 잘 버티는군.'],
+    pass100: ['체크. 네 차례다, {opp}.', '이게 최적해다.'], curse: ['…이런 망할.', '내 계산을… 개자식이.'] },
+  fatalist: { r_fire: ['운명이 허락했군.', '아직은 네 날이 아니다.'], r_spin: ['운명을 다시 굴리는가.', '바퀴는 돌고 돈다.'], r_pass: ['운명을 떠넘길 수 있다고 믿나?', '업보가 쌓인다.'], r_raise: ['운명을 재촉하는군.', '죽음을 부르는구나.'],
+    doom: ['이것이 운명이다. 받아들이지.', '오늘이 그날이었군.'], doomOpp: ['{opp}, 네 운명이 정해졌다.', '바퀴가 멈췄다.'],
+    spin100: ['운명은 한 번 더 기회를 준다.', '아직 끝이 아니라는 계시다.'], oppSpin100: ['운명이 너를 한 번 살렸군.', '…신은 너를 편애하는군.'],
+    pass100: ['이 운명은 네 것이었다.', '업보를 돌려주마.'], curse: ['저주받을 놈! 네 영혼은 지옥에 간다!', '빌어먹을 운명 같으니!'] },
+  mimic: { r_fire: ['나도 당길 거야.', '좋아, 기억해뒀어.'], r_spin: ['나도 돌려야지.', '돌렸구나. 나도.'], r_pass: ['넘겼네? 나도 그럴 거야.', '양보라…'], r_raise: ['나도 넣을 거야.', '따라 해볼까.'],
+    doom: ['따라 할 게 없네… 혼자 가는 거야.', '거울 속의 나도 떨고 있어.'], doomOpp: ['이번엔 안 따라 할래.', '잘 가, {opp}.'],
+    spin100: ['너처럼 돌린다!', '나도 살아야지!'], oppSpin100: ['나도 그렇게 할걸…', '따라 할 틈도 없었네.'],
+    pass100: ['네가 한 걸 돌려주는 거야.', '받아, 거울처럼.'], curse: ['이 개자식! 나도 똑같이 해줄 거야!', '망할 놈! 기억해둔다!'] },
+  mindgamer: { r_fire: ['떨리는 손가락이 보였어.', '용감한 척하는군.'], r_spin: ['도망쳤군. 겁먹었어.', '그 선택, 예상했지.'], r_pass: ['눈을 피하는군.', '그게 네 한계다.'], r_raise: ['허세군.', '손끝이 떨리는데?'],
+    doom: ['…표정 관리는 끝까지 한다.', '웃으면서 가지.'], doomOpp: ['마지막 표정, 잘 보고 있다.', '{opp}, 지금 무슨 생각 해?'],
+    spin100: ['봐, 난 늘 한 수를 남겨두지.', '표정 봐라. 실망했지?'], oppSpin100: ['그 표정, 안도했군.', '하, 준비했었나.'],
+    pass100: ['네 얼굴이 하얘지는군.', '자, 이제 네가 떨 차례야.'], curse: ['…이 개자식.', '웃기지 마, 빌어먹을!'] },
+  veteran: { r_fire: ['배짱은 있군.', '나도 저 나이 땐 그랬지.'], r_spin: ['현명해.', '살아남는 법을 아는군.'], r_pass: ['전장에서도 그런 놈은 있었지.', '…비열하지만 살아남는 법이지.'], r_raise: ['젊은 피로군.', '전쟁에선 그런 놈들이 먼저 죽었다.'],
+    doom: ['전우들이 기다리는군.', '드디어… 쉬는구나.'], doomOpp: ['경례는 해주지, {opp}.', '잘 싸웠다.'],
+    spin100: ['노병은 죽지 않는다.', '이 정도 사선은 넘어봤지.'], oppSpin100: ['살아남는 법을 아는군.', '운도 실력이다.'],
+    pass100: ['미안하다, 젊은이. 전쟁은 이런 거다.', '살아남는 게 먼저다.'], curse: ['이런 개 같은…! 전장에서 만났으면!', 'Чёрт! 이 비열한 놈!'] },
+  drunk: { r_fire: ['히끅, 멋지다!', '건배! 살았네!'], r_spin: ['빙글빙글~ 나도 어지러워~', '돌아간다~'], r_pass: ['어? 나한테?', '딸꾹… 뭐가 넘어왔지?'], r_raise: ['한 잔 더! 아니 한 발 더!', '좋아 좋아~'],
+    doom: ['딸꾹… 마지막 한 잔은… 없나?', 'За здоровье… 건배…'], doomOpp: ['건배해줄게, {opp}!', '딸꾹… 잘 가~'],
+    spin100: ['빙글빙글~ 살았다~ 딸꾹!', '세상이 돈다~ 나도 산다~'], oppSpin100: ['어? 돌렸어? 반칙이다~', '딸꾹, 치사해~'],
+    pass100: ['자, 너도 한 잔… 아니 한 발!', '선물~ 딸꾹!'], curse: ['Сука блять! 딸꾹!', '이 개… 딸꾹… 자식아!'],
+    fire100: ['어… 이거 마지막 칸 아니야? 딸꾹.', '몰라~ 당겨~'] },
+  provocateur: { r_fire: ['흥, 운 좋네.', '손 떨리는 거 봤어.'], r_spin: ['겁쟁이.', '도망치는 거 봐.'], r_pass: ['비겁한 놈.', '그게 네 수준이지.'], r_raise: ['오, 제법인데?', '허세 부리지 마.'],
+    doom: ['…웃기지 마. 겁 안 나.', '이게 끝이라고? 웃기네.'], doomOpp: ['자, {opp}. 도망칠 곳이 없네?', '기대된다, 그 표정.'],
+    spin100: ['아직 안 끝났어!', '날 끝장낼 줄 알았지?'], oppSpin100: ['쥐새끼처럼.', '운 좋은 겁쟁이.'],
+    pass100: ['먹어라, {opp}!', '선물 포장까지 해줬다.'], curse: ['이 개자식이!', 'Сука! 두고 보자!'] },
+};
+Object.entries(LINES2).forEach(([id, l]) => Object.assign(PERS[id].lines, l));
+
+// ══════════════════ 대사 보강: 모든 성격이 모든 상황에 2~3줄 ══════════════════
+const EXTRA = {
+  berserker: { intro: ['총 줘. 먼저 한다.'], spin: ['…이번 한 번뿐이다.', '돌려! 다시 붙자!'], pass: ['네가 먼저 피 봐라.', '이건 도망이 아니다. 순서 조정이다.'], raise: ['탄창 가득 채우고 싶군!'], survive: ['하! 총알도 날 피하는군!'], die: ['하…하… 끝까지… 즐거웠다…', '피… 좋군…'], win: ['다음 놈 데려와!', '너무 쉽잖아.'] },
+  coward: { intro: ['저, 룰이 뭐였죠…?'], spin: ['돌려, 돌려, 제발 돌려…'], pass: ['죄송해요 죄송해요 죄송해요!'], survive: ['엄마… 나 살았어…'], die: ['왜… 나만…', '집에… 가고 싶었는데…'], win: ['사, 살았다… 진짜로?', '으아앙… 무서웠어…'] },
+  gambler: { intro: ['칩은 충분해. 목숨도.'], fire: ['오늘은 느낌이 좋아.'], spin: ['덱을 새로 받지.'], pass: ['체크.', '이번 턴은 쉬어가지.'], raise: ['올인에 가까워지는군.'], survive: ['블랙잭.', '역시 운이 따르는군.'], die: ['…하우스가… 이겼군.', '마지막 패가… 조커였나.'], win: ['판돈은 내가 챙기지.', '좋은 게임이었어. 내 돈이지만.'] },
+  calculator: { intro: ['확률 모델 가동.', '입력: 상대. 출력: 결과.'], fire: ['기대 손실 허용.'], spin: ['재샘플링 실행.'], pass: ['위험 이전.', '턴 이양이 최적.'], raise: ['분자 +1. 네 쪽 기대값 하락.', '계산된 공격이다.'], survive: ['오차 없음.', '모델 적중.'], die: ['계산… 오류…', '확률은… 거짓말을…'], win: ['결과가 모델과 일치한다.', 'Q.E.D.'] },
+  strategist: { intro: ['첫 수는 네게 양보하지.', '체스판은 이미 깔렸다.'], fire: ['정석이다.'], spin: ['수를 되돌린다.'], pass: ['템포를 넘기지.', '기다림도 수다.'], raise: ['압박을 가한다.', '이제 네 선택지가 줄었다.'], survive: ['예정대로.', '계획의 일부다.'], die: ['…한 수가… 모자랐나.', '기권은… 없다…'], win: ['게임 셋.', '교과서대로다.'] },
+  fatalist: { intro: ['별자리가 불길하군.'], fire: ['정해진 대로.'], spin: ['운명의 바퀴를 다시 돌린다.', '아직 때가 아니다.'], pass: ['이 운명은 네 것이다.', '바퀴는 너를 향해 돈다.'], survive: ['운명이 날 붙잡았군.', '예언대로다.'], die: ['별이… 떨어지는군…', '운명의… 끝…'], win: ['운명은 거스를 수 없다.', '예정된 결말이다.'] },
+  mimic: { intro: ['너처럼 앉아볼게.', '뭐든 따라 할게.'], fire: ['똑같이!'], spin: ['돌리기 따라 하기!', '빙글, 너처럼.'], pass: ['넘기기도 따라 해야지.', '너도 했잖아?'], raise: ['한 발 따라 넣기.', '똑같이 한 발!'], survive: ['너처럼 살았어.', '따라 하니까 살던데?'], die: ['이건… 안 따라 하고 싶었는데…', '거울이… 깨졌네…'], win: ['네가 한 대로 했을 뿐이야.', '이번엔 내가 원본이야.'] },
+  mindgamer: { intro: ['눈 마주치는 것부터 시작하지.', '긴장했지? 다 보여.'], spin: ['네 기대를 배신해주지.', '예상 못 했지?'], pass: ['부담 가져, {opp}.', '이제 네가 떨 차례야.'], raise: ['네 표정이 바뀌는 게 보고 싶어.', '숨소리가 커졌네?'], survive: ['놀랐어? 난 알고 있었지.', '표정 관리 좀 해.'], die: ['…마지막까지… 웃는다…', '네 얼굴… 기억할게…'], win: ['처음부터 네 머릿속에 있었어.', '넌 너무 읽기 쉬웠어.'] },
+  veteran: { intro: ['앉아라. 옛날 얘기 하나 해주지.'], raise: ['전쟁은 이렇게 끝내는 거다.', '한 발 더. 전장에서 배운 거다.', '젊은이, 이게 진짜 전쟁이다.'], spin: ['숨 고르기다.'], pass: ['후퇴도 작전이다.'], survive: ['총알이 날 비켜가는군.', '아직 부를 때가 아니군.'], die: ['전우들… 곧 간다…', '훈장은… 필요 없다…'], win: ['또 한 명을 보냈군.', '전장은 늘 이렇지.'] },
+  drunk: { intro: ['여기 술 파는 데 맞지?'], pass: ['너 마셔~ 아니 너 쏴~', '패스~ 딸꾹!'], raise: ['안주 추가요~ 아니 총알 추가요~'], survive: ['어? 나 아직 살아있네? 건배!', '딸꾹… 운 좋다~'], die: ['마지막… 한 잔…', '보드카… 어딨…'], win: ['축하주다~!', '이긴 기념으로 한 병 더!'] },
+  provocateur: { intro: ['시작하기도 전에 떨고 있네.', '기대돼, 네가 무너지는 거.'], fire: ['이 정도야 뭐.'], spin: ['아쉽지? 이거 봐.', '한 번 더 기회를 줄게.'], pass: ['받아먹어.', '네 차례야, 떨어봐.'], raise: ['어때, 숨 막히지?'], survive: ['실망했냐?', '또 살았네. 미안.'], die: ['…네 얼굴… 기억해둘 거다…', '농담… 이지…?'], win: ['잘 가, 겁쟁이.', '봤지? 말했잖아.'] },
+};
+Object.entries(EXTRA).forEach(([id, l]) => Object.entries(l).forEach(([k, arr]) => { const L = PERS[id].lines; L[k] = (L[k] || []).concat(arr); }));
+
+// ══════════════════ 승리 도발: 이모티콘 + 험한 대사 ══════════════════
+const TAUNT = {
+  berserker: { '😂': ['하하하! 그 꼴 좀 봐라! 약해빠진 놈!', '뼈도 못 추리는 놈이 어딜 앉았어!'], '😏': ['쓰레기는 쓰레기답게 치워져라.', '넌 처음부터 여기 앉을 자격이 없었다.'], '🙏': ['기도해주지. 다음 생엔 사내로 태어나라.', '신께 빌어라. 아, 이미 늦었군.'], '👍': ['엄지 척이다. 아주 깔끔하게 뒈졌군.', '잘했다. 죽는 거 하나는 잘하는군.'], '💀': ['네 해골로 술잔이나 만들어주지.', '해골이 딱 네 수준이다.'] },
+  coward: { '😭': ['흐, 흐윽… 살았다… 네가 대신 가서… 다행이야…', '울고 싶은 건 너겠지… 아, 이제 못 울지…', '으앙… 무서웠어… 그래도 너라서 다행이야…'], '😱': ['히익… 피… 피 봐… 근데 내가 아니야…', '으, 끔찍해… 끔찍한데… 쌤통이야…'], '😂': ['히, 히히… 내가 아니라 너였어… 히히…', '꼴, 꼴 좋다… 흐흐… 무서웠던 만큼 통쾌해…'], '😏': ['나, 나를 무시하더니… 쌤통이다…', '겁쟁이한테 진 기분이 어때…?'], '🙏': ['기도했거든… 네가 죽게 해달라고…', '나 대신 가줘서 고마워… 진심이야…'], '👍': ['잘 가… 나 대신 죽어줘서… 최고야…', '따, 땡큐… 진짜로…'], '💀': ['히익… 그래도 너라서 다행이다…', '너 해골 됐다… 나 말고… 흐흐…'] },
+  gambler: { '😂': ['하하! 판돈도 목숨도 내 거다, 호구야!', '호구 한 명 정리 완료.'], '😏': ['패도 못 읽는 초짜가 감히.', '넌 처음부터 딜러 밥이었어.'], '🙏': ['기도는 판 깨지기 전에 했어야지.', '하우스의 신께 감사를. 네 목숨 잘 받았다.'], '👍': ['베팅 고마웠다, 호구.', '좋은 기부였어. 목숨까지.'], '💀': ['뒤집힌 카드는 해골이었네. 네 거.', '죽은 패는 버리는 거다.'] },
+  calculator: { '😂': ['예측 적중률 100%. 넌 변수조차 아니었다.', '너의 존재 가치: 0.'], '😏': ['열등한 연산 장치였군.', '계산할 가치도 없는 표본.'], '🙏': ['기도의 효과 재확인: 0%. 네가 증명했다.', '너의 신은 확률을 몰랐다.'], '👍': ['실험 종료. 폐기 처리.', '유효한 데이터였다. 네 시체도.'], '💀': ['사망 확인. 기록 삭제.', '결과: 사망. 예상대로.'] },
+  strategist: { '😂': ['체크메이트. 넌 그냥 졸이었다.', '처음부터 끝까지 내 손바닥이었다.'], '😏': ['수준 차이를 깨달았나? 늦었지만.', '넌 체스판의 폰이었다.'], '🙏': ['신도 네 수를 구원하진 못했군.', '다음 생엔 수읽기부터 배워라.'], '👍': ['훌륭한 희생양이었다.', '교과서에 실어주지. 패배의 예시로.'], '💀': ['잡힌 말은 판에서 치우는 법.', '게임 종료. 넌 삭제됐다.'] },
+  fatalist: { '😂': ['네 운명은 비웃음거리였다.', '운명이 널 조롱하는군. 나도 함께.'], '😏': ['처음부터 정해진 먹잇감이었다.', '네 별은 떨어졌다. 꼴사납게.'], '🙏': ['지옥의 문지기에게 안부 전해라.', '네 영혼을 위해 기도하지. 지옥에서 편히.'], '👍': ['운명대로 죽어줘서 고맙군.', '예언이 맞았다. 넌 쓰레기였다.'], '💀': ['죽음이 널 데려갔다. 마땅히.', '네 운명의 끝은 해골이었다.'] },
+  mimic: { '😂': ['네가 웃던 것처럼 웃어줄게. 하하.', '이번엔 내가 원본이야, 복사본아.'], '😏': ['네 표정 그대로 돌려줄게.', '거울 속 패배자 얼굴이 딱 너네.'], '🙏': ['네가 빌던 것처럼 빌어줄게. 편히 가라고.', '따라 해봤어. 장례식 기도.'], '👍': ['네 방식 그대로 이겼어. 고마워.', '베껴서 이겼다. 베낄 가치도 없었지만.'], '💀': ['네 해골도 따라 그려줄게.', '거울엔 이제 해골만 비치네.'] },
+  mindgamer: { '😂': ['마지막 표정, 아주 볼만했어.', '넌 처음부터 내 장난감이었다.'], '😏': ['네 머릿속은 텅 비어 있었지.', '읽기 쉬운 책이었다. 지루할 만큼.'], '🙏': ['기도하는 척 해줄게. 네가 떨던 것처럼.', '신도 네 속마음은 다 읽었을걸.'], '👍': ['멋진 연기였어. 죽는 것까지.', '네 공포, 잘 감상했다.'], '💀': ['네 표정 영원히 기억해둘게. 비웃으려고.', '해골이 네 원래 얼굴이었군.'] },
+  veteran: { '😂': ['전장에서도 너 같은 놈은 첫날 죽었다.', '애송이가 감히 노병 앞에서.'], '😏': ['경험 없는 놈의 최후다.', '훈련이 부족했군, 애송이.'], '🙏': ['묘비엔 "멍청했다"라고 새겨주지.', '기도는 해주지. 형식적으로.'], '👍': ['수고했다. 이제 푹 쉬어라, 영원히.', '잘 싸웠다고 하긴 어렵군.'], '💀': ['또 하나의 무덤이군.', '너 같은 놈들 무덤이 전장에 수두룩하다.'] },
+  drunk: { '😂': ['크하하! 딸꾹! 너 죽었어! 웃겨!', '건배! 네 죽음에 건배!'], '😏': ['히끅, 넌 술도 못 마시게 생겼더라.', '바보~ 딸꾹~'], '🙏': ['네 장례식에서 보드카 한 병 비워주지!', '아멘~ 딸꾹~ 잘 가라 호구~'], '👍': ['최고의 안주였다! 딸꾹!', '너 덕분에 술맛 난다~'], '💀': ['해골잔에 보드카 따라 마셔야지~', '네 두개골로 건배하자~'] },
+  provocateur: { '😂': ['봐봐! 저 꼴 좀 봐! 하하하!', '떨더니 결국 뒈졌네, 한심하게.'], '😏': ['넌 처음부터 끝까지 루저였어.', '이게 네 수준이야.'], '🙏': ['지옥 가서도 떨고 있어라.', '신한테 빌어봤자, 넌 끝났어.'], '👍': ['죽는 연기 최고였다. 아, 연기 아니었지?', '수고했어, 패배자.'], '💀': ['네 초상화 완성. 해골.', '해골이 네 얼굴보다 낫네.'] },
+};
+const TAUNT_EMO = { coward: ['😭', '😱'], berserker: ['😂', '😏', '💀'], gambler: ['😏', '😂', '👍'], mindgamer: ['😏', '😂'], provocateur: ['😂', '😏', '💀', '👍'], mimic: ['😂', '😏', '🙏', '👍', '💀'], fatalist: ['🙏', '💀', '😏'], calculator: ['👍', '💀', '😏'], drunk: ['😂', '🙏', '👍'], veteran: ['🙏', '💀', '😏'], strategist: ['😏', '👍', '💀'] };
+const TAUNT_ALL = ['😂', '😏', '🙏', '👍', '💀'];
 // ══════════════════ 피 (캔버스) ══════════════════
 const Blood = {
   wrap: $('#blood'), st: $('#bStain'), fx: $('#bFx'), parts: [], drips: [], raf: 0,
@@ -990,7 +1390,7 @@ function showDeath(seat, lastWords, chamber) {
   for (let j = 0; j < 12; j++) { const d = document.createElement('i');
     d.style.cssText = `left:${Math.random() * 96}%;--w:${4 + Math.random() * 10}px;--h:${30 + Math.random() * 120}px;--d:${1.4 + Math.random() * 2.4}s;--dl:${.6 + Math.random() * .8}s`; dr.appendChild(d); }
   const who = seat.kind === 'human' ? '플레이어' : PERS[seat.pers].ko;
-  $('#dzSub').textContent = `${who} · ${chamber}번째 약실 · ${state.round}라운드`;
+  $('#dzSub').textContent = `${who} · ${chamber}번째 약실 · ${state.mode === 'tour' ? '지하 B' + tour.floor : state.round + '라운드'}`;
   $('#dzQuote').textContent = lastWords ? `“${lastWords}”` : '';
   $('#deathBg').classList.add('show'); $('#death').classList.add('show');
 }
@@ -1016,196 +1416,496 @@ function kickFx() {
   cylWrap.classList.remove('kick'); void cylWrap.offsetWidth; cylWrap.classList.add('kick');
 }
 
+
 // ══════════════════ 게임 흐름 ══════════════════
 function ctxFor(i) {
-  const me = state.seats[i], op = state.seats[1 - i], k = state.shot;
-  return { k, chamber: k + 1, risk: 1 / (6 - k), canSpin: !me.spin, oppCanSpin: !op.spin, oppLast: state.lastAction[1 - i], oppThink: state.lastThink[1 - i], seat: me, opp: op };
+  const me = state.seats[i], op = state.seats[1 - i], k = state.shot, N = state.N, b = remLive(), rem = N - k;
+  const can = canOf(i), oppCan = { spin: !op.used.spin, pass: !op.used.pass, raise: !op.used.raise };
+  return { k, N, b, rem, p: b / rem, chamber: k + 1, can, oppCan, oppEsc: oppCan.spin || oppCan.pass,
+    oppLast: state.lastAction[1 - i], oppThink: state.lastThink[1 - i], seat: me, opp: op };
 }
-function aiDecide(i) { const c = ctxFor(i); if (!c.canSpin) return 'fire'; return PERS[c.seat.pers].decide(c); }
+function aiDecide(i) {
+  const c = ctxFor(i); let a = PERS[c.seat.pers].decide(c);
+  if (a !== 'fire' && !c.can[a]) a = 'fire';
+  if (a === 'fire' && c.p >= 1 && c.seat.pers !== 'drunk') a = escape(c);
+  return a;
+}
 function thinkTime(i) {
   const s = state.seats[i], c = ctxFor(i), [a, b] = PERS[s.pers].tempo;
   let t = a + Math.random() * (b - a);
-  t *= c.k < 2 ? .55 : 1 + (c.k - 2) * .22;
+  t *= c.p < .25 ? .6 : 1 + c.p * .8;
   if (s.pers === 'mimic' && c.oppThink) t = clamp(c.oppThink * (.85 + Math.random() * .3), 300, 4500);
-  if (s.pers === 'mindgamer' && c.chamber >= 4) t += 700;
+  if (s.pers === 'mindgamer' && c.p >= 1 / 3) t += 700;
   return t;
 }
 function save() {
-  if (state.mode !== 'vs') return;
+  if (state.mode === 'auto') return;
   const ai = state.seats[1];
-  S.set('save', { bullet: state.bullet, shot: state.shot, turn: state.turn, P: state.P, spin: [state.seats[0].spin, ai.spin], ai: { name: ai.name, pers: ai.pers, n: ai.n }, round: state.round, last: state.lastAction });
+  S.set('save', { mode: state.mode, N: state.N, c0: state.c0, live: [...state.live], shot: state.shot, turn: state.turn, used: [state.seats[0].used, ai.used],
+    ai: { name: ai.name, pers: ai.pers, n: ai.n, boss: !!ai.boss }, round: state.round, last: state.lastAction, pot: state.pot, gain: state.gain, vodka: !!state.vodka, ticket: !!state.spinTicket, extra: state.seats[0].spinExtra || 0 });
 }
+const payout = p => p >= 1 ? 0 : Math.max(10, Math.round(p / (1 - p) * 10) * 10);
+function saveMoney() { S.set('bank', bank); S.set('tbank', tbank); S.set('loans', loans); }
 
+// 토너먼트 사망 몰수 비율: B1 10% → B7 100% (층마다 15%씩)
+const tourLossRate = () => Math.min(1, .1 + .15 * (tour.floor - 1));
 async function newRound(tok, eject) {
-  state.busy = true; state.busyLoad = true; state.over = false;
+  state.busy = true; state.busyLoad = true; state.over = false; stopTimer();
   state.round++; S.set('round', state.round);
-  if (state.mode === 'vs') { state.seats[0] = humanSeat(); state.seats[1] = makeAI(); }
-  else { state.seats[0] = makeAI(); state.seats[1] = makeAI(state.seats[0].name, state.seats[0].pers); }
+  if (state.mode === 'vs' || state.mode === 'tour') {
+    // 토너먼트: 말투는 게임오버까지 고정. 상대가 말투를 피해서 뽑힌다.
+    if (state.mode === 'tour' && !tour.voice) { tour.voice = rollVoice(tour.lastVoice); S.set('tour', tour); }
+    const opp = state.mode === 'vs' ? makeAI() : tourOpp();
+    // 1:1: 매 판 새로, 상대 AI 성격과 겹치지 않게
+    if (state.mode === 'vs') S.set('randVoice', rollVoice(S.get('randVoice', null), opp.pers === 'drunk' ? null : opp.pers)); // 겹치면 다시 뽑음 (술꾼끼리는 허용)
+    state.seats = [humanSeat(), opp];
+  }
+  else { const a = makeAI(); state.seats = [a, makeAI(a.name, a.pers)]; }
   state.seats.forEach(prepAI);
-  state.lastAction = [null, null]; state.lastThink = [0, 0];
+  state.lastAction = [null, null]; state.lastThink = [0, 0]; state.gain = [0, 0]; state.vodka = false; state.spinTicket = false; laughCount = [0, 0]; state.playerEmoUsed = false; renderEmotes(); state.forcedBy = -1; state.blunder = -1;
+  state.seats.forEach(x => { if (x.kind === 'ai' && x.pers === 'drunk') x.gag = Math.random() < .5; });
+  state.live = new Set(); state.shot = 0;
+  // 판돈
+  state.pot = ANTE * 2 * (state.mode === 'tour' ? tour.floor : 1);
+  if (state.mode !== 'auto') {
+    const ante = state.pot / 2;
+    if (state.mode === 'tour') money.v = Math.max(0, money.v - ante); // 토너먼트: 대출 없음, 있는 만큼만
+    else { if (bank < ante) { bank += LOAN; loans++; log(`딜러에게 ${won(LOAN)}을 빌렸다. 빚 ${loans}회.`, 'sys'); } bank -= ante; }
+    saveMoney();
+  }
   seatEls.forEach(e => { e.classList.remove('dead'); e.querySelector('.bleed').innerHTML = ''; });
-  state.shot = 0; renderAll();
-  log(`<b>${esc(state.seats[0].name)}</b> vs <b>${esc(state.seats[1].name)}</b> — 새 라운드`, 'sys');
+  renderAll();
+  log(`<b>${esc(state.seats[0].name)}</b> vs <b>${esc(state.seats[1].name)}</b> — ${GUNS[state.N].ko}, 판돈 ${won(state.pot)}`, 'sys');
 
-  // ── 장전 연출: 실린더 열기 → 탄피 배출 → 한 발 삽입 → 스핀 → 닫기
+  // 장전: 열기 → 탄피 배출 → 한 발 삽입 → (탄 가림) → 스핀 → 닫기
   setMsg('실린더를 연다…', 'info');
-  for (let j = 0; j < 6; j++) chEl(j).classList.remove('loaded', 'reveal', 'spent', 'dbg');
+  for (let j = 0; j < state.N; j++) chEl(j).classList.remove('loaded', 'reveal', 'spent', 'dbg');
   cylWrap.classList.add('open'); A.latch(false); await wait(480); if (tok !== state.token) return;
   if (eject) { setMsg('탄피를 턴다…', 'info'); spawnCasing(); A.casing(); await wait(900); if (tok !== state.token) return; }
   setMsg('탄환 한 발, 장전.', 'info');
   await insertRound(tok); if (tok !== state.token) return;
-  state.P = topIdx(); await wait(350); if (tok !== state.token) return;
+  await wait(350); if (tok !== state.token) return;
+  for (let j = 0; j < state.N; j++) chEl(j).classList.remove('loaded');
   setMsg('실린더를 돌린다…', 'spin');
-  setBullet(rand(6) + 1);
-  A.spin(1.7); rotateTo((state.c0 - 1 + 6) % 6, 3 + rand(2), 1750, 'cubic-bezier(.12,.75,.2,1)');
-  setTimeout(() => chEl(state.P).classList.remove('loaded'), 900);
+  const start = rand(state.N); state.c0 = (start + 1) % state.N; randomLive(1);
+  cylRot.classList.add('blur'); A.spin(1.7); rotateTo(start, 3 + rand(2), 1750, 'cubic-bezier(.12,.75,.2,1)');
+  setTimeout(() => cylRot.classList.remove('blur'), 1100);
   await wait(1800); if (tok !== state.token) return;
   cylWrap.classList.remove('open'); A.latch(true); await wait(420); if (tok !== state.token) return;
   paintChambers();
 
   state.turn = rand(2); state.busyLoad = false;
-  // 인사
-  let d = 0; [0, 1].forEach(i => { if (state.seats[i].kind === 'ai') { setTimeout(() => { if (tok === state.token) speak(i, 'intro', 2400); }, d); d += 900; } });
-  setMsg(`${state.seats[state.turn].name} 먼저.`, 'info');
-  save(); await wait(state.mode === 'auto' ? 1400 : 700); if (tok !== state.token) return;
+  if (state.mode === 'tour') setMsg(`딜러: 판돈 ${won(state.pot)} · 죽으면 ${Math.round(tourLossRate() * 100)}% 몰수. ${state.seats[state.turn].name}, 먼저.`, 'info');
+  // 시작: 인사 대사 또는 이모티콘 중 하나만 (AI 대전은 반반, 그 외는 대사)
+  const emoOpen = state.mode === 'auto' && Math.random() < .5;
+  if (emoOpen) setTimeout(() => { if (tok !== state.token) return;
+    const a = rand(2), s0 = state.seats[a], own = fitEmo(s0.pers, EMO_SELF[s0.pers]); const em = EMOTES.find(x => x[0] === own);
+    showEmote(a, em[0]); emoReply(1 - a, a, em[0], em[1], tok); }, 400);
+  else { let d = 0; [0, 1].forEach(i => { if (linesOf(i)) { const t = state.seats[i].kind === 'ai' ? introLine(i) : line(i, 'intro'); setTimeout(() => { if (tok === state.token && t) sayOrEmote(i, t, 2600); }, d); d += 1000; } }); }
+  save(); await wait(state.mode === 'auto' ? 3200 : 900); if (tok !== state.token) return;
   nextTurn(tok);
 }
 
 function nextTurn(tok) {
   if (tok !== state.token) return;
-  const i = state.turn, s = state.seats[i], chamber = state.shot + 1;
-  Heart.set(chamber);
-  A.duck(chamber >= 5 ? .22 : chamber >= 4 ? .34 : .5);
+  const i = state.turn, s = state.seats[i], p = risk();
+  Heart.set(p); A.duck(p >= .5 ? .22 : p >= 1 / 3 ? .34 : .5);
+  if (A.crowd) A.crowdLevel(p >= 1 ? 0 : p >= .5 ? .02 : A.crowdBase, 1.2);
   if (s.kind === 'human') {
     state.busy = false; state.turnStart = performance.now();
-    const p = Math.round(100 / (6 - state.shot));
-    setMsg(chamber >= 6 ? (s.spin ? `${s.name}, 마지막 약실이다. 스핀도 없다.` : `${s.name}, 마지막 약실. 스핀을 써라.`)
-      : chamber >= 4 ? `${s.name}, 사망 확률 ${p}%. 선택하라.` : `${s.name}의 차례. 당기거나, 돌리거나.`, chamber >= 4 ? 'danger' : '');
-  } else {
-    state.busy = true; setMsg(`${s.name}이(가) 리볼버를 든다…`);
-    aiTurn(i, tok);
-  }
+    const pct = Math.round(p * 100);
+    setMsg(p >= 1 ? `${s.name}, 이 약실엔 반드시 탄이 있다.` : p >= 1 / 3 ? `${s.name}, 사망 확률 ${pct}%. 선택하라.` : `${s.name}의 차례. 당기거나, 피하거나.`, p >= 1 / 3 ? 'danger' : '');
+    startTimer(tok);
+    const cn = canOf(i); if (p >= 1 && !cn.spin && !cn.pass && state.seats[1 - i].kind === 'ai') setTimeout(() => { if (tok === state.token) { const t = line(1 - i, 'doomOpp'); if (t) bubble(1 - i, t, 2600); } }, 500);
+  } else { state.busy = true; setMsg(`${s.name}이(가) 리볼버를 든다…`); aiTurn(i, tok); }
   renderAll();
 }
 
-async function aiTurn(i, tok) {
-  const act = aiDecide(i), delay = thinkTime(i);
-  bubble(i, '', delay, true);
-  await wait(delay); if (tok !== state.token) return;
-  state.lastThink[i] = delay;
-  speak(i, act, 1800);
-  await wait(520); if (tok !== state.token) return;
-  act === 'spin' ? doSpin(i, tok) : doFire(i, tok);
+// ── 사람 시간 제한
+let tInt = null;
+function stopTimer() { clearInterval(tInt); tInt = null; $('#tbar').classList.remove('on', 'low'); }
+function startTimer(tok) {
+  stopTimer(); const s = state.seats[state.turn];
+  if (!timerOn() || state.mode === 'auto') return;
+  const TT = () => (15 - (s.injured || 0) * 3 + (state.vodka ? 5 : 0)) * 1000; let el = 0, last = performance.now(), lastSec = 99, hurried = false;
+  const bar = $('#tbar'), fill = bar.querySelector('i'); bar.classList.add('on');
+  tInt = setInterval(() => {
+    if (tok !== state.token || state.busy) return stopTimer();
+    const now = performance.now(); if (!state.paused) el += now - last; last = now;
+    const T = TT(), left = T - el;
+    fill.style.transform = `scaleX(${clamp(left / T, 0, 1)})`;
+    if (sec0(left) > 3) bar.classList.remove('low');
+    const sec = Math.ceil(left / 1000);
+    if (sec <= 3 && sec < lastSec && sec > 0) { A.tick(); bar.classList.add('low'); }
+    lastSec = sec;
+    if (!hurried && el > 6000) { hurried = true; const o = 1 - state.turn; if (state.seats[o].kind === 'ai') bubble(o, pick(HURRY), 2000);
+      if (isDrunkVoice(state.turn)) setTimeout(() => bubble(state.turn, pick(DRUNK_HURRY), 2200), 1500); }
+    if (left <= 0) { stopTimer(); setMsg('시간 초과 — 딜러가 방아쇠를 강제한다.', 'danger'); humanAct('fire', true); }
+  }, 100);
 }
 
+const sec0 = l => Math.ceil(l / 1000);
+
+// AI 이모티콘 기믹: 대사 대신 이모티콘 (판당 1회)
+const EMO_SUB = { fire: '😏', spin: '😱', pass: '😏', raise: '😂', survive: '😂', r_fire: '👍', r_spin: '😏', r_pass: '😡', r_raise: '😱', doom: '🙏', doomOpp: '💀', curse: '😡', spin100: '😱', pass100: '😂', oppSpin100: '😡', intro: '👍' };
+function say(i, key, text, dur) {
+  const s = state.seats[i]; if (!s) return;
+  if (s.muteUntil > performance.now()) return; // 이모티콘 반응 중엔 다른 대사 생략
+  if (s.kind === 'ai' && EMO_SUB[key] && Math.random() < .18) {
+    const e = fitEmo(s.pers, EMO_SUB[key]); showEmote(i, e);
+    const k = (EMOTES.find(x => x[0] === e) || [])[1]; if (k) emoReply(1 - i, i, e, k, state.token); return;
+  }
+  if (text) sayOrEmote(i, text, dur);
+}
+// 술꾼 기믹
+function drunkReset(s) { if (s.kind === 'ai' && s.pers === 'drunk') { s.gagDone = false; s.gag = Math.random() < .5; } } // 턴 넘김 행동 → 재촉 기믹 1회 카운터 초기화
+const DRUNK_HURRY = ['야~ 빨리 해! 딸꾹!', '뭐 해? 빨리 쏴~', '기다리다 술 깨겠다~ 빨리!'];
+const DRUNK_HURRY2 = ['딸꾹… 왜 안 쏴? {opp}, 자냐~?', '이봐~ 딜러! 저 친구 자는데?'];
+const DRUNK_WAKE = ['…네 차례거든?', '너다, 술고래.', '…진심이냐?'];
+const DRUNK_TIMEOUT_DIE = ['…어? 내 차례였어…?', '딸꾹… 내… 차례였던 거야…?', '빨리 하라니까… 아, 나였구나…'];
+const DRUNK_BLUNDER_DIE = ['…딸꾹. 방금 그건… 좀 멍청했다…', '스핀도 있었는데… 왜 당겼지… 나 바보냐…', '보드카가… 이겼네… 멍청한 놈…'];
+const DRUNK_TIMEOUT_LIVE = ['어? 살았네? 내 차례였구나~ 딸꾹!', '헤헤… 나였어? 몰랐지~'];
+function isDrunkVoice(i) { const s = state.seats[i]; if (!s) return false;
+  return s.kind === 'ai' ? s.pers === 'drunk' : (voiceRandom() ? curVoiceId() === 'drunk' : voice.mode === 'preset' && voice.preset === 'drunk'); }
+// 술꾼이 스핀·양보·+1발로 턴을 넘기면 재촉 기믹 1회 카운터 초기화 (다시 50% 추첨)
+function resetGag(s) { if (s.kind === 'ai' && s.pers === 'drunk') { s.gagDone = false; s.gag = Math.random() < .5; } }
+async function drunkGag(i, tok) {
+  const s = state.seats[i], o = 1 - i;
+  bubble(i, pick(DRUNK_HURRY), 2300); setMsg(`${s.name}이(가) 상대를 재촉한다…?`, 'info');
+  await wait(2500); if (tok !== state.token) return;
+  bubble(i, fmt(i, pick(DRUNK_HURRY2)), 2300);
+  if (state.seats[o].kind === 'ai') setTimeout(() => { if (tok === state.token) bubble(o, pick(DRUNK_WAKE), 1800); }, 900);
+  await wait(2300); if (tok !== state.token) return;
+  setMsg(`딜러: ${s.name}, 당신 차례다. 시간 끝.`, 'danger'); A.tick();
+  await wait(1500); if (tok !== state.token) return;
+  state.forcedBy = i; doFire(i, tok);
+}
+// 100% 상황이면 행동별 전용 대사
+function actKey(i, act, c) {
+  if (c.p < 1) return act;
+  if (act === 'spin') return 'spin100';
+  if (act === 'pass') return 'pass100';
+  if (act === 'fire') { const L = linesOf(i); return (c.can.spin || c.can.pass) && L && L.fire100 ? 'fire100' : 'doom'; }
+  return act;
+}
+// 상대(AI)의 반응: 100%면 반드시, 평소엔 확률적으로
+function react(actor, act, p, tok, delay = 350) {
+  const o = 1 - actor, os = state.seats[o]; if (!os || !linesOf(o)) return;
+  let key;
+  if (p >= 1) key = act === 'pass' ? 'curse' : act === 'spin' ? 'oppSpin100' : act === 'fire' ? 'doomOpp' : null;
+  else if (Math.random() < ({ fire: .4, spin: .85, pass: .85, raise: 1 })[act]) key = 'r_' + act;
+  if (!key) return;
+  setTimeout(() => { if (tok === state.token) { const t = line(o, key); if (t) say(o, key, t, p >= 1 ? 2600 : 1800); } }, delay);
+}
+async function aiTurn(i, tok) {
+  { const s = state.seats[i]; if (s.pers === 'drunk' && s.gag && !s.gagDone && timerOn() && state.lastAction.some(Boolean)) { s.gagDone = true; return drunkGag(i, tok); } }
+  const c = ctxFor(i), act = aiDecide(i), delay = thinkTime(i) + (c.p >= 1 ? 700 : 0);
+  const bel = seatEls[i].querySelector('.bubble'), rem = (bel._until || 0) - performance.now();
+  const hold = rem > 0 && !bel._dots ? Math.min(rem, 1500) : 0;
+  if (hold) { await wait(hold); if (tok !== state.token) return; }
+  bubble(i, '', Math.max(300, delay - hold), true);
+  await wait(Math.max(300, delay - hold)); if (tok !== state.token) return;
+  state.lastThink[i] = delay;
+  if (state.seats[i].pers === 'drunk' && act === 'fire' && c.p >= 1 && (c.can.spin || c.can.pass)) state.blunder = i;
+  const ak = actKey(i, act, c), t = line(i, ak) || line(i, act); say(i, ak, t, c.p >= 1 ? 2800 : 1900);
+  await wait(c.p >= 1 ? 1100 : 520); if (tok !== state.token) return;
+  ACT[act](i, tok);
+}
+async function endTurn(i, tok, ms) { await wait(ms); if (tok !== state.token) return; state.turn = 1 - i; save(); nextTurn(tok); }
+
 async function doFire(i, tok) {
-  state.busy = true; state.lastAction[i] = 'fire'; renderStage(); Heart.stop();
-  const s = state.seats[i];
+  const forced = state.forcedBy === i; state.forcedBy = -1;
+  state.busy = true; state.lastAction[i] = 'fire'; stopTimer(); renderStage(); Heart.stop();
+  const s = state.seats[i], pBefore = risk();
+  react(i, 'fire', pBefore, tok, 150);
   hammer.classList.add('cocked'); A.cock();
-  state.shot++; rotateTo((state.c0 - 1 + state.shot) % 6, 0, 170);
-  const top = (state.c0 - 1 + state.shot) % 6;
-  await wait(state.shot === 6 ? 1200 : 420 + Math.random() * 380); if (tok !== state.token) return;
+  state.shot++; rotateTo((startIdx() + state.shot) % state.N, 0, 170);
+  const top = phys(state.shot);
+  await wait(pBefore >= 1 ? 1300 : 420 + Math.random() * 380 + pBefore * 500); if (tok !== state.token) return;
   hammer.classList.remove('cocked');
-  if (state.shot === state.bullet) return death(i, tok);
+  if (state.live.has(state.shot)) {
+    return death(i, tok, forced); // 실탄이면 무조건 사망 (불발 없음)
+  }
   A.dry(); const e = chEl(top); e.classList.remove('miss'); void e.getBBox(); e.classList.add('miss');
   cylWrap.classList.remove('nudge'); void cylWrap.offsetWidth; cylWrap.classList.add('nudge');
+  const g = payout(pBefore); state.gain[i] += g; setTimeout(() => { gainPop(i, '+' + won(g)); A.coin(g >= 100 ? 4 : 2); }, 300);
   paintChambers(); renderStage();
-  log(`${esc(s.name)} — 찰칵. ${state.shot}번째 약실 빈 칸.`);
-  if (s.kind === 'ai' && Math.random() < .55) setTimeout(() => { if (tok === state.token) speak(i, 'survive', 1600); }, 350);
+  if (s.kind === 'human') prof.fires++, S.set('prof', prof);
+  log(`${esc(s.name)} — 찰칵. ${state.shot}번째 약실 빈 칸. +${won(g)}`);
+  if (forced && isDrunkVoice(i)) setTimeout(() => { if (tok === state.token) bubble(i, pick(DRUNK_TIMEOUT_LIVE), 2000); }, 350);
+  else if (Math.random() < .55) setTimeout(() => { if (tok === state.token) say(i, 'survive', line(i, 'survive'), 1600); }, 350);
+  if (s.kind === 'ai' && Math.random() < .2) setTimeout(() => { if (tok === state.token) aiEmote(i, tok); }, 2100);
   setMsg(`찰칵. ${s.name} 생존.`, 'safe');
-  await wait(900); if (tok !== state.token) return;
-  state.turn = 1 - i; save(); nextTurn(tok);
+  return endTurn(i, tok, 900);
 }
 
 async function doSpin(i, tok) {
-  state.busy = true; state.lastAction[i] = 'spin'; Heart.stop();
-  const s = state.seats[i]; s.spin = true;
-  setBullet(rand(6) + 1); state.shot = 0;
+  state.busy = true; state.lastAction[i] = 'spin'; stopTimer(); Heart.stop();
+  const s = state.seats[i]; if (s.spinExtra) s.spinExtra--; else s.used.spin = true; drunkReset(s);
+  react(i, 'spin', risk(), tok, 700);
+  resetGag(s);
+  const b = remLive(); state.shot = 0; randomLive(b);
+  const start = rand(state.N); state.c0 = (start + 1) % state.N;
   renderAll();
-  A.spin(1.05); rotateTo((state.c0 - 1 + 6) % 6, 2, 1100, 'cubic-bezier(.15,.8,.25,1)');
+  A.spin(1.05); rotateTo(start, 2, 1100, 'cubic-bezier(.15,.8,.25,1)');
+  cylRot.classList.add('blur'); setTimeout(() => cylRot.classList.remove('blur'), 650);
   paintChambers();
   setMsg(`${s.name}, 실린더를 돌렸다 — 1번 약실부터 다시.`, 'spin');
   log(`${esc(s.name)} — 스핀. 약실 초기화.`, 'spin');
-  await wait(1250); if (tok !== state.token) return;
-  state.turn = 1 - i; save(); nextTurn(tok);
+  return endTurn(i, tok, 1250);
 }
 
-async function death(i, tok) {
+async function doPass(i, tok) {
+  state.busy = true; state.lastAction[i] = 'pass'; stopTimer(); Heart.stop();
+  const s = state.seats[i]; s.used.pass = true; drunkReset(s); renderAll();
+  react(i, 'pass', risk(), tok, 450);
+  resetGag(s);
+  A.slide();
+  setMsg(`${s.name}, 총을 그대로 밀어 넘긴다. 확률 ${Math.round(risk() * 100)}% 그대로.`, 'spin');
+  log(`${esc(s.name)} — 양보. ${state.shot + 1}번째 약실을 넘김.`, 'spin');
+  return endTurn(i, tok, 1000);
+}
+
+async function doRaise(i, tok) {
+  state.busy = true; state.lastAction[i] = 'raise'; stopTimer(); Heart.stop();
+  const s = state.seats[i]; s.used.raise = true; drunkReset(s);
+  react(i, 'raise', risk(), tok, 900);
+  resetGag(s);
+  const avail = []; for (let x = state.shot + 1; x <= state.N; x++) if (!state.live.has(x)) avail.push(x);
+  state.live.add(pick(avail));
+  state.pot *= 2; renderAll();
+  cylWrap.classList.add('open'); A.latch(false); await wait(420); if (tok !== state.token) return;
+  const r = document.createElement('div'); r.className = 'round-in mid'; cylWrap.appendChild(r); A.insert();
+  await wait(520); r.remove(); if (tok !== state.token) return;
+  cylWrap.classList.remove('open'); A.latch(true); A.gasp(); bumpPot(); A.coin(6);
+  setMsg(`${s.name}, 한 발 더 장전! 실탄 ${remLive()}발 · 판돈 ${won(state.pot)}`, 'danger');
+  log(`<b>${esc(s.name)}</b> — +1발! 판돈 2배 (${won(state.pot)}).`, 'kill');
+  paintChambers(); renderStage();
+  return endTurn(i, tok, 1100);
+}
+const ACT = { fire: doFire, spin: doSpin, pass: doPass, raise: doRaise };
+
+async function roundDraw(tok) {
+  state.over = true; Heart.stop(); stopTimer();
+  setMsg('딜러: 남은 실탄이 없다. 무효 판 — 판돈 반환.', 'info');
+  log('무효 판 — 실탄이 모두 불발.', 'sys');
+  [0, 1].forEach(i => { if (state.seats[i].kind === 'human') { money.v += state.pot / 2 + state.gain[i]; saveMoney(); } });
+  S.del('save'); renderAll();
+  await wait(2600); if (tok !== state.token) return;
+  newRound(tok, true);
+}
+
+async function death(i, tok, forced) {
   const dead = state.seats[i], win = state.seats[1 - i], chamber = state.shot;
-  state.over = true;
-  A.gun(chamber === 6); A.tinnitus(dead.kind === 'human' ? 5 : 3); A.muffle(5); Heart.stop();
+  state.over = true; stopTimer();
+  A.gun(risk() >= 1 || chamber === state.N); A.tinnitus(dead.kind === 'human' ? 5 : 3); A.muffle(5); Heart.stop();
+  if (A.crowd) setTimeout(() => A.gasp(), 250);
   kickFx();
-  const e = chEl(state.P); e.classList.add('reveal');
+  chEl(phys(chamber)).classList.add('reveal');
   // 기록
-  if (state.mode === 'vs') { deaths[dead.kind === 'human' ? 'human' : 'ai']++; S.set('deaths', deaths); }
+  if (state.mode !== 'auto') { deaths[dead.kind === 'human' ? 'human' : 'ai']++; S.set('deaths', deaths); }
   if (dead.kind === 'ai') { stats[dead.pers] = persRecord(dead.pers); stats[dead.pers].l++; }
   if (win.kind === 'ai') { stats[win.pers] = persRecord(win.pers); stats[win.pers].w++; }
+  if (dead.kind === 'ai' && win.kind === 'ai') { const k = win.pers + '>' + dead.pers; riv[k] = (riv[k] || 0) + 1; S.set('riv', riv); }
   S.set('stats', stats);
   killHist[chamber - 1]++; S.set('killhist', killHist);
   S.del('save');
+  // 정산: 승자가 판돈 + 양쪽 보너스
+  const prize = state.pot + state.gain[0] + state.gain[1];
+  if (win.kind === 'human') { money.v += prize; wins++; S.set('wins', wins); saveMoney(); }
+  if (dead.kind === 'human' && state.mode === 'tour') { const rate = tourLossRate(), loss = Math.min(money.v, Math.round(state.pot * rate)); money.v -= loss; saveMoney(); if (loss) log(`사망 — 판돈의 ${Math.round(rate * 100)}% ${won(loss)} 몰수.`, 'kill'); }
   // 피
   const r = seatEls[i].querySelector('.portrait').getBoundingClientRect();
   Blood.splat(r.left + r.width / 2, r.top + r.height / 2);
   seatEls[i].classList.add('dead'); bleedCard(i);
-  const words = dead.kind === 'ai' ? line(i, 'die') : null;
-  showDeath(dead, words, chamber);
-  setMsg(`탕. ${dead.name} 사망.`, 'danger');
-  log(`<b>${esc(dead.name)}</b> 사망 — ${chamber}번째 약실.`, 'kill');
+  const blunder = state.blunder === i; state.blunder = -1;
+  showDeath(dead, blunder ? pick(DRUNK_BLUNDER_DIE) : forced && isDrunkVoice(i) ? pick(DRUNK_TIMEOUT_DIE) : line(i, 'die'), chamber);
+  setMsg(`탕. ${dead.name} 사망. ${win.name}이(가) ${won(prize)}을 가져간다.`, 'danger');
+  log(`<b>${esc(dead.name)}</b> 사망 — ${chamber}번째 약실. ${esc(win.name)} ${won(prize)} 획득.`, 'kill');
   renderAll();
-  setTimeout(() => { if (tok === state.token) speak(1 - i, 'win', 2600); }, 3300);
   await wait(4200); if (tok !== state.token) return;
   hideDeath(); Blood.fade();
-  await wait(1600); if (tok !== state.token) return;
+  const w = 1 - i; gainPop(w, '+' + won(prize)); A.coin(8);
+  const taunt = win.kind === 'ai' && (dead.kind === 'ai' || Math.random() < .5);
+  if (taunt) {
+    const tp = (TAUNT_EMO[win.pers] || TAUNT_ALL).filter(x => (PERS_EMO[win.pers] || TAUNT_ALL).includes(x)); const e = pick(tp.length ? tp : TAUNT_ALL); showEmote(w, e);
+    await wait(1100); if (tok !== state.token) return;
+    const pool = (TAUNT[win.pers] || {})[e]; if (pool) sayOrEmote(w, fmt(w, pick(pool)), 2600);
+    await wait(2300); if (tok !== state.token) return;
+  } else { speak(w, 'win', 2400); await wait(2000); if (tok !== state.token) return; }
+  if (state.mode === 'tour') { const go = await tourAfter(dead.kind === 'human'); if (!go || tok !== state.token) return; }
   newRound(tok, true);
 }
 
-// ══════════════════ 사람 입력 ══════════════════
-function humanAct(kind) {
-  const s = state.seats[state.turn];
-  if (!state.started || state.busy || !s || s.kind !== 'human') return;
-  if (kind === 'spin' && s.spin) return;
-  state.lastThink[state.turn] = performance.now() - state.turnStart;
-  state.busy = true;
-  kind === 'spin' ? doSpin(state.turn, state.token) : doFire(state.turn, state.token);
+// ── 토너먼트 진행
+function tourOverlay(ru, h, cls, p, btn, noBtn) {
+  return new Promise(res => {
+    $('#tcRu').textContent = ru; const H = $('#tcH'); H.textContent = h; H.className = 'tc-h ' + cls;
+    $('#tcP').innerHTML = p; $('#tcBtn').textContent = btn;
+    const no = $('#tcNo'); no.style.display = noBtn ? '' : 'none'; if (noBtn) no.textContent = noBtn;
+    const ov = $('#tourOv'); ov.classList.remove('hide', 'fade');
+    const close = v => { ov.classList.add('fade'); setTimeout(() => ov.classList.add('hide'), 500); res(v); };
+    $('#tcBtn').onclick = () => close(true); no.onclick = () => close(false);
+  });
 }
-fireBtn.addEventListener('click', () => humanAct('fire'));
-spinBtn.addEventListener('click', () => humanAct('spin'));
+async function tourAfter(humanDied) {
+  if (humanDied) {
+    tour.lives--; // 말투는 목숨이 전부 사라질 때(토너먼트 초기화)까지 유지
+    if (tour.lives <= 0) {
+      tourBest = Math.max(tourBest, tour.floor - 1); S.set('tourBest', tourBest);
+      const f = tour.floor; tourReset(); renderAll();
+      await tourOverlay('КОНЕЦ ИГРЫ', '끝났다', 'bad', `지하 <b>B${f}</b>에서 마지막 숨을 거뒀다.<br>최고 기록 ${tourBest ? 'B' + tourBest + ' 돌파' : '없음'}`, '처음부터 다시 내려간다');
+      log('토너먼트 종료 — 처음부터.', 'sys');
+    } else { S.set('tour', tour); log(`부상. 목숨 ${tour.lives}개 남음 — 같은 상대와 재대결.`, 'kill'); }
+    return true;
+  }
+  const reward = 300 * tour.floor; money.v += reward; saveMoney();
+  tourBest = Math.max(tourBest, tour.floor); S.set('tourBest', tourBest);
+  if (tour.floor >= FLOORS) {
+    money.v += 5000; saveMoney(); tourReset(); renderAll();
+    await tourOverlay('ПОБЕДА', '살아서 나간다', 'good', `일곱 층을 모두 돌파했다. 볼코프는 쓰러졌다.<br>상금 ${won(5000 + reward)}`, '다시 지하로');
+    log('토너먼트 우승!', 'spin');
+  } else {
+    tour.floor++; tour.opp = null; S.set('tour', tour);
+    log(`층 돌파! 상금 ${won(reward)}. 지하 B${tour.floor}로 내려간다.`, 'spin');
+    setMsg(`계단을 내려간다… 지하 B${tour.floor}`, 'info'); renderAll(); await wait(1200);
+  }
+  return true;
+}
 
-// ══════════════════ 모드 / 음악 / 일시정지 ══════════════════
+// ══════════════════ 사람 입력 ══════════════════
+function humanAct(kind, forced) {
+  const i = state.turn, s = state.seats[i];
+  if (!state.started || state.paused || state.busy || state.over || state.busyLoad || !s || s.kind !== 'human') return;
+  if (!canOf(i)[kind]) return;
+  state.lastThink[i] = performance.now() - state.turnStart;
+  if (!forced && (kind === 'spin' || kind === 'pass')) { prof.esc[state.shot] = (prof.esc[state.shot] || 0) + 1; prof.n++; S.set('prof', prof); }
+  state.busy = true; stopTimer(); state.forcedBy = forced ? i : -1;
+  const vt = line(i, actKey(i, kind, ctxFor(i))) || line(i, kind); if (vt && !(s.muteUntil > performance.now())) bubble(i, vt, risk() >= 1 ? 2600 : 1800);
+  ACT[kind](i, state.token);
+}
+Object.entries(BTN).forEach(([a, el]) => el.addEventListener('click', () => humanAct(a)));
+
+// ══════════════════ 모드 / 설정 / 음악 ══════════════════
 function applyModeUI() {
   document.body.classList.toggle('auto', state.mode === 'auto');
   document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === state.mode));
+  document.querySelectorAll('#gunSeg button').forEach(b => b.classList.toggle('on', +b.dataset.gun === state.N));
+  document.querySelectorAll('#timerSeg button').forEach(b => b.classList.toggle('on', (b.dataset.t === '1') === timerOn()));
+  document.querySelectorAll('#timerSeg button').forEach(b => b.disabled = state.mode === 'tour');
+  $('#timerDesc').innerHTML = state.mode === 'tour' ? '<span class="warn2">🔒 토너먼트에서는 시간 제한이 항상 켜진다 (설정과 무관).</span>' : (settings.timer ? '' : '꺼져 있으면 암시장 보드카를 살 수 없다.');
+  $('#gunDesc').innerHTML = GUNS[state.N].ko + ' — ' + GUNS[state.N].desc + (state.mode === 'tour' && tour.floor > 1 ? '<span class="warn2">⚠ 지금 바꾸면 토너먼트가 B1부터 초기화된다.</span>' : '');
 }
 function restart() {
-  state.token++; state.paused = false; $('#pauseBtn').innerHTML = '❚❚ 일시정지';
+  state.token++; if (state.mode === 'auto') manualPause = false; applyPause(); stopTimer();
   Heart.stop(); hideDeath(); Blood.clear(); state.over = false; hammer.classList.remove('cocked'); cylWrap.classList.remove('open');
+  $('#tourOv').classList.add('hide');
   seatEls.forEach(e => e.querySelector('.bubble').classList.remove('show'));
   newRound(state.token, false);
 }
-$('#modeSeg').addEventListener('click', e => {
+// 토너먼트 진행도: B1이면 자유 이동, B2 이상이면 초기화 경고
+const tourDeep = () => state.started && state.mode === 'tour' && tour.floor > 1;
+function timerOn() { return state.mode === 'tour' || !!settings.timer; }
+$('#modeSeg').addEventListener('click', async e => {
   const m = e.target.dataset.mode; if (!m || m === state.mode) return;
+  if (tourDeep()) {
+    const ok = await tourOverlay('ВНИМАНИЕ', '테이블을 떠나면', 'bad',
+      `토너먼트가 <b>처음(B1)부터 초기화</b>된다.<br>현재 지하 B${tour.floor} · 목숨 ${tour.lives}개 · 이번 판 참가비는 돌려받지 못한다.<br>그래도 떠날까?`, '초기화하고 이동', '남는다');
+    if (!ok) return;
+    tourReset(); log('토너먼트 포기 — 초기화.', 'sys');
+  }
   state.mode = m; S.set('mode', m); S.del('save'); applyModeUI();
-  if (state.started) { log(m === 'auto' ? 'AI 관전 모드 시작' : '1:1 대결 모드 시작', 'sys'); restart(); }
+  if (state.started) { log({ vs: '1:1 대결 모드', tour: '토너먼트 — 지하 7층', auto: 'AI 관전 모드' }[m], 'sys'); restart(); }
+});
+$('#setBtn').addEventListener('click', e => { e.stopPropagation(); $('#setPop').classList.toggle('open'); $('#shopPop').classList.remove('open'); });
+document.addEventListener('click', e => { if (!e.target.closest('.popwrap')) { $('#setPop').classList.remove('open'); $('#shopPop').classList.remove('open'); } });
+$('#gunSeg').addEventListener('click', async e => {
+  const n = +e.target.dataset.gun; if (!n || n === state.N) return;
+  const inTour = state.started && state.mode === 'tour', deep = tourDeep();
+  if (deep) {
+    $('#setPop').classList.remove('open');
+    const ok = await tourOverlay('ВНИМАНИЕ', '총을 바꾸면', 'bad',
+      `토너먼트가 <b>처음(B1)부터 초기화</b>된다.<br>현재 지하 B${tour.floor} · 목숨 ${tour.lives}개 · 이번 판 참가비는 돌려받지 못한다.<br>${GUNS[n].ko}(으)로 바꾸고 다시 시작할까?`, '초기화하고 교체', '취소');
+    if (!ok) return;
+  }
+  settings.gun = n; S.set('settings', settings); state.N = n; S.del('save'); buildCylinder(); applyModeUI();
+  if (deep) { tourReset(); log(`총 교체 — ${GUNS[n].ko}. 토너먼트 초기화.`, 'sys'); restart(); }
+  else if (inTour) { log(`총 교체 — ${GUNS[n].ko}. B1 재대결.`, 'sys'); restart(); }
+  else if (state.started) { log(`총 교체 — ${GUNS[n].ko}`, 'sys'); restart(); } else renderAll();
+});
+$('#timerSeg').addEventListener('click', e => {
+  const t = e.target.dataset.t; if (t === undefined) return;
+  if (state.mode === 'tour') { $('#timerDesc').innerHTML = '<span class="warn2">토너먼트 중에는 바꿀 수 없다.</span>'; return; }
+  settings.timer = t === '1'; S.set('settings', settings); applyModeUI();
+  if (!settings.timer) stopTimer(); else if (state.started && !state.busy) startTimer(state.token);
 });
 const musicBtn = $('#musicBtn');
 let musicOn = S.get('music', true);
 function applyMusicUI() { musicBtn.classList.toggle('off', !musicOn); }
-function toggleMusic() { musicOn = !musicOn; S.set('music', musicOn); applyMusicUI(); if (state.started) musicOn ? Music.start() : Music.stop(); }
+function toggleMusic() { musicOn = !musicOn; S.set('music', musicOn); applyMusicUI(); if (state.started) { if (musicOn) { Music.start(); A.crowdStart(); } else { Music.stop(); A.crowdStop(); } } }
 musicBtn.addEventListener('click', toggleMusic);
-$('#pauseBtn').addEventListener('click', () => {
-  state.paused = !state.paused; $('#pauseBtn').innerHTML = state.paused ? '▶ 재개' : '❚❚ 일시정지';
-  if (state.paused) { Heart.stop(); setMsg('일시정지', 'info'); }
+// ── 일시정지: 수동(버튼) + 자동(설정·암시장·대사 창, 탭 전환·비활성). AI 관전에서는 없음.
+let manualPause = false; const pauseWhy = new Set();
+function applyPause() {
+  const p = state.started && state.mode !== 'auto' && (manualPause || pauseWhy.size > 0);
+  const btn = $('#pauseBtn'); btn.innerHTML = manualPause ? '▶ 재개' : '❚❚ 일시정지'; btn.classList.toggle('on', manualPause);
+  $('#pauseTag').textContent = manualPause ? '⏸ 일시정지 — 재개 버튼을 누르면 풀린다' : '⏸ 자동 일시정지';
+  if (p === state.paused) return;
+  state.paused = p; document.body.classList.toggle('paused', p);
+  if (p) Heart.stop(); else if (state.started && !state.busy && !state.over) Heart.set(risk());
+}
+function autoPause(why, on) { on ? pauseWhy.add(why) : pauseWhy.delete(why); applyPause(); }
+$('#pauseBtn').addEventListener('click', e => { e.stopPropagation(); manualPause = !manualPause; applyPause(); });
+const menuOpen = () => $('#setPop').classList.contains('open') || $('#shopPop').classList.contains('open') || !$('#voiceOv').classList.contains('hide');
+new MutationObserver(() => autoPause('menu', menuOpen())).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+document.addEventListener('visibilitychange', () => autoPause('tab', document.hidden));
+window.addEventListener('blur', () => autoPause('blur', true));
+window.addEventListener('focus', () => autoPause('blur', false));
+
+
+// ══════════════════ 암시장 ══════════════════
+const LIFE_EVERY = 10;
+const lifeAllow = () => Math.floor(wins / LIFE_EVERY) - lifeBought;
+const SHOP = [
+  { id: 'vodka', ic: 'ВОД', name: '보드카 한 잔', price: 300,
+    desc: () => timerOn() ? '이번 판 시간 제한 +5초, 손떨림 1단계 감소.' : '<em>시간 제한이 꺼져 있어 살 수 없다.</em>',
+    can: () => roundLive() && !state.vodka && timerOn(), owned: () => state.vodka,
+    buy() { state.vodka = true; A.glass(); setMsg('보드카 한 잔. 손이 조금 진정된다.', 'info'); log('암시장 — 보드카 한 잔.', 'sys'); } },
+  { id: 'spin', ic: '×2', name: '두 번째 스핀권', price: 10000,
+    desc: () => '이번 판 스핀을 한 번 더 쓸 수 있다.',
+    can: () => roundLive() && !state.spinTicket, owned: () => state.spinTicket,
+    buy() { state.spinTicket = true; const h = humanS(); if (h.used.spin) h.used.spin = false; else h.spinExtra = 1; A.coin(3); setMsg('딜러가 스핀권 한 장을 슬쩍 건넨다.', 'info'); log('암시장 — 두 번째 스핀권.', 'sys'); } },
+  { id: 'life', ic: '♥', name: '목숨 추가 ×3', price: 20000,
+    desc: () => state.mode !== 'tour' ? '<em>토너먼트 전용.</em>' : `토너먼트 목숨 <b>+3</b>. ${LIFE_EVERY}승마다 1회 구매 가능 — 남은 횟수 <b>${Math.max(0, lifeAllow())}</b> (승리 ${wins})`,
+    can: () => state.started && state.mode === 'tour' && lifeAllow() > 0 && !state.over, owned: () => false,
+    buy() { lifeBought++; S.set('lifeBought', lifeBought); tour.lives += 3; S.set('tour', tour); const h = humanS(); if (h) h.injured = Math.max(0, 3 - tour.lives); A.coin(5); setMsg('검은 봉투가 건네진다. 목숨이 셋 늘었다.', 'info'); log('암시장 — 목숨 +3.', 'sys'); } },
+];
+const humanS = () => state.seats.find(s => s && s.kind === 'human');
+const roundLive = () => state.started && state.mode !== 'auto' && !state.busyLoad && !state.over && !!humanS();
+function renderShop() {
+  $('#shopBank').textContent = won(money.v);
+  $('#shopList').innerHTML = SHOP.map(it => { const own = it.owned(), ok = it.can() && money.v >= it.price;
+    return `<div class="si ${own ? 'owned' : ''}"><div class="ic">${it.ic}</div><div class="tx"><div class="nm">${it.name}</div><div class="ds">${it.desc()}</div></div>
+      <button data-buy="${it.id}" ${ok ? '' : 'disabled'}>${own ? '사용 중' : won(it.price)}</button></div>`; }).join('');
+}
+$('#shopBtn').addEventListener('click', e => { e.stopPropagation(); renderShop(); $('#shopPop').classList.toggle('open'); $('#setPop').classList.remove('open'); });
+$('#shopList').addEventListener('click', e => {
+  const id = e.target.dataset.buy; if (!id) return; const it = SHOP.find(x => x.id === id);
+  if (!it.can() || money.v < it.price) return;
+  money.v -= it.price; saveMoney(); it.buy(); save(); renderAll();
 });
 
 // ══════════════════ 시작 / 이름 ══════════════════
 function begin() {
-  A.init(); state.started = true; if (musicOn) Music.start();
+  A.init(); state.started = true; if (musicOn) { Music.start(); A.crowdStart(); }
   const sv = S.get('save', null);
-  if (state.mode === 'vs' && sv && sv.ai && PERS[sv.ai.pers]) {
-    state.seats[0] = humanSeat(); state.seats[1] = { kind: 'ai', name: sv.ai.name, pers: sv.ai.pers, spin: sv.spin[1], n: sv.ai.n };
-    state.seats[0].spin = sv.spin[0];
-    state.P = sv.P; setBullet(sv.bullet); state.shot = sv.shot; state.turn = sv.turn; state.round = sv.round; state.lastAction = sv.last || [null, null];
-    state.busyLoad = false; rotateTo((state.c0 - 1 + state.shot + 6) % 6); paintChambers();
+  if (sv && sv.mode === state.mode && sv.N === state.N && sv.ai && PERS[sv.ai.pers] && sv.used) {
+    state.seats = [humanSeat(), { kind: 'ai', name: sv.ai.name, pers: sv.ai.pers, used: sv.used[1], n: sv.ai.n, boss: sv.ai.boss }];
+    state.seats[0].used = sv.used[0];
+    state.c0 = sv.c0; state.live = new Set(sv.live); state.shot = sv.shot; state.turn = sv.turn; state.round = sv.round;
+    state.lastAction = sv.last || [null, null]; state.pot = sv.pot; state.gain = sv.gain || [0, 0];
+    state.vodka = !!sv.vodka; state.spinTicket = !!sv.ticket; state.seats[0].spinExtra = sv.extra || 0;
+    state.busyLoad = false; rotateTo((startIdx() + state.shot) % state.N); paintChambers();
     log('중단된 라운드를 이어서 진행한다. 도망칠 곳은 없다.', 'sys');
     nextTurn(state.token);
   } else newRound(state.token, false);
@@ -1234,16 +1934,23 @@ welcome.addEventListener('click', e => {
 });
 seatEls[0].addEventListener('click', e => { if (e.target.classList.contains('edit')) openContract(); });
 
-// 단축키
 document.addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) return;
   if (e.key === 'Pause' || e.key === '`') { toggleDbg(); return; }
   if (!state.started) return;
   const k = e.key.toLowerCase();
   if (k === 'f' || k === 'а') humanAct('fire');
   else if (k === 's' || k === 'ы') humanAct('spin');
+  else if (k === 'd' || k === 'в') humanAct('pass');
+  else if (k === 'r' || k === 'к') humanAct('raise');
   else if (k === 'm') toggleMusic();
 });
+
+// ══════════════════ 창밖 눈 ══════════════════
+(() => { const c = $('#snow'), g = c.getContext('2d'), fl = Array.from({ length: 45 }, () => ({ x: Math.random() * 150, y: Math.random() * 210, r: .6 + Math.random() * 1.8, v: .2 + Math.random() * .6, w: Math.random() * 6 }));
+  (function f() { g.clearRect(0, 0, 150, 210); g.fillStyle = 'rgba(230,240,255,.85)';
+    fl.forEach(p => { p.y += p.v; p.w += .02; p.x += Math.sin(p.w) * .3; if (p.y > 212) { p.y = -3; p.x = Math.random() * 150; } g.beginPath(); g.arc(p.x, p.y, p.r, 0, 7); g.fill(); });
+    requestAnimationFrame(f); })(); })();
 
 // ══════════════════ 디버그 ══════════════════
 const dbg = $('#dbg');
@@ -1251,35 +1958,236 @@ function toggleDbg() { state.debug = !state.debug; dbg.classList.toggle('open', 
 $('#dbgBtn').addEventListener('click', toggleDbg);
 ['#dPers0', '#dPers1'].forEach(sel => $(sel).innerHTML = PERS_IDS.map(id => `<option value="${id}">${PERS[id].ko}</option>`).join(''));
 function syncDbg() {
-  $('#dBullet').value = state.bullet; $('#dShot').value = state.shot + 1; $('#dTurn').value = state.turn;
-  [0, 1].forEach(i => { const s = state.seats[i]; if (!s) return; $('#dSpin' + i).checked = s.spin; const ps = $('#dPers' + i); ps.disabled = s.kind !== 'ai'; if (s.kind === 'ai') ps.value = s.pers; });
-  $('#dTurn').innerHTML = [0, 1].map(i => `<option value="${i}">${esc(state.seats[i] ? state.seats[i].name : '좌석 ' + i)}</option>`).join(''); $('#dTurn').value = state.turn;
+  if (!state.seats[0]) return;
+  $('#dBullet').value = [...state.live].sort().join(','); $('#dShot').value = state.shot + 1; $('#dItems').checked = false;
+  $('#dTurn').innerHTML = [0, 1].map(i => `<option value="${i}">${esc(state.seats[i].name)}</option>`).join(''); $('#dTurn').value = state.turn;
+  [0, 1].forEach(i => { const s = state.seats[i], ps = $('#dPers' + i); ps.disabled = s.kind !== 'ai'; if (s.kind === 'ai') ps.value = s.pers; });
   refreshDbg();
 }
 function refreshDbg() {
-  if (!state.debug || !state.seats[0]) return;
-  $('#dbgLive').textContent = `실탄 격발 번호 : ${state.bullet}\n현재 약실     : ${state.shot + 1} / 6\n물리 약실(P)  : ${state.P}  시작 c0: ${state.c0}\n턴            : ${state.seats[state.turn].name}\n스핀          : A ${state.seats[0].spin ? '사용' : '미사용'} · B ${state.seats[1].spin ? '사용' : '미사용'}`;
+  if (!state.debug || !state.seats[0] || !state.seats[1]) return;
+  const u = s => ['spin', 'pass', 'raise'].map(k => s.used[k] ? '·' : k[0].toUpperCase()).join('');
+  $('#dbgLive').textContent = `총           : ${GUNS[state.N].ko} (${state.N})\n실탄 격발번호: ${[...state.live].sort().join(', ') || '없음'}\n현재 약실    : ${state.shot + 1} / ${state.N}\n남은 실탄    : ${remLive()}  위험 ${Math.round(risk() * 100)}%\n턴           : ${state.seats[state.turn].name}\n아이템       : A ${u(state.seats[0])} · B ${u(state.seats[1])}\n판돈         : ${won(state.pot)}  보너스 ${state.gain.join(' / ')}`;
   $('#dbgAi').textContent = [0, 1].map(i => { const s = state.seats[i]; if (s.kind !== 'ai') return `${s.name}: 사람`;
-    const c = ctxFor(i), o = optimal(c.k, c.canSpin, c.oppCanSpin);
-    return `${s.name} [${PERS[s.pers].ko}${s.n ? ' n=' + s.n : ''}]\n  예상: ${aiDecide(i) === 'spin' ? '스핀' : '발사'} · 최적해: ${o.a === 'spin' ? '스핀' : '발사'} (사망 ${Math.round(o.v * 100)}%)`; }).join('\n');
+    const c = ctxFor(i), o = optimal(c.N, c.k, Math.max(1, c.b), maskOf(s), maskOf(c.opp));
+    return `${s.name} [${PERS[s.pers].ko}${s.n ? ' n=' + s.n : ''}]\n  성향상: ${aiDecide(i)} · 최적해: ${o.a} (사망 ${Math.round(o.v * 100)}%)`; }).join('\n');
 }
-setInterval(refreshDbg, 300);
+setInterval(refreshDbg, 400);
 $('#dApply').addEventListener('click', () => {
-  const b = clamp(parseInt($('#dBullet').value) || 1, 1, 6), sh = clamp(parseInt($('#dShot').value) || 1, 1, 6) - 1;
-  setBullet(b); state.shot = sh; state.turn = +$('#dTurn').value;
-  [0, 1].forEach(i => state.seats[i].spin = $('#dSpin' + i).checked);
-  rotateTo((state.c0 - 1 + state.shot + 6) % 6, 0, 300); paintChambers();
-  state.token++; hammer.classList.remove('cocked'); save(); nextTurn(state.token);
+  const nums = $('#dBullet').value.split(/[,\s]+/).map(x => parseInt(x)).filter(x => x >= 1 && x <= state.N);
+  state.shot = clamp((parseInt($('#dShot').value) || 1) - 1, 0, state.N - 1);
+  state.live = new Set(nums.filter(x => x > state.shot).length ? nums : [state.N]);
+  state.turn = +$('#dTurn').value;
+  if ($('#dItems').checked) state.seats.forEach(s => s.used = freshUsed());
+  rotateTo((startIdx() + state.shot) % state.N, 0, 300); paintChambers();
+  state.token++; state.over = false; state.busyLoad = false; hammer.classList.remove('cocked'); save(); nextTurn(state.token);
 });
 $('#dApplyPers').addEventListener('click', () => {
   [0, 1].forEach(i => { const s = state.seats[i]; if (s.kind === 'ai') { s.pers = $('#dPers' + i).value; prepAI(s); } });
   save(); renderAll();
 });
-$('#dReset').addEventListener('click', () => { deaths = { human: 0, ai: 0 }; S.set('deaths', deaths); renderAll(); });
-$('#dResetStats').addEventListener('click', () => { stats = {}; S.set('stats', stats); killHist = [0, 0, 0, 0, 0, 0]; S.set('killhist', killHist); renderAll(); });
+$('#dReset').addEventListener('click', () => { deaths = { human: 0, ai: 0 }; S.set('deaths', deaths); bank = 1000; tbank = 1000; loans = 0; saveMoney(); renderAll(); });
+$('#dResetStats').addEventListener('click', () => { stats = {}; riv = {}; S.set('stats', stats); S.set('riv', riv); killHist = [0, 0, 0, 0, 0, 0, 0]; S.set('killhist', killHist); prof = { esc: [0, 0, 0, 0, 0, 0, 0], n: 0, fires: 0 }; S.set('prof', prof); renderAll(); });
+
+
+// ══════════════════ 이모티콘 ══════════════════
+const EMOTES = [['😂', 'laugh'], ['😏', 'smirk'], ['😭', 'cry'], ['😱', 'scared'], ['😡', 'angry'], ['🙏', 'pray'], ['👍', 'good'], ['💀', 'skull']];
+// 반응: 다른 이모티콘 / 말 / 이모티콘+말 섞어서. 보낸 것과 같은 이모티콘은 절대 안 돌려준다.
+const EMO = {
+  berserker: {
+    laugh: ['💢', '뭐가 웃겨? 당겨보고 웃어라.', '🔥 웃음이 나와? 좋아, 그 웃음 끝까지 가나 보자.'],
+    smirk: ['😤', '그 표정 지우게 해주마.', '💪 비웃어? 방아쇠 앞에선 다 똑같다.'],
+    cry: ['🤣', '눈물은 무덤에서 흘려라.', '🙄 울 거면 집에 가.'],
+    scared: ['😈', '겁먹었군! 그게 정상이다. 하하!', '🔥 그 공포, 맛있군.'],
+    angry: ['🔥', '하! 화났냐? 좋아, 그래야 재밌지!', '🤜 덤벼라!'],
+    pray: ['🤣', '신 따윈 없다. 총알뿐이지.', '⚔ 기도할 시간에 당겨라.'],
+    good: ['💪', '흥. 칭찬은 살아남고 해라.', '🤝 …나쁘지 않군.'],
+    skull: ['⚔', '해골? 네 얼굴이다.', '🔥 죽음은 두렵지 않다!'] },
+  coward: {
+    laugh: ['😰', '왜, 왜 웃어요… 뭐 알아요?', '🥺 웃지 마세요… 무서워요…'],
+    smirk: ['😖', '그 표정… 뭔가 꾸미는 거죠?', '😣 저, 저 쳐다보지 마세요…'],
+    cry: ['🥺', '저도… 울고 싶어요…', '😢 우리 그냥 집에 가면 안 돼요?'],
+    scared: ['😨', '그쵸?! 무섭죠?! 저만 그런 거 아니죠?!', '😭 저도요… 저도요…'],
+    angry: ['😰', '죄, 죄송해요! 제가 뭘 잘못했는지 모르겠지만!', '😖 화내지 마세요… 제발…'],
+    pray: ['😢', '저, 저도 같이 기도할게요!', '🥺 하나님… 저희 둘 다요…'],
+    good: ['🥺', '고, 고마워요… 착한 사람이네요…', '😖 저, 저요?'],
+    skull: ['😱', '그, 그런 거 보내지 마요!!', '😭 으아아… 해골 싫어…'] },
+  gambler: {
+    laugh: ['🃏', '웃는 걸 보니 좋은 패인가?', '💸 포커페이스가 영 안 되는군.'],
+    smirk: ['🎲', '블러프 냄새가 나는군.', '♠ 그 미소, 얼마짜리지?'],
+    cry: ['🙄', '우는 연기? 블러프야.', '💰 눈물엔 배당이 없어.'],
+    scared: ['🎰', '겁먹은 쪽이 먼저 폴드하지.', '🃏 떨고 있군. 좋은 신호야.'],
+    angry: ['🤑', '틸트 왔군. 이제 돈 좀 벌겠어.', '♣ 화내면 판단이 흐려지지.'],
+    pray: ['🎲', '운은 기도로 안 와. 주사위로 오지.', '🍀 난 네잎클로버 파야.'],
+    good: ['🤝', '굿 게임.', '🥂 좋은 테이블이야.'],
+    skull: ['🎰', '판돈이 목숨이지. 뭘 새삼.', '♠ 스페이드 에이스, 죽음의 카드.'] },
+  calculator: {
+    laugh: ['📉', '웃음 감지. 확률 변화: 0.', '웃음은 분모도 분자도 바꾸지 않는다.'],
+    smirk: ['🧮', '표정 데이터 무시.', '📊 여유 표정. 근거 없음.'],
+    cry: ['📉', '눈물은 확률을 바꾸지 않는다.', '감정적 반응. 예상 범위 내.'],
+    scared: ['📈', '공포는 합리적이다. 수치를 봐라.', '🧮 두려움 정도: 적정.'],
+    angry: ['⚠', '분노 감지. 판단력 저하 예상.', '📉 화낼수록 기대값은 떨어진다.'],
+    pray: ['🧮', '기도의 효과: 0.00%.', '📊 기도 변수는 모델에 없다.'],
+    good: ['✅', '평가 수신. 인정.', '🤖 상호 존중 프로토콜.'],
+    skull: ['📊', '사망 확률 표현으로 이해한다.', '🧮 현재 사망 확률을 알려줄까?'] },
+  strategist: {
+    laugh: ['♟', '여유를 부리는군. 수는 이미 정해졌다.', '🤨 웃을 수에서 웃는 건가, 아닌가.'],
+    smirk: ['♟', '그 미소, 세 수 앞까지 읽었다.', '🤔 흥미롭군.'],
+    cry: ['♞', '동요하는군. 좋은 신호다.', '🧐 무너지기 시작했군.'],
+    scared: ['♜', '공포는 판단을 흐리지.', '😌 계획대로다.'],
+    angry: ['🧊', '감정은 수를 흐린다.', '♟ 화를 내면 수가 보이지.'],
+    pray: ['📐', '기도 대신 계산을 해라.', '♛ 신은 체스를 두지 않는다.'],
+    good: ['🤝', '좋은 대국이다.', '♚ 예의 바르군.'],
+    skull: ['♚', '체크메이트를 예고하는 건가.', '🤨 누구의 해골일까.'] },
+  fatalist: {
+    laugh: ['🕯', '운명 앞에서 웃는군. 좋다.', '🌑 웃어라. 곧 끝나니.'],
+    smirk: ['🔮', '그 미소도 이미 정해져 있었다.', '🌘 운명을 비웃나.'],
+    cry: ['🕯', '눈물도 운명의 일부다.', '🌧 울어라. 비는 그치게 되어 있다.'],
+    scared: ['🔮', '두려움은 운명을 모르는 자의 것.', '🌑 받아들여라.'],
+    angry: ['⚖', '운명에 화내 봐야 소용없다.', '🔮 분노 또한 정해진 것.'],
+    pray: ['🕯', '기도는 통하지 않는다. 그래도 함께 하지.', '✝ 운명의 신께.'],
+    good: ['🔮', '운명이 우리를 이 자리에 앉혔다.', '🕯 고맙다.'],
+    skull: ['⚰', '그래, 죽음은 늘 곁에 있다.', '🌑 오늘 누구를 데려갈까.'] },
+  mimic: {
+    laugh: ['하. 하. 하. …이렇게 웃는 거 맞지?', '🤭 네 웃음 따라 해봤어.', '😆 나도나도!'],
+    smirk: ['🙃 이 표정 맞아? 따라 해봤는데.', '그 미소, 연습해둘게.', '😼 흉내 완료.'],
+    cry: ['🥲 나도 울어볼까… 잘 안 되네.', '흑흑. …이렇게?', '😿 따라 울어줄게.'],
+    scared: ['😬 나도 무서운 척.', '으, 으악! …이렇게 하는 거지?', '🫢 따라 놀라봤어.'],
+    angry: ['😤 나도 화났다! …아마도.', '크르르… 따라 해봤어.', '👹 화난 표정 흉내.'],
+    pray: ['🤲 나도 기도! 뭘 비는지는 모르지만.', '아멘. …맞지?', '🙇 따라 빌어봄.'],
+    good: ['👌 나도 좋아!', '엄지 척! …다른 손가락으로.', '🤙 받고 하나 더.'],
+    skull: ['☠ 나도 해골! 아니, 이건 다른 해골.', '뼈다귀 흉내.', '🦴 따라 할 게 해골밖에 없네.'] },
+  mindgamer: {
+    laugh: ['🧐', '웃음이 떨리는데?', '👀 웃음으로 뭘 숨기지?'],
+    smirk: ['😌', '그 미소, 삼 초 늦었어.', '👁 네 입꼬리가 거짓말하는군.'],
+    cry: ['🤨', '그 눈물, 진짜일까?', '🧠 동정을 사려는 건가.'],
+    scared: ['😌', '공포가 보이는군. 예상대로.', '👁 동공이 흔들리네.'],
+    angry: ['🤭', '화났어? 이미 내 페이스야.', '🧠 흥분하면 지는 거야.'],
+    pray: ['🧐', '기도할 만큼 무섭나?', '👀 누구한테 비는 거지?'],
+    good: ['🤨', '칭찬으로 날 흔들 순 없어.', '😶 …무슨 꿍꿍이지?'],
+    skull: ['🙄', '허세.', '🧠 해골로 겁을 주겠다고?'] },
+  veteran: {
+    laugh: ['🚬', '웃을 수 있을 때 웃어둬라.', '🎖 전장에서도 그런 놈이 오래 살았지.'],
+    smirk: ['🚬', '젊은 놈이 건방지군. 마음에 든다.', '🪖 그 여유, 오래 가길.'],
+    cry: ['🫡', '울어도 된다. 우리 다 울었다.', '🚬 괜찮다. 다들 처음엔 그래.'],
+    scared: ['🪖', '무서운 게 정상이다. 무섭지 않은 놈이 먼저 죽지.', '🫡 숨 크게 쉬어라.'],
+    angry: ['🚬', '화는 총구가 아니라 적에게.', '🎖 진정해라, 병사.'],
+    pray: ['🫡', '나도 전장에선 기도했지.', '🕊 전우들을 위해서도 빌어다오.'],
+    good: ['🫡', '좋은 녀석이군.', '🎖 훈장감이다.'],
+    skull: ['🪦', '죽음은 농담거리가 아니다.', '🫡 먼저 간 녀석들 생각나는군.'] },
+  drunk: {
+    laugh: ['🥴', '히끅, 웃기지? 나도 웃겨!', '🍻 웃을 땐 건배지!'],
+    smirk: ['🍺', '그 표정 뭐야~ 한 잔 해~', '🥴 히끅, 윙크한 거야?'],
+    cry: ['🥃', '울지 마~ 한 잔 해~', '🫂 이리 와, 안아줄게~ 딸꾹.'],
+    scared: ['🍾', '무서울 땐 보드카지!', '🥴 괜찮아 괜찮아~ 나도 몰라~'],
+    angry: ['🥃', '화내지 말고 한 잔~', '🍻 싸우지 말고 건배~'],
+    pray: ['🥂', '기도 말고 건배!', '🍷 신도 한 잔 하실래요?'],
+    good: ['🍻', '최고야~ 딸꾹!', '🥳 친구! 우린 친구야!'],
+    skull: ['🤪', '해골 귀엽다~', '🍺 해골잔에 한 잔~'] },
+  provocateur: {
+    laugh: ['🖕', '뭐가 웃겨, 이 자식아?', '😈 웃어? 곧 울게 될 거다.'],
+    smirk: ['🙄', '그 표정 당장 지워.', '😒 비웃음은 내 전문이야.'],
+    cry: ['🤣', '울어라 울어! 하하!', '👶 벌써 우냐?'],
+    scared: ['😈', '떨어라, 더 떨어!', '🤣 그 얼굴 사진 찍어두고 싶네.'],
+    angry: ['🤪', '화났네? 귀엽다.', '😜 더 화내봐. 재밌으니까.'],
+    pray: ['🤣', '기도? 늦었어.', '😈 신은 오늘 휴무야.'],
+    good: ['🙄', '아부하지 마.', '😒 엄지는 넣어둬.'],
+    skull: ['🤣', '네 미래다.', '😈 그거 네 초상화지?'] },
+};
+Object.entries(EMO).forEach(([id, t]) => Object.entries(t).forEach(([k, arr]) => { PERS[id].lines['emo_' + k] = arr; }));
+const PERS_EMO = {
+  berserker: ['😂', '😏', '😡', '💀'], coward: ['😭', '😱'], gambler: ['😏', '😂', '👍'], calculator: ['👍', '💀'],
+  strategist: ['😏', '👍'], fatalist: ['🙏', '💀'], mimic: ['😂', '😏', '😭', '😱', '😡', '🙏', '👍', '💀'], mindgamer: ['😏', '😂'],
+  veteran: ['👍', '🙏', '💀'], drunk: ['😂', '🙏', '👍', '🥃'], provocateur: ['😂', '😏', '😡', '💀', '👍'] };
+const allowedEmo = pers => (PERS_EMO[pers] || EMOTES.map(x => x[0])).filter(e => EMOTES.some(x => x[0] === e));
+const fitEmo = (pers, e) => allowedEmo(pers).includes(e) ? e : pick(allowedEmo(pers));
+const EMO_SELF = { berserker: '😂', coward: '😭', gambler: '😏', strategist: '😏', fatalist: '🙏', mindgamer: '😏', veteran: '👍', drunk: '🥃', provocateur: '😂', mimic: '😏', calculator: '👍' };
+const TOO_MUCH_LAUGH = ['💢 그만 웃어라.', '계속 웃으면 너부터 쏜다.', '😠 한 번만 더 웃어봐.'];
+const isEmo = t => [...t].length <= 2 && !/[가-힣a-zA-Z0-9]/.test(t);
+function showEmote(i, e) { const el = seatEls[i].querySelector('.bubble'); bubble(i, e, 1800); el.classList.add('emo'); clearTimeout(el._e); el._e = setTimeout(() => el.classList.remove('emo'), 1800); }
+function sayOrEmote(i, t, dur = 2200) { if (isEmo(t)) showEmote(i, t); else { seatEls[i].querySelector('.bubble').classList.remove('emo'); bubble(i, t, dur); } }
+let laughCount = [0, 0], lastEmo = 0; const lastReply = {};
+function emoReply(to, from, e, kind, tok) {
+  const s = state.seats[to]; if (!s) return;
+  s.muteUntil = performance.now() + 4000; // 이 동안은 이모티콘 반응 하나만
+  if (s.kind === 'human') { const L = linesOf(to), pool = ((L && L['emo_' + kind]) || []).filter(x => x !== e && !isEmo(x)); if (!pool.length) return;
+    const t = pick(pool); setTimeout(() => { if (tok === state.token) sayOrEmote(to, fmt(to, t)); }, 800 + Math.random() * 600); return; }
+  if (kind === 'laugh' || kind === 'smirk') laughCount[from]++;
+  let t;
+  if ((kind === 'laugh' || kind === 'smirk') && laughCount[from] >= 3 && !['drunk', 'coward', 'calculator', 'mimic'].includes(s.pers)) t = pick(TOO_MUCH_LAUGH);
+  else {
+    const pool = ((EMO[s.pers] || {})[kind] || []).filter(x => x !== e && x !== lastReply[s.pers + kind]);
+    if (!pool.length) return;
+    t = pick(pool); lastReply[s.pers + kind] = t;
+  }
+  setTimeout(() => { if (tok === state.token) sayOrEmote(to, fmt(to, t)); }, 700 + Math.random() * 700);
+}
+function renderEmotes() { const on = !state.playerEmoUsed; document.querySelectorAll('#emotes button').forEach(b => b.disabled = !on); $('#emotes').title = on ? '이번 판 1회' : '이번 판엔 이미 보냈다'; }
+function aiEmote(i, tok) {
+  const s = state.seats[i]; const e = EMO_SELF[s.pers]; if (!e) return;
+  showEmote(i, e); const k = (EMOTES.find(x => x[0] === e) || [e, 'good'])[1];
+  emoReply(1 - i, i, e, k, tok);
+}
+$('#emotes').innerHTML = EMOTES.map(([e, k]) => `<button data-e="${e}" data-k="${k}" title="${k}">${e}</button>`).join('');
+$('#emotes').addEventListener('click', ev => {
+  const b = ev.target.closest('button'); if (!b || !state.started || state.paused || state.mode === 'auto') return;
+  const i = state.seats.findIndex(s => s && s.kind === 'human'); if (i < 0) return;
+  if (state.playerEmoUsed) return; state.playerEmoUsed = true; renderEmotes();
+  const now = performance.now(); lastEmo = now;
+  showEmote(i, b.dataset.e); emoReply(1 - i, i, b.dataset.e, b.dataset.k, state.token);
+});
+
+// ══════════════════ 내 대사 편집 ══════════════════
+const VOICE_KEYS = [['기본', null], ['intro', '판 시작'], ['fire', '방아쇠 (F)'], ['spin', '스핀 (S)'], ['pass', '양보 (D)'], ['raise', '+1발 (R)'], ['survive', '찰칵, 살았을 때'], ['win', '승리'], ['die', '마지막 말'],
+  ['상대 행동에 반응', null], ['r_fire', '상대가 당김'], ['r_spin', '상대가 스핀'], ['r_pass', '상대가 양보'], ['r_raise', '상대가 +1발'],
+  ['100% 상황', null], ['doom', '피할 수단 없이 당김'], ['spin100', '100%에서 스핀'], ['pass100', '100%에서 양보'], ['doomOpp', '상대가 100% 궁지'], ['oppSpin100', '상대가 100%에서 스핀'], ['curse', '100%를 떠넘겨 받음 (욕)'],
+  ['상대가 이모티콘을 보냈을 때', null], ['emo_laugh', '😂 받음'], ['emo_smirk', '😏 받음'], ['emo_cry', '😭 받음'], ['emo_scared', '😱 받음'], ['emo_angry', '😡 받음'], ['emo_pray', '🙏 받음'], ['emo_good', '👍 받음'], ['emo_skull', '💀 받음']];
+const vSel = $('#voicePreset'), vForm = $('#voiceForm'); let vEdited = false;
+vSel.innerHTML = '<option value="none">말 없음</option>' + PERS_IDS.map(id => `<option value="${id}">${PERS[id].ko} 프리셋</option>`).join('') + '<option value="custom">커스텀 (저장된 것)</option>';
+vForm.innerHTML = VOICE_KEYS.map(([k, lab]) => lab === null ? `<div class="vf sec">${k}</div>` : `<div class="vf"><label>${lab}<small>${k}</small></label><textarea data-k="${k}" spellcheck="false"></textarea></div>`).join('');
+function fillVoice(lines) { vForm.querySelectorAll('textarea').forEach(t => t.value = ((lines && lines[t.dataset.k]) || []).join('\n')); }
+function voiceStateTxt() { const el = $('#voiceState'); el.className = 'vstate' + (vEdited ? ' edited' : ''); el.textContent = vEdited ? '수정됨 — 저장하면 커스텀으로 적용' : vSel.value === 'none' ? '플레이어는 말하지 않는다' : vSel.value === 'custom' ? '저장된 커스텀 대사' : `${PERS[vSel.value].ko} 프리셋 그대로`; }
+function voiceLabel() { if (voiceRandom()) { const id = curVoiceId(); return '랜덤' + (id && PERS[id] ? '·' + PERS[id].ko : ''); } return voice.mode === 'custom' ? '커스텀' : voice.mode === 'preset' && PERS[voice.preset] ? PERS[voice.preset].ko : '말 없음'; }
+function manualLines() { return voice.mode === 'custom' ? voice.lines : voice.mode === 'preset' && PERS[voice.preset] ? PERS[voice.preset].lines : null; }
+function applyRandUI() {
+  const on = $('#voiceRand').checked; $('.vcard').classList.toggle('rand', on);
+  if (on) { const id = curVoiceId(); fillVoice(id && PERS[id] ? PERS[id].lines : null); const el = $('#voiceState'); el.className = 'vstate';
+    el.textContent = `랜덤 — ${id && PERS[id] ? '지금은 ' + PERS[id].ko : '다음 판에 추첨'} · ${state.mode === 'tour' ? '토너먼트 동안 유지, 죽으면 재추첨' : '판마다 바뀜'}`; }
+  else { vSel.value = voice.mode === 'custom' ? 'custom' : voice.mode === 'preset' ? voice.preset : 'none'; fillVoice(manualLines()); vEdited = false; voiceStateTxt(); }
+}
+$('#voiceRand').addEventListener('change', applyRandUI);
+function openVoice() {
+  vSel.querySelector('option[value=custom]').disabled = voice.mode !== 'custom';
+  $('#voiceRand').checked = voiceRandom(); applyRandUI();
+  $('#setPop').classList.remove('open'); $('#voiceOv').classList.remove('hide', 'fade');
+}
+vSel.addEventListener('change', () => { const v = vSel.value; fillVoice(v === 'custom' ? voice.lines : v === 'none' ? null : PERS[v].lines); vEdited = false; voiceStateTxt(); });
+vForm.addEventListener('input', () => { vEdited = true; voiceStateTxt(); });
+function closeVoice() { const o = $('#voiceOv'); o.classList.add('fade'); setTimeout(() => o.classList.add('hide'), 400); }
+$('#voiceCancel').addEventListener('click', closeVoice);
+$('#voiceSave').addEventListener('click', () => {
+  const v = vSel.value, rnd = $('#voiceRand').checked;
+  if (rnd) { voice = Object.assign({}, voice, { random: true }); }
+  else if (vEdited || v === 'custom') {
+    const lines = {}; vForm.querySelectorAll('textarea').forEach(t => { const arr = t.value.split('\n').map(x => x.trim()).filter(Boolean).slice(0, 12).map(x => x.slice(0, 80)); if (arr.length) lines[t.dataset.k] = arr; });
+    voice = { mode: 'custom', base: v, lines };
+  } else if (v === 'none') voice = { mode: 'none' };
+  else voice = { mode: 'preset', preset: v };
+  if (!rnd) voice.random = false;
+  if (rnd && !curVoiceId()) { if (state.mode === 'tour') { tour.voice = rollVoice(); S.set('tour', tour); } else S.set('randVoice', rollVoice()); }
+  S.set('voice', voice); renderAll(); $('#voiceCur').textContent = voiceLabel(); closeVoice();
+  const i = state.seats.findIndex(s => s && s.kind === 'human'); const t = i >= 0 && line(i, 'intro'); if (t) bubble(i, t, 2200);
+});
+$('#voiceBtn').addEventListener('click', e => { e.stopPropagation(); openVoice(); });
+$('#voiceCur').textContent = voiceLabel();
+
+// ══════════════════ 화면 맞춤: 700~1100px은 데스크톱 배치를 축소 ══════════════════
+const DESIGN_W = 1100;
+function fitScreen() { const w = document.documentElement.clientWidth; $('#app').style.zoom = (w >= 700 && w < DESIGN_W) ? (w / DESIGN_W).toFixed(3) : ''; }
+window.addEventListener('resize', fitScreen); fitScreen();
 
 // ══════════════════ 초기화 ══════════════════
-buildCylinder(); rotateTo(5); applyModeUI(); applyMusicUI(); renderLB();
+buildCylinder(); applyModeUI(); applyMusicUI(); renderLB();
 if (state.name) { $('#wName').textContent = state.name; welcome.classList.remove('hide'); }
 else openContract();
 })();
