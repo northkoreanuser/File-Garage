@@ -642,7 +642,7 @@ body.g3d .cyl-area{overflow:visible}
 .gunimg{display:none;object-fit:contain}
 .cyl-wrap,.cyl-area .muzzle,.cyl-area .smoke{visibility:hidden!important} /* 2D 총 삭제: 상태 저장·3D 트리거용으로만 남음 */
 .gunlbl{display:none}
-.sig{display:none!important}
+.g3dsig{display:none!important} /* 3D 신호용 보이지 않는 노드 (서명칸 .sig와 이름 겹치지 않게) */
 .no3d{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;text-align:center}
 body.g3d.g3dimg svg.gunpt{display:none}
 body.g3d.g3dimg .gunimg{display:block}
@@ -823,7 +823,7 @@ body.auto.nobet .arena{grid-template-columns:1fr minmax(300px,1.3fr) 1fr}
 <!-- 계약서 (최초 이름 입력) -->
 <div class="ov hide" id="contract">
   <div class="paper" id="paper">
-    <div class="p-head"><span>계약서 № <span id="docNo">0000</span></span><svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,72 21,94 32,59 3,38 39,38" fill="#8a1a14"/></svg></div>
+    <div class="p-head"><span>계약서 № <span id="docNo">1922-12-30-1991-12-26</span></span><svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,72 21,94 32,59 3,38 39,38" fill="#8a1a14"/></svg></div>
     <h2>참가 서약서</h2>
     <div class="sub">지하 3층, 전등 하나. 테이블 위에는 리볼버 한 자루.</div>
     <p class="cl">一. 본인은 누구의 강요도 없이 이 테이블에 앉는다.</p>
@@ -1898,9 +1898,9 @@ function showDeath(seat, lastWords, chamber) {
 function hideDeath() { $('#deathBg').classList.remove('show'); $('#death').classList.remove('show'); }
 
 // ══════════════════ 연출 ══════════════════
-function spawnCasing() { const c = document.createElement('i'); c.className = 'casing sig'; cylWrap.parentNode.appendChild(c); setTimeout(() => c.remove(), 200); } // 3D 탄피 신호 (보이지 않음)
+function spawnCasing() { const c = document.createElement('i'); c.className = 'casing g3dsig'; cylWrap.parentNode.appendChild(c); setTimeout(() => c.remove(), 200); } // 3D 탄피 신호 (보이지 않음)
 async function insertRound(tok) {
-  const r = document.createElement('i'); r.className = 'round-in sig'; cylWrap.appendChild(r); // 3D 장전 신호 (보이지 않음)
+  const r = document.createElement('i'); r.className = 'round-in g3dsig'; cylWrap.appendChild(r); // 3D 장전 신호 (보이지 않음)
   A.insert(); await wait(520); r.remove(); if (tok !== state.token) return;
   chEl(topIdx()).classList.add('loaded');
 }
@@ -2609,12 +2609,12 @@ $('#fsSeg').addEventListener('click', e => {
   settings.fs = f === '1'; S.set('settings', settings); fsUI();
   if (!settings.fs && document.fullscreenElement) document.exitFullscreen().catch(() => {});
 });
-document.addEventListener('pointerdown', e => {
+document.addEventListener('click', e => { // pointerdown에서 전체 화면을 켜면 화면이 바뀌는 사이 클릭이 엉뚱한 곳(환영 화면 배경)에 떨어져 '다른 이름으로 서명'이 먹히지 않았다 → 클릭이 처리된 뒤에 켠다
   if (!settings.fs || document.fullscreenElement || document.webkitFullscreenElement) return;
   if (e.target.closest('#fsSeg')) return;
   const el = document.documentElement, rq = el.requestFullscreen || el.webkitRequestFullscreen;
-  if (rq) try { const r = rq.call(el); if (r && r.catch) r.catch(() => {}); } catch (_) {}
-}, true);
+  if (rq) setTimeout(() => { try { const r = rq.call(el); if (r && r.catch) r.catch(() => {}); } catch (_) {} }, 0);
+}, false);
 const musicBtn = $('#musicBtn');
 let musicOn = S.get('music', true);
 function applyMusicUI() { musicBtn.classList.toggle('off', !musicOn); }
@@ -2693,7 +2693,7 @@ function forceRename() {
 }
 function openContract() {
   $('#pHint').textContent = PHINT;
-  $('#docNo').textContent = String(1000 + rand(9000)); paper.classList.remove('stamped');
+  $('#docNo').textContent = '1922-12-30-1991-12-26'; paper.classList.remove('stamped'); // 계약서 번호: 소련 건국일 + 해체일
   paper.style.animation = 'none'; void paper.offsetWidth; paper.style.animation = '';
   nameInput.value = state.name || ''; contract.classList.remove('hide', 'fade'); setTimeout(() => nameInput.focus(), 400);
 }
