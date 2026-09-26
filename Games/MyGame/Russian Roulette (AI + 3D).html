@@ -18,6 +18,8 @@
   --f-serif:'Noto Serif KR',serif;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}img,svg,canvas{-webkit-user-drag:none;user-drag:none} /* 드래그·선택 방지 (서약서 투명 글자가 드래그로 드러나지 않게) */
+#dbg .dnamebox{margin-top:6px}#dbg .dnamebox .db{width:auto;flex:1}
 body{background:var(--bg);color:var(--text);font-family:var(--f-kr);min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased}
 button{font-family:inherit}
 
@@ -261,6 +263,27 @@ body.auto .spectate{display:block}
 .cl{font-size:14px;line-height:1.7;opacity:0;animation:typeIn .5s forwards;border-left:2px solid rgba(138,26,20,.4);padding-left:10px;margin:4px 0}
 .cl:nth-of-type(1){animation-delay:.4s}.cl:nth-of-type(2){animation-delay:.8s}.cl:nth-of-type(3){animation-delay:1.2s}.cl:nth-of-type(4){animation-delay:1.6s}
 @keyframes typeIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+.ct-ghost{color:transparent}
+#tourDead{position:fixed;inset:0;z-index:3000;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;cursor:pointer;animation:tdIn 2.2s ease forwards}
+#tourDead.out{animation:tdOut .7s ease forwards}
+@keyframes tdIn{from{opacity:0}to{opacity:1}}@keyframes tdOut{to{opacity:0}}
+#tourDead .td-name{font-family:var(--f-serif);font-weight:900;font-size:clamp(34px,7vw,72px);color:#b3121b;letter-spacing:.04em;text-shadow:0 0 30px rgba(179,18,27,.45);opacity:0;animation:tdIn 1.6s .5s ease forwards}
+#tourDead .td-sub{font-size:14px;color:#6b5a45;letter-spacing:.2em;opacity:0;animation:tdIn 1.2s 1.6s ease forwards}
+#tourDead .td-hint{font-size:12px;color:#5a4e42;letter-spacing:.5em;opacity:0;animation:tdIn 1s 2.6s ease forwards,ctPulse 2.4s 3.6s ease-in-out infinite}
+#contract.ct-wait .paper{display:none}.ct-waitmsg{display:none;position:absolute;font-family:var(--f-serif);color:#8c7d6a;letter-spacing:.4em;font-size:14px;animation:ctPulse 2.4s ease-in-out infinite}#contract.ct-wait .ct-waitmsg{display:block}
+@keyframes ctPulse{0%,100%{opacity:.25}50%{opacity:.8}}
+.p-head,.sig{position:relative}
+.ct-rule{position:absolute;left:0;bottom:-9px;white-space:nowrap;overflow:hidden;max-width:100%;font-size:14px;line-height:1;color:#271c12;letter-spacing:-1.5px;pointer-events:none}
+.sig .ct-rule{bottom:-6px;color:#271c12}
+.paper.ct-typing .p-head>span:not(.ct-rule),.paper.ct-typing h2,.paper.ct-typing .sub,.paper.ct-typing .cl,.paper.ct-typing .sig label,.paper.ct-typing #pHint,.paper.ct-typing .p-btn{color:transparent}
+.paper.ct-typing .cl{animation:none;opacity:1}.paper.ct-typing{animation:paperIn .7s cubic-bezier(.2,1,.3,1)}
+.ct-ink{color:var(--ink,#271c12)}.paper .p-head{--ink:#8a1a14}.paper .sub,.paper .sig label{--ink:#6b5a45}.paper #pHint{--ink:#8a7458}.paper .p-btn{--ink:#efe3c8}
+.paper.ct-typing .sig input{color:#1d2f73;caret-color:transparent;cursor:default}
+.paper.ct-typing .p-head{border-bottom-color:transparent}.paper.ct-typing .p-head svg{opacity:0}.paper .p-head svg{transition:opacity .5s}
+.paper.ct-typing.ct-h .p-head svg{opacity:1}
+.paper .cl{position:relative}.paper.ct-typing .cl{border-left-color:transparent}.paper.ct-typing .cl.ct-on::before{content:'';position:absolute;left:0;top:0;width:2px;height:var(--barH,0px);background:rgba(138,26,20,.4)} /* 인용 막대: 찍힌 줄까지만 */
+.paper.ct-typing .sig input{border-bottom-color:transparent}
+.paper.ct-typing .p-btn{background:transparent;pointer-events:none;transition:background .5s,color .5s}.paper.ct-typing.ct-btn .p-btn{background:#1d140d}
 .sig{margin-top:22px;position:relative}
 .sig label{font-family:var(--f-ru);font-size:10px;letter-spacing:.3em;color:#6b5a45}
 .sig input{display:block;width:100%;border:0;border-bottom:1.5px solid #271c12;background:transparent;font-family:var(--f-pen);font-size:46px;line-height:1.1;color:#1d2f73;padding:4px 2px 0;outline:none}
@@ -821,8 +844,8 @@ body.auto.nobet .arena{grid-template-columns:1fr minmax(300px,1.3fr) 1fr}
 </div>
 
 <!-- 계약서 (최초 이름 입력) -->
-<div class="ov hide" id="contract">
-  <div class="paper" id="paper">
+<div class="ov hide" id="contract"><div class="ct-waitmsg">— 테이블을 두드려라 —</div>
+  <div class="paper ct-typing" id="paper">
     <div class="p-head"><span>계약서 № <span id="docNo">1922-12-30-1991-12-26</span></span><svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,72 21,94 32,59 3,38 39,38" fill="#8a1a14"/></svg></div>
     <h2>참가 서약서</h2>
     <div class="sub">지하 3층, 전등 하나. 테이블 위에는 리볼버 한 자루.</div>
@@ -1585,8 +1608,16 @@ function typeInto(el, i, text) {
   el.textContent = ''; step();
   return steps.reduce((a, x) => a + x.ms, 0);
 }
-function bubble(i, text, dur = 2200, dots = false) {
+const isDeadSeat = i => state.over && state.deadAt && state.deadAt.who === i; // 총 맞은 사람은 말을 못 한다 (유언은 사망 화면에만)
+function bubble(i, text, dur = 2200, dots = false, queued) {
   const el = seatEls[i].querySelector('.bubble');
+  if (isDeadSeat(i)) { el.classList.remove('show'); return; }
+  // 연달아 말하면 앞 말을 읽을 시간을 준다: 앞 말풍선이 아직 떠 있으면 끝난 뒤(+0.35초)에 이어서 말한다 (최대 8초까지 줄 세움)
+  if (!dots && text && !el.classList.contains('zz')) { const now = performance.now(), busyTill = Math.max(el._until || 0, el._resv || 0);
+    if (!el._dots && busyTill > now + 60 && !queued) { const wait = busyTill - now + 350;
+      if (wait >= 8000) { chatSay(i, text); return; } // 너무 밀리면 말풍선은 생략하고 채팅 기록에만
+      { const est = Math.max(dur, 1100 + 55 * [...text].length) + typeSteps(text).reduce((a, x) => a + x.ms, 0); el._resv = now + wait + est; const tk = state.token; setTimeout(() => { if (tk === state.token) bubble(i, text, dur, dots, true); }, wait); return; } } }
+  if (!dots && text) dur = Math.max(dur, 1100 + 55 * [...text].length); // 글자 수에 맞춘 최소 읽기 시간
   if (el.classList.contains('zz')) { if (sleepState && (sleepState.el === el || (sleepState.co && sleepState.co.el === el))) return; el.classList.remove('zz'); } // 잠든 동안엔 zzZ만
   clearTimeout(el._t); clearTimeout(el._typeT); el._typeTok = (el._typeTok || 0) + 1;
   const emoOnly = !dots && text && [...text].length <= 2 && !/[가-힣a-zA-Z0-9Ѐ-ӿ]/.test(text);
@@ -1638,6 +1669,23 @@ const NEM_LINES = {
   veteran: ['자네 또 왔군. 그때 그 얼굴 기억하네.', '두 번째 만남이군, {opp}. 이번엔 오래 버텨 보게.'],
   provocateur: ['또 기어 왔냐, {opp}? 지난번에 뒈진 거 벌써 잊었어?', '{opp}, 네 피 냄새 아직도 코에 남아 있다. 씨발, 반갑네.'],
 };
+// 숙적 재회: 지난번에 죽인 사람과 이름이 다르다 → 얼굴이 닮았다고 (성격별). 겁쟁이는 닮았다고만 하고 그 사람을 불쌍해한다.
+const NEM_LOOK = {
+  _: ['…너, {v}{랑} 얼굴이 똑 닮았군. 그 녀석은 내가 보냈는데.', '{v}? …아니, 이름이 다르네. 근데 그 얼굴, 어디서 봤더라.'],
+  provocateur: ['씨발, 너 {v} 동생이냐? 그 새끼 내가 보냈는데. 얼굴도 똑같이 멍청하네.', '이름 바꾸면 모를 줄 알았냐, {v}? …아, 진짜 다른 놈이야? 판박이네. 너도 똑같이 보내주지.'],
+  coward: ['어… {v}님{이랑} 정말 닮으셨네요… 그분… 불쌍했어요…', '혹시 {v}님 가족이세요…? 그분… 정말 안됐었어요… 죄송해요…'],
+  drunk: ['어? {v}! 살아 있었어~? …아닌가? 딸꾹, 얼굴이 똑같은데~', '너 {v}{지}? 아니라고? 에이~ 딸꾹, 똑같이 생겼는데~'],
+  berserker: ['{v}{랑} 똑같은 얼굴이군! 그 녀석처럼 박살 내주마!', '어디서 본 얼굴인데… 아, {v}! 그 녀석 피 맛이 기억나는군!'],
+  gambler: ['🎲 {v}{랑} 닮았네. 그 친구는 운이 없었지. 너는?', '🃏 같은 얼굴, 다른 이름이라… 패는 같을까?'],
+  calculator: ['안면 유사도 높음. 이전 표본: {v}. 결과 예측: 동일.', '이름 불일치, 얼굴 일치. {v}의 데이터를 적용한다.'],
+  strategist: ['{v}{와} 닮았군. 같은 수를 둔다면 같은 결말이다.'],
+  fatalist: ['{v}의 얼굴을 하고 왔군. 운명은 같은 얼굴을 두 번 부른다.'],
+  mindgamer: ['그 표정… {v}{랑} 똑같아. 떨리는 눈썹까지.'],
+  veteran: ['자네, {v}{라는} 젊은이와 닮았군. 그 친구는 여기서 갔지.'],
+  mimic: ['{v}{랑} 똑같이 생겼네~ 그럼 똑같이 따라 가는 거야?'],
+};
+function nemLook(i, v) { const s = state.seats[i], c = [...String(v)].pop(), k = c ? c.codePointAt(0) - 0xAC00 : -1, bat = k >= 0 && k < 11172 && k % 28;
+  return fmt(i, pick(NEM_LOOK[s.pers] || NEM_LOOK._)).replace(/\{v\}/g, v).replace(/\{랑\}/g, bat ? '이랑' : '랑').replace(/\{이랑\}/g, bat ? '이랑' : '이랑').replace(/\{와\}/g, bat ? '과' : '와').replace(/\{라는\}/g, bat ? '이라는' : '라는').replace(/\{지\}/g, bat ? '이지' : '지'); }
 // 숙적 재회: 지난번에 첫 턴 첫 발로(운 없이) 죽었을 때
 const NEM_FIRST = {
   _: ['또 왔군, {opp}. 지난번엔 방아쇠 한 번에 끝났지. 이번엔 좀 버텨봐.', '{opp}, 첫 발에 간 녀석이 또 왔네. 운은 좀 챙겨왔냐?'],
@@ -1678,6 +1726,7 @@ function introOf(i) {
 function introLine(i) {
   const s = state.seats[i], o = state.seats[1 - i];
   if (s.boss) return '여기까지 온 건 칭찬하지. 하지만 여기가 바닥이다.';
+  if (s.nemesis && nemesis && nemesis.victim && o && o.kind === 'human' && o.name !== nemesis.victim) return nemLook(i, nemesis.victim); // 이름이 다르면: 얼굴이 닮았다
   if (s.nemesis) { const how = nemesis && nemesis.how, T = how === 'first' ? NEM_FIRST : how === 'flick' ? NEM_FLICK : NEM_LINES; return fmt(i, pick(T[s.pers] || T._)); } // 지난번 사인에 따라
   if (state.mode === 'tour' && tour.floor > 1 && !tour.witnessed) { tour.witnessed = true; S.set('tour', tour);
     return fmt(i, pick(['위층에서 소문 들었다. B{f}를 뚫고 왔다며, {opp}?', '{opp}… 위층 녀석들이 네 얘기를 하더군.', '계단에서 피 냄새가 나더라. 네가 {opp}군.'])).replace('{f}', tour.floor - 1); }
@@ -1711,7 +1760,7 @@ function humanN() {
 function humanSeat() { return { kind: 'human', name: state.name || '무명', pers: null, used: freshUsed(), n: humanN(), injured: state.mode === 'tour' ? Math.max(0, 3 - tour.lives) : 0, spinExtra: 0 }; }
 function tourOpp() {
   if (tour.opp && tour.opp.pers === tour.voice) tour.opp = null; // 플레이어 말투와 같은 성격은 상대로 안 나옴
-  if (!tour.opp) { let tier = TOUR_TIERS[tour.floor - 1].filter(x => x !== tour.voice || x === 'drunk'); // 술꾼끼리는 만날 수 있다 if (!tier.length) tier = ['veteran', 'calculator'];
+  if (!tour.opp) { let tier = TOUR_TIERS[tour.floor - 1].filter(x => x !== tour.voice || x === 'drunk'); if (!tier.length) tier = ['veteran', 'calculator']; // 술꾼끼리는 만날 수 있다 · 층 상대가 플레이어 말투와 겹쳐 비면 대체
     const pers = pick(tier); tour.opp = { name: tour.floor === FLOORS ? '볼코프' : pick(NAMES), pers }; S.set('tour', tour); }
   // 숙적: 나를 죽인 층에 같은 이름·성격으로 기다린다
   if (nemesis && nemesis.floor === tour.floor && PERS[nemesis.pers] && nemesis.pers !== tour.voice && (tour.opp.name !== nemesis.name || tour.opp.pers !== nemesis.pers)) { tour.opp = { name: nemesis.name, pers: nemesis.pers }; S.set('tour', tour); }
@@ -1925,11 +1974,12 @@ function aiDecide(i) {
   if (c.seat.pers === 'calculator') return a === 'fire' || c.can[a] ? a : 'fire'; // 계산기: 계산 결과 그대로
   a = aiAdjust(i, a);
   if (a !== 'fire' && !c.can[a]) a = 'fire';
-  if (a === 'fire' && c.p >= 1 && c.seat.pers !== 'drunk') a = escape(c);
+  const serious = state.mode === 'tour'; // 토너먼트는 진지한 판: 도박수 없음 (확실하거나 확률 높을 때 피할 수 있으면 평소처럼 스핀·양보)
+  if (a === 'fire' && c.p >= 1 && (c.seat.pers !== 'drunk' || serious)) a = escape(c);
   // 플릭샷이 있어서 확률이 높아도 확실하진 않을 때, 피할 수단이 있어도 드물게 제 발로 당긴다 (성격별 이유). 전략가·계산기는 안 함.
   const bv = BRAVE[c.seat.pers];
   const flicked = state.flickUsed[0] || state.flickUsed[1]; // 이번 실린더에서 누군가 플릭 → 100%가 가짜(공란)일 수도
-  if (bv && flicked && c.p >= HIGH && c.p < 1 && a !== 'fire' && (c.can.spin || c.can.pass) && Math.random() < (typeof bv.p === 'function' ? bv.p(c) : bv.p)) a = 'fire';
+  if (!serious && bv && flicked && c.p >= HIGH && c.p < 1 && a !== 'fire' && (c.can.spin || c.can.pass) && Math.random() < (typeof bv.p === 'function' ? bv.p(c) : bv.p)) a = 'fire';
   if ((c.seat.pers === 'calculator' || c.seat.pers === 'strategist') && c.p >= 1 && a === 'fire') a = escape(c); // 계산형·전략가: 100%에선 절대 안 쏜다
   return a;
 }
@@ -2449,7 +2499,7 @@ async function roundDraw(tok) {
 }
 
 async function death(i, tok, forced) {
-  const dead = state.seats[i], win = state.seats[1 - i], chamber = chAt(state.shot); state.deadAt = { q: chamber, who: i }; // 약실 표시: 죽은 칸 = 좌D/우D
+  const dead = state.seats[i], win = state.seats[1 - i], chamber = chAt(state.shot); state.deadAt = { q: chamber, who: i }; { const b = seatEls[i].querySelector('.bubble'); clearTimeout(b._t); clearTimeout(b._typeT); b._typeTok = (b._typeTok || 0) + 1; b.classList.remove('show', 'emo'); b._resv = 0; } // 약실 표시: 죽은 칸 = 좌D/우D
   state.over = true; stopTimer();
   if (Music.variant === 'nemesis') Music.switchTo(null); // 숙적전 끝 → 바로 잔잔한 곡으로
   A.gun(risk() >= 1 || chamber === state.N); A.tinnitus(dead.kind === 'human' ? 5 : 3); A.muffle(5); Heart.stop();
@@ -2470,7 +2520,7 @@ async function death(i, tok, forced) {
   const prize = state.pot + state.gain[0] + state.gain[1];
   if (win.kind === 'human') { money.v += prize; wins++; S.set('wins', wins); saveMoney(); streak++; S.set('streak', streak);
     if (dead.nemesis || (nemesis && dead.name === nemesis.name && dead.pers === nemesis.pers)) { nemesis = null; S.del('nemesis'); log('숙적을 쓰러뜨렸다.', 'spin'); } }
-  if (dead.kind === 'human') { streak = 0; S.set('streak', 0); if (win.kind === 'ai') { nemesis = { name: win.name, pers: win.pers, how: state.firstPull ? 'first' : state.firstFlick ? 'flick' : 'normal' }; if (state.mode === 'tour') nemesis.floor = tour.floor; S.set('nemesis', nemesis); } } // 숙적은 하나만 (덮어씀) · 어떻게 죽였는지(how)도 기억해 재회 대사에 씀, 토너먼트면 죽은 층도 기억
+  if (dead.kind === 'human') { streak = 0; S.set('streak', 0); if (win.kind === 'ai') { nemesis = { name: win.name, pers: win.pers, how: state.firstPull ? 'first' : state.firstFlick ? 'flick' : 'normal', victim: dead.name }; if (state.mode === 'tour') nemesis.floor = tour.floor; S.set('nemesis', nemesis); } } // 숙적은 하나만 (덮어씀) · 어떻게 죽였는지(how)도 기억해 재회 대사에 씀, 토너먼트면 죽은 층도 기억
   const firstDeath = dead.kind === 'human' && state.mode !== 'auto' && state.firstPull, flickDeath = dead.kind === 'human' && state.mode !== 'auto' && state.firstFlick; // 첫 턴 플릭 사망: 위로금 없이 몰수 + 조롱 // 첫 턴 첫 발에 사망 → 몰수 없이 위로금
   if (firstDeath) { money.v += state.pot; saveMoney(); log(`첫 격발 사망 — 몰수 없음. 위로금 ${won(state.pot)}.`, 'spin'); }
   else if (dead.kind === 'human' && state.mode !== 'auto') { const rate = state.mode === 'tour' ? tourLossRate() : VS_LOSS, loss = Math.min(money.v, Math.round(state.pot * rate)); money.v -= loss; saveMoney(); if (loss) log(`사망 — 판돈의 ${Math.round(rate * 100)}% ${won(loss)} 몰수.`, 'kill'); }
@@ -2530,7 +2580,8 @@ function tourOverlay(ru, h, cls, p, btn, noBtn) {
 function tourApply(humanDied) { // 토너먼트 결과를 바로 반영하고 저장
   if (humanDied) {
     tour.lives--; // 말투는 목숨이 전부 사라질 때(토너먼트 초기화)까지 유지
-    if (tour.lives <= 0) { tourBest = Math.max(tourBest, tour.floor - 1); S.set('tourBest', tourBest); const f = tour.floor; tourReset(); log('토너먼트 종료 — 처음부터.', 'sys'); return { kind: 'over', f }; }
+    if (tour.lives <= 0) { tourBest = Math.max(tourBest, tour.floor - 1); S.set('tourBest', tourBest); const f = tour.floor; S.set('tourDeadScreen', { name: state.name || '무명', f, best: tourBest }); // F5로 못 피하게 즉시 저장
+      tourReset(); log('토너먼트 종료 — 처음부터.', 'sys'); return { kind: 'over', f }; }
     S.set('tour', tour); log(`부상. 목숨 ${tour.lives}개 남음 — 같은 상대와 재대결.`, 'kill'); return { kind: 'hurt' };
   }
   const reward = 300 * tour.floor; money.v += reward; saveMoney();
@@ -2541,7 +2592,7 @@ function tourApply(humanDied) { // 토너먼트 결과를 바로 반영하고 �
 }
 async function tourShow(o) { // 연출만
   renderAll();
-  if (o.kind === 'over') await tourOverlay('', '끝났다', 'bad', `지하 <b>B${o.f}</b>에서 마지막 숨을 거뒀다.<br>최고 기록 ${tourBest ? 'B' + tourBest + ' 돌파' : '없음'}`, '처음부터 다시 내려간다');
+  if (o.kind === 'over') return tourDeathScreen(o); // 토너먼트 완전 사망: 'ㅇㅇㅇ는 죽었다.' → 누르면 이름을 지우고 새로 시작
   else if (o.kind === 'win') { await tourOverlay('', '살아서 나간다', 'good', `일곱 층을 모두 돌파했다. 볼코프는 쓰러졌다.<br>상금 ${won(5000 + o.reward)}`, '일반 모드로 돌아간다');
     switchMode('vs'); return false; } // 우승하면 1:1로
   else if (o.kind === 'clear') { setMsg(`계단을 내려간다… 지하 B${tour.floor}`, 'info'); await wait(1200); }
@@ -2872,7 +2923,7 @@ const fitEmo = (pers, e) => allowedEmo(pers).includes(e) ? e : pick(allowedEmo(p
 const EMO_SELF = { berserker: '😂', coward: '😭', gambler: '😏', strategist: '😏', fatalist: '🙏', mindgamer: '😏', veteran: '👍', drunk: '🥃', provocateur: '😂', mimic: '😏', calculator: '👍' };
 const TOO_MUCH_LAUGH = ['💢 그만 웃어라.', '계속 웃으면 너부터 쏜다.', '😠 한 번만 더 웃어봐.'];
 const isEmo = t => [...t].length <= 2 && !/[가-힣a-zA-Z0-9]/.test(t);
-function showEmote(i, e) { const el = seatEls[i].querySelector('.bubble'); bubble(i, e, 1800); el.classList.add('emo'); clearTimeout(el._e); el._e = setTimeout(() => el.classList.remove('emo'), 1800); }
+function showEmote(i, e) { if (isDeadSeat(i)) return; const el = seatEls[i].querySelector('.bubble'); bubble(i, e, 1800); el.classList.add('emo'); clearTimeout(el._e); el._e = setTimeout(() => el.classList.remove('emo'), 1800); }
 function sayOrEmote(i, t, dur = 2200) { if (isEmo(t)) showEmote(i, t); else { seatEls[i].querySelector('.bubble').classList.remove('emo'); bubble(i, t, dur); } }
 let laughCount = [0, 0], lastEmo = 0; const lastReply = {};
 function emoReply(to, from, e, kind, tok) {
@@ -3764,7 +3815,7 @@ function buildDbg() {
     <div class="dr"><label>동전</label><select id="dCoinCurse"><option value="">랜덤 (불운 ${Math.round(goatP() * 100)}%)</option><option value="0" ${dc.cursed === false ? 'selected' : ''}>행운 — 777 · 클로버</option><option value="1" ${dc.cursed === true ? 'selected' : ''}>불운 — 666 · 염소</option></select></div>
     ${state.started ? '<button class="db" id="dNewRound">🔄 저장하고 새 판 (동전 토스부터)</button>' : ''}</div>`;
   if (ok) h += '<div class="dsec"><div class="dl">AI 판단 미리보기</div><div id="dbgAi"></div></div>';
-  h += `<div class="dsec"><div class="dl">초기화 (즉시)</div><button class="db red" id="dReset">✕ 사망·소지금 초기화</button><button class="db red" id="dResetStats">✕ 성격 전적 초기화</button></div>
+  h += `<div class="dsec"><div class="dl">초기화 (즉시)</div><button class="db red" id="dReset">✕ 사망·소지금 초기화</button><button class="db red" id="dResetStats">✕ 성격 전적 초기화</button><button class="db red" id="dResetName">✕ 이름 지우기… (계약서 연출 확인)</button><div class="dnamebox" id="dNameBox" hidden><div class="dnote">지우기: 이름만 지우고 새로고침 · 죽이기: 사망 화면(토너먼트와 무관, 기록 영향 없음) → 누르면 이름 지우고 새로고침, 서약서 마우스 스킵 가능</div><div class="dchips"><button class="db red" id="dNameDel">지우기</button><button class="db red" id="dNameKill">☠ 죽이기</button><button class="db" id="dNameCancel">취소</button></div></div></div>
     <div class="dfoot"><span id="dSaved"></span><button class="db save" id="dSave">💾 저장</button></div>`;
   dbg.innerHTML = h; dbgDirty = false; dbgSig = dbgSigNow(); refreshDbg();
   dbg.querySelectorAll('[id^=dPers]').forEach(sel => sel.addEventListener('change', () => { const b = dbg.querySelector(`[data-dk="${sel.id.slice(-1)}"]`); if (b) b.hidden = sel.value !== 'drunk'; }));
@@ -3774,6 +3825,10 @@ function buildDbg() {
   $('#dVMode').onchange = () => { const b = dbg.querySelector('.dvrand'); if (b) b.hidden = $('#dVMode').value !== 'rand'; };
   if ($('#dRestart')) $('#dRestart').onclick = () => { dbgSave(true); restartRound(); };
   if ($('#dNewRound')) $('#dNewRound').onclick = () => { dbgSave(true); toggleDbg(false); state.token++; hammer.classList.remove('cocked'); newRound(state.token, true); };
+  $('#dResetName').onclick = () => { $('#dNameBox').hidden = false; };
+  $('#dNameCancel').onclick = () => { $('#dNameBox').hidden = true; };
+  $('#dNameDel').onclick = () => { S.del('name'); location.reload(); };
+  $('#dNameKill').onclick = () => { const d = { name: state.name || '무명', debug: true }; S.set('tourDeadScreen', d); toggleDbg(false); tourDeathScreen(d); }; // 디버그 죽이기: 토너먼트와 무관 (F5에도 유지되는 건 같음)
   $('#dReset').onclick = () => { deaths = { human: 0, ai: 0 }; S.set('deaths', deaths); bank = 1000; tbank = 1000; loans = 0; saveMoney(); renderAll(); buildDbg(); };
   $('#dResetStats').onclick = () => { statsM = { vs: {}, tour: {}, auto: {} }; riv = {}; S.set('statsM', statsM); S.set('riv', riv); killHistM = { vs: [0, 0, 0, 0, 0, 0, 0], tour: [0, 0, 0, 0, 0, 0, 0], auto: [0, 0, 0, 0, 0, 0, 0] }; S.set('killhistM', killHistM); prof = { esc: [0, 0, 0, 0, 0, 0, 0], n: 0, fires: 0 }; S.set('prof', prof); renderAll(); };
 }
@@ -3968,9 +4023,9 @@ function rbHTML() {
   h += sec('will', '유언 · 마지막 칸', ul(['<b>다음이 마지막 칸(6번)이고 스핀·양보가 하나도 없으면</b> 확률과 무관하게 붉은 유언장이 뜨고 브금이 「슬라브 여인의 작별」로 바뀐다.', '유언을 쓰는 동안 시간은 멈춘다. Enter = 유언 확정하고 방아쇠 (비워두면 기본 유언).', '죽으면 그 유언이 사망 화면에 남는다.']));
   h += sec('timer', '시간 제한', ul(['기본 15초 (B6 “시간 제한 8초”). 부상 1단계마다 −3초, 보드카 +5초, 최소 4초.', '확실한 100%이거나 마지막 칸 궁지면 시간이 3배.', '6초가 지나면 상대가 재촉, 마지막 3초는 틱 소리. 시간이 다 되면 딜러가 방아쇠를 강제한다.', '설정에서 끌 수 있다. 술꾼 기믹(얼타기·잠) 중에는 시간이 안 간다.']));
   h += sec('modes', '모드', ul(['<b>1:1 대결</b>: 매 판 새 AI 상대(성격 무작위). 플레이어 말투가 랜덤이면 판마다 다시 뽑고, 상대 성격과 겹치지 않게 한다(술꾼끼리는 허용).', '<b>토너먼트</b>: 지하 B1~B7. 아래 참고.', '<b>AI 대전</b>: AI 둘이 붙는 걸 관전하며 베팅. 판 수에 안 들어간다.', '모드마다 저장·전적·판 수·악운 확률이 따로. 탭을 옮기거나 새로고침해도 진행 중인 판이 그대로 이어진다.']));
-  h += sec('tour', '토너먼트', ul(['층마다 상대가 정해져 있다: B1 술꾼/겁쟁이 · B2 도박꾼/따라쟁이 · B3 운명론자/광전사 · B4 노병/계산기 · B5 도발꾼 · B6 심리전 · B7 볼코프(전략가).', '보스 규칙: B5 판돈 ×2 · B6 시간 제한 8초 · B7 볼코프의 규칙(2발 장전 · 스핀 금지). 그 외 층은 5% 확률로 “아이템 금지” 판.', '이기면 층 상금 ₽300×층, B7 우승 시 +₽5,000.', '목숨 3개. 죽으면 목숨 −1, 부상(시간 −3초 · 손떨림), 같은 상대와 재대결. 목숨이 다 떨어지면 B1부터.', '토너먼트는 진지한 판 — 플레이어 랜덤 말투에서 술꾼이 빠지고, 말투는 게임오버까지 유지.', '지하 일정 층 이상에서 떠나려 하면 경고가 뜬다(그동안 일시정지).']));
+  h += sec('tour', '토너먼트', ul(['층마다 상대가 정해져 있다: B1 술꾼/겁쟁이 · B2 도박꾼/따라쟁이 · B3 운명론자/광전사 · B4 노병/계산기 · B5 도발꾼 · B6 심리전 · B7 볼코프(전략가).', '보스 규칙: B5 판돈 ×2 · B6 시간 제한 8초 · B7 볼코프의 규칙(2발 장전 · 스핀 금지). 그 외 층은 5% 확률로 “아이템 금지” 판.', '이기면 층 상금 ₽300×층, B7 우승 시 +₽5,000.', '목숨 3개. 죽으면 목숨 −1, 부상(시간 −3초 · 손떨림), 같은 상대와 재대결. 목숨이 다 떨어지면 B1부터.', '토너먼트는 진지한 판 — 플레이어 랜덤 말투에서 술꾼이 빠지고, 말투는 게임오버까지 유지. AI는 도박수를 두지 않는다: 플릭이 있든 없든 피할 수 있으면 평소처럼 스핀·양보(술꾼의 술김 격발도 없음).', '지하 일정 층 이상에서 떠나려 하면 경고가 뜬다(그동안 일시정지).']));
   h += sec('nemesis', '숙적', ul(['나를 죽인 AI는 숙적으로 기억된다(하나만, 덮어씀).', '1:1에서는 20% 확률로 같은 이름·성격으로 다시 나오고, 토너먼트에서는 죽은 그 층에서 기다린다. 숙적전은 전용 브금.', '재회 대사는 지난번 사인에 따라 다르다: 게임 도중 사망 / 첫 턴에 운 없이 / 첫 턴 플릭샷. 겁쟁이는 사과, 술꾼은 기억을 못 한다.', '숙적을 쓰러뜨리면 기록이 지워진다.']));
-  h += sec('pers', 'AI 성격', PERS_IDS.map(id => `<div class="rbp" id="rb-p-${id}"><h4 style="--pc:${PERS[id].color}">${PERS[id].ko}</h4><p class="rbdesc">${esc(PERS[id].desc)}</p>${ul((RB_PERS[id] || []).concat(RB_BRAVE[id] ? [`플릭으로 확률이 높지만 확실하진 않을 때, 피할 수 있어도 ${RB_BRAVE[id]}% 확률로 그냥 당기는 도박을 한다.`] : []))}</div>`).join('') +
+  h += sec('pers', 'AI 성격', PERS_IDS.map(id => `<div class="rbp" id="rb-p-${id}"><h4 style="--pc:${PERS[id].color}">${PERS[id].ko}</h4><p class="rbdesc">${esc(PERS[id].desc)}</p>${ul((RB_PERS[id] || []).concat(RB_BRAVE[id] ? [`플릭으로 확률이 높지만 확실하진 않을 때, 피할 수 있어도 ${RB_BRAVE[id]}% 확률로 그냥 당기는 도박을 한다 (1:1·AI 대전만).`] : []))}</div>`).join('') +
     `<div class="rbp"><h4>공통</h4>${ul(['AI마다 판 시작 시 기분이 정해진다: ' + RB_MOOD.map(([a, b]) => `<b>${a}</b> ${b}`).join(' · '), '사람 상대로 3연승 이상이면 경계해서 25% 이상에서 35% 확률로 피한다.', '확률 33% 이상에서 가끔 방아쇠에 손을 걸었다 뗀다(망설임).', '성격 조합에 따라 판 시작 전 둘이 먼저 말을 섞기도 한다.'])}</div>`);
   h += sec('drunk', '술꾼 기믹', ul(['AI 술꾼과 <b>말투가 술꾼인 플레이어</b> 모두에게 걸린다. 플레이어도 취기가 표시된다.', '<b>얼타기</b>: 자기 차례인데 상대에게 “빨리 해~ 네 차례잖아”라고 재촉. 상대가 받아치고 딜러가 책상을 툭 치며 알려준다. 그 뒤엔 평소대로 아무거나 한다. (첫 차례엔 안 나옴)', '<b>잠들기</b>: 첫 번째 30%(플레이어 20%), 그 뒤 10%(7%). zzZ가 쌓이고 브금이 브람스 자장가로(설정에서 끌 수 있음). 딜러가 테이블을 쾅 내리쳐 깨운다.', '<b>술꾼끼리</b>: 얼타면 둘 다 자기 차례인 줄 모르다가 딜러가 크게 쾅쾅 내리쳐야 안다. 한쪽이 자면 다른 술꾼도 50% 확률로 한 박자 늦게 따라 잔다(둘 다 자면 딜러가 두 번 쾅쾅, 화면이 크게 흔들림). 술친구가 죽으면 형식적으로 슬퍼하다 금세 잊고 보드카.', '기믹 중에 죽거나 살면 대사가 바뀐다(“아, 나였구나…”, “음냐… 벌써 아침이야?”).', '따라쟁이는 술꾼이 한 짓을 따라 한다.']));
   h += sec('shop', '암시장', ul(['🍸 <b>보드카 한 잔</b> ₽300 — 이번 판 시간 +5초, 손떨림 1단계 감소. 시간 제한이 켜져 있어야 산다.', '×2 <b>두 번째 스핀권</b> ₽10,000 — 이번 판 스핀을 한 번 더.', `♥ <b>목숨 추가 ×3</b> ₽20,000 — 토너먼트 전용, ${LIFE_EVERY}승마다 1회.`]));
@@ -3999,6 +4054,111 @@ document.addEventListener('keydown', e => { if (['INPUT', 'SELECT', 'TEXTAREA'].
 // 성격 칩(이름 아래) → 그 성격 항목, 약실 막대 → C·S·F·D 설명
 seatEls.forEach((el, i) => el.querySelector('.chip').addEventListener('click', e => { e.stopPropagation(); const s = state.seats[i]; ruleOpen(s && s.kind === 'ai' ? 'p-' + s.pers : state.mode === 'tour' ? 'tour' : 'talk'); }));
 $('#pips').addEventListener('click', e => { e.stopPropagation(); ruleOpen('pips'); });
+
+// ══════════════════ 계약서: 타자기 ══════════════════
+// 계약서는 빈 종이에서 시작한다. 머리글(계약서 №)·제목·설명·조항·'서명'·안내문·버튼 글자까지 전부 타자기로 한 자모씩 찍힌다.
+// 한글은 자모가 조합되는 과정이 보이는 속도. 서명칸 밑줄·버튼은 자기 차례가 오면 나타난다. 종이를 누르면(입력칸·버튼 제외) 남은 걸 한 번에.
+// 소리는 실제 수동 타자기를 본뜸: 활자대가 롤러를 때리는 날카로운 '탁'(짧은 광대역 충격 + 쇠 활자대의 비조화 울림 + 롤러의 둔한 울림)
+// → 30~45ms 뒤 캐리지가 한 칸 넘어가는 이스케이프먼트 '틱'. 스페이스는 활자 없이 둔한 '툭'+틱. 줄 끝은 종 '땡' + 캐리지 리턴 래칫 '드르륵' + 멈추는 '쿵'.
+A.typeKey = function (v = 1) { if (!this.ctx) return; const t = this.now(), pan = (Math.random() - .5) * .5, b = this.bus(.8 * v, pan, .08), j = .92 + Math.random() * .16;
+  this.burst(t, .0025, 'highpass', 1500, .7, 1.6, b); // 활자가 롤러를 때리는 순간 (아주 짧은 광대역)
+  this.burst(t + .001, .006, 'bandpass', 3000 * j, 1.5, .7, b); // 종이·리본 '착'
+  this.modal(t + .001, [1180 * j, 2410 * j, 3760 * j, 5230 * j], [.05, .034, .022, .014], [.13, .08, .045, .02], b, .04); // 쇠 활자대·링크 울림
+  this.thump(t, 230 * j, 120, .045, .5, b); // 롤러·몸체의 둔한 울림
+  const e = t + .03 + Math.random() * .015; this.burst(e, .004, 'highpass', 3200, .8, .35, b); this.modal(e, [4300 * j], [.012], [.05], b, .03); }; // 이스케이프먼트 틱
+A.typeSpace = function () { if (!this.ctx) return; const t = this.now(), b = this.bus(.7, 0, .06);
+  this.thump(t, 160, 80, .05, .55, b); this.burst(t, .01, 'lowpass', 900, .7, .5, b);
+  const e = t + .035; this.burst(e, .004, 'highpass', 3200, .8, .3, b); };
+A.typeDing = function () { if (!this.ctx) return; const t = this.now(), b = this.bus(.9, .35, .35);
+  this.modal(t, [2093, 2093 * 2.76, 2093 * 5.4, 2093 * 8.9], [1.3, .7, .35, .2], [.14, .05, .025, .01], b, .002); // 종 '땡' (종의 비조화 배음)
+  const n = 16; for (let k = 0; k < n; k++) { const u = k / n, tt = t + .22 + .5 * (u * u * .55 + u * .45); // 캐리지 리턴: 래칫이 빨라졌다 느려지며 드르륵
+    this.burst(tt, .005, 'highpass', 2200 + Math.random() * 800, .9, .22 * (1 - u * .4), b); }
+  this.burst(t + .22, .5, 'bandpass', 700, .8, .12, b); // 캐리지 미끄러지는 소리
+  this.thump(t + .74, 110, 50, .14, 1, b); this.burst(t + .74, .03, 'lowpass', 700, .7, .6, b); }; // 끝에 부딪혀 멈추는 '쿵'
+A.stamp = function () { if (!this.ctx) return; const t = this.now(), b = this.bus(1.3, 0, .3);
+  this.burst(t, .025, 'highpass', 900, .7, .9, b); this.thump(t, 130, 42, .22, 1.6, b); this.thump(t + .004, 70, 34, .3, 1.1, b);
+  this.burst(t, .14, 'lowpass', 520, .7, 1.4, b); this.modal(t + .01, [240, 390, 610], [.18, .12, .08], [.18, .1, .05], b, .03); this.burst(t + .09, .18, 'bandpass', 3200, 1.2, .18, b); };
+const CT = { tok: 0, done: true };
+const ctPaper = $('#paper'), ctHead = ctPaper.querySelector('.p-head > span'), ctHeadHTML = ctHead.innerHTML;
+// 가로선도 ━ 를 한 자씩 찍어 늘린다: 머리글 밑줄 · 서명칸 밑줄
+ctPaper.querySelector('.p-head').insertAdjacentHTML('beforeend', '<span class="ct-rule" id="ctRuleH"></span>');
+ctPaper.querySelector('.sig').insertAdjacentHTML('beforeend', '<span class="ct-rule" id="ctRuleS"></span>');
+function ctItems() { // rule: ━ 선 · name: 서명칸에 이름 타이핑 · reveal: 시작할 때 / after: 끝났을 때 드러낼 클래스
+  return [{ el: ctHead }, { el: $('#ctRuleH'), rule: 1, after: 'ct-h' }, { el: ctPaper.querySelector('h2') }, { el: ctPaper.querySelector('.sub') }, ...[...ctPaper.querySelectorAll('.cl')].map(el => ({ el, reveal: 'cl' })),
+    { el: ctPaper.querySelector('.sig label') }, { el: nameInput, ph: 1 }, { el: $('#ctRuleS'), rule: 1, after: 'ct-in' }, { el: $('#pHint') }, { el: $('#signBtn'), reveal: 'ct-btn', noDing: 1 }, { el: nameInput, name: 1 }]; // 버튼이 먼저 생기고 글자가 찍힌다 · 이름은 맨 마지막
+}
+// 연출 전 준비: 종이는 처음부터 완성본 크기, 글자는 투명(CSS .ct-typing). 찍힌 부분만 .ct-ink로 잉크색.
+function ctPrepare(nameToType) { // 조항 등장 애니메이션은 끈다 (끝나고 다시 페이드되지 않게)
+  CT.tok++; CT.done = false; const items = ctItems(); CT.items = items;
+  items.forEach(it => { if (!it.full) it.full = it.rule ? '' : it.ph ? (nameInput.dataset.ph || (nameInput.dataset.ph = nameInput.placeholder)) : it.name ? nameToType : it.el === ctHead ? ctHead.textContent : it.el.textContent; });
+  ctPaper.classList.add('ct-typing'); ctPaper.classList.remove('ct-h', 'ct-in', 'ct-btn');
+  items.forEach(it => { const e = it.el; e.classList.remove('ct-on'); if (!it.rule && !it.name) { e.style.animation = 'none'; e.style.opacity = '1'; } if (it.rule) e.textContent = ''; else if (it.ph) e.placeholder = ''; else if (it.name) { e.value = ''; e.readOnly = true; } else if (e === ctHead) e.innerHTML = ctHeadHTML; else e.textContent = it.full; }); // 머리글은 #docNo 구조 유지
+}
+const ctName = () => (state.name && nameOk(state.name)) ? state.name : pick(NAMES.filter(n => nameLen(n) <= NAME_MAX)); // 쓰던 이름, 처음이면 무작위 러시아 이름
+function ctStart() {
+  if (CT.done || !CT.items) ctPrepare(ctName());
+  const tok = CT.tok, items = CT.items;
+  A.init(); let li = 0;
+  const next = (it, ms) => { if (it.after) ctPaper.classList.add(it.after); if (!it.noDing && !it.rule) A.typeDing(); li++; setTimeout(line, ms); };
+  const line = () => {
+    if (tok !== CT.tok) return; if (li >= items.length) return ctFinish();
+    const it = items[li], el = it.el; if (it.reveal === 'cl') el.classList.add('ct-on'); else if (it.reveal) ctPaper.classList.add(it.reveal);
+    if (!it.rule && !it.name && !it.ph && el !== ctHead) it.full = el.textContent; // 안내문 등은 찍기 직전 문구로 (강제 재서명 안내 등)
+    if (it.rule) { // ━ 를 폭이 찰 때까지 한 자씩
+      const w = el.parentNode.getBoundingClientRect().width, n = Math.max(8, Math.ceil(w / 12.5)); let k = 0;
+      const tick = () => { if (tok !== CT.tok) return; if (k >= n) return next(it, 380); el.textContent = '━'.repeat(++k); A.typeKey(.55); setTimeout(tick, 24 + Math.random() * 10); };
+      return tick(); }
+    const steps = typeSteps(it.full); let k = 0;
+    const step = () => {
+      if (tok !== CT.tok) return; const x = steps[k++];
+      if (!x) return next(it, it.noDing ? 250 : it.name ? 420 : 640); // 종·캐리지 리턴이 끝나면 다음 줄
+      if (it.name) el.value = x.t; else if (it.ph) el.placeholder = x.t; else el.innerHTML = `<span class="ct-ink">${esc(x.t)}</span>${esc(it.full.slice(x.t.length))}`; // 남은 글자는 투명한 채로 자리만
+      if (it.reveal === 'cl') { const ink = el.firstChild, r = ink.getClientRects(), top = el.getBoundingClientRect().top; if (r.length) el.style.setProperty('--barH', (r[r.length - 1].bottom - top + 2) + 'px'); } // 인용 막대는 찍힌 줄까지만 (줄바꿈 뒤에 늘어남)
+      const sp = /\s/.test(x.ch), pu = /[.,!?…~·:;'"“”()\-—№→]/.test(x.ch);
+      sp ? A.typeSpace() : A.typeKey(pu ? .75 : 1);
+      setTimeout(step, sp ? 60 : pu ? 110 : x.blip ? (it.name ? 90 : 44) + Math.random() * 22 : 26); }; // 이름은 한 글자씩 또박또박
+    step(); };
+  setTimeout(line, 650); // 종이가 날아와 자리 잡은 뒤
+}
+function ctFinish() { if (CT.done) return; CT.done = true; CT.tok++;
+  (CT.items || []).forEach(it => { if (it.rule) it.el.textContent = ''; else if (it.ph) it.el.placeholder = it.full; else if (it.name) { it.el.value = it.full; it.el.readOnly = false; } else if (it.el === ctHead) it.el.innerHTML = ctHeadHTML; else it.el.textContent = it.full; it.el.classList.remove('ct-on'); it.el.style.removeProperty && it.el.style.removeProperty('--barH'); });
+  CT.items = null; ctPaper.classList.remove('ct-typing'); ctPaper.classList.add('ct-h', 'ct-in', 'ct-btn');
+  if (!contract.classList.contains('hide')) setTimeout(() => { nameInput.focus(); const n = nameInput.value.length; nameInput.setSelectionRange(n, n); }, 50); } // 이제 수정 가능
+// 스킵: 이름만 고치러 온 경우에만 서약서를 마우스로 3번 누르면 스킵. 처음 서명은 스킵 없음.
+const CTS = { clicks: 0 };
+function ctSkipNow() { ctFinish(); A.typeKey(1.2); A.typeDing(); }
+ctPaper.addEventListener('click', e => { if (CT.done || (CT.first && !CT.tourDeath) || e.target.closest('input,button')) return; if (++CTS.clicks >= 3) { CTS.clicks = 0; ctSkipNow(); } });
+{ const oc = openContract; openContract = function () { CT.first = !(state.name && nameOk(state.name)); CTS.clicks = 0; ctPrepare(ctName()); oc(); nameInput.value = ''; setTimeout(ctStart, 0); }; } // 종이가 뜨기 전에 먼저 비워 둔다 (숨겨지는 게 안 보이게)
+nameInput.addEventListener('keydown', e => { if (!CT.done) { e.preventDefault(); e.stopImmediatePropagation(); } }, true); // 연출 끝날 때까지 이름 수정·서명 불가
+nameInput.addEventListener('mousedown', e => { if (!CT.done) e.preventDefault(); }, true);
+$('#signBtn').addEventListener('click', e => { if (!CT.done) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+// 첫 방문: 브라우저는 사용자가 뭔가 하기 전엔 소리를 막는다 → 빈 테이블에서 기다렸다가, 누르거나 키를 치는 순간 종이가 날아오고 연출 시작
+CT.tourDeath = !!S.get('ctTourDeath', false); S.del('ctTourDeath'); // 토너먼트에서 죽어 이름이 지워진 경우엔 마우스 스킵 허용
+if (!contract.classList.contains('hide')) { CT.first = true; if (!CT.items) ctPrepare(ctName()); contract.classList.add('ct-wait');
+  const go = () => { ['pointerdown', 'keydown', 'touchstart'].forEach(ev => document.removeEventListener(ev, go, true)); A.init(); A.resume(); contract.classList.remove('ct-wait'); ctPaper.style.animation = 'none'; void ctPaper.offsetWidth; ctPaper.style.animation = ''; ctStart(); };
+  ['pointerdown', 'keydown', 'touchstart'].forEach(ev => document.addEventListener(ev, go, true)); } // 첫 방문: HTML부터 빈 종이(ct-typing)로 시작
+
+// ══════════════════ 토너먼트 완전 사망 ══════════════════
+// 목숨이 다 떨어지면 검은 화면에 'ㅇㅇㅇ는 죽었다.' 누르면 그 이름은 지워지고 처음부터(새 서약서). 이때의 서약서는 마우스 3번으로 스킵 가능.
+const josaNeun = n => { const c = [...String(n)].pop(), k = c ? c.codePointAt(0) - 0xAC00 : -1; return k >= 0 && k < 11172 && k % 28 ? '은' : '는'; };
+// 꼼수 방지: 죽는 순간 저장해 두므로 F5를 눌러도 이 화면이 그대로 다시 뜬다 (누르기 전까지)
+function tourDeathScreen(o) {
+  const d = o && o.name != null ? o : (S.get('tourDeadScreen', null) || { name: state.name || '무명', f: o.f, best: tourBest });
+  if (document.getElementById('tourDead')) return new Promise(() => {});
+  const nm = d.name || '무명', el = document.createElement('div'); el.id = 'tourDead';
+  el.innerHTML = `<div class="td-name">${esc(nm)}${josaNeun(nm)} 죽었다.</div><div class="td-sub">${d.debug ? '테이블 위에서 마지막 숨을 거뒀다' : `지하 B${d.f}에서 마지막 숨을 거뒀다 · 최고 기록 ${d.best ? 'B' + d.best + ' 돌파' : '없음'}`}</div><div class="td-hint">— 눌러서 재도전 —</div>`;
+  document.body.appendChild(el); Music.stop && Music.stop(); if (A.crowdStop) A.crowdStop(); if (A.ctx) { A.thump(A.now(), 60, 28, .8, 1.4, A.bus(1, 0, .6)); A.tinnitus && A.tinnitus(6); }
+  autoPause('tourdead', true);
+  return new Promise(() => { setTimeout(() => el.addEventListener('click', () => { S.set('ctTourDeath', true); S.del('name'); S.del('tourDeadScreen'); el.classList.add('out'); setTimeout(() => location.reload(), 700); }), 1800); }); // 한동안은 눌러도 안 넘어간다
+}
+
+// 새로고침으로 도망쳐도 사망 화면 복귀
+if (S.get('tourDeadScreen', null)) { contract.classList.add('hide'); welcome.classList.add('hide'); tourDeathScreen(S.get('tourDeadScreen')); }
+
+// 웹게임 느낌 지우기: 우클릭 메뉴 · 드래그 · 텍스트 선택 막기 (입력칸은 예외)
+document.addEventListener('contextmenu', e => { if (!e.target.closest('input,textarea')) e.preventDefault(); });
+document.addEventListener('dragstart', e => { if (!e.target.closest('input,textarea')) e.preventDefault(); });
+document.addEventListener('selectstart', e => { if (!e.target.closest('input,textarea')) e.preventDefault(); });
 
 // ── THREE.GLTFLoader (three.js r128, MIT License © 2010-2021 three.js authors) — 3D 라이브러리가 있을 때만 정의
 if (typeof THREE !== 'undefined') {
