@@ -264,12 +264,31 @@ body.auto .spectate{display:block}
 .cl:nth-of-type(1){animation-delay:.4s}.cl:nth-of-type(2){animation-delay:.8s}.cl:nth-of-type(3){animation-delay:1.2s}.cl:nth-of-type(4){animation-delay:1.6s}
 @keyframes typeIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
 .ct-ghost{color:transparent}
-#tourDead{position:fixed;inset:0;z-index:3000;background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;cursor:pointer;animation:tdIn 2.2s ease forwards}
+#tourDead{position:fixed;inset:0;z-index:3000;background:radial-gradient(ellipse at 50% 40%,#1a0d0a,#000 70%);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;animation:tdIn 1.2s ease}
 #tourDead.out{animation:tdOut .7s ease forwards}
-@keyframes tdIn{from{opacity:0}to{opacity:1}}@keyframes tdOut{to{opacity:0}}
-#tourDead .td-name{font-family:var(--f-serif);font-weight:900;font-size:clamp(34px,7vw,72px);color:#b3121b;letter-spacing:.04em;text-shadow:0 0 30px rgba(179,18,27,.45);opacity:0;animation:tdIn 1.6s .5s ease forwards}
-#tourDead .td-sub{font-size:14px;color:#6b5a45;letter-spacing:.2em;opacity:0;animation:tdIn 1.2s 1.6s ease forwards}
-#tourDead .td-hint{font-size:12px;color:#5a4e42;letter-spacing:.5em;opacity:0;animation:tdIn 1s 2.6s ease forwards,ctPulse 2.4s 3.6s ease-in-out infinite}
+@keyframes tdIn{from{opacity:0}}@keyframes tdOut{to{opacity:0}}
+#tourDead .rp{width:min(520px,100%);transform:rotate(1deg)}
+#tourDead .rp .p-head{letter-spacing:.2em}
+#tourDead .rp-to{font-family:var(--f-kr);font-size:12.5px;color:#4a3b2c;margin-top:6px}
+#tourDead .rp h2{font-size:28px;margin:14px 0 10px;color:#8a1a14}
+#tourDead .rp-grid{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px;border-top:1px solid rgba(39,28,18,.3);border-bottom:1px solid rgba(39,28,18,.3);padding:8px 0;margin-bottom:10px}
+#tourDead .rp-grid span{color:#6b5a45;font-family:var(--f-kr);font-size:12.5px}#tourDead .rp-grid b{font-weight:700}
+#tourDead .rp-body{font-size:13.5px;line-height:1.7;margin:4px 0}#tourDead .rp-end{text-align:right;margin-top:10px;font-size:14px}
+#tourDead .rp .rp-ghost{color:transparent}#tourDead .rp h2{--ink:#8a1a14}#tourDead .rp-grid span{--ink:#6b5a45}#tourDead .rp-to{--ink:#4a3b2c}#tourDead .rp small{--ink:#8a7458}
+#tourDead .rp .p-btn{opacity:0;pointer-events:none;transition:opacity .5s}#tourDead .rp.rp-done .p-btn{opacity:1;pointer-events:auto}
+#tourDead .rp-glory{margin-top:2px;font-weight:700;color:#8a1a14;--ink:#8a1a14;letter-spacing:.05em}
+#tourDead .rp-stamp{bottom:70px;right:40px;font-size:34px}
+#tourDead .rp-stamp2{bottom:64px;right:58px;font-size:40px;color:#17120e;border-color:#17120e;transform:rotate(10deg) scale(3)}#tourDead .paper.stamped2 .rp-stamp2{animation:stampQ .3s cubic-bezier(.2,1.5,.4,1) forwards}
+@keyframes stampQ{to{opacity:.92;transform:rotate(9deg) scale(1)}}
+#tourDead .rp .rp-twist{display:inline-block;transform:rotate(-3deg) translate(3px,2px);color:#6e0f0b;--ink:#6e0f0b}
+#tourDead .rp-half{transition:transform .8s cubic-bezier(.2,.8,.3,1)}
+#tourDead .rp-hl{clip-path:polygon(0 0,52% 0,47% 8%,54% 17%,46% 28%,53% 39%,48% 50%,55% 61%,47% 72%,52% 83%,46% 92%,51% 100%,0 100%)}
+#tourDead .rp-hr{clip-path:polygon(52% 0,100% 0,100% 100%,51% 100%,46% 92%,52% 83%,47% 72%,55% 61%,48% 50%,53% 39%,46% 28%,54% 17%,47% 8%)}
+#tourDead .rp-hl.rp-torn{transform:translate(-70px,26px) rotate(-8deg)}#tourDead .rp-hr.rp-torn{transform:translate(70px,34px) rotate(7deg)}
+#tourDead .rp.rp-hit{animation:ctHit .5s cubic-bezier(.2,1.4,.4,1) forwards}
+#tourDead.pardon{background:radial-gradient(ellipse at 50% 40%,#1c1a12,#000 70%)}#tourDead.pardon .rp h2{color:#23421f;--ink:#23421f}#tourDead.pardon .rp-glory{color:#23421f;--ink:#23421f}#tourDead .rp .rp-ghost{color:transparent!important}
+#tourDead .rp .p-head,#tourDead .rp-grid{transition:border-color .5s}#tourDead .rp .p-head svg{transition:opacity .5s}#tourDead .rp:not(.rp-done) .p-head:not(.l2){border-bottom-color:transparent}#tourDead .rp:not(.rp-done) .p-head:not(.l2) svg{opacity:0}#tourDead .rp:not(.rp-done) .rp-grid:not(.l1){border-top-color:transparent}#tourDead .rp:not(.rp-done) .rp-grid:not(.l2){border-bottom-color:transparent}
+#tourDead.rp-wait .rp{visibility:hidden}#tourDead.rp-wait::after{content:'— 테이블을 두드려라 —';position:absolute;font-family:var(--f-serif);color:#8c7d6a;letter-spacing:.4em;font-size:14px;animation:ctPulse 2.4s ease-in-out infinite}
 #contract.ct-wait .paper{display:none}.ct-waitmsg{display:none;position:absolute;font-family:var(--f-serif);color:#8c7d6a;letter-spacing:.4em;font-size:14px;animation:ctPulse 2.4s ease-in-out infinite}#contract.ct-wait .ct-waitmsg{display:block}
 @keyframes ctPulse{0%,100%{opacity:.25}50%{opacity:.8}}
 .p-head,.sig{position:relative}
@@ -283,7 +302,7 @@ body.auto .spectate{display:block}
 .paper.ct-typing.ct-h .p-head svg{opacity:1}
 .paper .cl{position:relative}.paper.ct-typing .cl{border-left-color:transparent}.paper.ct-typing .cl.ct-on::before{content:'';position:absolute;left:0;top:0;width:2px;height:var(--barH,0px);background:rgba(138,26,20,.4)} /* 인용 막대: 찍힌 줄까지만 */
 .paper.ct-typing .sig input{border-bottom-color:transparent}
-.paper.ct-typing .p-btn{background:transparent;pointer-events:none;transition:background .5s,color .5s}.paper.ct-typing.ct-btn .p-btn{background:#1d140d}
+.paper.ct-typing .p-btn{background:transparent;pointer-events:none;transition:background .5s,color .5s}.paper.ct-typing.ct-btn #signBtn{background:#1d140d}.paper.ct-typing.ct-btn2 #refuseBtn{border-color:#5a2a20}
 .sig{margin-top:22px;position:relative}
 .sig label{font-family:var(--f-ru);font-size:10px;letter-spacing:.3em;color:#6b5a45}
 .sig input{display:block;width:100%;border:0;border-bottom:1.5px solid #271c12;background:transparent;font-family:var(--f-pen);font-size:46px;line-height:1.1;color:#1d2f73;padding:4px 2px 0;outline:none}
@@ -309,6 +328,23 @@ body.auto .spectate{display:block}
 #deathBg{position:fixed;inset:0;z-index:600;pointer-events:none;opacity:0;transition:opacity .3s;background:radial-gradient(ellipse at center,rgba(70,0,0,.5),rgba(0,0,0,.9) 78%)}
 #deathBg.show{opacity:1}
 #blood{position:fixed;inset:0;z-index:610;pointer-events:none;transition:opacity 1.4s}
+/* 서약 거부 → 즉결 처리 */
+.p-btns{display:flex;gap:8px;flex-shrink:0}
+.p-btn.p-no{background:transparent;color:#5a2a20;border:1.5px solid #5a2a20;--ink:#5a2a20}.p-btn.p-no:hover{background:#5a2a20;color:#efe3c8}
+.paper.ct-typing .p-btn.p-no{border-color:transparent}
+body.ct-exec #blood{z-index:3100}body.ct-exec #flash{z-index:3110}
+#contract.ct-exec .p-btn{pointer-events:none;opacity:.35}
+#contract.ct-shot .paper{animation:ctHit .5s cubic-bezier(.2,1.4,.4,1) forwards}
+@keyframes ctHit{0%{transform:translate(0,0) rotate(0)}20%{transform:translate(-14px,6px) rotate(-3deg)}100%{transform:translate(-6px,18px) rotate(-5deg)}}
+#ctGun{position:fixed;top:50%;right:0;width:min(44vw,500px);z-index:3050;pointer-events:none;transform:translate(110%,-50%) rotate(-4deg);transition:transform 1.1s cubic-bezier(.2,.9,.3,1);filter:drop-shadow(0 18px 30px rgba(0,0,0,.8))}
+#ctGun.peek{transform:translate(86%,-44%) rotate(-7deg);opacity:.32;transition:transform 1.4s cubic-bezier(.3,.8,.3,1),opacity 1.4s}
+#ctGun{opacity:1;transition:transform 1.1s cubic-bezier(.2,.9,.3,1),opacity .6s}
+#ctGun.in{opacity:1;transform:translate(18%,-40%) rotate(-4deg);animation:ctAim 1.6s ease-in-out 1.1s infinite}
+@keyframes ctAim{0%,100%{margin-top:0}50%{margin-top:3px}}
+#ctGun.bang{animation:none;transform:translate(24%,-40%) rotate(-16deg);transition:transform .12s ease-out}
+#ctGun .mz{opacity:0}#ctGun.bang .mz{animation:ctMz .16s ease-out}
+@keyframes ctMz{0%{opacity:1}100%{opacity:0}}
+
 #blood canvas{position:absolute;inset:0;width:100%;height:100%}
 #death{position:fixed;inset:0;z-index:620;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;opacity:0;transition:opacity .3s;text-align:center;padding:16px}
 #death.show{opacity:1}
@@ -846,18 +882,18 @@ body.auto.nobet .arena{grid-template-columns:1fr minmax(300px,1.3fr) 1fr}
 <!-- 계약서 (최초 이름 입력) -->
 <div class="ov hide" id="contract"><div class="ct-waitmsg">— 테이블을 두드려라 —</div>
   <div class="paper ct-typing" id="paper">
-    <div class="p-head"><span>계약서 № <span id="docNo">1922-12-30-1991-12-26</span></span><svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,72 21,94 32,59 3,38 39,38" fill="#8a1a14"/></svg></div>
-    <h2>참가 서약서</h2>
-    <div class="sub">지하 3층, 전등 하나. 테이블 위에는 리볼버 한 자루.</div>
-    <p class="cl">一. 본인은 누구의 강요도 없이 이 테이블에 앉는다.</p>
+    <div class="p-head"><span>서약서 № <span id="docNo">1922-12-30-1991-12-26</span></span><svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,72 21,94 32,59 3,38 39,38" fill="#8a1a14"/></svg></div>
+    <h2>특별사면 자원 서약서</h2>
+    <div class="sub">굴라크 제7수용소 · 지하 3층, 전등 하나. 테이블 위에는 리볼버 한 자루.</div>
+    <p class="cl">一. 본인은 형기 면제를 위해 누구의 강요도 없이 자원하여 이 테이블에 앉는다.</p>
     <p class="cl">二. 실린더에는 단 한 발의 탄환이 장전된다.</p>
     <p class="cl">三. 돌리든, 넘기든, 한 발 더 넣든 — 무엇을 해도 차례는 넘어간다.</p>
-    <p class="cl">四. 방아쇠의 결과에 대해 누구도 책임지지 않는다.</p>
+    <p class="cl">四. 끝까지 살아남은 자는 굴라크에서 해방된다. 죽은 자는 기록에서 말소된다.</p>
     <div class="sig">
       <label>서명</label>
       <input id="nameInput" maxlength="6" autocomplete="off" spellcheck="false" placeholder="이름을 적으시오">
     </div>
-    <div class="p-foot"><small id="pHint">최대 6자 · 이 이름이 테이블에 불린다</small><button class="p-btn" id="signBtn">서명하고 앉는다 →</button></div>
+    <div class="p-foot"><small id="pHint">최대 6자 · 이 이름이 테이블에 불린다</small><span class="p-btns"><button class="p-btn p-no" id="refuseBtn">거부한다</button><button class="p-btn" id="signBtn">서약하고 앉는다 →</button></span></div>
     <div class="stamp">승인</div>
   </div>
 </div>
@@ -1723,9 +1759,22 @@ function introOf(i) {
   if (state.seats[i].kind === 'human') pool = pool.filter(x => !/^[^가-힣a-zA-Z0-9{]+$/.test(x.trim()));
   return pool.length ? fmt(i, pick(pool)) : null;
 }
+// 볼코프(B7 처형 책임자): 사면을 미끼로 비웃는다
+const BOSS_INTRO = [
+  '사면장? 내 서랍에 있다. 서명란은 비어 있지. 네 피로 채울 건가, 잉크로 채울 건가.',
+  '여기까지 온 건 칭찬하지. 하지만 사면은 위에서 내려오는 게 아니다. 내 손에서 나간다.',
+  '{opp}, 형기 면제를 믿고 내려왔나? 이 층에서 사면장을 본 놈은 아직 없다.',
+  '서약서 四조, 기억하나? 살아남은 자는 해방된다. 그래서 내가 여기 있는 거다. 아무도 살아남지 못하게.',
+];
+const BOSS_TAUNT = {
+  act: ['사면장의 도장은 아직 마르지 않았다. 네가 먼저 마를 거다.', '자유가 이 한 발 뒤에 있다고 생각하나? 그 뒤엔 소각로가 있다.', '서기장 동지께 올릴 보고서는 이미 써 두었다. 이름만 비었지.', '형기 면제… 좋은 말이지. 무덤에도 형기는 없으니까.', '사면? 굴라크에서 나가는 문은 하나다. 발부터 나가는 문.'],
+  survive: ['운이 좋군. 사면장은 운으로 받는 게 아니다.', '한 칸 더 가까워졌군. 문이 아니라 벽에.', '살았다고 웃지 마라. 서명은 내가 한다.'],
+  oppSurvive: ['{opp}, 아직 숨 쉬나. 사면 심사는 끝나지 않았다.', '잘 버티는군. 사면장 대신 수의가 어울릴 텐데.', '문밖 공기가 그리운가? 거기까지 한 칸이 멀다.'],
+};
+function bossTaunt(i, k) { const s = state.seats[i]; if (!s || !s.boss || isDeadSeat(i)) return null; return fmt(i, pick(BOSS_TAUNT[k])); }
 function introLine(i) {
   const s = state.seats[i], o = state.seats[1 - i];
-  if (s.boss) return '여기까지 온 건 칭찬하지. 하지만 여기가 바닥이다.';
+  if (s.boss) return fmt(i, pick(BOSS_INTRO));
   if (s.nemesis && nemesis && nemesis.victim && o && o.kind === 'human' && o.name !== nemesis.victim) return nemLook(i, nemesis.victim); // 이름이 다르면: 얼굴이 닮았다
   if (s.nemesis) { const how = nemesis && nemesis.how, T = how === 'first' ? NEM_FIRST : how === 'flick' ? NEM_FLICK : NEM_LINES; return fmt(i, pick(T[s.pers] || T._)); } // 지난번 사인에 따라
   if (state.mode === 'tour' && tour.floor > 1 && !tour.witnessed) { tour.witnessed = true; S.set('tour', tour);
@@ -2301,7 +2350,7 @@ async function aiTurn(i, tok) {
   const dumb = brave && state.seats[i].pers === 'drunk' && c.p >= 1; // 확실한 탄인데 술김에 당김
   if (dumb) { const w = pick(DRUNK_DUMB_PRE); state.braveWords = { i, text: pick(DRUNK_BLUNDER_DIE), dumb: true }; bubble(i, w, 3200); setMsg(`${state.seats[i].name}… 100%인데 그냥 당긴다?!`, 'danger'); }
   else if (brave) { const w = fmt(i, pick((BRAVE[state.seats[i].pers] || BRAVE.drunk).lines)); state.braveWords = { i, text: w }; bubble(i, w, 3200); setMsg(`${state.seats[i].name}, 피하지 않는다…!`, 'danger'); }
-  else { const ak = actKey(i, act, c), t = state.seats[i].pers === 'calculator' ? calcLine(i, act) : line(i, ak) || line(i, act); say(i, ak, t, c.p >= 1 ? 2800 : state.seats[i].pers === 'calculator' ? 3400 : 1900); }
+  else { const ak = actKey(i, act, c), bt = Math.random() < .45 && bossTaunt(i, 'act'), t = bt || (state.seats[i].pers === 'calculator' ? calcLine(i, act) : line(i, ak) || line(i, act)); say(i, ak, t, c.p >= 1 ? 2800 : state.seats[i].pers === 'calculator' ? 3400 : 1900); }
   await wait(brave ? 2000 : c.p >= 1 ? 1100 : 520); if (tok !== state.token) return;
   ACT[act](i, tok); // 베팅은 격발 결과 직전까지 열려 있음
 }
@@ -2425,6 +2474,8 @@ async function doFire(i, tok) {
     if (why) setTimeout(() => { if (tok !== state.token) return; setMsg(`${DEALER}: ${why}`, 'info'); log(why, 'sys'); }, 2300); // 딜러의 부연 설명
   }
   else if ((forced || s.afterGim) && isDrunkVoice(i)) setTimeout(() => { if (tok === state.token) bubble(i, pick(s.afterGim === 'sleep' ? DRUNK_SLEEP_LIVE : DRUNK_TIMEOUT_LIVE), 2000); }, 350);
+  else if (state.seats[i].boss && Math.random() < .5) setTimeout(() => { if (tok === state.token) bubble(i, bossTaunt(i, 'survive'), 2200); }, 350);
+  else if (state.seats[1 - i] && state.seats[1 - i].boss && Math.random() < .5) setTimeout(() => { const t = tok === state.token && bossTaunt(1 - i, 'oppSurvive'); if (t) bubble(1 - i, t, 2200); }, 600);
   else if (Math.random() < .55) setTimeout(() => { if (tok === state.token) say(i, 'survive', line(i, 'survive'), 1600); }, 350);
   if (s.kind === 'ai' && Math.random() < .2) setTimeout(() => { if (tok === state.token) aiEmote(i, tok); }, 2100);
   setMsg(miracle ? (betEmpty ? `찰칵. ${s.name}의 도박이 통했다 — 빈 칸!` : `찰칵…?! ${s.name}, 마지막 칸인데 탄이 없다!`) : `찰칵. ${s.name} 생존.`, 'safe');
@@ -2593,7 +2644,7 @@ function tourApply(humanDied) { // 토너먼트 결과를 바로 반영하고 �
 async function tourShow(o) { // 연출만
   renderAll();
   if (o.kind === 'over') return tourDeathScreen(o); // 토너먼트 완전 사망: 'ㅇㅇㅇ는 죽었다.' → 누르면 이름을 지우고 새로 시작
-  else if (o.kind === 'win') { await tourOverlay('', '살아서 나간다', 'good', `일곱 층을 모두 돌파했다. 볼코프는 쓰러졌다.<br>상금 ${won(5000 + o.reward)}`, '일반 모드로 돌아간다');
+  else if (o.kind === 'win') { await tourPardonScreen({ name: state.name || '무명', prize: 5000 + o.reward }); // 사면 결정서
     switchMode('vs'); return false; } // 우승하면 1:1로
   else if (o.kind === 'clear') { setMsg(`계단을 내려간다… 지하 B${tour.floor}`, 'info'); await wait(1200); }
   return true;
@@ -3767,8 +3818,9 @@ const DbgMusic = { on: false, timer: null, next: 0, g: null,
   stop() { if (!this.on) return; this.on = false; clearTimeout(this.timer); const g = this.g, t = A.now(); g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(g.gain.value, t); g.gain.linearRampToValueAtTime(0, t + .4); setTimeout(() => g.disconnect(), 600); },
 };
 const dbg = $('#dbg'); let dbgMusicWas = false;
+const docLock = () => !!document.getElementById('tourDead') || document.body.classList.contains('ct-exec'); // 서류·처형 연출 중엔 디버그·룰북 금지
 function toggleDbg(force) {
-  const open = force != null ? force : !state.debug; if (open === state.debug) return;
+  const open = force != null ? force : !state.debug; if (open && docLock()) return; if (open === state.debug) return;
   state.debug = open; dbg.classList.toggle('open', open); document.body.classList.toggle('dbgopen', open); paintChambers();
   autoPause('dbg', open);
   if (open) { dbgMusicWas = Music.on; if (Music.on) { Music.stop(); A.crowdStop && A.crowdStop(); } if (musicOn) DbgMusic.start(); dbgDirty = false; buildDbg(); [60, 250, 600].forEach(ms => setTimeout(dbgResync, ms)); } // 막 멈춘 직후 끝나는 처리까지 반영
@@ -3815,7 +3867,7 @@ function buildDbg() {
     <div class="dr"><label>동전</label><select id="dCoinCurse"><option value="">랜덤 (불운 ${Math.round(goatP() * 100)}%)</option><option value="0" ${dc.cursed === false ? 'selected' : ''}>행운 — 777 · 클로버</option><option value="1" ${dc.cursed === true ? 'selected' : ''}>불운 — 666 · 염소</option></select></div>
     ${state.started ? '<button class="db" id="dNewRound">🔄 저장하고 새 판 (동전 토스부터)</button>' : ''}</div>`;
   if (ok) h += '<div class="dsec"><div class="dl">AI 판단 미리보기</div><div id="dbgAi"></div></div>';
-  h += `<div class="dsec"><div class="dl">초기화 (즉시)</div><button class="db red" id="dReset">✕ 사망·소지금 초기화</button><button class="db red" id="dResetStats">✕ 성격 전적 초기화</button><button class="db red" id="dResetName">✕ 이름 지우기… (계약서 연출 확인)</button><div class="dnamebox" id="dNameBox" hidden><div class="dnote">지우기: 이름만 지우고 새로고침 · 죽이기: 사망 화면(토너먼트와 무관, 기록 영향 없음) → 누르면 이름 지우고 새로고침, 서약서 마우스 스킵 가능</div><div class="dchips"><button class="db red" id="dNameDel">지우기</button><button class="db red" id="dNameKill">☠ 죽이기</button><button class="db" id="dNameCancel">취소</button></div></div></div>
+  h += `<div class="dsec"><div class="dl">초기화 (즉시)</div><button class="db red" id="dReset">✕ 사망·소지금 초기화</button><button class="db red" id="dResetStats">✕ 성격 전적 초기화</button><button class="db" id="dPardon">📜 사면 결정서 보기 (우승 화면)</button><button class="db red" id="dFakeTear">📜 가짜 사면 · 찢김</button><button class="db red" id="dFakeStamp">📜 가짜 사면 · 처형 도장</button><button class="db red" id="dResetName">✕ 이름 지우기… (계약서 연출 확인)</button><div class="dnamebox" id="dNameBox" hidden><div class="dnote">지우기: 이름만 지우고 새로고침 · 죽이기: 사망 화면(토너먼트와 무관, 기록 영향 없음) → 누르면 이름 지우고 새로고침, 서약서 마우스 스킵 가능</div><div class="dchips"><button class="db red" id="dNameDel">지우기</button><button class="db red" id="dNameKill">☠ 죽이기</button><button class="db" id="dNameCancel">취소</button></div></div></div>
     <div class="dfoot"><span id="dSaved"></span><button class="db save" id="dSave">💾 저장</button></div>`;
   dbg.innerHTML = h; dbgDirty = false; dbgSig = dbgSigNow(); refreshDbg();
   dbg.querySelectorAll('[id^=dPers]').forEach(sel => sel.addEventListener('change', () => { const b = dbg.querySelector(`[data-dk="${sel.id.slice(-1)}"]`); if (b) b.hidden = sel.value !== 'drunk'; }));
@@ -3828,6 +3880,9 @@ function buildDbg() {
   $('#dResetName').onclick = () => { $('#dNameBox').hidden = false; };
   $('#dNameCancel').onclick = () => { $('#dNameBox').hidden = true; };
   $('#dNameDel').onclick = () => { S.del('name'); location.reload(); };
+  const fakeDbg = how => { const d = { name: state.name || '무명', debug: true }; S.set('tourDeadScreen', d); toggleDbg(false); document.body.classList.add('ct-exec'); tourPardonScreen({ name: d.name, fake: how }); }; // 끝나면 사망 보고서 → 이름 지우고 새로고침 (디버그 죽이기와 같음)
+  $('#dFakeTear').onclick = () => fakeDbg('tear'); $('#dFakeStamp').onclick = () => fakeDbg('stamp');
+  $('#dPardon').onclick = () => { toggleDbg(false); tourPardonScreen({ name: state.name || '무명', debug: true }); }; // 디버그: 사면 결정서 열람 (진행 상황 무관)
   $('#dNameKill').onclick = () => { const d = { name: state.name || '무명', debug: true }; S.set('tourDeadScreen', d); toggleDbg(false); tourDeathScreen(d); }; // 디버그 죽이기: 토너먼트와 무관 (F5에도 유지되는 건 같음)
   $('#dReset').onclick = () => { deaths = { human: 0, ai: 0 }; S.set('deaths', deaths); bank = 1000; tbank = 1000; loans = 0; saveMoney(); renderAll(); buildDbg(); };
   $('#dResetStats').onclick = () => { statsM = { vs: {}, tour: {}, auto: {} }; riv = {}; S.set('statsM', statsM); S.set('riv', riv); killHistM = { vs: [0, 0, 0, 0, 0, 0, 0], tour: [0, 0, 0, 0, 0, 0, 0], auto: [0, 0, 0, 0, 0, 0, 0] }; S.set('killhistM', killHistM); prof = { esc: [0, 0, 0, 0, 0, 0, 0], n: 0, fires: 0 }; S.set('prof', prof); renderAll(); };
@@ -4010,8 +4065,9 @@ const RB_MOOD = [['평온', '보정 없음.'], ['숙취', '10% 확률로 엉뚱�
 const RB_BRAVE = { berserker: 15, gambler: 10, fatalist: 10, mindgamer: 8, veteran: 8, provocateur: 10, coward: 6, mimic: '3 (상대가 방금 당겼거나 플릭했으면 12)' };
 function rbHTML() {
   const sec = (id, t, body) => `<section id="rb-${id}"><h3>${t}</h3>${body}</section>`, ul = a => '<ul>' + a.map(x => `<li>${x}</li>`).join('') + '</ul>';
-  const toc = [['basic', '기본 규칙'], ['items', '행동 · 아이템'], ['flick', '플릭샷'], ['prob', '사망 확률 계산'], ['pips', '약실 표시 C·S·F·D'], ['coin', '동전 · 악운'], ['money', '돈 · 보상'], ['first', '첫 턴 규칙'], ['will', '유언 · 마지막 칸'], ['timer', '시간 제한'], ['modes', '모드'], ['tour', '토너먼트'], ['nemesis', '숙적'], ['pers', 'AI 성격'], ['drunk', '술꾼 기믹'], ['shop', '암시장'], ['bet', '베팅'], ['talk', '대사 · 이모티콘 · 채팅'], ['keys', '단축키 · 설정'], ['etc', '그 밖의 사소한 것']];
+  const toc = [['world', '세계관'], ['basic', '기본 규칙'], ['items', '행동 · 아이템'], ['flick', '플릭샷'], ['prob', '사망 확률 계산'], ['pips', '약실 표시 C·S·F·D'], ['coin', '동전 · 악운'], ['money', '돈 · 보상'], ['first', '첫 턴 규칙'], ['will', '유언 · 마지막 칸'], ['timer', '시간 제한'], ['modes', '모드'], ['tour', '토너먼트'], ['nemesis', '숙적'], ['pers', 'AI 성격'], ['drunk', '술꾼 기믹'], ['shop', '암시장'], ['bet', '베팅'], ['talk', '대사 · 이모티콘 · 채팅'], ['keys', '단축키 · 설정'], ['etc', '그 밖의 사소한 것']];
   let h = `<nav class="rbtoc">${toc.map(([id, t]) => `<a data-rb="${id}">${t}</a>`).join('')}</nav><div class="rbbody">`;
+  h += sec('world', '세계관', ul(['무대는 <b>굴라크 제7수용소</b>의 지하. 수감자에게는 한 가지 길이 열려 있다 — <b>특별사면 자원 서약서</b>에 서명하고 리볼버 앞에 앉는 것. 끝까지 살아남은 단 한 명은 형기를 면제받고 굴라크에서 해방된다. 오징어 게임의 마지막 한 명처럼.', '누구도 강요하지 않는다. 모두 이겨서 나가려고 <b>자원</b>했다. 그래서 서약서 제1조가 “자원하여 이 테이블에 앉는다”다.', '서약서 번호 <b>1922-12-30-1991-12-26</b> — 연방이 태어난 날과 죽은 날. 이 서류에 서명하는 자는 이미 그 생몰년 안에 묻힌 사람이다.', '딜러 아르카디는 국가보안위원회(KGB) 소속 집행관. 판돈과 규칙만 말할 뿐, 누가 죽든 표정이 없다(술꾼만은 골칫거리로 여긴다).', '맞은편에 앉는 자들(광전사·겁쟁이·도박꾼·계산기…)도 모두 같은 수용소의 자원자다. 1:1은 감방끼리의 대결, AI 대전은 간수들이 수감자 둘을 붙여 놓고 거는 내기.', '<b>토너먼트</b>는 수용소 지하 B1~B7. 한 층을 내려갈 때마다 더 깊은 곳 — B7의 볼코프는 처형 책임자다. 일곱 층을 모두 살아서 통과하면 형기 면제, 파일은 소각되고 해방된다.', '목숨이 다하면 <b>서류상으로 처리</b>된다: 위대하신 스탈린 서기장 동지 앞으로 KGB의 숙청 완료 보고서가 올라가고(사망자 번호·생년월일·사망일·처리 장소), 결재 도장이 찍히면 이름은 기록에서 말소된다. 그래서 다음 서약서에는 다른 이름이 적힌다.', '숙적(나를 처리한 수감자)은 얼굴을 기억한다. 이름이 바뀌어도 “어디서 본 얼굴”이라고 알아본다.']));
   h += sec('basic', '기본 규칙', ul([`리볼버는 <b>6연발</b>. 판마다 설정한 수(1~3발, 토너먼트는 1발 · B7은 2발)만큼 탄을 무작위 약실에 넣고 돌린다.`, '둘이 번갈아 차례를 가진다. 차례마다 행동 하나: <b>격발 · 스핀 · 양보 · +1발 · (격발 중) 플릭샷</b>. 격발 외의 행동은 방아쇠 없이 차례를 넘긴다.', '탄이 든 약실을 쏘면 그 즉시 사망, 판이 끝난다. 불발은 없다.', '빈칸이면 찰칵 — 그 약실은 “확인된 빈칸”이 되고 다음 약실로 넘어간다.', '판이 끝나면 딜러가 치우고 새 판(새 동전 · 새 장전).']));
   h += sec('items', '행동 · 아이템', ul(['<b>격발 (F)</b>: 지금 약실을 쏜다. 살아남으면 확률에 따른 보너스(아래 ‘돈’).', '<b>스핀 (S)</b>: 판당 1회. 딜러가 실린더를 열고(꽂힌 탄이 보인다) 돌린 뒤, 도는 채로 닫는다 → 탄 위치는 그대로 섞이고 1번 약실부터 다시. 확인된 빈칸 기록과 양쪽 플릭 사용 여부가 초기화된다.', '<b>양보 (D)</b>: 판당 1회. 총을 그대로 밀어 넘긴다. 확률은 그대로 상대 몫.', '<b>+1발 (R)</b>: 판당 1회. 앞으로 남은 빈 약실 중 하나에 탄을 추가하고 판돈 ×2. 남은 탄+1이 남은 칸보다 적을 때만 가능.', '상대가 +1발을 넣으면 5초 동안 “받아치기” 버튼이 뜬다 — 누르면 나도 +1발.', '보스 규칙 “아이템 금지”나 볼코프의 “스핀 금지”가 있으면 해당 아이템을 못 쓴다.']));
   h += sec('flick', '플릭샷', ul(['방아쇠를 당겨 <b>격철이 걸린 순간 F(또는 방아쇠 버튼)를 한 번 더</b> 누르면 발동. 지금 약실은 쏘지 않고 넘기고 바로 다음 약실을 쏜다.', '넘긴 약실은 아무도 안을 못 봤으므로 “미확인”으로 남는다 → 확률 계산에 그대로 남는다.', '각자 <b>스핀(또는 한 바퀴) 한 번당 1회</b>. 확실한 탄(100%)에서는 못 쓴다. 넘긴 다음 칸이 없으면(마지막 칸 직전) 못 쓴다.', '플릭 보너스: 넘긴 순간의 확률이 높을수록 더 준다 (40 + 300×확률, 10단위).', '플릭으로 넘긴 칸에 탄이 있었고 결국 마지막 칸까지 살아남으면, 딜러가 “누구의 플릭샷 때문인 것 같군” 하고 해설한다 (앞에 남은 실탄이 없을 때만).', '넘긴 칸을 남긴 채 실린더가 한 바퀴 돌면 딜러가 탄을 전부 빼서 다시 꽂고 돌린다.', 'AI도 성격에 따라 플릭한다 (각 성격 설명 참고).']));
@@ -4023,7 +4079,7 @@ function rbHTML() {
   h += sec('will', '유언 · 마지막 칸', ul(['<b>다음이 마지막 칸(6번)이고 스핀·양보가 하나도 없으면</b> 확률과 무관하게 붉은 유언장이 뜨고 브금이 「슬라브 여인의 작별」로 바뀐다.', '유언을 쓰는 동안 시간은 멈춘다. Enter = 유언 확정하고 방아쇠 (비워두면 기본 유언).', '죽으면 그 유언이 사망 화면에 남는다.']));
   h += sec('timer', '시간 제한', ul(['기본 15초 (B6 “시간 제한 8초”). 부상 1단계마다 −3초, 보드카 +5초, 최소 4초.', '확실한 100%이거나 마지막 칸 궁지면 시간이 3배.', '6초가 지나면 상대가 재촉, 마지막 3초는 틱 소리. 시간이 다 되면 딜러가 방아쇠를 강제한다.', '설정에서 끌 수 있다. 술꾼 기믹(얼타기·잠) 중에는 시간이 안 간다.']));
   h += sec('modes', '모드', ul(['<b>1:1 대결</b>: 매 판 새 AI 상대(성격 무작위). 플레이어 말투가 랜덤이면 판마다 다시 뽑고, 상대 성격과 겹치지 않게 한다(술꾼끼리는 허용).', '<b>토너먼트</b>: 지하 B1~B7. 아래 참고.', '<b>AI 대전</b>: AI 둘이 붙는 걸 관전하며 베팅. 판 수에 안 들어간다.', '모드마다 저장·전적·판 수·악운 확률이 따로. 탭을 옮기거나 새로고침해도 진행 중인 판이 그대로 이어진다.']));
-  h += sec('tour', '토너먼트', ul(['층마다 상대가 정해져 있다: B1 술꾼/겁쟁이 · B2 도박꾼/따라쟁이 · B3 운명론자/광전사 · B4 노병/계산기 · B5 도발꾼 · B6 심리전 · B7 볼코프(전략가).', '보스 규칙: B5 판돈 ×2 · B6 시간 제한 8초 · B7 볼코프의 규칙(2발 장전 · 스핀 금지). 그 외 층은 5% 확률로 “아이템 금지” 판.', '이기면 층 상금 ₽300×층, B7 우승 시 +₽5,000.', '목숨 3개. 죽으면 목숨 −1, 부상(시간 −3초 · 손떨림), 같은 상대와 재대결. 목숨이 다 떨어지면 B1부터.', '토너먼트는 진지한 판 — 플레이어 랜덤 말투에서 술꾼이 빠지고, 말투는 게임오버까지 유지. AI는 도박수를 두지 않는다: 플릭이 있든 없든 피할 수 있으면 평소처럼 스핀·양보(술꾼의 술김 격발도 없음).', '지하 일정 층 이상에서 떠나려 하면 경고가 뜬다(그동안 일시정지).']));
+  h += sec('tour', '토너먼트', ul(['층마다 상대가 정해져 있다: B1 술꾼/겁쟁이 · B2 도박꾼/따라쟁이 · B3 운명론자/광전사 · B4 노병/계산기 · B5 도발꾼 · B6 심리전 · B7 볼코프(전략가).', '보스 규칙: B5 판돈 ×2 · B6 시간 제한 8초 · B7 볼코프의 규칙(2발 장전 · 스핀 금지). 그 외 층은 5% 확률로 “아이템 금지” 판.', '이기면 층 상금 ₽300×층, B7 우승 시 +₽5,000.', '목숨 3개. 죽으면 목숨 −1, 부상(시간 −3초 · 손떨림), 같은 상대와 재대결. 목숨이 다 떨어지면 숙청 완료 보고서가 타자기로 올라가고(누르면 한 번에), [확인]을 누르면 결재 도장 → 이름이 말소되고 새 서약서부터. 이 보고서는 F5로도 못 피한다.', '토너먼트는 진지한 판 — 플레이어 랜덤 말투에서 술꾼이 빠지고, 말투는 게임오버까지 유지. AI는 도박수를 두지 않는다: 플릭이 있든 없든 피할 수 있으면 평소처럼 스핀·양보(술꾼의 술김 격발도 없음).', '지하 일정 층 이상에서 떠나려 하면 경고가 뜬다(그동안 일시정지).']));
   h += sec('nemesis', '숙적', ul(['나를 죽인 AI는 숙적으로 기억된다(하나만, 덮어씀).', '1:1에서는 20% 확률로 같은 이름·성격으로 다시 나오고, 토너먼트에서는 죽은 그 층에서 기다린다. 숙적전은 전용 브금.', '재회 대사는 지난번 사인에 따라 다르다: 게임 도중 사망 / 첫 턴에 운 없이 / 첫 턴 플릭샷. 겁쟁이는 사과, 술꾼은 기억을 못 한다.', '숙적을 쓰러뜨리면 기록이 지워진다.']));
   h += sec('pers', 'AI 성격', PERS_IDS.map(id => `<div class="rbp" id="rb-p-${id}"><h4 style="--pc:${PERS[id].color}">${PERS[id].ko}</h4><p class="rbdesc">${esc(PERS[id].desc)}</p>${ul((RB_PERS[id] || []).concat(RB_BRAVE[id] ? [`플릭으로 확률이 높지만 확실하진 않을 때, 피할 수 있어도 ${RB_BRAVE[id]}% 확률로 그냥 당기는 도박을 한다 (1:1·AI 대전만).`] : []))}</div>`).join('') +
     `<div class="rbp"><h4>공통</h4>${ul(['AI마다 판 시작 시 기분이 정해진다: ' + RB_MOOD.map(([a, b]) => `<b>${a}</b> ${b}`).join(' · '), '사람 상대로 3연승 이상이면 경계해서 25% 이상에서 35% 확률로 피한다.', '확률 33% 이상에서 가끔 방아쇠에 손을 걸었다 뗀다(망설임).', '성격 조합에 따라 판 시작 전 둘이 먼저 말을 섞기도 한다.'])}</div>`);
@@ -4038,7 +4094,7 @@ function rbHTML() {
 document.body.insertAdjacentHTML('beforeend', '<div class="recov hide" id="ruleOv"><div class="recbox rbbox"><div class="rechead"><span>📖 룰북</span><button class="ibtn" id="ruleClose">✕ 닫기</button></div><div class="rbwrap" id="ruleBody"></div></div></div>');
 $('#recBtn').insertAdjacentHTML('beforebegin', '<button class="ibtn" id="ruleBtn" title="룰북 (H)">📖 룰북</button>');
 const ruleOv = $('#ruleOv');
-function ruleOpen(target) {
+function ruleOpen(target) { if (docLock()) return;
   $('#ruleBody').innerHTML = rbHTML(); ruleOv.classList.remove('hide'); autoPause('rule', true);
   $('#setPop').classList.remove('open'); $('#shopPop').classList.remove('open');
   const el = target && $('#rb-' + target); const box = ruleOv.querySelector('.rbbody');
@@ -4085,13 +4141,13 @@ ctPaper.querySelector('.p-head').insertAdjacentHTML('beforeend', '<span class="c
 ctPaper.querySelector('.sig').insertAdjacentHTML('beforeend', '<span class="ct-rule" id="ctRuleS"></span>');
 function ctItems() { // rule: ━ 선 · name: 서명칸에 이름 타이핑 · reveal: 시작할 때 / after: 끝났을 때 드러낼 클래스
   return [{ el: ctHead }, { el: $('#ctRuleH'), rule: 1, after: 'ct-h' }, { el: ctPaper.querySelector('h2') }, { el: ctPaper.querySelector('.sub') }, ...[...ctPaper.querySelectorAll('.cl')].map(el => ({ el, reveal: 'cl' })),
-    { el: ctPaper.querySelector('.sig label') }, { el: nameInput, ph: 1 }, { el: $('#ctRuleS'), rule: 1, after: 'ct-in' }, { el: $('#pHint') }, { el: $('#signBtn'), reveal: 'ct-btn', noDing: 1 }, { el: nameInput, name: 1 }]; // 버튼이 먼저 생기고 글자가 찍힌다 · 이름은 맨 마지막
+    { el: ctPaper.querySelector('.sig label') }, { el: nameInput, ph: 1 }, { el: $('#ctRuleS'), rule: 1, after: 'ct-in' }, { el: $('#pHint') }, { el: $('#refuseBtn'), reveal: 'ct-btn2', noDing: 1 }, { el: $('#signBtn'), reveal: 'ct-btn', noDing: 1 }, { el: nameInput, name: 1 }]; // 버튼이 먼저 생기고 글자가 찍힌다 · 이름은 맨 마지막
 }
 // 연출 전 준비: 종이는 처음부터 완성본 크기, 글자는 투명(CSS .ct-typing). 찍힌 부분만 .ct-ink로 잉크색.
 function ctPrepare(nameToType) { // 조항 등장 애니메이션은 끈다 (끝나고 다시 페이드되지 않게)
   CT.tok++; CT.done = false; const items = ctItems(); CT.items = items;
   items.forEach(it => { if (!it.full) it.full = it.rule ? '' : it.ph ? (nameInput.dataset.ph || (nameInput.dataset.ph = nameInput.placeholder)) : it.name ? nameToType : it.el === ctHead ? ctHead.textContent : it.el.textContent; });
-  ctPaper.classList.add('ct-typing'); ctPaper.classList.remove('ct-h', 'ct-in', 'ct-btn');
+  ctPaper.classList.add('ct-typing'); ctPaper.classList.remove('ct-h', 'ct-in', 'ct-btn', 'ct-btn2');
   items.forEach(it => { const e = it.el; e.classList.remove('ct-on'); if (!it.rule && !it.name) { e.style.animation = 'none'; e.style.opacity = '1'; } if (it.rule) e.textContent = ''; else if (it.ph) e.placeholder = ''; else if (it.name) { e.value = ''; e.readOnly = true; } else if (e === ctHead) e.innerHTML = ctHeadHTML; else e.textContent = it.full; }); // 머리글은 #docNo 구조 유지
 }
 const ctName = () => (state.name && nameOk(state.name)) ? state.name : pick(NAMES.filter(n => nameLen(n) <= NAME_MAX)); // 쓰던 이름, 처음이면 무작위 러시아 이름
@@ -4122,7 +4178,7 @@ function ctStart() {
 }
 function ctFinish() { if (CT.done) return; CT.done = true; CT.tok++;
   (CT.items || []).forEach(it => { if (it.rule) it.el.textContent = ''; else if (it.ph) it.el.placeholder = it.full; else if (it.name) { it.el.value = it.full; it.el.readOnly = false; } else if (it.el === ctHead) it.el.innerHTML = ctHeadHTML; else it.el.textContent = it.full; it.el.classList.remove('ct-on'); it.el.style.removeProperty && it.el.style.removeProperty('--barH'); });
-  CT.items = null; ctPaper.classList.remove('ct-typing'); ctPaper.classList.add('ct-h', 'ct-in', 'ct-btn');
+  CT.items = null; ctPaper.classList.remove('ct-typing'); ctPaper.classList.add('ct-h', 'ct-in', 'ct-btn', 'ct-btn2');
   if (!contract.classList.contains('hide')) setTimeout(() => { nameInput.focus(); const n = nameInput.value.length; nameInput.setSelectionRange(n, n); }, 50); } // 이제 수정 가능
 // 스킵: 이름만 고치러 온 경우에만 서약서를 마우스로 3번 누르면 스킵. 처음 서명은 스킵 없음.
 const CTS = { clicks: 0 };
@@ -4131,7 +4187,7 @@ ctPaper.addEventListener('click', e => { if (CT.done || (CT.first && !CT.tourDea
 { const oc = openContract; openContract = function () { CT.first = !(state.name && nameOk(state.name)); CTS.clicks = 0; ctPrepare(ctName()); oc(); nameInput.value = ''; setTimeout(ctStart, 0); }; } // 종이가 뜨기 전에 먼저 비워 둔다 (숨겨지는 게 안 보이게)
 nameInput.addEventListener('keydown', e => { if (!CT.done) { e.preventDefault(); e.stopImmediatePropagation(); } }, true); // 연출 끝날 때까지 이름 수정·서명 불가
 nameInput.addEventListener('mousedown', e => { if (!CT.done) e.preventDefault(); }, true);
-$('#signBtn').addEventListener('click', e => { if (!CT.done) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+$('#signBtn').addEventListener('click', e => { if (!CT.done || CT.exec) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
 // 첫 방문: 브라우저는 사용자가 뭔가 하기 전엔 소리를 막는다 → 빈 테이블에서 기다렸다가, 누르거나 키를 치는 순간 종이가 날아오고 연출 시작
 CT.tourDeath = !!S.get('ctTourDeath', false); S.del('ctTourDeath'); // 토너먼트에서 죽어 이름이 지워진 경우엔 마우스 스킵 허용
 if (!contract.classList.contains('hide')) { CT.first = true; if (!CT.items) ctPrepare(ctName()); contract.classList.add('ct-wait');
@@ -4142,15 +4198,147 @@ if (!contract.classList.contains('hide')) { CT.first = true; if (!CT.items) ctPr
 // 목숨이 다 떨어지면 검은 화면에 'ㅇㅇㅇ는 죽었다.' 누르면 그 이름은 지워지고 처음부터(새 서약서). 이때의 서약서는 마우스 3번으로 스킵 가능.
 const josaNeun = n => { const c = [...String(n)].pop(), k = c ? c.codePointAt(0) - 0xAC00 : -1; return k >= 0 && k < 11172 && k % 28 ? '은' : '는'; };
 // 꼼수 방지: 죽는 순간 저장해 두므로 F5를 눌러도 이 화면이 그대로 다시 뜬다 (누르기 전까지)
+// 묘비 날짜: 사망은 1980~1999년 중 무작위, 월·일은 오늘. 출생은 그보다 19~64년 전의 있을 법한 날짜.
+// ── 숙청 보고서: 죽으면 서류상으로 처리된다. 서기장 동지에게 올라가는 처리 보고서가 타자기로 찍히고, [확인]을 누르면 결재 도장.
+// 사망 연도는 1980~1999 무작위(월·일은 오늘), 생년월일은 그보다 19~64년 전 그럴듯하게. 번호·날짜는 저장 → F5에도 같은 서류.
+function tdMake(d) {
+  const now = new Date(), p2 = n => String(n).padStart(2, '0'), p5 = n => String(n).padStart(5, '0');
+  const dy = 1980 + rand(20), dm = now.getMonth() + 1, dd = Math.min(now.getDate(), new Date(dy, dm, 0).getDate()); // 2월 29일 같은 날은 그 해에 맞춤
+  const by = dy - (19 + rand(46)), bm = 1 + rand(12), bd = 1 + rand(new Date(by, bm, 0).getDate());
+  return { birth: `${by}. ${p2(bm)}. ${p2(bd)}`, death: `${dy}. ${p2(dm)}. ${p2(dd)}`, no: p5(rand(100000)), rep: `${dy % 100}-${p2(dm)}${p2(dd)}/${1 + rand(899)}`, age: dy - by - ((bm > dm || (bm === dm && bd > dd)) ? 1 : 0) };
+}
 function tourDeathScreen(o) {
   const d = o && o.name != null ? o : (S.get('tourDeadScreen', null) || { name: state.name || '무명', f: o.f, best: tourBest });
   if (document.getElementById('tourDead')) return new Promise(() => {});
-  const nm = d.name || '무명', el = document.createElement('div'); el.id = 'tourDead';
-  el.innerHTML = `<div class="td-name">${esc(nm)}${josaNeun(nm)} 죽었다.</div><div class="td-sub">${d.debug ? '테이블 위에서 마지막 숨을 거뒀다' : `지하 B${d.f}에서 마지막 숨을 거뒀다 · 최고 기록 ${d.best ? 'B' + d.best + ' 돌파' : '없음'}`}</div><div class="td-hint">— 눌러서 재도전 —</div>`;
-  document.body.appendChild(el); Music.stop && Music.stop(); if (A.crowdStop) A.crowdStop(); if (A.ctx) { A.thump(A.now(), 60, 28, .8, 1.4, A.bus(1, 0, .6)); A.tinnitus && A.tinnitus(6); }
-  autoPause('tourdead', true);
-  return new Promise(() => { setTimeout(() => el.addEventListener('click', () => { S.set('ctTourDeath', true); S.del('name'); S.del('tourDeadScreen'); el.classList.add('out'); setTimeout(() => location.reload(), 700); }), 1800); }); // 한동안은 눌러도 안 넘어간다
+  if (!d.doc) { d.doc = tdMake(d); if (S.get('tourDeadScreen', null)) S.set('tourDeadScreen', d); }
+  const nm = d.name || '무명', D = d.doc, where = '제7수용소 심문실'; // 어디서 어떻게 죽든 서류상은 심문실 (정상 절차로 처리된 척)
+  const el = document.createElement('div'); el.id = 'tourDead';
+  el.innerHTML = `<div class="paper rp" id="rpPaper"><div class="p-head"><span class="rp-t">극비 · 처리 보고 № ${D.rep}</span><svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,72 21,94 32,59 3,38 39,38" fill="#8a1a14"/></svg></div>
+    <p class="rp-t rp-to">수신: 위대하신 스탈린 서기장 동지</p><p class="rp-t rp-to">발신: 소비에트 사회주의 공화국 연방 국가보안위원회(KGB) 제7수용소 특별처리과</p>
+    <h2 class="rp-t">숙청 완료 보고</h2>
+    <div class="rp-grid"><span class="rp-t">사망자 번호</span><b class="rp-t">제 ${D.no} 호</b><span class="rp-t">성명</span><b class="rp-t">${esc(nm)}</b><span class="rp-t">생년월일</span><b class="rp-t">${D.birth} (향년 ${D.age}세)</b><span class="rp-t">사망일</span><b class="rp-t">${D.death}</b><span class="rp-t">처리 장소</span><b class="rp-t">${where}</b></div>
+    <p class="rp-t rp-body">一. 상기 반혁명 분자는 특별사면 규정에 의거하여 자원 서약서에 자필 서명하였으며, 지정된 테이블에서 리볼버 1발로 처리되었음.</p>
+    <p class="rp-t rp-body">二. ${d.debug ? '본 건은 내부 점검 목적으로 처리됨.' : `당해 인원은 ${d.best ? 'B' + d.best + '까지 통과하였으나' : '한 층도 통과하지 못하였으며'}, 사면 심사는 이로써 종결됨. 관련 기록은 전량 말소함.</p>`}
+    <p class="rp-t rp-end">이상 보고함.</p><p class="rp-t rp-end rp-glory">영광스러운 소비에트 연방 만세.</p>
+    <div class="p-foot"><small class="rp-t">사본 없음 · 열람 후 소각</small><button class="p-btn" id="rpOk">확인</button></div><div class="stamp rp-stamp">결재</div></div>`;
+  document.body.appendChild(el); Music.stop && Music.stop(); if (A.crowdStop) A.crowdStop(); autoPause('tourdead', true);
+  rpRun(el, () => { S.set('ctTourDeath', true); S.del('name'); S.del('tourDeadScreen');
+    setTimeout(() => { el.classList.add('out'); setTimeout(() => location.reload(), 700); }, 1300); });
+  return new Promise(() => {});
 }
+// 타자기로 서류를 찍어 내려가는 공통 연출 (숙청 보고 · 사면 결정서)
+function rpRun(el, onOk, pardon, opt) {
+  toggleDbg(false); if (!ruleOv.classList.contains('hide')) ruleClose(); // 서류가 뜨면 디버그·룰북은 닫는다 (브금도 안 어울림)
+  const paper = el.querySelector('#rpPaper'), items = [...paper.querySelectorAll('.rp-t')], full = items.map(e => e.textContent); let tok = 1, done = false;
+  items.forEach(e => { e.classList.add('rp-ghost'); });
+  const stopN = opt && opt.stopAt ? items.indexOf(opt.stopAt) : -1; // 가짜 사면: 이 칸까지만 찍고 멈춘다
+  const stop = () => { done = true; tok++; opt.onStop(); };
+  const finish = () => { if (done) return;
+    if (stopN >= 0) { items.forEach((e, n) => { if (n > stopN) return; e.textContent = full[n]; e.classList.remove('rp-ghost'); const b = e.closest('.p-head,.rp-grid'); if (b) b.classList.add('l1'); }); items[stopN].classList.add('rp-twist'); return stop(); }
+    done = true; tok++; items.forEach((e, n) => { e.textContent = full[n]; e.classList.remove('rp-ghost'); }); paper.classList.add('rp-done'); };
+  const type = () => { A.init(); let li = 0; const my = tok;
+    const line = () => { if (my !== tok) return; if (li >= items.length) return finish(); const e = items[li], t = full[li], st = typeSteps(t); let k = 0; const g = e.closest('.rp-grid'); if (g) g.classList.add('l1'); if (li === stopN) e.classList.add('rp-twist'); // 표 윗선은 표를 치기 시작할 때 · 처분 칸은 삐뚤게
+      const step = () => { if (my !== tok) return; const x = st[k++]; if (!x) { e.textContent = t; e.classList.remove('rp-ghost'); li++; const box = e.closest('.p-head,.rp-grid'); if (box && !box.querySelector('.rp-ghost')) box.classList.add('l2'); if (li - 1 === stopN) return stop(); if (e.classList.contains('rp-body') || e.tagName === 'H2' || e.classList.contains('rp-end')) A.typeDing(); setTimeout(line, e.tagName === 'B' || e.tagName === 'SPAN' && e.parentNode.classList.contains('rp-grid') ? 90 : 420); return; }
+        e.innerHTML = `<span class="ct-ink">${esc(x.t)}</span>${esc(t.slice(x.t.length))}`; /\s/.test(x.ch) ? A.typeSpace() : A.typeKey(.9);
+        setTimeout(step, /\s/.test(x.ch) ? 45 : x.blip ? 34 + Math.random() * 18 : 20); };
+      step(); };
+    setTimeout(line, 700); };
+  // 스킵: 서류 아무 데나 누르면 남은 걸 한 번에 (확인 버튼 제외)
+  el.addEventListener('click', e => { if (e.target.closest('#rpOk') || (opt && opt.noSkip)) return; if (!done) { finish(); A.typeKey(1.2); } }); // 가짜 사면은 연출이라 스킵 불가
+  el.querySelector('#rpOk').addEventListener('click', () => { if (!done) return opt && opt.noSkip ? null : finish(); if (paper.classList.contains('stamped')) return;
+    A.init(); A.stamp && A.stamp(); paper.classList.add('stamped'); // 결재 도장
+    onOk(); });
+  // 소리는 사용자가 한 번 만진 뒤에만 난다 → 이미 오디오가 살아 있으면 바로, 아니면 첫 입력에 시작
+  if (A.ctx && A.ctx.state === 'running') { if (!pardon) { A.thump(A.now(), 60, 28, .8, 1.4, A.bus(1, 0, .6)); A.tinnitus && A.tinnitus(5); } type(); }
+  else { el.classList.add('rp-wait'); const go = () => { ['pointerdown', 'keydown'].forEach(ev => document.removeEventListener(ev, go, true)); el.classList.remove('rp-wait'); A.init(); A.resume(); type(); }; ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, go, true)); }
+}
+
+// 토너먼트 우승: 특별사면 결정서 (디버그에서도 열람 가능, 이때는 진행 상황과 무관)
+function tourPardonScreen(o) {
+  const d = o || {}, nm = d.name || state.name || '무명', D = tdMake(d), fake = d.fake; // fake: 'tear'(처분 칸에서 찢김) · 'stamp'(석방 누르면 처형 도장)
+  if (document.getElementById('tourDead')) return Promise.resolve();
+  const el = document.createElement('div'); el.id = 'tourDead'; el.className = 'pardon';
+  el.innerHTML = `<div class="paper rp" id="rpPaper"><div class="p-head"><span class="rp-t">특별사면 결정서 № ${D.rep}</span><svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,72 21,94 32,59 3,38 39,38" fill="#8a1a14"/></svg></div>
+    <p class="rp-t rp-to">수신: 굴라크 제7수용소 소장</p><p class="rp-t rp-to">발신: 소비에트 사회주의 공화국 연방 국가보안위원회(KGB) 제7수용소 특별처리과</p>
+    <h2 class="rp-t">특별사면 결정</h2>
+    <div class="rp-grid"><span class="rp-t">수형자 번호</span><b class="rp-t">제 ${D.no} 호</b><span class="rp-t">성명</span><b class="rp-t">${esc(nm)}</b><span class="rp-t">생년월일</span><b class="rp-t">${D.birth} (${D.age}세)</b><span class="rp-t">결정일</span><b class="rp-t">${D.death}</b><span class="rp-t">처분</span><b class="rp-t rp-cf">잔여 형기 전부 면제 · 즉시 ${fake === 'tear' ? '처형' : '석방'}</b>${d.prize ? `<span class="rp-t">석방 지원금</span><b class="rp-t">${won(d.prize)}</b>` : ''}</div>
+    <p class="rp-t rp-body">一. ${fake ? '상기 수형자는 특별사면 자원 서약을 거부하였음. 본 위원회는 당해 인원의 솔직함을 높이 평가함.' : d.debug ? '본 결정서는 내부 점검 목적으로 발급됨. 효력 없음.' : '상기 수형자는 특별사면 자원 서약서에 의거하여 제7수용소 지하 B1부터 B7까지 전 과정을 통과하였으며, 처형 책임자 볼코프는 당해 테이블에서 처리되었음.'}</p>
+    <p class="rp-t rp-body">二. 이에 ${fake ? '' : '서약서 四조에 따라 '}잔여 형기 전부를 면제하고 즉시 석방함. 관련 수용 기록은 전량 소각함.</p>
+    <p class="rp-t rp-body">三. 석방자는 수용소 내에서 보고 들은 일체를 발설하지 아니한다. 위반 시 본 결정은 소급하여 무효로 하며, 당해 인원은 제7수용소로 재수용함.</p>
+    <p class="rp-t rp-end">이상 결정함.</p><p class="rp-t rp-end rp-glory">영광스러운 소비에트 연방 만세.</p>
+    <div class="p-foot"><small class="rp-t">사본 1부 · 석방 시 지참</small><button class="p-btn" id="rpOk">석방</button></div><div class="stamp rp-stamp">사면</div>${fake === 'stamp' ? '<div class="stamp rp-stamp rp-stamp2">처형</div>' : ''}</div>`;
+  document.body.appendChild(el); Music.stop && Music.stop(); if (A.crowdStop) A.crowdStop(); autoPause('tourdead', true);
+  if (fake) return new Promise(() => rpRun(el, () => { if (fake === 'stamp') ctFakeKill(el, nm, 'stamp'); }, true, fake === 'tear' ? { noSkip: 1, stopAt: el.querySelector('.rp-cf'), onStop: () => ctFakeKill(el, nm, 'tear') } : { noSkip: 1 }));
+  return new Promise(res => rpRun(el, () => { setTimeout(() => { A.jackpot && A.jackpot(); }, 350);
+    // 석방된 사람은 테이블에 남지 않는다: 새로고침 없이 다른 수형자 이름으로 덮어쓴다
+    const nn = pick(NAMES.filter(n => nameLen(n) <= NAME_MAX && n !== nm)); state.name = nn; S.set('name', nn);
+    state.seats.forEach(x => { if (x && x.kind === 'human') x.name = nn; }); nameInput.value = nn; renderAll();
+    log(`${esc(nm)}${josaNeun(nm)} 석방되었다. 새 수형자 <b>${esc(nn)}</b>${josaNeun(nn) === '은' ? '이' : '가'} 테이블에 앉는다.`, 'sys');
+    setTimeout(() => { el.classList.add('out'); setTimeout(() => { el.remove(); autoPause('tourdead', false); res(); }, 700); }, 1900); }, true));
+}
+
+// ── 서약 거부: 자원이라더니, 거부하면 그 자리에서 쏜다. 적힌 이름 그대로 숙청 보고서로.
+const CT_GUN = `<svg viewBox="0 0 300 150"><defs><linearGradient id="gm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a4b52"/><stop offset=".45" stop-color="#1c1d22"/><stop offset="1" stop-color="#08080a"/></linearGradient><linearGradient id="gw" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5a3620"/><stop offset="1" stop-color="#24140a"/></linearGradient><radialGradient id="gf"><stop offset="0" stop-color="#fff8d0"/><stop offset=".35" stop-color="#ffc040"/><stop offset="1" stop-color="rgba(255,90,0,0)"/></radialGradient></defs>
+  <ellipse class="mz" cx="-6" cy="38" rx="46" ry="26" fill="url(#gf)"/>
+  <rect x="0" y="30" width="136" height="16" rx="3" fill="url(#gm)"/><rect x="4" y="25" width="7" height="7" fill="#1c1d22"/><rect x="10" y="28" width="120" height="3" fill="#5c5e66" opacity=".6"/>
+  <path d="M122 24 H206 L214 40 V78 H176 L168 90 H122 Z" fill="url(#gm)"/>
+  <rect x="130" y="34" width="62" height="42" rx="8" fill="url(#gm)" stroke="#000" stroke-width="1.5"/><path d="M140 40 V70 M152 38 V72 M164 38 V72 M176 38 V72 M186 40 V70" stroke="#000" stroke-width="3" opacity=".55"/>
+  <path d="M204 26 L214 8 L226 12 L218 34 Z" fill="#1c1d22"/>
+  <path d="M170 78 Q168 108 196 106 Q208 104 206 80" fill="none" stroke="#1c1d22" stroke-width="5"/><path d="M186 80 Q184 94 192 100" stroke="#0e0e10" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <path d="M200 70 Q226 64 234 70 L282 132 Q284 146 266 146 L238 146 Q222 144 218 130 Z" fill="url(#gw)"/><path d="M226 88 L262 136" stroke="#1a0d05" stroke-width="2" opacity=".6"/>
+</svg>`;
+// 총이 들어와 겨누고 쏜다 (target 위치에 피)
+async function ctShoot(target, fast) {
+  clearTimeout(ctPeekT); const g = document.getElementById('ctGun') || ctGunEl(); g.classList.remove('peek'); document.body.classList.add('ct-exec');
+  void g.offsetWidth; g.classList.add('in'); await sleep(fast ? 800 : 1300); A.cock && A.cock(); await sleep(fast ? 800 : 1200);
+  A.gun(true); g.classList.add('bang');
+  const f = $('#flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
+  const r = target.getBoundingClientRect(); Blood.splat(r.left + r.width * .5, r.top + r.height * .45);
+  A.tinnitus && A.tinnitus(6); return g;
+}
+A.tear = function () { if (!this.ctx) return; const t = this.now(), b = this.bus(1, 0, .12); // 종이 찢는 소리: 짧은 섬유 끊김이 빠르게 이어짐
+  for (let k = 0; k < 24; k++) this.burst(t + k * .015 + Math.random() * .01, .015 + Math.random() * .02, 'bandpass', 1600 + Math.random() * 2800, .9, .3 + Math.random() * .35, b);
+  this.burst(t, .4, 'highpass', 2400, .6, .22, b); };
+// 가짜 사면: 찢기거나(tear), 사면 도장 위에 처형 도장(stamp) → 총격 → 숙청 보고서
+async function ctFakeKill(el, nm, how) {
+  const paper = el.querySelector('#rpPaper');
+  if (how === 'tear') { await sleep(700);
+    const c = paper.cloneNode(true); c.removeAttribute('id'); c.querySelectorAll('[id]').forEach(x => x.removeAttribute('id'));
+    Object.assign(c.style, { position: 'absolute', left: paper.offsetLeft + 'px', top: paper.offsetTop + 'px', width: paper.offsetWidth + 'px', height: paper.offsetHeight + 'px', margin: 0 });
+    paper.classList.add('rp-half', 'rp-hl'); c.classList.add('rp-half', 'rp-hr'); el.appendChild(c); void c.offsetWidth;
+    A.tear(); paper.classList.add('rp-torn'); c.classList.add('rp-torn'); await sleep(450);
+  } else { await sleep(1000); paper.classList.add('stamped2'); A.stamp(); await sleep(900); }
+  const g = await ctShoot(paper, true); if (how === 'stamp') paper.classList.add('rp-hit');
+  await sleep(2800); el.classList.add('out'); g.style.transition = 'opacity .8s'; g.style.opacity = 0; await sleep(800);
+  el.remove(); Blood.clear(); g.remove(); document.body.classList.remove('ct-exec');
+  tourDeathScreen(S.get('tourDeadScreen', null) || { name: nm, refuse: true });
+}
+// 거부 기믹: 50% 그 자리에서 사살 · 50% 가짜 사면 결정서 (그중 반은 처분 칸에서 찢기고, 반은 석방 누르면 처형 도장)
+async function ctRefuse() {
+  if (!CT.done || CT.exec) return; CT.exec = true;
+  const v = nameInput.value.trim().replace(/\s+/g, ' '), nm = v && nameOk(v) ? v : ctName();
+  A.init(); nameInput.readOnly = true; nameInput.blur(); contract.classList.add('ct-exec'); document.body.classList.add('ct-exec'); toggleDbg(false); if (!ruleOv.classList.contains('hide')) ruleClose();
+  Music.stop && Music.stop(); if (A.crowdStop) A.crowdStop();
+  S.set('tourDeadScreen', { name: nm, refuse: true }); // 거부하는 순간 기록 (F5로 도망 못 감)
+  $('#pHint').textContent = '거부 의사가 확인되었다.'; A.typeKey(1); A.typeDing();
+  const how = CT.force || (Math.random() < .5 ? 'shoot' : Math.random() < .5 ? 'tear' : 'stamp'); CT.force = null;
+  if (how !== 'shoot') { // 가짜 사면
+    clearTimeout(ctPeekT); const pg = document.getElementById('ctGun'); if (pg) pg.remove();
+    await sleep(1100); contract.classList.add('fade'); await sleep(600); contract.classList.add('hide'); contract.classList.remove('fade', 'ct-exec');
+    return tourPardonScreen({ name: nm, fake: how }); }
+  await sleep(700); const g = await ctShoot(ctPaper); contract.classList.add('ct-shot');
+  await sleep(2800); contract.classList.add('fade'); g.style.transition = 'opacity .8s'; g.style.opacity = 0; await sleep(900);
+  Blood.clear(); g.remove(); document.body.classList.remove('ct-exec'); contract.classList.add('hide'); contract.classList.remove('fade', 'ct-exec', 'ct-shot');
+  tourDeathScreen(S.get('tourDeadScreen', null) || { name: nm, refuse: true });
+}
+$('#refuseBtn').addEventListener('click', ctRefuse);
+// 거부 버튼에 마우스를 올리면 화면 끝에 총이 슬쩍 비친다 (보일랑 말랑)
+function ctGunEl() { const g = document.createElement('div'); g.id = 'ctGun'; g.innerHTML = CT_GUN; document.body.appendChild(g); return g; }
+let ctPeekT = 0;
+$('#refuseBtn').addEventListener('mouseenter', () => { if (!CT.done || CT.exec || contract.classList.contains('hide')) return; clearTimeout(ctPeekT);
+  const g = document.getElementById('ctGun') || ctGunEl(); void g.offsetWidth; g.classList.add('peek'); });
+$('#refuseBtn').addEventListener('mouseleave', () => { if (CT.exec) return; const g = document.getElementById('ctGun'); if (!g) return;
+  g.classList.remove('peek'); ctPeekT = setTimeout(() => { if (!CT.exec) g.remove(); }, 1500); });
 
 // 새로고침으로 도망쳐도 사망 화면 복귀
 if (S.get('tourDeadScreen', null)) { contract.classList.add('hide'); welcome.classList.add('hide'); tourDeathScreen(S.get('tourDeadScreen')); }
