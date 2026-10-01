@@ -1,0 +1,190 @@
+/* ── v7: 연출/기믹 ── */
+.btn.skip{background:linear-gradient(135deg,#7a1030,#2a0612);border-color:#d0406a;box-shadow:0 10px 26px rgba(170,20,60,.25),inset 0 1px 0 rgba(255,255,255,.15);padding:10px 14px}
+.btn.skip .t{font-size:20px}
+.gunpt{position:absolute;top:50px;width:150px;height:88px;opacity:0;pointer-events:none;z-index:5;transition:opacity .2s,transform .25s;filter:drop-shadow(0 6px 10px rgba(0,0,0,.7))}
+#seat0 .gunpt{left:calc(50% + 44px);transform:rotate(4deg) translateX(34px)}
+#seat1 .gunpt{right:calc(50% + 44px);transform:scaleX(-1) rotate(4deg) translateX(34px)}
+#seat0.aim .gunpt{opacity:1;transform:rotate(10deg) translateX(0)}
+#seat1.aim .gunpt{opacity:1;transform:scaleX(-1) rotate(10deg) translateX(0)}
+.seat.aim.ash1 .gunpt{animation:gs1 .4s infinite}.seat.aim.ash2 .gunpt{animation:gs2 .2s infinite}.seat.aim.ash3 .gunpt{animation:gs3 .12s infinite}
+.gunpt .ghammer{transform-origin:186px 42px;transform:rotate(22deg);transition:transform .18s}
+.seat.aim .gunpt .ghammer{transform:rotate(0);transition:transform .35s .3s cubic-bezier(.5,0,.3,1.4)}
+@keyframes gs1{50%{margin-top:1px}}@keyframes gs2{25%{margin-top:2px;margin-left:-1px}75%{margin-top:-2px;margin-left:1px}}@keyframes gs3{25%{margin-top:3px;margin-left:-2px}75%{margin-top:-3px;margin-left:2px}}
+.portrait.sweat::before{content:'';position:absolute;inset:0;border-radius:50%;pointer-events:none;z-index:2;
+  background:radial-gradient(circle at 22% 30%,rgba(200,230,255,.9) 0 3px,transparent 4px),radial-gradient(circle at 78% 26%,rgba(200,230,255,.85) 0 2.5px,transparent 3.5px),radial-gradient(circle at 70% 55%,rgba(200,230,255,.8) 0 2px,transparent 3px);animation:sweat 1.6s linear infinite}
+@keyframes sweat{0%{background-position:0 -8px,0 -6px,0 -4px;opacity:0}20%{opacity:1}100%{background-position:0 22px,0 26px,0 18px;opacity:0}}
+.smoke{position:absolute;left:50%;top:40%;width:340px;height:340px;margin:-170px 0 0 -170px;pointer-events:none;opacity:0;z-index:6;border-radius:50%;
+  background:radial-gradient(circle at 40% 55%,rgba(180,175,165,.35),transparent 40%),radial-gradient(circle at 62% 40%,rgba(160,155,150,.3),transparent 38%),radial-gradient(circle at 50% 30%,rgba(200,195,190,.25),transparent 45%);filter:blur(8px)}
+.smoke.go{animation:smoke 3.4s ease-out forwards}
+@keyframes smoke{0%{opacity:0;transform:scale(.4) translateY(20px)}15%{opacity:1}100%{opacity:0;transform:scale(1.6) translateY(-90px)}}
+#clean{position:fixed;inset:0;z-index:640;background:#000;opacity:0;pointer-events:none;transition:opacity .35s}
+#clean.on{opacity:.93}
+body.dark .lamp{opacity:0!important;animation:none!important}
+body.dark #app{filter:brightness(.16) contrast(1.2);transition:filter .08s}
+body.dark .actions{filter:brightness(4)}
+#app{transition:filter .6s}
+.sidebet{display:none;margin:0 auto;border:1px dashed #8a6a2a;background:rgba(214,166,78,.08);color:var(--brass2);border-radius:10px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:var(--f-kr)}
+.sidebet.on{display:block}
+.sidebet:hover{background:rgba(214,166,78,.18)}
+.sidebet.placed{border-style:solid;cursor:default;color:#7fe0a0;border-color:#2f6a45}
+.counter{position:fixed;left:50%;bottom:28px;transform:translate(-50%,140%);z-index:960;background:rgba(18,12,10,.97);border:1px solid #b8323e;border-radius:14px;padding:14px 16px 12px;box-shadow:0 20px 50px rgba(0,0,0,.7);transition:transform .3s cubic-bezier(.2,1.3,.4,1);min-width:300px;overflow:hidden}
+.counter.on{transform:translate(-50%,0)}
+.counter .ct{font-weight:700;color:#ff9a9a;margin-bottom:10px;text-align:center}
+.counter .cb{display:flex;gap:8px;justify-content:center}
+.counter .p-btn:not(.ghost){background:linear-gradient(180deg,#c1161f,#600409);color:#fff}
+.counter .cbar{position:absolute;left:0;bottom:0;height:3px;background:#ff3b3b;width:100%;transform-origin:left}
+.counter.on .cbar{animation:cbar 5s linear forwards}
+@keyframes cbar{to{transform:scaleX(0)}}
+.will{position:fixed;left:50%;top:130px;transform:translate(-50%,-20px);z-index:955;background:#e9ddc1;color:#241a12;border-radius:6px;padding:12px 14px;box-shadow:0 20px 50px rgba(0,0,0,.7);opacity:0;pointer-events:none;transition:.25s;width:min(340px,90vw)}
+.will.on{opacity:1;pointer-events:auto;transform:translate(-50%,0) rotate(-1deg)}
+.will .wt{font-family:var(--f-ru);font-size:11px;letter-spacing:.25em;color:#8a1a14;margin-bottom:4px}
+.will.doom{background:#ecd3c6;box-shadow:0 20px 50px rgba(0,0,0,.7),0 0 0 1px rgba(140,20,14,.35),inset 0 0 28px rgba(150,24,16,.18)}
+.will.doom .wt{color:#a3120b}
+.will.doom input{border-bottom-color:#6a1410}
+.will input{width:100%;border:0;border-bottom:1.5px solid #241a12;background:transparent;font-family:var(--f-pen);font-size:30px;color:#1d2f73;outline:none}
+.streak{color:#ff9a3c;font-weight:700;margin-left:6px}
+.drinkbar{display:inline-flex;gap:2px;align-items:center;font-size:11px;color:#e0703a;margin-left:6px}
+.drinkbar i{width:6px;height:10px;border-radius:2px;background:#3a2a20}.drinkbar i.on{background:#e0703a}
+.moodtag{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.06);color:var(--brass2);margin-right:5px}
+.nemtag{color:#ff4040!important}
+@media (max-width:699px){.gunpt{display:none}.arena .btn.skip{grid-column:1 / -1}}
+.turnnote{font-size:11.5px;color:var(--muted);line-height:1.45;padding:2px 4px 0}
+.turnnote b{color:var(--brass2);font-weight:700}
+@media (max-width:699px){.turnnote{grid-column:1 / -1;text-align:center}}
+.btn.fire.flickready{animation:flickp .35s ease-in-out infinite;box-shadow:0 0 26px 8px rgba(255,120,160,.8)!important;opacity:1!important;filter:none!important}
+@keyframes flickp{50%{transform:scale(1.03);filter:brightness(1.3)}}
+.lower{align-items:stretch}
+.lower .card{display:flex;flex-direction:column;min-width:0}
+.lower .log{flex:1 1 auto;height:0;min-height:300px;max-height:none}
+@media (max-width:699px){.lower .log{height:auto;min-height:0;max-height:320px}}
+
+/* 기록 보기 팝업 */
+.recov{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.72);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:16px;transition:opacity .2s}
+.recov.hide{display:none}
+#ruleOv{z-index:1500}
+.rbbox{width:min(1100px,100%);display:flex;flex-direction:column;overflow:hidden;height:calc(100vh - 32px)}
+.rbwrap{display:flex;gap:14px;min-height:0;flex:1}
+.rbtoc{flex:0 0 170px;overflow:auto;display:flex;flex-direction:column;gap:2px;border-right:1px solid var(--line);padding-right:8px}
+.rbtoc a{cursor:pointer;padding:6px 8px;border-radius:6px;color:var(--muted);font-size:13px}.rbtoc a:hover{background:rgba(214,166,78,.1);color:var(--brass2)}
+.rbbody{flex:1;overflow:auto;padding-right:6px;scroll-behavior:smooth;line-height:1.65;font-size:14px}
+.rbbody section{padding:10px 12px;border-radius:10px;margin-bottom:10px;border:1px solid transparent;transition:background .6s,border-color .6s}
+.rbbody section.rbhit,.rbp.rbhit{background:rgba(214,166,78,.12);border-color:var(--brass)}
+.rbbody h3{font-size:16px;color:var(--brass2);margin-bottom:6px}.rbbody h4{font-size:15px;color:var(--pc,var(--brass));margin:4px 0}
+.rbbody ul{padding-left:18px}.rbbody li{margin:3px 0}.rbbody b{color:var(--brass2)}
+.rbp{padding:8px 10px;border-left:3px solid var(--line2);margin:8px 0;border-radius:4px}.rbdesc{color:var(--muted);font-size:13px;margin-bottom:2px}
+.rbpips{display:flex;flex-wrap:wrap;gap:10px 18px;margin:4px 0 8px}.rbpips span{display:flex;align-items:center;gap:6px;font-size:13px}.rbpips .pip{display:inline-block;--dc:#d6a64e}
+.chip{cursor:pointer}.pips{cursor:help}
+@media (max-width:699px){.rbwrap{flex-direction:column}.rbtoc{flex:0 0 auto;flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding:0 0 6px}.rbtoc a{white-space:nowrap}}
+
+.recbox{width:min(1040px,100%);max-height:calc(100vh - 32px);overflow:auto;background:var(--bg,#0b0908);border:1px solid var(--line);border-radius:18px;padding:16px}
+.rechead{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-family:var(--f-ru);letter-spacing:.25em;color:var(--brass);font-size:13px}
+.recov .lower{margin-top:0}
+.recov .lower .log{min-height:340px;max-height:60vh}
+@media (max-width:699px){#recBtn .rlong{display:none}}
+@media (max-width:699px){.recov .lower .log{min-height:0;max-height:300px}}
+
+/* 채팅 로그 */
+#app{display:flex;flex-direction:column;min-height:100vh;box-sizing:border-box}
+.chat{flex:1 1 auto;min-height:170px;margin-top:18px;display:flex;flex-direction:column;background:linear-gradient(180deg,rgba(18,14,12,.92),rgba(8,6,5,.95));border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.chat-h{display:flex;justify-content:space-between;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line);background:rgba(0,0,0,.35)}
+.chat-t{font-family:var(--f-ru);font-size:11px;letter-spacing:.3em;color:var(--brass)}
+.chat-tabs{display:flex;gap:4px}
+.chat-tabs button{font:inherit;font-size:12px;font-weight:700;padding:4px 11px;border-radius:999px;border:1px solid transparent;background:none;color:var(--dim);cursor:pointer}
+.chat-tabs button.on{border-color:var(--line);background:rgba(255,255,255,.06);color:var(--brass2)}
+.chat-list{flex:1 1 auto;height:0;min-height:80px;overflow-y:auto;list-style:none;margin:0;padding:8px 14px;font-size:14px;line-height:1.55;scrollbar-width:thin}
+.chat-list li{padding:2px 0;word-break:break-word;animation:chatIn .25s ease-out}
+@keyframes chatIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.chat-list .tm{color:#5c554c;font-size:11px;margin-right:7px;font-variant-numeric:tabular-nums}
+.chat-list .nm{font-weight:800;margin-right:6px}
+.chat-list .nm::after{content:':';font-weight:400;color:var(--dim)}
+.chat-list .p0 .nm{color:#8fd0f0}.chat-list .p1 .nm{color:#ff8a7a}
+.chat-list .me .nm{color:var(--brass2)}
+.chat-list .emo .tx{font-size:20px;line-height:1}
+.chat-list .dl .nm{color:var(--brass)}.chat-list .dl .tx{color:#e9d8b0;font-style:italic}
+.chat-list .sys{color:#8a8277;font-size:13px}
+.chat-list .sys .tx::before{content:'▸ ';color:#5c554c}
+.chat-list .sys.c-danger{color:#ff6a6a}.chat-list .sys.c-safe{color:#7fe0a0}.chat-list .sys.c-spin{color:#8fd0f0}.chat-list .sys.c-info{color:#cdb88a}
+.chat-list.f-talk .sys,.chat-list.f-game .say{display:none}
+.chat-list .death{color:#77716a;font-style:italic;padding:5px 0;border-top:1px dashed rgba(255,255,255,.06);border-bottom:1px dashed rgba(255,255,255,.06);margin:3px 0}
+.chat-list .death .tx{text-decoration:line-through;text-decoration-color:rgba(160,20,20,.55);text-decoration-thickness:1px}
+.chat-in{display:flex;gap:8px;align-items:center;padding:8px 10px;border-top:1px solid var(--line);background:rgba(0,0,0,.4)}
+.chat-me{font-size:12px;font-weight:800;color:var(--brass2);white-space:nowrap;max-width:90px;overflow:hidden;text-overflow:ellipsis}
+.chat-in input{flex:1;min-width:0;height:34px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--text);padding:0 12px;font:inherit;font-size:14px;outline:none}
+.chat-in input:focus{border-color:var(--brass)}
+.chat-in .ibtn{height:34px}
+body.auto .chat-in{display:none}
+@media (max-width:699px){.chat{min-height:260px}.chat-list{font-size:13px}}
+#tcRu:empty{display:none}
+/* 러시아어 제거 후: 한글 라벨은 자간 좁게 */
+.rlbl,.gunlbl,.chat-t,.btn.fire .s,.turnflag,.tc-ru,.rechead,.card h3,.spectate,.pl,.w1{letter-spacing:.06em;font-family:var(--f-kr);font-weight:700}
+.lbtabs{display:flex;gap:3px}.lbtabs button{font:inherit;font-size:11px;font-weight:700;letter-spacing:0;padding:3px 9px;border-radius:999px;border:1px solid transparent;background:none;color:var(--dim);cursor:pointer}.lbtabs button.on{border-color:var(--line);background:rgba(255,255,255,.06);color:var(--brass2)}
+/* 성향 설명 가독성 */
+.sdesc{font-size:14.5px;color:#d4c9b8;line-height:1.55;max-width:270px}
+.chip{font-size:13.5px}
+.moodtag{font-size:12.5px;padding:1px 8px}
+@media (max-width:699px){.sdesc{display:block;font-size:12.5px;max-width:none;min-height:0;margin-top:4px}}
+.sidebet kbd{display:inline-block;margin-left:6px;padding:0 6px;border:1px solid currentColor;border-radius:5px;font:inherit;font-size:11px;opacity:.75}
+/* 3D 무대: 캔버스가 실린더 영역을 넘어 크게 깔린다. 2D 실린더는 상태 전달용으로만 남기고 숨긴다 */
+.g3d-cv{position:absolute;left:-90px;top:-70px;width:calc(100% + 180px);height:calc(100% + 70px);pointer-events:none;z-index:2}
+body.g3d .cyl-area .arrow,body.g3d .cyl-area .frame,body.g3d .cyl-area .hammer,body.g3d .cyl-area .pin,body.g3d .cyl-wrap,body.g3d .cyl-area .casing,body.g3d .cyl-area .smoke{opacity:0!important}
+body.g3d .cyl-area{overflow:visible}
+/* 관자놀이 총: 3D 모델 스냅샷 이미지 (없으면 기존 SVG) */
+.gunimg{display:none;object-fit:contain}
+.cyl-wrap,.cyl-area .muzzle,.cyl-area .smoke{visibility:hidden!important} /* 2D 총 삭제: 상태 저장·3D 트리거용으로만 남음 */
+.gunlbl{display:none}
+.g3dsig{display:none!important} /* 3D 신호용 보이지 않는 노드 (서명칸 .sig와 이름 겹치지 않게) */
+.no3d{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;text-align:center}
+body.g3d.g3dimg svg.gunpt{display:none}
+body.g3d.g3dimg .gunimg{display:block}
+/* AI 대전 베팅판 */
+.aibet{display:none}
+body.auto .arena{grid-template-columns:1fr minmax(300px,1.25fr) 1fr 210px}
+body.auto .aibet{display:flex;flex-direction:column;gap:8px;position:relative;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 12px;align-self:stretch}
+.ab-h{display:flex;justify-content:space-between;align-items:baseline;font-weight:800;color:var(--brass2);font-size:15px}
+.ab-bank{font-size:11px;color:var(--muted);font-weight:500}.ab-bank b{color:var(--brass2);font-size:13px}
+.ab-lbl{font-size:11px;color:var(--muted);margin-top:2px}
+.ab-seg,.ab-who,.ab-stake{display:grid;gap:5px}
+.ab-seg{grid-template-columns:1fr 1fr}.ab-who{grid-template-columns:1fr 1fr}.ab-stake{grid-template-columns:1fr 1fr}
+.aibet button{font:inherit;font-size:12.5px;font-weight:700;padding:7px 6px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--text);cursor:pointer;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aibet button small{display:block;font-size:10.5px;color:var(--brass);font-weight:600}
+.aibet button.on{border-color:var(--brass);background:rgba(214,166,78,.16);color:var(--brass2)}
+.aibet button:disabled{opacity:.35;cursor:default}
+.ab-pct{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.ab-pct select{flex:1;background:#181310;border:1px solid var(--line2);color:var(--text);border-radius:8px;padding:5px;font:inherit;font-size:13px}
+.aibet .ab-go{margin-top:4px;padding:11px;font-size:15px;background:linear-gradient(180deg,#8a1a14,#5a0f0b);border-color:#b3261e;color:#fff}
+.ab-note{font-size:12px;color:var(--muted);line-height:1.5;min-height:36px}.ab-note b{color:var(--brass2)}
+.aibet.locked .ab-seg,.aibet.locked .ab-who,.aibet.locked .ab-stake,.aibet.locked .ab-pct{opacity:.45;pointer-events:none}
+.ab-float{position:absolute;left:50%;top:45%;transform:translate(-50%,0);font-weight:900;font-size:22px;color:var(--brass2);text-shadow:0 2px 12px rgba(0,0,0,.8);pointer-events:none;animation:abUp 2.4s ease-out forwards;white-space:nowrap;z-index:5}
+.ab-float.big{font-family:var(--f-big);font-size:46px;color:#ffd24a;text-shadow:0 0 18px rgba(255,190,40,.9),0 3px 0 #7a4a00}
+@keyframes abUp{0%{opacity:0;transform:translate(-50%,20px) scale(.7)}15%{opacity:1;transform:translate(-50%,0) scale(1.1)}70%{opacity:1}100%{opacity:0;transform:translate(-50%,-90px) scale(1)}}
+@media (max-width:699px){body.auto .arena{grid-template-columns:1fr 1fr}body.auto .aibet{grid-area:act}}
+/* 동전 던지기 */
+#coin{position:absolute;left:50%;top:44%;width:128px;height:128px;margin:-64px 0 0 -64px;perspective:600px;z-index:8;pointer-events:none;opacity:0;transition:opacity .3s}
+#coin.on{opacity:1}
+#coin .coin-in{position:absolute;inset:0;transform-style:preserve-3d}
+.coin-face{position:absolute;inset:0;border-radius:50%;backface-visibility:hidden;display:flex;align-items:center;justify-content:center;gap:2px;
+  background:radial-gradient(circle at 35% 30%,#fff3c2,#e0b44e 42%,#9a6a1c 78%,#5c3d0c);box-shadow:inset 0 0 0 5px #b8862e,inset 0 0 0 8px #7a5214,inset 0 0 18px rgba(0,0,0,.45),0 10px 24px rgba(0,0,0,.6)}
+.coin-face.back{transform:rotateX(180deg)}
+.coin-face svg{width:74%;height:74%}
+.c-num{font-family:var(--f-big);font-size:44px;color:#6a430c;text-shadow:0 1px 0 #ffe9a8,0 -1px 0 #4a2e06;letter-spacing:1px}
+.c-rub{font-weight:900;font-size:22px;color:#6a430c;margin-top:10px}
+#coin.cursed .coin-face{background:radial-gradient(circle at 35% 30%,#d9a08a,#7a2a1c 45%,#3a0c07 80%,#1a0403);box-shadow:inset 0 0 0 5px #5a1a10,inset 0 0 0 8px #2a0804,inset 0 0 18px rgba(0,0,0,.6),0 10px 24px rgba(0,0,0,.7)}
+#coin.cursed .c-num,#coin.cursed .c-rub{color:#1a0403;text-shadow:0 1px 0 #c0584a}
+#coin.curse-glow .coin-face{animation:curseGlow .6s ease-in-out infinite alternate}
+@keyframes curseGlow{from{filter:drop-shadow(0 0 4px #ff2a1a)}to{filter:drop-shadow(0 0 22px #ff2a1a)}}
+body.cointoss .cyl-wrap,body.cointoss .cyl-area .hammer,body.cointoss .cyl-area .frame,body.cointoss .cyl-area .pin{opacity:0!important;transition:opacity .3s}
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer;padding:4px 2px}
+.chk input{width:16px;height:16px;accent-color:var(--brass)}
+body.auto.nobet .aibet{display:none!important}
+body.auto.nobet .arena{grid-template-columns:1fr minmax(300px,1.3fr) 1fr}
+@media (max-width:699px){body.auto.nobet .arena{grid-template-columns:1fr 1fr}}
+.bubble.zz{font-style:italic;color:#8fa8c8;letter-spacing:.04em;min-width:60px}
+/* 채팅 스크롤바 · 새 대화 버튼 */
+.chat{position:relative}
+.chat-list{scrollbar-width:thin;scrollbar-color:rgba(214,166,78,.35) transparent;scroll-behavior:auto}
+.chat-list::-webkit-scrollbar{width:7px}
+.chat-list::-webkit-scrollbar-track{background:transparent}
+.chat-list::-webkit-scrollbar-thumb{background:linear-gradient(180deg,rgba(214,166,78,.45),rgba(140,90,30,.45));border-radius:8px;border:1px solid rgba(0,0,0,.4)}
+.chat-list::-webkit-scrollbar-thumb:hover{background:rgba(243,209,132,.6)}
+.chat-new{position:absolute;right:18px;bottom:62px;z-index:3;display:none;font:inherit;font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;border:1px solid var(--brass);background:rgba(20,14,10,.92);color:var(--brass2);cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+.chat-new.on{display:block}

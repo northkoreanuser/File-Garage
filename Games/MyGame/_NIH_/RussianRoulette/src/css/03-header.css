@@ -1,0 +1,26 @@
+/* ── HEADER ── */
+.top{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:34px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:14px}
+.brand svg{width:44px;height:44px;flex:none;filter:drop-shadow(0 0 12px rgba(255,59,59,.35))}
+.brand .ru{font-family:var(--f-ru);font-size:11px;letter-spacing:.46em;color:var(--brass)}
+.brand .kr{font-family:var(--f-big);font-size:40px;line-height:1;margin-top:4px}
+.brand .kr em{font-style:normal;color:var(--red2);text-shadow:0 0 22px rgba(255,59,59,.35)}
+.ctrls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.seg{display:flex;background:rgba(0,0,0,.5);border:1px solid var(--line);border-radius:999px;padding:3px}
+.seg button{border:0;background:transparent;color:var(--muted);font-weight:700;font-size:13px;padding:8px 15px;border-radius:999px;cursor:pointer;transition:.2s}
+.seg button.on{background:linear-gradient(180deg,#e0b25c,#a67a2a);color:#1a1108;box-shadow:0 2px 10px rgba(214,166,78,.3)}
+.ibtn{height:38px;min-width:38px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:rgba(0,0,0,.5);color:var(--text);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:13px;font-weight:700;transition:.2s}
+.ibtn:hover{border-color:var(--line2)}
+.ibtn.off{color:var(--dim)}
+.ibtn.off .bars i{animation:none;height:3px}
+.bars{display:inline-flex;gap:2px;align-items:flex-end;height:14px}
+.bars i{width:3px;background:currentColor;border-radius:1px;animation:eq 1s ease-in-out infinite}
+.bars i:nth-child(2){animation-delay:-.3s}.bars i:nth-child(3){animation-delay:-.6s}
+@keyframes eq{0%,100%{height:4px}50%{height:14px}}
+#pauseBtn{display:inline-flex}#forfeitBtn{display:none;color:#ff9a8a;border-color:rgba(255,90,70,.55);background:rgba(140,20,14,.25)}#forfeitBtn:hover{background:rgba(160,24,16,.5);color:#fff}body.tourmode #forfeitBtn{display:inline-flex}
+body.auto #pauseBtn{display:none}
+#pauseTag{position:fixed;left:50%;top:84px;transform:translate(-50%,-10px);z-index:950;padding:9px 18px;border-radius:999px;background:rgba(10,8,6,.92);border:1px solid var(--brass);color:var(--brass2);font-weight:700;font-size:13px;opacity:0;pointer-events:none;transition:.25s;box-shadow:0 10px 30px rgba(0,0,0,.6)}
+body.paused #pauseTag{opacity:1;transform:translate(-50%,0)}
+body.paused .stage{filter:saturate(.4) brightness(.8)}
+#pauseBtn.on{border-color:var(--brass);color:var(--brass2)}
+

@@ -1,0 +1,25 @@
+/* ── ATMOSPHERE ── */
+.bg{position:fixed;inset:0;z-index:0;pointer-events:none;background:
+  radial-gradient(ellipse 120% 70% at 50% 115%,rgba(130,0,0,.28),transparent 60%),
+  linear-gradient(180deg,#120d0b 0%,#0a0807 55%,#060404 100%)}
+.bg::after{content:'';position:absolute;inset:0;background:
+  repeating-linear-gradient(90deg,rgba(255,255,255,.012) 0 2px,transparent 2px 120px)}
+.lamp{position:fixed;top:-60px;left:50%;width:1600px;height:1200px;margin-left:-800px;transform-origin:50% 0;pointer-events:none;z-index:0;
+  background:radial-gradient(ellipse 28% 60% at 50% 0%,rgba(255,206,130,.13),transparent 72%);animation:lamp 6.5s ease-in-out infinite alternate}
+@keyframes lamp{from{transform:rotate(-6deg)}to{transform:rotate(6deg)}}
+.grain{position:fixed;inset:-50%;z-index:1;pointer-events:none;opacity:.07;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  animation:grain .9s steps(4) infinite}
+@keyframes grain{0%{transform:translate(0,0)}25%{transform:translate(-3%,2%)}50%{transform:translate(2%,-3%)}75%{transform:translate(-2%,-1%)}100%{transform:translate(0,0)}}
+.vignette{position:fixed;inset:0;z-index:1;pointer-events:none;box-shadow:inset 0 0 220px 40px rgba(0,0,0,.92)}
+
+#app{position:relative;z-index:2;overflow-x:clip;max-width:1080px;margin:0 auto;padding:22px 16px 48px}
+#app.ttap.ttap{animation:tabletap .4s ease-out}
+@keyframes tabletap{0%,100%{transform:translate(0,0)}15%{transform:translate(0,7px)}35%{transform:translate(-4px,-2px)}55%{transform:translate(3px,1px)}75%{transform:translate(-1px,0)}}
+#app.tslam.tslam{animation:tableslam .75s cubic-bezier(.36,.07,.19,.97)}
+#app.tslam2.tslam2{animation:tableslam2 1.2s cubic-bezier(.3,.05,.2,1)}
+@keyframes tableslam2{0%,100%{transform:translate(0,0)}4%{transform:translate(0,40px) scale(1.02)}10%{transform:translate(-34px,-22px) rotate(-1.8deg)}17%{transform:translate(0,46px) scale(1.025) rotate(.8deg)}23%{transform:translate(36px,-18px) rotate(2deg)}31%{transform:translate(-30px,16px) rotate(-1.6deg)}40%{transform:translate(24px,-12px) rotate(1.2deg)}50%{transform:translate(-18px,9px) rotate(-.8deg)}61%{transform:translate(12px,-6px) rotate(.5deg)}73%{transform:translate(-7px,4px)}86%{transform:translate(3px,-2px)}}
+@keyframes tableslam{0%,100%{transform:translate(0,0)}6%{transform:translate(0,26px) scale(1.012)}14%{transform:translate(-22px,-14px) rotate(-1.1deg)}24%{transform:translate(20px,12px) rotate(1deg)}34%{transform:translate(-16px,-8px) rotate(-.7deg)}46%{transform:translate(12px,6px) rotate(.5deg)}60%{transform:translate(-7px,-4px)}75%{transform:translate(4px,2px)}88%{transform:translate(-2px,0)}}
+#app.quake{animation:quake .6s cubic-bezier(.36,.07,.19,.97)}
+@keyframes quake{0%,100%{transform:translate(0,0)}10%{transform:translate(-16px,8px) rotate(-.6deg)}20%{transform:translate(14px,-10px) rotate(.6deg)}30%{transform:translate(-12px,6px)}45%{transform:translate(9px,-5px)}60%{transform:translate(-6px,4px)}75%{transform:translate(4px,-2px)}90%{transform:translate(-2px,1px)}}
+

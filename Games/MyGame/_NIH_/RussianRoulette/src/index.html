@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>러시안 룰렛</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Nanum+Pen+Script&family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@500;700;900&family=Russo+One&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/01-base.css">
+<link rel="stylesheet" href="css/02-atmosphere.css">
+<link rel="stylesheet" href="css/03-header.css">
+<link rel="stylesheet" href="css/04-arena.css">
+<link rel="stylesheet" href="css/05-stage.css">
+<link rel="stylesheet" href="css/06-actions.css">
+<link rel="stylesheet" href="css/07-lower.css">
+<link rel="stylesheet" href="css/08-overlays.css">
+<link rel="stylesheet" href="css/09-v3-extra.css">
+<link rel="stylesheet" href="css/10-v4-buttons.css">
+<link rel="stylesheet" href="css/11-v5-market.css">
+<link rel="stylesheet" href="css/12-v6-mylines.css">
+<link rel="stylesheet" href="css/13-v7-gimmicks.css">
+</head>
+<body class="g3d"><!-- 총은 3D 전용. 2D 총 그림은 삭제됨 -->
+<div class="bg"></div><div class="lamp"></div><div class="grain"></div><div class="vignette"></div>
+
+<div id="app">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,72 21,94 32,59 3,38 39,38" fill="#c4161c" stroke="#ff5a5a" stroke-width="2"/></svg>
+      <div><div class="kr">러시안 <em>룰렛</em></div></div>
+    </div>
+    <div class="ctrls">
+      <div class="seg" id="modeSeg">
+        <button data-mode="vs">1:1 대결</button>
+        <button data-mode="tour">토너먼트</button>
+        <button data-mode="auto">AI 대전</button>
+      </div>
+      <div class="popwrap"><button class="ibtn" id="setBtn">⚙ 설정</button>
+        <div class="pop" id="setPop">
+          <div class="pl">장전 탄 수 (1:1 · AI 대전)</div>
+          <div class="seg" id="loadSeg"><button data-load="1">1발</button><button data-load="2">2발</button><button data-load="3">3발</button></div>
+          <div class="pdesc" id="loadDesc"></div>
+          <div class="pl">시간 제한 (사람 차례 15초)</div>
+          <div class="seg" id="timerSeg"><button data-t="1">켜기</button><button data-t="0">끄기</button></div>
+          <div class="pdesc" id="timerDesc"></div>
+          <div class="pl">화면 누르면 전체 화면</div>
+          <div class="seg" id="fsSeg"><button data-f="1">켜기</button><button data-f="0">끄기</button></div>
+          <div class="pl">대사 · 이모티콘 소리</div>
+          <div class="seg" id="vsfxSeg"><button data-v="voice">목소리</button><button data-v="beep">비프</button><button data-v="off">끄기</button></div>
+          <div class="pl">AI 대전 베팅판</div>
+          <div class="seg" id="betSeg"><button data-b="1">표시</button><button data-b="0">숨김 · 관람만</button></div>
+          <div class="pl">술꾼</div>
+          <label class="chk"><input type="checkbox" id="lullabyChk"> 잠들면 음악을 자장가로 바꾸기</label>
+          <div class="pl">내 대사</div>
+          <button class="ibtn wide" id="voiceBtn">대사 유형 · 커스텀 편집 <span id="voiceCur" class="vcur"></span></button>
+        </div></div>
+      <div class="popwrap" id="shopWrap"><button class="ibtn" id="shopBtn">암시장 <span id="shopBank" class="sbank"></span></button>
+        <div class="pop shop" id="shopPop"><div class="pl">암시장</div><div id="shopList"></div></div></div>
+      <button class="ibtn" id="pauseBtn">❚❚ 일시정지</button><button class="ibtn" id="forfeitBtn" title="토너먼트 포기">🏳 포기</button>
+      <button class="ibtn" id="recBtn" title="기록 보기 (L)">📊 기록<span class="rlong"> 보기</span></button>
+      <button class="ibtn" id="musicBtn" title="음악 (M)"><span class="bars"><i></i><i></i><i></i></span> 음악</button>
+    </div>
+  </header>
+
+  <main class="arena">
+    <section class="seat" id="seat0">
+      <div class="bubble"></div><div class="gainpop"></div><div class="turnflag">차례</div><div class="killed">사망</div><div class="bleed"></div>
+      <div class="inner">
+        <div class="portrait"><span class="ini"></span></div>
+        <div class="sname"></div>
+        <div class="chip"></div>
+        <div class="sdesc"></div>
+        <div class="smeta"><span class="tokens"></span><span class="stat"></span></div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <div class="stage-top"><span class="rlbl" id="roundLbl">라운드 0</span><span class="gunlbl" id="gunLbl"></span><span class="goatlbl" id="goatLbl"></span><span class="pot" id="pot">₽ 0</span></div>
+      <div class="cyl-area">
+        <i id="hammer" hidden></i><!-- 2D 총 그림(틀·격철·핀·화살표)은 삭제. 아래 cylWrap/cylRot은 3D가 읽는 상태 저장용(안 보임) -->
+        <div class="cyl-wrap" id="cylWrap"><div class="cyl-rot" id="cylRot"></div></div>
+        <div class="muzzle" id="muzzle"></div><div class="smoke" id="smoke"></div>
+      </div>
+      <div class="danger" id="danger">
+        <div class="dpct" id="dpct">—</div>
+        <div class="dside"><div class="dlbl" id="dlbl">다음 격발 사망 확률</div><div class="pips" id="pips"></div></div>
+      </div>
+      <div class="warn" id="warn"><span>⚠ 마지막 약실 // 마지막 약실 // 마지막 약실 // 마지막 약실 //</span></div>
+      <div class="msg" id="msg"></div>
+      <button class="sidebet" id="sideBet"></button>
+      <div class="tbar" id="tbar"><i></i></div>
+    </section>
+
+    <section class="seat" id="seat1">
+      <div class="bubble"></div><div class="gainpop"></div><div class="turnflag">차례</div><div class="killed">사망</div><div class="bleed"></div>
+      <div class="inner">
+        <div class="portrait"><span class="ini"></span></div>
+        <div class="sname"></div>
+        <div class="chip"></div>
+        <div class="sdesc"></div>
+        <div class="smeta"><span class="tokens"></span><span class="stat"></span></div>
+      </div>
+    </section>
+  <div class="actions">
+      <button class="btn fire" id="fireBtn" disabled><span><span class="t">방아쇠</span><span class="s">연타하면 플릭샷</span></span><kbd>F</kbd></button>
+      <div class="turnnote">↻ 아래 행동은 <b>방아쇠 없이 차례를 넘긴다</b> — 탄을 넣어도 턴은 넘어간다.</div>
+      <button class="btn spin" id="spinBtn" disabled title="실린더를 돌려 1번부터 다시. 쏘지 않고 차례를 넘긴다."><span><span class="t">스핀</span><span class="s">초기화 · 턴 넘김 ↻</span></span><kbd>S</kbd></button>
+      <button class="btn pass" id="passBtn" disabled title="확률 그대로 총을 넘긴다. 쏘지 않고 차례를 넘긴다."><span><span class="t">양보</span><span class="s">그대로 · 턴 넘김 ↻</span></span><kbd>D</kbd></button>
+      <button class="btn raise" id="raiseBtn" disabled title="한 발 더 넣고 판돈 2배. 쏘지 않고 차례를 넘긴다 — 위험은 상대에게."><span><span class="t">+1발</span><span class="s">판돈×2 · 턴 넘김 ↻</span></span><kbd>R</kbd></button>
+    <div class="emotes" id="emotes"></div>
+    </div>
+    <section class="aibet" id="aiBet">
+      <div class="ab-h"><span>베팅</span><span class="ab-bank">1:1 소지금 <b id="abBank"></b></span></div>
+      <div class="ab-seg" id="abType"><button data-t="win">승자 맞히기<small>×2</small></button><button data-t="exact">몇 %에 죽나<small>×4 더블</small></button></div>
+      <div class="ab-lbl" id="abWhoLbl">이기는 쪽</div>
+      <div class="ab-who" id="abWho"><button data-w="0">A</button><button data-w="1">B</button></div>
+      <div class="ab-pct" id="abPctRow"><span>죽을 때 확률</span><select id="abPct"></select></div>
+      <div class="ab-lbl">판돈</div>
+      <div class="ab-stake" id="abStake"><button data-s="100">₽100</button><button data-s="500">₽500</button><button data-s="1000">₽1,000</button><button data-s="5000">₽5,000</button></div>
+      <button class="ab-go" id="abGo">베팅</button>
+      <div class="ab-note" id="abNote"></div>
+    </section>
+  </main>
+
+  <section class="chat" id="chat">
+    <div class="chat-h"><span class="chat-t">채팅</span>
+      <div class="chat-tabs" id="chatTabs"><button data-f="all" class="on">전체</button><button data-f="talk">대화</button><button data-f="game">진행</button></div></div>
+    <ul class="chat-list" id="chatList"></ul>
+    <form class="chat-in" id="chatForm" autocomplete="off"><span class="chat-me" id="chatMe">나</span><input id="chatInput" maxlength="60" placeholder="Enter로 채팅 — 상대가 대꾸할 수도 있다"><button class="ibtn" type="submit">전송</button></form>
+  </section>
+
+  <div class="spectate">— AI 대전 · 순위전 · 베팅 —</div>
+
+  <div class="recov hide" id="recOv"><div class="recbox">
+  <div class="rechead"><span>기록</span><button class="ibtn" id="recClose">✕ 닫기</button></div>
+  <div class="lower">
+    <div class="card"><h3>진행 기록</h3><ul class="log" id="log"></ul></div>
+    <div class="card"><h3><span id="lbTitle">AI 성격별 전적</span><span class="lbtabs" id="lbTabs"><button data-m="vs">1:1</button><button data-m="tour">토너먼트</button><button data-m="auto">AI 대전</button></span></h3><table class="lb" id="lb"></table><div class="hist-h">약실별 사망 분포</div><div class="hist" id="hist"></div><div class="me" id="meStat"></div></div>
+  </div>
+  </div></div>
+</div>
+
+<!-- 계약서 (최초 이름 입력) -->
+<div class="ov hide" id="contract"><div class="ct-waitmsg">— 테이블을 두드려라 —</div>
+  <div class="paper ct-typing" id="paper">
+    <div class="p-head"><span>서약서 № <span id="docNo">1922-12-30-1991-12-26</span></span><svg viewBox="0 0 100 100"><polygon points="50,4 61,38 97,38 68,59 79,94 50,72 21,94 32,59 3,38 39,38" fill="#8a1a14"/></svg></div>
+    <h2>특별사면 자원 서약서</h2>
+    <div class="sub">굴라크 제7수용소 · 지하 3층, 전등 하나. 테이블 위에는 리볼버 한 자루.</div>
+    <p class="cl">一. 본인은 형기 면제를 위해 누구의 강요도 없이 자원하여 이 테이블에 앉는다.</p>
+    <p class="cl">二. 실린더에는 단 한 발의 탄환이 장전된다.</p>
+    <p class="cl">三. 돌리든, 넘기든, 한 발 더 넣든 — 무엇을 해도 차례는 넘어간다.</p>
+    <p class="cl">四. 끝까지 살아남은 자는 굴라크에서 해방된다. 죽은 자는 기록에서 말소된다.</p>
+    <div class="sig">
+      <label>서명</label>
+      <input id="nameInput" maxlength="12" autocomplete="off" spellcheck="false" placeholder="이름을 적으시오">
+    </div>
+    <div class="p-foot"><small id="pHint">최대 12자 · 이 이름이 테이블에 불린다</small><span class="p-btns"><button class="p-btn p-no" id="refuseBtn">거부한다</button><button class="p-btn" id="signBtn">서약하고 앉는다 →</button></span></div>
+    <div class="stamp">승인</div>
+  </div>
+</div>
+
+<!-- 재방문 시작 화면 -->
+<div class="ov hide" id="welcome">
+  <div class="welcome">
+    <div class="w1">즐거운 도파민</div>
+    <div class="w2">러시안 <em>룰렛</em></div>
+    <div class="w3">다시 왔군, <b id="wName"></b>.</div>
+    <div class="w4">화면을 눌러 테이블에 앉기</div>
+    <button class="w5" id="resign">다른 이름으로 서명</button>
+  </div>
+</div>
+
+<div class="ov hide" id="tourOv"><div class="tour-card"><div class="tc-ru" id="tcRu"></div><div class="tc-h" id="tcH"></div><div class="tc-p" id="tcP"></div><div class="tc-btns"><button class="p-btn ghost" id="tcNo">취소</button><button class="p-btn" id="tcBtn">계속</button></div></div></div>
+<div class="window" aria-hidden="true"><canvas id="snow" width="150" height="210"></canvas><div class="wframe"></div></div>
+<div class="ov hide" id="voiceOv">
+  <div class="vcard">
+    <div class="vhead"><div><div class="tc-ru">내 대사</div><div class="vtitle">테이블에서 할 말</div></div>
+      <div class="vtop"><label class="vrand"><input type="checkbox" id="voiceRand"> 프리셋 랜덤 <small>(광전사 · 도박꾼 · 도발꾼)</small></label><label class="vsel">유형 <select id="voicePreset"></select></label></div></div>
+    <div class="vhint">프리셋을 고르면 아래 칸이 그 AI의 대사로 채워진다. 그대로 저장하면 프리셋, 고쳐서 저장하면 커스텀. 한 줄에 대사 하나, <b>{opp}</b>는 상대 이름.</div>
+    <div class="vform" id="voiceForm"></div>
+    <div class="vfoot"><span id="voiceState" class="vstate"></span><button class="p-btn ghost" id="voiceCancel">취소</button><button class="p-btn" id="voiceSave">저장</button></div>
+  </div>
+</div>
+<div id="pauseTag"></div>
+<div class="counter" id="counterBox"><div class="ct">상대가 한 발 더 넣었다. 받아칠까?</div><div class="cb"><button class="p-btn" id="counterYes">받아친다 · +1발</button><button class="p-btn ghost" id="counterNo">무시</button></div><i class="cbar"></i></div>
+<div class="will" id="willBox"><div class="wt">유언을 남겨라</div><input id="willInput" maxlength="40" placeholder="마지막으로 할 말…" autocomplete="off"></div>
+<div id="clean"></div>
+<div id="deathBg"></div>
+<div id="blood"><canvas id="bStain"></canvas><canvas id="bFx"></canvas></div>
+<div id="death"><div class="dz-top">사망</div><div class="dz-name" id="dzName"></div><div class="dz-sub" id="dzSub"></div><div class="dz-quote" id="dzQuote"></div></div>
+<div id="flash"></div>
+
+<button id="dbgBtn">⚙ DEBUG</button>
+<div id="dbg"></div>
+<script src="js/01-util.js"></script>
+<script src="js/02-storage.js"></script>
+<script src="js/03-audio.js"></script>
+<script src="js/04-music.js"></script>
+<script src="js/05-sfx.js"></script>
+<script src="js/06-rules.js"></script>
+<script src="js/07-personas.js"></script>
+<script src="js/08-state.js"></script>
+<script src="js/09-cylinder.js"></script>
+<script src="js/10-render.js"></script>
+<script src="js/11-speech.js"></script>
+<script src="js/12-seats.js"></script>
+<script src="js/13-lines.js"></script>
+<script src="js/14-blood.js"></script>
+<script src="js/15-game-flow.js"></script>
+<script src="js/16-input-settings.js"></script>
+<script src="js/17-market.js"></script>
+<script src="js/18-start-name.js"></script>
+<script src="js/19-snow-emoji.js"></script>
+<script src="js/20-my-lines.js"></script>
+<script src="js/21-gimmicks.js"></script>
+<script src="js/22-init.js"></script>
+<script src="js/23-chat.js"></script>
+<script src="js/24-taunter.js"></script>
+<script src="js/25-modes.js"></script>
+<script src="js/26-betting.js"></script>
+<script src="js/27-coin.js"></script>
+<script src="js/28-drunk.js"></script>
+<script src="js/29-jackpot-docbgm.js"></script>
+<script src="js/30-debug.js"></script>
+<script src="js/31-misc.js"></script>
+<script src="js/32-rulebook.js"></script>
+<script src="js/33-contract.js"></script>
+<script src="js/34-purge-docs.js"></script>
+<script src="js/35-gltfloader.js"></script>
+<script src="js/36-revolver-glb.js"></script>
+<script src="js/37-g3d.js"></script>
+</body>
+</html>

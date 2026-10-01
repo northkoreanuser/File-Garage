@@ -1,0 +1,14 @@
+:root{
+  --bg:#0a0807; --panel:rgba(22,17,14,.86); --line:#2f2520; --line2:#4a3b30;
+  --text:#eadfca; --muted:#8c7d6a; --dim:#5a4e42;
+  --brass:#d6a64e; --brass2:#f3d184; --red:#c4161c; --red2:#ff3b3b;
+  --f-ru:'Russo One',sans-serif; --f-kr:'Noto Sans KR',sans-serif;
+  --f-big:'Black Han Sans','Noto Sans KR',sans-serif; --f-pen:'Nanum Pen Script',cursive;
+  --f-serif:'Noto Serif KR',serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}img,svg,canvas{-webkit-user-drag:none;user-drag:none} /* 드래그·선택 방지 (서약서 투명 글자가 드래그로 드러나지 않게) */
+#dbg .dnamebox{margin-top:6px}#dbg .dnamebox .db{width:auto;flex:1}
+body{background:var(--bg);color:var(--text);font-family:var(--f-kr);min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+button{font-family:inherit}
+

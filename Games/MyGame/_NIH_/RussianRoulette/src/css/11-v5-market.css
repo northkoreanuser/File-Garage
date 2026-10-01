@@ -1,0 +1,17 @@
+/* ── v5: 암시장 ── */
+.sbank{font-family:var(--f-ru);font-weight:400;color:var(--brass2);font-size:12px}
+body.auto #shopWrap{display:none}
+.pop.shop{width:320px}
+.pop .pl:first-child{font-family:var(--f-ru);letter-spacing:.2em;color:var(--brass)}
+.si{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px dashed var(--line)}
+.si:first-child{border-top:0}
+.si .ic{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;flex:none;font-family:var(--f-ru);font-size:13px;background:rgba(255,255,255,.04);border:1px solid var(--line2)}
+.si .tx{flex:1;min-width:0}
+.si .nm{font-weight:700;font-size:13.5px}
+.si .ds{font-size:11.5px;color:var(--muted);line-height:1.45;margin-top:2px}
+.si .ds em{font-style:normal;color:#ff8a6a}
+.si button{flex:none;min-width:78px;border:1px solid #8a6a2a;background:linear-gradient(180deg,#3a2c12,#1e160a);color:var(--brass2);border-radius:8px;padding:8px 8px;font-family:var(--f-ru);font-size:12px;cursor:pointer}
+.si button:hover:not(:disabled){filter:brightness(1.25)}
+.si button:disabled{opacity:.35;cursor:not-allowed}
+.si.owned button{border-color:#2f6a45;color:#7fe0a0;background:transparent}
+
