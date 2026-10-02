@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL LOCKER🔐</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d0f14'/%3E%3Crect x='8' y='15' width='16' height='12' rx='3' fill='%234fffb0'/%3E%3Cpath d='M11 15v-4a5 5 0 0 1 10 0v4' fill='none' stroke='%234fffb0' stroke-width='2.5' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='21' r='2' fill='%230d0f14'/%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+:root {
+    --bg: #0d0f14;
+    --surface: #161920;
+    --surface2: #1e2230;
+    --border: #2a2f42;
+    --accent: #4fffb0;
+    --accent-dim: #1a3d2e;
+    --accent-glow: rgba(79, 255, 176, 0.15);
+    --text: #e8ecf4;
+    --text-dim: #6b7394;
+    --red: #ff4f6a;
+    --red-dim: #3d1a22;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: 'IBM Plex Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px 80px;
+}
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 48px 48px;
+    opacity: 0.3;
+    pointer-events: none;
+}
+.wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 520px;
+    z-index: 1;
+}
+.header {
+    text-align: center;
+    margin-bottom: 48px;
+}
+.logo {
+    font-family: 'Syne', sans-serif;
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text);
+}
+.logo span { color: var(--accent); }
+.subtitle {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-top: 6px;
+}
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    position: relative;
+    overflow: hidden;
+}
+.card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.6;
+}
+.security-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent-dim);
+    border: 1px solid rgba(79,255,176,0.3);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 0.65rem;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+}
+.security-badge .dot {
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+.field { margin-bottom: 20px; }
+.field label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+}
+.input-wrap { position: relative; }
+.field input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 13px 16px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--text);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+    -webkit-appearance: none;
+}
+.field input::placeholder { color: #3a3f58; }
+.field input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.field input.has-toggle { padding-right: 46px; }
+.toggle-vis {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 2px;
+    font-size: 1rem;
+    line-height: 1;
+    transition: color 0.2s;
+}
+.toggle-vis:hover { color: var(--text); }
+.algo-select-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.algo-select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 13px 16px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--text);
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7394' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 36px;
+}
+.algo-select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.algo-select option {
+    background: var(--surface2);
+    color: var(--text);
+}
+.security-level {
+    display: flex;
+    gap: 4px;
+}
+.security-level .sec-seg {
+    flex: 1;
+    height: 3px;
+    border-radius: 2px;
+    transition: background 0.3s;
+    background: var(--border);
+}
+.strength-bar {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
+}
+.strength-bar .seg {
+    flex: 1;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    transition: background 0.3s;
+}
+.strength-bar.s1 .seg:nth-child(1)      { background: var(--red); }
+.strength-bar.s2 .seg:nth-child(-n+2)   { background: #ff9f4f; }
+.strength-bar.s3 .seg:nth-child(-n+3)   { background: #ffe04f; }
+.strength-bar.s4 .seg                   { background: var(--accent); }
+.strength-label {
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    margin-top: 4px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+.kdf-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    margin-bottom: 24px;
+}
+.kdf-info .icon { font-size: 1rem; }
+.kdf-info strong { color: var(--accent); }
+.btn-primary {
+    width: 100%;
+    padding: 14px;
+    background: var(--accent);
+    color: #0a1a12;
+    border: none;
+    border-radius: 10px;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    position: relative;
+    overflow: hidden;
+}
+.btn-primary:hover:not(:disabled) { opacity: 0.9; }
+.btn-primary:active:not(:disabled) { transform: scale(0.98); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-secondary {
+    flex: 1;
+    padding: 11px 16px;
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+}
+.btn-secondary:hover { border-color: var(--accent); background: var(--accent-dim); }
+.spinner-wrap {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 20px 0 4px;
+}
+.spinner-wrap.active { display: flex; }
+.spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner-label {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+.kdf-progress {
+    font-size: 0.68rem;
+    color: var(--accent);
+    margin-top: -6px;
+}
+.result-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 24px;
+}
+.result-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+}
+.result-url {
+    font-size: 0.78rem;
+    color: var(--accent);
+    word-break: break-all;
+    line-height: 1.6;
+    padding: 12px;
+    background: var(--bg);
+    border-radius: 8px;
+    border: 1px solid var(--accent-dim);
+}
+.result-url a {
+    color: inherit;
+    text-decoration: none;
+}
+.result-url a:hover { text-decoration: underline; }
+.qr-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+}
+#qrcode {
+    border-radius: 10px;
+    border: 6px solid white;
+}
+.btn-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+}
+.decrypt-preview {
+    margin-top: 24px;
+    padding: 16px;
+    background: var(--accent-dim);
+    border: 1px solid rgba(79,255,176,0.25);
+    border-radius: 12px;
+}
+.decrypt-preview .preview-label {
+    font-size: 0.65rem;
+    color: var(--accent);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+.decrypt-preview .preview-url { display: none; }
+@keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20%      { transform: translateX(-8px); }
+    40%      { transform: translateX(8px); }
+    60%      { transform: translateX(-6px); }
+    80%      { transform: translateX(6px); }
+}
+.shake { animation: shake 0.4s ease; }
+.field input.error {
+    border-color: var(--red);
+    box-shadow: 0 0 0 3px rgba(255,79,106,0.15);
+}
+.divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0;
+    color: var(--text-dim);
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+.divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+.footer {
+    margin-top: 32px;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    text-align: center;
+    line-height: 1.8;
+    letter-spacing: 0.06em;
+}
+.footer strong { color: var(--accent); }
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.card { animation: fadeUp 0.4s ease; }
+.copy-feedback {
+    display: inline-block;
+    transition: transform 0.1s;
+}
+</style>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/argon2-browser@1.18.0/dist/argon2-bundled.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+</head>
+<body>
+<div class="wrapper">
+    <div class="header">
+        <div class="logo">URL<span>LOCKER</span> 🔐</div>
+        <div class="subtitle">Encrypted URL vault</div>
+    </div>
+
+    <div class="card">
+
+                <div id="encryptSection" style="display:none">
+            <div class="security-badge">
+                <span class="dot"></span>
+                <span id="badgeText">AES-256-GCM · Argon2id</span>
+            </div>
+
+            <div class="field">
+                <label>🔗 URL</label>
+                <input type="url" id="urlInput" placeholder="https://example.com/" autocomplete="off">
+            </div>
+
+            <div class="field">
+                <label>🔑 KEY</label>
+                <div class="input-wrap">
+                    <input type="password" id="keyInput" class="has-toggle" placeholder="암호화 키 입력" autocomplete="new-password">
+                    <button class="toggle-vis" onclick="toggleVis('keyInput', this)" tabindex="-1">👁</button>
+                </div>
+                <div class="strength-bar" id="strengthBar">
+                    <span class="seg"></span><span class="seg"></span>
+                    <span class="seg"></span><span class="seg"></span>
+                </div>
+                <div class="strength-label" id="strengthLabel"></div>
+            </div>
+
+            <div class="field">
+                <label>💡 HINT <span style="color:var(--text-dim);font-size:0.6rem;letter-spacing:0.06em;text-transform:none;margin-left:4px;">(선택사항 · 평문 저장)</span></label>
+                <input type="text" id="hintInput" placeholder="키 힌트 입력 (없으면 비워두세요)" autocomplete="off">
+            </div>
+
+                        <div class="field">
+                <label>⚙️ ALGORITHM</label>
+                <div class="algo-select-wrap">
+                    <select id="algoSelect" class="algo-select">
+                        <option value="argon2id">Argon2id &nbsp;(권장 · 최강)</option>
+                        <option value="bcrypt">bcrypt &nbsp;(cost 12)</option>
+                        <option value="pbkdf2">PBKDF2-SHA256 &nbsp;(호환성)</option>
+                        <option value="xor">XOR &nbsp;⚠️ (교육용)</option>
+                    </select>
+                                        <div id="securityLevel" class="security-level">
+                        <span class="sec-seg" style="background:#4fffb0"></span>
+                        <span class="sec-seg" style="background:#4fffb0"></span>
+                        <span class="sec-seg" style="background:#4fffb0"></span>
+                        <span class="sec-seg" style="background:#4fffb0"></span>
+                        <span class="sec-seg" style="background:#4fffb0"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="kdf-info">
+                <span class="icon">🛡</span>
+                <span>키는 <strong>Argon2id</strong>으로 파생 — 브루트포스 저항</span>
+            </div>
+
+            <button class="btn-primary" id="lockBtn" onclick="handleEncrypt()">LOCK IT!</button>
+
+            <div class="spinner-wrap" id="encryptSpinner">
+                <div class="spinner"></div>
+                <div class="spinner-label">키 파생 중</div>
+                <div class="kdf-progress">Argon2id 처리 중...</div>
+            </div>
+        </div>
+
+                <div id="decryptSection" style="display:none">
+            <div class="security-badge">
+                <span class="dot"></span>
+                잠긴 URL 감지됨
+            </div>
+
+            <div id="hintBox" style="display:none;margin-bottom:20px;padding:12px 16px;background:var(--surface2);border:1px solid rgba(79,255,176,0.25);border-radius:10px;">
+                <div style="font-size:0.62rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--accent);margin-bottom:5px;">💡 HINT</div>
+                <div id="hintText" style="font-size:0.85rem;color:var(--text);word-break:break-all;"></div>
+            </div>
+
+            <div class="field">
+                <label>🔑 KEY</label>
+                <div class="input-wrap">
+                    <input type="password" id="decryptKeyInput" class="has-toggle"
+                           placeholder="암호화에 사용한 KEY 입력" autocomplete="current-password">
+                    <button class="toggle-vis" onclick="toggleVis('decryptKeyInput', this)" tabindex="-1">👁</button>
+                </div>
+            </div>
+
+                        <div class="field" id="decryptAlgoField">
+                <label>⚙️ ALGORITHM
+                    <span id="algoAutoNote" style="display:none;color:var(--accent);font-size:0.6rem;text-transform:none;letter-spacing:0.04em;margin-left:6px;"></span>
+                </label>
+                <select id="decryptAlgoSelect" class="algo-select">
+                    <option value="argon2id">Argon2id</option>
+                    <option value="bcrypt">bcrypt</option>
+                    <option value="pbkdf2">PBKDF2-SHA256</option>
+                    <option value="xor">XOR</option>
+                </select>
+                <div style="font-size:0.6rem;color:var(--text-dim);margin-top:5px;letter-spacing:0.05em;">
+                    ※ 암호화 시 사용한 알고리즘과 일치해야 합니다
+                </div>
+            </div>
+
+            <button class="btn-primary" id="unlockBtn" onclick="handleDecrypt()">UNLOCK</button>
+
+            <div class="spinner-wrap" id="decryptSpinner">
+                <div class="spinner"></div>
+                <div class="spinner-label">복호화 중</div>
+                <div class="kdf-progress">키 파생 + 인증 확인...</div>
+            </div>
+        </div>
+
+                <div id="resultSection" style="display:none">
+            <div class="result-label">🔒 암호화된 URL</div>
+            <div class="result-url" id="encryptedUrlDisplay"></div>
+
+            <div class="qr-wrap">
+                <img id="qrcode" width="180" height="180" alt="QR Code">
+            </div>
+
+            <div class="btn-row">
+                <button class="btn-secondary" onclick="copyEncrypted()">📋 URL 복사</button>
+                <button class="btn-secondary" onclick="downloadQR()">⬇ QR 저장</button>
+                <button class="btn-secondary" onclick="resetAll()">↺ 새로 만들기</button>
+            </div>
+        </div>
+
+    </div>
+    <div class="footer">
+        모든 암호화는 <strong>브라우저 내</strong>에서 처리됩니다.<br>
+        키나 원본 URL은 서버로 전송되지 않습니다.<br>
+        <strong>Argon2id / PBKDF2 / bcrypt / XOR</strong> → <strong>AES-256-GCM</strong> (인증된 암호화)
+    </div>
+</div>
+<script>
+const ARGON2_MEM=65536;const ARGON2_TIME=3;const ARGON2_PARALLELISM=1;const ARGON2_HASHLEN=32;async function deriveKey_argon2id(password,salt){const result=await argon2.hash({pass:password,salt:salt,type:argon2.ArgonType.Argon2id,mem:ARGON2_MEM,time:ARGON2_TIME,parallelism:ARGON2_PARALLELISM,hashLen:ARGON2_HASHLEN,});return crypto.subtle.importKey('raw',result.hash,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);}
+const PBKDF2_ITERATIONS=600_000;const _enc_pbkdf2=new TextEncoder();async function deriveKey_pbkdf2(password,salt){const keyMaterial=await crypto.subtle.importKey('raw',_enc_pbkdf2.encode(password),'PBKDF2',false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:PBKDF2_ITERATIONS,hash:'SHA-256'},keyMaterial,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);}
+const BCRYPT_COST=12;const _enc_bcrypt=new TextEncoder();function _getBcrypt(){return(typeof dcodeIO!=='undefined'&&dcodeIO.bcrypt)?dcodeIO.bcrypt:(typeof bcrypt!=='undefined'?bcrypt:null);}
+async function deriveKey_bcrypt(password,saltBytes){const bc=_getBcrypt();if(!bc)throw new Error('bcryptjs 라이브러리가 로드되지 않았습니다.');const hexSeed=Array.from(saltBytes).map(b=>b.toString(16).padStart(2,'0')).join('');const bcryptSalt=await new Promise((resolve,reject)=>bc.genSalt(BCRYPT_COST,(err,s)=>err?reject(err):resolve(s)));const saltHash=await crypto.subtle.digest('SHA-256',_enc_bcrypt.encode(hexSeed));const saltB64=btoa(String.fromCharCode(...new Uint8Array(saltHash))).replace(/\+/g,'.').replace(/\//g,'/').slice(0,22);const bcryptSaltStr=`$2a$${String(BCRYPT_COST).padStart(2,'0')}$${saltB64}`;const bcryptHash=await new Promise((resolve,reject)=>bc.hash(password,bcryptSaltStr,(err,h)=>err?reject(err):resolve(h)));const rawKey=await crypto.subtle.digest('SHA-256',_enc_bcrypt.encode(bcryptHash));return crypto.subtle.importKey('raw',rawKey,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);}
+const _enc_xor=new TextEncoder();const _dec_xor=new TextDecoder();async function _xorKeyStream(password,salt,length){const pwBytes=_enc_xor.encode(password);const stream=new Uint8Array(length);let filled=0;let counter=0;while(filled<length){const block=new Uint8Array(pwBytes.length+salt.length+4);block.set(pwBytes,0);block.set(salt,pwBytes.length);const view=new DataView(block.buffer,pwBytes.length+salt.length);view.setUint32(0,counter,false);const hash=new Uint8Array(await crypto.subtle.digest('SHA-256',block));const take=Math.min(hash.length,length-filled);stream.set(hash.subarray(0,take),filled);filled+=take;counter+=1;}
+return stream;}
+async function encryptXOR(plaintext,password){const salt=crypto.getRandomValues(new Uint8Array(16));const plainBytes=_enc_xor.encode(plaintext);const keyStream=await _xorKeyStream(password,salt,plainBytes.length);const cipher=new Uint8Array(16+plainBytes.length);cipher.set(salt,0);for(let i=0;i<plainBytes.length;i++){cipher[16+i]=plainBytes[i]^keyStream[i];}
+return btoa(String.fromCharCode(...cipher)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+async function decryptXOR(encoded,password){const b64=encoded.replace(/-/g,'+').replace(/_/g,'/');const pad=(4-b64.length%4)%4;const raw=Uint8Array.from(atob(b64+'='.repeat(pad)),c=>c.charCodeAt(0));const salt=raw.slice(0,16);const cipherBytes=raw.slice(16);const keyStream=await _xorKeyStream(password,salt,cipherBytes.length);const plainBytes=new Uint8Array(cipherBytes.length);for(let i=0;i<cipherBytes.length;i++){plainBytes[i]=cipherBytes[i]^keyStream[i];}
+return _dec_xor.decode(plainBytes);}
+const SALT_LEN=16;const IV_LEN=12;const _enc_aes=new TextEncoder();const _dec_aes=new TextDecoder();async function deriveKey(password,salt,algorithm='argon2id'){switch(algorithm){case'pbkdf2':return deriveKey_pbkdf2(password,salt);case'bcrypt':return deriveKey_bcrypt(password,salt);case'argon2id':default:return deriveKey_argon2id(password,salt);}}
+async function encryptAES(plaintext,password,algorithm='argon2id'){if(algorithm==='xor')return encryptXOR(plaintext,password);const salt=crypto.getRandomValues(new Uint8Array(SALT_LEN));const iv=crypto.getRandomValues(new Uint8Array(IV_LEN));const key=await deriveKey(password,salt,algorithm);const cipherbuf=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,_enc_aes.encode(plaintext));const out=new Uint8Array(SALT_LEN+IV_LEN+cipherbuf.byteLength);out.set(salt,0);out.set(iv,SALT_LEN);out.set(new Uint8Array(cipherbuf),SALT_LEN+IV_LEN);return btoa(String.fromCharCode(...out)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+async function decryptAES(encoded,password,algorithm='argon2id'){if(algorithm==='xor')return decryptXOR(encoded,password);const b64=encoded.replace(/-/g,'+').replace(/_/g,'/');const pad=(4-b64.length%4)%4;const raw=Uint8Array.from(atob(b64+'='.repeat(pad)),c=>c.charCodeAt(0));const salt=raw.slice(0,SALT_LEN);const iv=raw.slice(SALT_LEN,SALT_LEN+IV_LEN);const ciphertext=raw.slice(SALT_LEN+IV_LEN);const key=await deriveKey(password,salt,algorithm);const plainbuf=await crypto.subtle.decrypt({name:'AES-GCM',iv},key,ciphertext);return _dec_aes.decode(plainbuf);}
+const FALLBACK_URL='https://youtu.be/EWjw8MSmKi4?t=0';let _encryptedUrl='';let _savedHash=null;let _savedAlgo='argon2id';let _failCount=0;let _blasting=false;const ALGO_META={argon2id:{label:'Argon2id',badge:'AES-256-GCM · Argon2id',kdfInfo:'키는 <strong>Argon2id</strong>으로 파생 — 브루트포스 저항',spinner:'Argon2id 처리 중...',security:5,warn:null,},pbkdf2:{label:'PBKDF2',badge:'AES-256-GCM · PBKDF2 · 600K',kdfInfo:'키는 <strong>PBKDF2-SHA256 × 600,000</strong>으로 파생 — 브루트포스 저항',spinner:'PBKDF2 · 600,000 iterations...',security:3,warn:null,},bcrypt:{label:'bcrypt',badge:'AES-256-GCM · bcrypt (cost 12)',kdfInfo:'키는 <strong>bcrypt cost=12</strong>으로 파생',spinner:'bcrypt 처리 중 (cost 12)...',security:4,warn:null,},xor:{label:'XOR',badge:'XOR 스트림 암호',kdfInfo:'⚠️ <strong>XOR</strong>은 보안 강도가 낮습니다 — 교육 목적에만 사용',spinner:'XOR 처리 중...',security:1,warn:'⚠️ XOR은 보안 강도가 낮습니다. 민감한 URL에는 사용하지 마세요.',},};function _blastOff(){if(_blasting)return;_blasting=true;history.replaceState(null,'',window.location.pathname);window.location.replace(FALLBACK_URL);}
+function _attachSecurityListeners(){document.addEventListener('visibilitychange',()=>{if(document.hidden)_blastOff();});window.addEventListener('blur',()=>_blastOff());document.addEventListener('contextmenu',e=>{e.preventDefault();e.stopPropagation();_blastOff();});document.addEventListener('keydown',e=>{const c=e.key.toUpperCase();const ctrl=e.ctrlKey||e.metaKey;if(e.key==='F12'){e.preventDefault();_blastOff();return;}
+if(ctrl&&e.shiftKey&&['I','J','C','K','E'].includes(c)){e.preventDefault();_blastOff();return;}
+if(ctrl&&['U','S','P'].includes(c)){e.preventDefault();_blastOff();return;}
+if(ctrl&&['A','F'].includes(c)){e.preventDefault();return;}
+if(e.key==='F6'){e.preventDefault();_blastOff();return;}},true);document.addEventListener('selectstart',e=>e.preventDefault());document.addEventListener('dragstart',e=>e.preventDefault());const _devtoolsCheck=setInterval(()=>{if(window.outerWidth-window.innerWidth>160||window.outerHeight-window.innerHeight>160){clearInterval(_devtoolsCheck);_blastOff();}},500);(function _devtoolsTiming(){const start=performance.now();debugger;if(performance.now()-start>100){_blastOff();return;}
+setTimeout(_devtoolsTiming,1000);})();}
+function _getSelectedAlgo(){return document.getElementById('algoSelect')?.value||'argon2id';}
+function _updateAlgoUI(algo){const meta=ALGO_META[algo]||ALGO_META['argon2id'];const badge=document.querySelector('#encryptSection .security-badge');if(badge)badge.childNodes[badge.childNodes.length-1].textContent=' '+meta.badge;const kdfInfo=document.querySelector('.kdf-info span:last-child');if(kdfInfo)kdfInfo.innerHTML=meta.kdfInfo;const kdfProg=document.querySelector('#encryptSection .kdf-progress');if(kdfProg)kdfProg.textContent=meta.spinner;let warnBox=document.getElementById('algoWarnBox');if(meta.warn){if(!warnBox){warnBox=document.createElement('div');warnBox.id='algoWarnBox';warnBox.style.cssText='margin-bottom:16px;padding:10px 14px;background:rgba(255,79,106,0.1);border:1px solid rgba(255,79,106,0.4);border-radius:8px;font-size:0.7rem;color:#ff4f6a;letter-spacing:0.04em;';const kdfEl=document.querySelector('.kdf-info');kdfEl.parentNode.insertBefore(warnBox,kdfEl);}
+warnBox.textContent=meta.warn;warnBox.style.display='block';}else if(warnBox){warnBox.style.display='none';}
+const secBar=document.getElementById('securityLevel');if(secBar){secBar.querySelectorAll('.sec-seg').forEach((seg,i)=>{seg.style.background=i<meta.security?(meta.security<=1?'#ff4f6a':meta.security<=2?'#ff9f4f':meta.security<=3?'#ffe04f':'#4fffb0'):'var(--border)';});}}
+async function handleEncrypt(){const url=document.getElementById('urlInput').value.trim();const key=document.getElementById('keyInput').value;const algo=_getSelectedAlgo();if(!url||!key){alert('URL과 KEY를 모두 입력하세요.');return;}
+if(!isValidUrl(url)){alert('올바른 URL 형식을 입력하세요.');return;}
+setEncryptLoading(true);try{const hash=await encryptAES(url,key,algo);const hint=document.getElementById('hintInput').value.trim();const base=window.location.href.split('?')[0];_encryptedUrl=`${base}?hash=${hash}&algorithm=${algo}`
++(hint?`&hint=${encodeURIComponent(hint)}`:'');document.getElementById('encryptSection').style.display='none';document.getElementById('resultSection').style.display='block';document.getElementById('encryptedUrlDisplay').innerHTML=`<a href="${_encryptedUrl}" target="_blank" rel="noopener noreferrer">${_encryptedUrl}</a>`;QRCode.toDataURL(_encryptedUrl,{errorCorrectionLevel:'H',width:180},(err,dataUrl)=>{if(!err)document.getElementById('qrcode').src=dataUrl;});}catch(e){console.error(e);alert('암호화 중 오류가 발생했습니다: '+(e.message||e));}
+setEncryptLoading(false);}
+function setEncryptLoading(on){document.getElementById('lockBtn').style.display=on?'none':'block';document.getElementById('encryptSpinner').classList.toggle('active',on);}
+async function handleDecrypt(){const key=document.getElementById('decryptKeyInput').value;const algo=document.getElementById('decryptAlgoSelect')?.value||_savedAlgo;if(!key||!_savedHash)return;setDecryptLoading(true);const keyInput=document.getElementById('decryptKeyInput');keyInput.classList.remove('error');try{const decrypted=await decryptAES(_savedHash,key,algo);history.replaceState(null,'',window.location.pathname);window.location.replace(decrypted);}catch(e){_failCount++;if(_failCount>=1){_blastOff();return;}
+keyInput.classList.add('error');keyInput.classList.remove('shake');void keyInput.offsetWidth;keyInput.classList.add('shake');keyInput.value='';setTimeout(()=>keyInput.classList.remove('error'),1500);}
+setDecryptLoading(false);}
+function setDecryptLoading(on){document.getElementById('unlockBtn').style.display=on?'none':'block';document.getElementById('decryptSpinner').classList.toggle('active',on);}
+function copyEncrypted(){navigator.clipboard.writeText(_encryptedUrl).then(()=>{flashBtn(event.target,'✅ 복사됨');});}
+function downloadQR(){const img=document.getElementById('qrcode');if(!img.src)return;const a=document.createElement('a');a.href=img.src;a.download='url-locker-qr.png';a.click();}
+function resetAll(){document.getElementById('resultSection').style.display='none';document.getElementById('encryptSection').style.display='block';document.getElementById('urlInput').value='';document.getElementById('keyInput').value='';document.getElementById('hintInput').value='';document.getElementById('strengthBar').className='strength-bar';document.getElementById('strengthLabel').textContent='';_encryptedUrl='';}
+function toggleVis(inputId,btn){const input=document.getElementById(inputId);const isText=input.type==='text';input.type=isText?'password':'text';btn.textContent=isText?'👁':'🙈';}
+function flashBtn(btn,label){const orig=btn.textContent;btn.textContent=label;setTimeout(()=>{btn.textContent=orig;},1500);}
+function isValidUrl(str){try{return['http:','https:'].includes(new URL(str).protocol);}
+catch{return false;}}
+function calcStrength(pw){if(!pw)return 0;let score=0;if(pw.length>=8)score++;if(pw.length>=14)score++;if(/[A-Z]/.test(pw)&&/[a-z]/.test(pw))score++;if(/\d/.test(pw)&&/[^A-Za-z0-9]/.test(pw))score++;return Math.min(score,4);}
+const STRENGTH_LABELS=['','취약','보통','양호','강함'];document.getElementById('keyInput').addEventListener('input',function(){const s=calcStrength(this.value);const bar=document.getElementById('strengthBar');const lbl=document.getElementById('strengthLabel');bar.className='strength-bar'+(s?` s${s}`:'');lbl.textContent=this.value?STRENGTH_LABELS[s]:'';});document.getElementById('algoSelect')?.addEventListener('change',function(){_updateAlgoUI(this.value);});['urlInput','keyInput'].forEach(id=>{document.getElementById(id)?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();handleEncrypt();}});});document.getElementById('decryptKeyInput')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();handleDecrypt();}});function _renderFmt(fmt,fmtTpl,title,url){if(fmtTpl){return fmtTpl.replace(/\{title\}/g,title).replace(/\{url\}/g,url);}
+switch(fmt){case'2':return`[${title}](${url})`;case'3':return`<a href="${url}">${title}</a>`;case'4':return`<a href="${url}"><button>🔐${title}</button></a>`;case'5':return`<a href="${url}" style="text-decoration:none;display:inline-block;animation:v 0.45s ease-in-out infinite alternate"><button style="font-size:18px;padding:16px 32px;border:none;border-radius:12px;background:#222;color:#fff;cursor:pointer">🔒${title}</button></a><style>@keyframes v{from{transform:translateY(-5px)}to{transform:translateY(5px)}}</style>`;case'6':return`<a href="${url}" target="_blank" title="${title}"><img src="https://raw.githubusercontent.com/northkoreanuser/HTML/refs/heads/main/URL-Locker/Images/lock.svg" width="60" height="78" alt="Locked URL"></a>`;default:return title?`${title}\n${url}`:url;}}
+async function handleAutoEncrypt(params){const autoUrl=params.get('url');const autoPw=params.get('pw');const autoHint=params.get('hint');const autoFmt=params.get('fmt');const autoFmtTpl=params.get('fmtTpl');const autoTitle=params.get('title')||'';const autoAlgo=params.get('algorithm')||'argon2id';const base=window.location.href.split('?')[0];history.replaceState(null,'','?lock=1');document.getElementById('encryptSection').style.display='none';const spinEl=document.getElementById('encryptSpinner');spinEl.style.display='flex';spinEl.classList.add('active');try{const hash=await encryptAES(autoUrl,autoPw,autoAlgo);_encryptedUrl=`${base}?hash=${hash}&algorithm=${autoAlgo}`
++(autoHint?'&hint='+encodeURIComponent(autoHint):'');spinEl.classList.remove('active');spinEl.style.display='none';document.getElementById('resultSection').style.display='block';document.getElementById('encryptedUrlDisplay').innerHTML=`<a href="${_encryptedUrl}" target="_blank" rel="noopener noreferrer">${_encryptedUrl}</a>`;const fmtOutput=(autoFmt||autoFmtTpl)?_renderFmt(autoFmt,autoFmtTpl,autoTitle,_encryptedUrl):_encryptedUrl;navigator.clipboard.writeText(fmtOutput).then(()=>{_showAutoCloseBar(true,fmtOutput);setTimeout(()=>{if(!window.closed)window.close();},1500);}).catch(()=>{_showFmtFallback(autoFmt,autoFmtTpl,autoTitle,fmtOutput);_showAutoCloseBar(false,fmtOutput);});QRCode.toDataURL(_encryptedUrl,{errorCorrectionLevel:'H',width:180},(err,dataUrl)=>{if(!err)document.getElementById('qrcode').src=dataUrl;});}catch(err){spinEl.classList.remove('active');spinEl.style.display='none';alert('자동 암호화 중 오류가 발생했습니다: '+(err.message||err));history.replaceState(null,'','?lock=1');document.getElementById('encryptSection').style.display='block';}}
+function _showAutoCloseBar(copied,fmtOutput){const bar=document.createElement('div');bar.id='autoCloseBar';bar.style.cssText=['margin-top:16px','padding:12px 16px','border-radius:10px','font-size:0.72rem','display:flex','align-items:center','justify-content:space-between','gap:12px',copied?'background:var(--accent-dim);border:1px solid rgba(79,255,176,0.35);color:var(--accent)':'background:var(--surface2);border:1px solid var(--border);color:var(--text-dim)',].join(';');const msg=document.createElement('span');const btn=document.createElement('button');btn.className='btn-secondary';btn.style.cssText='flex:none;padding:7px 14px;font-size:0.72rem';if(copied){let sec=1;msg.textContent=`✅ 복사됨 — ${sec}초 후 탭 닫기`;btn.textContent='✕ 닫기';btn.onclick=()=>window.close();const iv=setInterval(()=>{sec--;if(sec<=0){clearInterval(iv);return;}
+msg.textContent=`✅ 복사됨 — ${sec}초 후 탭 닫기`;},1000);}else{msg.textContent='⚠️ 클립보드 권한 없음 — 수동으로 복사하세요';btn.textContent='✕ 탭 닫기';btn.onclick=()=>window.close();}
+bar.appendChild(msg);bar.appendChild(btn);document.getElementById('resultSection').appendChild(bar);}
+function _showFmtFallback(autoFmt,autoFmtTpl,autoTitle,fmtOutput){const fmtLabel=autoFmtTpl?'🛠 커스텀 템플릿':autoFmt==='2'?'📝 마크다운':autoFmt==='3'?'🏷 링크 태그':'📄 일반 (제목 + URL)';const fmtCard=document.createElement('div');fmtCard.className='result-card';fmtCard.style.marginTop='16px';fmtCard.innerHTML=`
+        <div class="result-label">${fmtLabel}</div>
+        <div class="result-url" style="cursor:pointer;user-select:all;">${fmtOutput.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+        <div class="btn-row" style="margin-top:12px;">
+            <button class="btn-secondary" id="fmtCopyBtn">📋 복사</button>
+        </div>`;document.getElementById('resultSection').appendChild(fmtCard);document.getElementById('fmtCopyBtn').onclick=()=>{navigator.clipboard.writeText(fmtOutput).then(()=>{flashBtn(document.getElementById('fmtCopyBtn'),'✅ 복사됨');setTimeout(()=>window.close(),800);});};}
+(function init(){const params=new URLSearchParams(window.location.search);const hash=params.get('hash');const hint=params.get('hint');const marker=params.get('v');const lock=params.get('lock');const algo=params.get('algorithm')||'argon2id';if(marker==='1'){history.replaceState(null,'',window.location.pathname);window.location.replace(FALLBACK_URL);return;}
+if(hash){_savedHash=hash;_savedAlgo=algo;history.replaceState(null,'','?v=1');document.getElementById('decryptSection').style.display='block';document.title='URL LOCKED 🔐';document.querySelector('.logo').innerHTML='URL<span>LOCKED</span> 🔐';document.querySelector('.subtitle').textContent='Decrypt & access your URL';const algoSel=document.getElementById('decryptAlgoSelect');if(algoSel){algoSel.value=algo;const algoField=document.getElementById('decryptAlgoField');if(algoField){const autoNote=document.getElementById('algoAutoNote');if(autoNote){autoNote.textContent=`알고리즘 자동 감지: ${(ALGO_META[algo]||{}).label || algo}`;autoNote.style.display='block';}}}
+if(hint){document.getElementById('hintBox').style.display='block';document.getElementById('hintText').textContent=hint;}
+_attachSecurityListeners();return;}
+if(lock==='1'){const autoUrl=params.get('url');const autoPw=params.get('pw');if(autoUrl&&autoPw){handleAutoEncrypt(params);}else{history.replaceState(null,'','?lock=1');document.getElementById('encryptSection').style.display='block';_updateAlgoUI(_getSelectedAlgo());}
+return;}
+_blastOff();})();
+</script>
+</body>
+</html>
