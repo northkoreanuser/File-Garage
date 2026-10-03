@@ -1,5 +1,7 @@
 {
-  "folders": [],
+  "folders": [
+    "오토핫키 매크로 드로이드 통신"
+  ],
   "files": [
     {"name": "custom_capture.ahk", "size": 10290, "crc32": "DB6DB5A5"},
     {"name": "emergency_network_repair.ahk", "size": 32445, "crc32": "C22473D1"}
