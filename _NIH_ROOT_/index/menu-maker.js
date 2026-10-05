@@ -30,6 +30,7 @@ const DF_MENUMAKER_PAGE_CSS = `
   .mm-tab { border: 1px solid var(--mm-border); background: transparent; color: var(--mm-muted); height: 28px; padding: 0 12px; border-radius: 6px; cursor: pointer; font: inherit; font-size: 12.5px; }
   .mm-tab:hover { background: var(--mm-hover); color: var(--mm-text); }
   .mm-tab.active { background: var(--mm-sel); border-color: var(--mm-accent); color: var(--mm-text); }
+  .mm-tab.mm-tab-dirty, .mm-tab.mm-tab-dirty.active { color: #e55; border-color: #c44; }
   .mm-top button, .mm-panel button, .mm-row-btn { border: 1px solid var(--mm-border); background: transparent; color: var(--mm-muted); height: 28px; padding: 0 10px; border-radius: 6px; cursor: pointer; font: inherit; font-size: 12.5px; }
   .mm-top button:hover, .mm-panel button:hover, .mm-row-btn:hover { background: var(--mm-hover); color: var(--mm-text); }
   .mm-top button.mm-save-dirty { color: #e55; border-color: #c44; }
@@ -91,6 +92,8 @@ function dfsBuildMenuMakerBodyHtml() {
           <button class="mm-tab" data-tab="icon">아이콘</button>
           <button class="mm-tab" data-tab="sound">사운드</button>
           <button class="mm-tab" data-tab="ext">확장자</button>
+          <button class="mm-tab" data-tab="toolbox">툴박스</button>
+          <button class="mm-tab" data-tab="desktop">바탕 화면</button>
         </div>
         <span class="mm-spacer"></span>
         <button id="mmImport">가져오기</button>
@@ -167,6 +170,15 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   DATA.extRun = Object.keys(rawExtRun)
     .filter(function(k) { return EXTENSION_RUN_ACTIONS.some(function(a) { return a.key === rawExtRun[k]; }); })
     .map(function(k) { return { key: k, action: rawExtRun[k] }; });
+  // 요청: 툴박스(toolbox_set.json) - { "items": [ {name,url,icon,popup,width,height}, ... ] }.
+  // 이름/주소/아이콘/팝업여부/팝업크기 편집 UI는 시작메뉴/트레이 항목과 완전히 같은 모양(blankItem/
+  // cleanItem/renderList/renderPanel의 "일반" 분기)을 그대로 재사용한다 - 하위 메뉴(items)만 없다.
+  var rawToolbox = (RAW.toolbox && typeof RAW.toolbox === "object") ? RAW.toolbox : {};
+  DATA.toolbox = Array.isArray(rawToolbox.items) ? rawToolbox.items : [];
+  // 바탕 화면 탭(desktop_set.json) - 툴박스 탭과 모양/편집 방식이 완전히 같고(이름/주소/아이콘/팝업),
+  // 보여주는 자리만 탐색기의 "툴박스" 대신 바탕화면 아이콘이다.
+  var rawDesktop = (RAW.desktop && typeof RAW.desktop === "object") ? RAW.desktop : {};
+  DATA.desktop = Array.isArray(rawDesktop.items) ? rawDesktop.items : [];
 
   // 아이콘 탭의 "스킨용으로 저장" 체크박스를 켜고 끌 때 쓴다. DATA.iconFolders/iconExts/
   // iconRepoRoot/iconRecycleBin은 항상 "지금 화면에 보이는" 데이터셋을 가리키는 필드 하나로
@@ -214,7 +226,7 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   // 요청 #137: 우클릭 위치에 따라 메뉴 메이커를 열 때 바로 해당 탭으로 들어가야 한다(트레이/시작
   // 메뉴 우클릭 -> 메뉴 탭, 파일/폴더 우클릭 -> 아이콘 탭) - 호출부(dfsOpenMenuMakerInWindow)가
   // 넘겨주는 initialTab을 그대로 시작 탭으로 쓴다(모르는 값이거나 없으면 기존처럼 "menu").
-  var currentTab = (initialTab === "icon" || initialTab === "sound" || initialTab === "ext") ? initialTab : "menu"; // "menu" | "icon" | "sound" | "ext"
+  var currentTab = (initialTab === "icon" || initialTab === "sound" || initialTab === "ext" || initialTab === "toolbox" || initialTab === "desktop") ? initialTab : "menu"; // "menu" | "icon" | "sound" | "ext" | "toolbox" | "desktop"
   var sel = null; // { section: "start"|"tray"|"iconFolders"|"iconExts"|"iconRepoRoot"|"iconRecycleBin"|"sound", path/idx/key: ... }
 
   var listsBodyEl = document.getElementById("mmListsBody");
@@ -223,13 +235,13 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   // 요청 #158: "로컬 미리보기 초기화" 버튼 제거 - 가져오기(#149로 로컬/웹 분리됨)가 이미 원하는
   // 내용으로 덮어써서 사실상 같은 결과를 내므로 중복이라는 지적에 따라 없앤다.
 
-  function tabLabel(t) { return t === "menu" ? "메뉴" : t === "icon" ? "아이콘" : t === "sound" ? "사운드" : "확장자"; }
-  function tabFileName(t) { return t === "menu" ? "menu_set.json" : t === "icon" ? "icon_set.json" : t === "sound" ? "sound_set.json" : "extension_run_set.json"; }
+  function tabLabel(t) { return t === "menu" ? "메뉴" : t === "icon" ? "아이콘" : t === "sound" ? "사운드" : t === "ext" ? "확장자" : t === "desktop" ? "바탕 화면" : "툴박스"; }
+  function tabFileName(t) { return t === "menu" ? "menu_set.json" : t === "icon" ? "icon_set.json" : t === "sound" ? "sound_set.json" : t === "ext" ? "extension_run_set.json" : t === "desktop" ? "desktop_set.json" : "toolbox_set.json"; }
   // 요청: "URL에서 가져오기를 누르면 항상 그 탭이 참조하는 기본 json 주소가 미리 입력돼 있어야
   // 한다(템플릿처럼)." - settings-startmenu.js에 정의된 실제 경로 상수(MENU_SET_JSON_PATH 등,
   // 부팅 시 로딩과 완전히 같은 경로)를 그대로 절대 URL로 바꿔서 돌려준다.
   function tabJsonAbsUrl(t) {
-    var relPath = t === "menu" ? MENU_SET_JSON_PATH : t === "icon" ? ICON_SET_JSON_PATH : t === "sound" ? SOUND_SET_JSON_PATH : EXTENSION_RUN_SET_JSON_PATH;
+    var relPath = t === "menu" ? MENU_SET_JSON_PATH : t === "icon" ? ICON_SET_JSON_PATH : t === "sound" ? SOUND_SET_JSON_PATH : t === "ext" ? EXTENSION_RUN_SET_JSON_PATH : t === "desktop" ? DESKTOP_SET_JSON_PATH : TOOLBOX_SET_JSON_PATH;
     try { return new URL(relPath, location.href).href; } catch (e) { return relPath; }
   }
   // 요청: "전체 저장 제거, 탭마다 저장" - 저장 버튼 라벨에 지금 저장될 대상(현재 탭)을 항상 밝힌다.
@@ -243,11 +255,17 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   function updateSaveBtnAppearance() {
     var btn = document.getElementById("mmSave");
     if (!btn) return;
-    if (state.dirty) btn.classList.add("mm-save-dirty");
-    else btn.classList.remove("mm-save-dirty");
+    // 버그 리포트: "수정된 게 전부 다여도 하나 저장하면 빨간색이 다 사라진다" - 저장은 탭마다 따로인데
+    // (파일이 탭별로 다름) 저장 안 됨 표시는 창 전체에 하나뿐이었다. 이제 탭별로 따로 기억한다:
+    // 저장 버튼은 "지금 탭"이 안 저장됐을 때만 빨갛고, 안 저장된 탭은 탭 버튼 자체도 빨갛게 표시한다.
+    btn.classList.toggle("mm-save-dirty", !!dirtyTabs[currentTab]);
+    var tabs = document.querySelectorAll(".mm-tab");
+    for (var i = 0; i < tabs.length; i++) tabs[i].classList.toggle("mm-tab-dirty", !!dirtyTabs[tabs[i].getAttribute("data-tab")]);
   }
-  function setDirty() { state.dirty = true; updateSaveBtnAppearance(); persistLocalOverride(); }
-  function clearDirty() { state.dirty = false; updateSaveBtnAppearance(); }
+  var dirtyTabs = {}; // { 탭 이름: true } - 저장하지 않은 변경이 있는 탭
+  function syncDirtyState() { state.dirty = Object.keys(dirtyTabs).length > 0; updateSaveBtnAppearance(); } // state.dirty = 창 닫기 확인용(하나라도 남았는지)
+  function setDirty() { dirtyTabs[currentTab] = true; syncDirtyState(); persistLocalOverride(); }
+  function clearDirty(tab) { delete dirtyTabs[tab || currentTab]; syncDirtyState(); }
   // 요청 #123: 편집(가져오기 포함, setDirty가 불리는 모든 곳)이 있을 때마다 "지금 탭"에 해당하는
   // 내용을 localStorage에 즉시 반영한다 - 아직 실제 파일로 저장/다운로드하지 않아도 이 브라우저
   // 에서는 곧바로 테스트해볼 수 있다. 아이콘/사운드 탭은 "스킨용으로 저장" 체크 여부에 따라
@@ -278,6 +296,12 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     } else if (currentTab === "ext") {
       dfWriteLocalOverride(dfLsExtRunKey(), serializeExtRunSet());
       dfDebouncedLsRefresh("extRun", () => loadExtensionRunSetConfig().then(applyExtensionRunSetConfig));
+    } else if (currentTab === "toolbox") {
+      dfWriteLocalOverride(dfLsToolboxKey(), serializeToolboxSet());
+      dfDebouncedLsRefresh("toolbox", refreshToolboxConfig);
+    } else if (currentTab === "desktop") {
+      dfWriteLocalOverride(dfLsDesktopSetKey(), serializeDesktopSet());
+      dfDebouncedLsRefresh("desktopSet", refreshDesktopSetConfig);
     }
   }
 
@@ -932,6 +956,18 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
       note.textContent = "이 항목은 하위 메뉴가 있어 클릭하면 주소로 이동하는 대신 하위 메뉴가 펼쳐집니다(이름/아이콘만 사용됨).";
       panelEl.appendChild(note);
     }
+    if (currentTab === "desktop") {
+      var dtNote = document.createElement("div");
+      dtNote.className = "mm-submenu-note";
+      dtNote.textContent = "바탕화면에는 폴더가 없어서, 이름에 백슬래시(\\)를 넣어도 맨 마지막 조각만 아이콘 이름으로 쓰입니다.";
+      panelEl.appendChild(dtNote);
+    }
+    if (currentTab === "toolbox") {
+      var tbNote = document.createElement("div");
+      tbNote.className = "mm-submenu-note";
+      tbNote.textContent = "이름에 백슬래시(\\)를 넣으면 그 앞부분들이 툴박스 안의 폴더가 되고, 맨 마지막 조각만 실제로 보이는 이름이 됩니다 - 예: 1\\2\\3\\GitTool.7z.001";
+      panelEl.appendChild(tbNote);
+    }
 
     function field(labelText, inputEl) { return fieldInto(panelEl, labelText, inputEl); }
 
@@ -1080,11 +1116,44 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     };
     renderExtRunList(document.getElementById("mmExtRunList"));
   }
+  // 요청: 툴박스 탭 - "메뉴" 탭의 트레이(하위 메뉴 없는 낱개 아이콘 목록)와 완전히 같은 모양이다.
+  // renderList/renderPanel이 이미 section 이름과 무관하게 동작하므로(DATA[section]을 그대로
+  // 읽고 쓸 뿐) 여기서는 목록 UI만 새로 짜면 된다 - 항목 편집 패널(이름/주소/아이콘/팝업)은
+  // renderPanel()의 "일반" 분기가 sel.section === "toolbox"일 때도 그대로 적용된다.
+  function renderToolboxTabLists() {
+    listsBodyEl.innerHTML =
+      '<div class="mm-section-head"><h3>툴박스</h3></div>' +
+      '<div class="mm-section-sub">탐색기의 "툴박스" 위치에 보여줄 외부 링크 목록입니다. 이름은 화면에 보이는 파일명처럼 짓고(예: MyTool.exe), 주소(URL)는 절대/상대 구분 없이 아무 사이트나 넣을 수 있습니다 - 실제로는 그 주소로 가는 바로가기일 뿐, 이 저장소에 그 파일이 있는 건 아닙니다. 이름에 백슬래시(\\)를 넣으면 폴더처럼 나뉩니다 - 예: 1\\2\\3\\GitTool.7z.001 이라고 적으면 툴박스 안에 1\\2\\3 폴더가 생기고 그 안에 GitTool.7z.001 항목이 들어갑니다(맨 마지막 조각만 실제 이름).</div>' +
+      '<div class="mm-list" id="mmToolboxList"></div>' +
+      '<button class="mm-add-row" id="mmAddToolbox">+ 새 항목 추가</button>';
+    document.getElementById("mmAddToolbox").onclick = function() {
+      DATA.toolbox.push(blankItem());
+      sel = { section: "toolbox", path: [DATA.toolbox.length - 1] };
+      setDirty(); renderAll();
+    };
+    renderList("toolbox", DATA.toolbox, document.getElementById("mmToolboxList"), []);
+  }
+  // 바탕 화면 탭 - 툴박스 탭(위)을 그대로 옮긴 것이다. 저장 파일과 보여주는 자리만 다르다.
+  function renderDesktopTabLists() {
+    listsBodyEl.innerHTML =
+      '<div class="mm-section-head"><h3>바탕 화면</h3></div>' +
+      '<div class="mm-section-sub">바탕화면에 아이콘으로 올려둘 외부 링크 목록입니다(desktop_set.json). 이름은 화면에 보이는 파일명처럼 짓고(예: MyTool.exe), 주소(URL)는 절대/상대 구분 없이 아무 주소나 넣을 수 있습니다 - 그 주소로 가는 바로가기일 뿐, 바탕화면(브라우저 저장소)에 실제 파일이 생기지는 않습니다. 아이콘 위치는 끌어서 옮기면 이 브라우저에 기억됩니다.</div>' +
+      '<div class="mm-list" id="mmDesktopList"></div>' +
+      '<button class="mm-add-row" id="mmAddDesktop">+ 새 항목 추가</button>';
+    document.getElementById("mmAddDesktop").onclick = function() {
+      DATA.desktop.push(blankItem());
+      sel = { section: "desktop", path: [DATA.desktop.length - 1] };
+      setDirty(); renderAll();
+    };
+    renderList("desktop", DATA.desktop, document.getElementById("mmDesktopList"), []);
+  }
   function renderLists() {
     if (currentTab === "menu") renderMenuTabLists();
     else if (currentTab === "icon") renderIconTabLists();
     else if (currentTab === "sound") renderSoundTabLists();
-    else renderExtTabLists();
+    else if (currentTab === "ext") renderExtTabLists();
+    else if (currentTab === "desktop") renderDesktopTabLists();
+    else renderToolboxTabLists();
   }
   function renderAll() { renderLists(); renderPanel(); }
 
@@ -1097,6 +1166,7 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     // 요청: "전체 저장 제거, 탭마다 저장" - 버튼 하나를 계속 재사용하되, 지금 보고 있는 탭의
     // 파일만 저장한다는 걸 라벨에서 항상 알 수 있게 탭을 바꿀 때마다 갱신한다.
     if (saveBtn && !saveBtn.disabled) saveBtn.textContent = saveBtnLabel();
+    updateSaveBtnAppearance(); // 저장 버튼의 빨간색은 탭마다 다르다
   }
   var tabBtns = document.querySelectorAll(".mm-tab");
   for (var ti = 0; ti < tabBtns.length; ti++) {
@@ -1114,7 +1184,7 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   // 바꿀 수 있어야 한다 - 탭 버튼 클릭과 같은 로직을 handle에 얹어 외부(menu-maker.js 맨 아래의
   // dfsOpenMenuMakerInWindow)에서 부를 수 있게 한다.
   handle.switchTab = function(tab) {
-    if (tab !== "menu" && tab !== "icon" && tab !== "sound" && tab !== "ext") return;
+    if (tab !== "menu" && tab !== "icon" && tab !== "sound" && tab !== "ext" && tab !== "toolbox" && tab !== "desktop") return;
     currentTab = tab;
     dfMenuMakerLastTab = currentTab; // 요청 #148
     sel = null;
@@ -1223,10 +1293,14 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
         ? Object.keys(parsed.extensions).map(function(k) { return { key: k, icon: parsed.extensions[k] }; }) : [];
     } else if (currentTab === "sound") {
       SOUND_SCENARIOS.forEach(function(s) { DATA.sounds[s.key] = typeof parsed[s.key] === "string" ? parsed[s.key] : ""; });
-    } else {
+    } else if (currentTab === "ext") {
       DATA.extRun = Object.keys(parsed)
         .filter(function(k) { return EXTENSION_RUN_ACTIONS.some(function(a) { return a.key === parsed[k]; }); })
         .map(function(k) { return { key: k, action: parsed[k] }; });
+    } else if (currentTab === "desktop") {
+      DATA.desktop = Array.isArray(parsed.items) ? parsed.items : [];
+    } else {
+      DATA.toolbox = Array.isArray(parsed.items) ? parsed.items : [];
     }
     sel = null;
     // JSON을 불러오면 그게 새 원본이므로 dirty를 켠 게 아니라 끈다(저장 버튼 빨간색 해제).
@@ -1237,7 +1311,7 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     showToast(sourceLabel + " 불러옴(" + tabLabel(currentTab) + ")");
   }
   importBtn.onclick = async function() {
-    if (state.dirty) {
+    if (dirtyTabs[currentTab]) {
       const ok = await showConfirmDialog('저장하지 않은 변경 사항이 있습니다. 지금 파일을 불러오면 현재 탭("' + tabLabel(currentTab) + '")의 내용을 덮어씁니다. 계속할까요?');
       if (!ok) return;
     }
@@ -1325,6 +1399,14 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
   function serializeMenuSet() {
     return JSON.stringify({ start: DATA.start.map(cleanItem), tray: DATA.tray.map(cleanItem) }, null, 2);
   }
+  // cleanItem이 name/url/icon/popup(+popup일 때만 width/height)을 정리해주므로 트레이 항목과
+  // 완전히 같은 방식으로 툴박스 항목도 정리한다(items 하위 메뉴는 애초에 만들 수 없어 비어있다).
+  function serializeToolboxSet() {
+    return JSON.stringify({ items: DATA.toolbox.map(cleanItem) }, null, 2);
+  }
+  function serializeDesktopSet() {
+    return JSON.stringify({ items: DATA.desktop.map(cleanItem) }, null, 2);
+  }
   function serializeIconSet() {
     return JSON.stringify({
       folders: serializeIconMap(DATA.iconFolders, function(k) { return k.replace(/^\/+|\/+$/g, ""); }),
@@ -1368,7 +1450,9 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     if (currentTab === "menu") return { name: "menu_set.json", text: serializeMenuSet(), skinDir: false };
     if (currentTab === "icon") return { name: "icon_set.json", text: serializeIconSet(), skinDir: !!DATA.iconForSkin };
     if (currentTab === "sound") return { name: "sound_set.json", text: serializeSoundSet(), skinDir: !!DATA.soundForSkin };
-    return { name: "extension_run_set.json", text: serializeExtRunSet(), skinDir: false };
+    if (currentTab === "ext") return { name: "extension_run_set.json", text: serializeExtRunSet(), skinDir: false };
+    if (currentTab === "desktop") return { name: "desktop_set.json", text: serializeDesktopSet(), skinDir: false };
+    return { name: "toolbox_set.json", text: serializeToolboxSet(), skinDir: false };
   }
   // 저장 성공 토스트 문구 - 스킨용 체크가 돼 있으면 그 스킨 폴더 경로를, 아니면 기본 경로를 안내한다.
   function skinSaveNoticeText(methodLabel, file) {
@@ -1389,7 +1473,7 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
       resolve();
     }).then(function() {
       showToast(skinSaveNoticeText("브라우저로 다운로드됨", file), { sticky: true });
-      clearDirty();
+      clearDirty(file.tab);
     });
   }
   function webhookSaveOne(port, file) {
@@ -1405,7 +1489,7 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
       if (cancelled) { showToast("다운로드가 취소되었습니다."); return; }
       dfNoteWebhookDownloadSucceeded(); // 요청 #152
       showToast(skinSaveNoticeText("웹훅으로 다운로드됨", file), { sticky: true });
-      clearDirty();
+      clearDirty(file.tab);
     });
   }
   var saveBtn = document.getElementById("mmSave");
@@ -1424,6 +1508,7 @@ function dfInitMenuMakerWindow(handle, initialData, state, initialTab) {
     saveBtn.disabled = true;
     saveBtn.textContent = "확인 중...";
     var file = currentTabSaveFile();
+    file.tab = currentTab; // 저장이 끝났을 때 이 탭의 빨간색만 끈다(그 사이 다른 탭으로 옮겨가도)
     try {
       if (choice === "blob") { await blobSaveOne(file); return; }
       var port = await ensureHelperPort();

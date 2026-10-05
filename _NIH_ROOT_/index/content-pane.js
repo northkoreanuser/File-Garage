@@ -13,7 +13,7 @@ async function renderContentPane() {
   }
   currentItems = [
     ...entry.folders.map(name => ({ name, path: [...currentPath, name], type: "folder", dfsFolderId: entry.folderNodes ? entry.folderNodes.get(name)?.id : undefined })),
-    ...entry.files.map(f => ({ name: f.name, size: f.size, crc32: f.crc32, path: [...currentPath, f.name], type: fileTypeFor(f.name), dfsNode: f.dfsNode }))
+    ...entry.files.map(f => ({ name: f.name, size: f.size, crc32: f.crc32, path: [...currentPath, f.name], type: fileTypeFor(f.name), dfsNode: f.dfsNode, toolboxNode: f.toolboxNode }))
   ];
   currentOpts = { emptyText: "이 폴더는 비어 있습니다." };
   paintContentPane();
@@ -121,7 +121,7 @@ function buildGrid(items, opts) {
     const cell = document.createElement("div");
     cell.className = "grid-item" + (opts.flat ? " flat" : "") + ((isMultiSel || isSingleSel) ? " selected" : "");
     cell.dataset.key = key;
-    const icon = it.dfsNode ? dfsIconGlyphFor(it.dfsNode, 32) : (it.type === "folder" ? resolveFolderIcon(it.path, 32, false) : resolveFileIcon(it.name, 32, it.path));
+    const icon = it.dfsNode ? dfsIconGlyphFor(it.dfsNode, 32) : it.toolboxNode ? toolboxIconGlyphFor(it, 32) : (it.type === "folder" ? resolveFolderIcon(it.path, 32, false) : resolveFileIcon(it.name, 32, it.path));
     // 요청: 검색 결과(flat)에서 태그가 있는 항목은 위치 아래에 태그도 같이 보여준다(어떤 태그로
     // 걸렸는지 바로 알 수 있게) - 태그가 없는 항목은 예전 그대로 위치만 보여준다.
     const tagsHtml = (opts.flat && it.tags && it.tags.length) ? `<div class="sub tag-sub">${it.tags.map(t => "#" + escapeHtml(t)).join(" ")}</div>` : "";
@@ -129,8 +129,24 @@ function buildGrid(items, opts) {
     // 요청 #141: .sc 바로가기 파일은 실제 윈도우가 .lnk 확장자를 숨기는 것처럼 목록에는 확장자를 뺀
     // 이름으로 보여준다(실제 파일명 자체는 그대로라서 다운로드/속성 등은 전혀 영향받지 않는다).
     cell.innerHTML = `<div class="icon">${icon}</div><div class="label">${escapeHtml(displayName(it.name))}</div>${subHtml}`;
-    cell.onclick = () => {
+    cell.onclick = (e) => {
       els.contentPane.focus();
+      if (e && (e.ctrlKey || e.metaKey || e.shiftKey)) {
+        // 버그 리포트: 탐색기 안에서는 Ctrl+클릭 다중 선택이 아예 안 됐다(항상 하나로 좁혀짐) - 바탕화면
+        // 아이콘과 같이 하나씩 누적/해제한다. 이 창의 규칙상 2개 이상일 때만 multiSelected를 쓰고,
+        // 1개면 일반 단일 선택(selected)으로 둔다(드래그 선택이 끝날 때와 같은 규칙).
+        const set = new Set(multiSelected.size > 1 ? multiSelected : (selected ? [selected.path.join("/")] : []));
+        if (set.has(key)) set.delete(key); else set.add(key);
+        if (set.size > 1) { multiSelected = set; selected = null; }
+        else {
+          multiSelected.clear();
+          const one = set.size ? currentItems.find(i => i.path.join("/") === [...set][0]) : null;
+          selected = one ? { path: one.path, name: one.name, type: one.type } : null;
+        }
+        paintContentPane();
+        updateStatus();
+        return;
+      }
       multiSelected.clear();
       selected = { path: it.path, name: it.name, type: it.type };
       paintContentPane();
@@ -209,10 +225,12 @@ function buildGrid(items, opts) {
           await dfsBroadcastChange();
         });
       }
-    } else if (it.type !== "folder") {
+    } else if (it.type !== "folder" && !it.toolboxNode) {
       // 진짜 저장소 파일(바탕화면/휴지통이 아닌 읽기 전용 영역, 검색 결과의 flat 목록 포함) -
       // 옮기거나 지울 순 없지만, 진짜 OS 바탕화면으로 "꺼내는" 드래그는 가능하다(텍스트 파일일
-      // 때만, attachRepoFileDragOut 참고). 폴더 항목은 대상이 아니므로 제외한다.
+      // 때만, attachRepoFileDragOut 참고). 폴더 항목은 대상이 아니므로 제외한다. 툴박스 항목도
+      // 제외한다 - 이 저장소의 실제 파일이 아니라 외부 주소로 가는 바로가기일 뿐이라
+      // absoluteFileUrl(it.path)로 만든 주소를 끌어봤자 존재하지 않는 경로라 아무 의미가 없다.
       attachRepoFileDragOut(cell, it);
     }
     grid.appendChild(cell);

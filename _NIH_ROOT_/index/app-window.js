@@ -82,7 +82,6 @@ function dfSetupAppWindowDrag(win, titlebar) {
 /* ============ 창 크기 조절(리사이즈) - window-chrome.js의 setupWindowResize와 같은 동작을
    임의의 창 엘리먼트에 대해 일반화했다(최대화 관련 분기만 없음). ============ */
 function dfSetupAppWindowResize(win) {
-  const MIN_W = 420, MIN_H = 280;
   const TASKBAR_H = 48;
   [
     ["rz-n", "n"], ["rz-s", "s"], ["rz-e", "e"], ["rz-w", "w"],
@@ -93,6 +92,11 @@ function dfSetupAppWindowResize(win) {
     handle.addEventListener("mousedown", (e) => {
       e.preventDefault();
       e.stopPropagation();
+      // 최소 크기(420x280)를 고정값으로 두면 화면 자체가 그보다 좁은 안드로이드 폰에서는 창을
+      // 절대 화면 안으로 줄일 수 없다 - 드래그를 시작하는 지금 이 순간의 실제 화면 크기를 기준으로
+      // 다시 계산한다(화면을 접거나 돌리는 폴드8에서도 그때그때 맞도록 mousedown마다 새로 잰다).
+      const MIN_W = Math.min(420, Math.max(200, window.innerWidth - 16));
+      const MIN_H = Math.min(280, Math.max(160, window.innerHeight - TASKBAR_H - 16));
       const rect = win.getBoundingClientRect();
       const startX = e.clientX, startY = e.clientY;
       const startW = rect.width, startH = rect.height, startLeft = rect.left, startTop = rect.top;
@@ -139,7 +143,16 @@ function dfSetupAppWindowResize(win) {
 function dfCreateAppWindow(opts) {
   const win = document.createElement("div");
   win.className = "window app-win";
-  const width = opts.width || 900, height = opts.height || 640;
+  const TASKBAR_H = 48;
+  const VIEWPORT_MARGIN = 8; // 화면 가장자리에 창이 딱 붙어 손대기 어려워지지 않게 최소 여백
+  // 안드로이드/폴드8 대응: opts.width/height(900/980/720 등)는 "이 정도면 넉넉하다"는 데스크톱
+  // 기준 기본값이지 화면 크기를 보고 정한 값이 아니다 - 좁은 화면(특히 폴드8을 접었을 때나 세로
+  // 모드 안드로이드 폰)에서 그대로 띄우면 타이틀바(닫기 버튼 포함)째로 화면 밖에 걸쳐 나가 손이
+  // 안 닿는 창이 생긴다. 화면보다 크면 화면에 맞춰 줄여서 띄운다 - 리사이즈 가능한 창이니 필요하면
+  // 나중에 사용자가 다시 키울 수 있다.
+  const maxAvailW = Math.max(240, window.innerWidth - VIEWPORT_MARGIN * 2);
+  const maxAvailH = Math.max(160, window.innerHeight - TASKBAR_H - VIEWPORT_MARGIN * 2);
+  const width = Math.min(opts.width || 900, maxAvailW), height = Math.min(opts.height || 640, maxAvailH);
   win.style.width = width + "px";
   win.style.height = height + "px";
   win.innerHTML =
@@ -165,19 +178,25 @@ function dfCreateAppWindow(opts) {
 
   // 처음부터 고정 좌표로 띄운다(#win과 달리 desktop의 flex 중앙정렬에 얹혀 있다가 나중에
   // positioned로 바뀌는 게 아니라, 매번 새로 만드는 창이라 처음부터 화면 중앙 근처에 놓는다).
-  // 여러 개를 겹쳐 열어도 전부 한 자리에 완전히 겹치지 않도록 열 때마다 살짝 어긋나게 배치한다.
   win.classList.add("positioned");
-  const TASKBAR_H = 48;
-  const offset = (dfAppWinOpenCount++ % 6) * 28;
-  win.style.left = Math.max(16, (window.innerWidth - width) / 2 + offset) + "px";
+  // 여러 개를 겹쳐 열어도 전부 한 자리에 완전히 겹치지 않도록 열 때마다 살짝 어긋나게 배치한다 -
+  // 다만 그 어긋남 자체가 창을 화면 밖으로 밀어내면 안 되므로(특히 좁은 안드로이드 화면), 실제로
+  // 화면에 남는 여백(slack) 안에서만 어긋나게 한다(여백이 0이면 어긋나지 않고 그냥 겹쳐서 뜬다 -
+  // 화면 밖으로 나가는 것보단 낫다).
+  const slackW = Math.max(0, window.innerWidth - VIEWPORT_MARGIN * 2 - width);
+  const slackH = Math.max(0, window.innerHeight - TASKBAR_H - VIEWPORT_MARGIN * 2 - height);
+  const cascade = dfAppWinOpenCount++ % 6;
+  const offsetX = Math.min(cascade * 28, slackW);
+  const offsetY = Math.min(cascade * 28, slackH);
+  win.style.left = Math.max(VIEWPORT_MARGIN, (window.innerWidth - width) / 2 + offsetX) + "px";
   // 요청 #136에서 발견: 창(특히 메뉴 메이커처럼 키가 큰 창)의 세로 크기가 "화면 높이 - 작업표시줄"보다
   // 크거나, 여러 창이 열려 offset이 누적되면 처음 뜨는 위치 자체가 작업표시줄과 겹칠 수 있다 -
   // 작업표시줄(z-index 10)보다 창(z-index 11+)이 항상 위라서 겹치면 트레이 아이콘 클릭이 막힌다.
-  // 그래서 위쪽 여백(16px)보다 "작업표시줄을 절대 덮지 않는 것"을 우선한다(마지막에 maxTop으로
-  // 다시 한번 눌러서, 창이 너무 커서 maxTop이 16보다 작아지는 경우에도 작업표시줄 겹침을 막는다).
-  const maxTop = window.innerHeight - TASKBAR_H - height;
-  let top = Math.max(16, maxTop / 2 + offset);
-  top = Math.min(top, maxTop);
+  // 그래서 위쪽 여백보다 "작업표시줄을 절대 덮지 않는 것"을 우선한다(마지막에 maxTop으로 다시 한번
+  // 눌러서, 창이 너무 커서 maxTop이 여백보다 작아지는 경우에도 작업표시줄 겹침을 막는다).
+  const maxTop = window.innerHeight - TASKBAR_H - VIEWPORT_MARGIN - height;
+  let top = Math.max(VIEWPORT_MARGIN, maxTop / 2 + offsetY);
+  top = Math.min(top, Math.max(VIEWPORT_MARGIN, maxTop));
   win.style.top = top + "px";
 
   document.body.appendChild(win);

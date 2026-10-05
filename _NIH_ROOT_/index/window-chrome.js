@@ -18,14 +18,24 @@ els.btnMin.onclick = () => { els.win.classList.add("minimized"); dfsPlaySound("w
 // 드래그로 옮긴 위치(position:fixed의 left/top 인라인 스타일)는 최대화하면 잠깐 지워야
 // (.maximized 클래스의 top:0/left:0을 인라인 스타일이 덮어써버리면 꽉 채워지지 않음) 온전히 꽉 찬다.
 // 최대화를 풀면 그 위치를 되돌려서 이어서 옮긴 자리에 복귀한다(실제 창처럼).
-let lastDragPos = null; // { left, top } - 최대화 직전에 드래그로 옮겨져 있었으면 그 좌표를 기억
+let lastDragPos = null; // { left, top, width, height } - 최대화 직전에 옮기거나 리사이즈했었으면 그 좌표/크기를 기억
 function toggleMaximize() {
   const willMaximize = !els.win.classList.contains("maximized");
   if (willMaximize) {
     if (els.win.classList.contains("positioned")) {
-      lastDragPos = { left: els.win.style.left, top: els.win.style.top };
+      lastDragPos = {
+        left: els.win.style.left, top: els.win.style.top,
+        width: els.win.style.width, height: els.win.style.height,
+      };
       els.win.style.left = "";
       els.win.style.top = "";
+      // 안드로이드/폴드8 대응으로 드래그·리사이즈를 시작하는 순간 반응형 캡(.window.positioned가
+      // max-width:100%/max-height:85vh를 없애면서 원래 크기로 튀는 것)을 막으려고 그때 폭/높이를
+      // 인라인 스타일로 고정해두는데(아래 setupWindowDrag/setupWindowResize), 그 인라인 값이
+      // .maximized의 width:auto/height:auto보다 우선순위가 높아서 최대화해도 옛 크기가 그대로
+      // 남아 오른쪽/아래에 여백이 생겼다 - 최대화할 때는 이것도 같이 지워야 온전히 꽉 찬다.
+      els.win.style.width = "";
+      els.win.style.height = "";
     }
     els.win.classList.add("maximized");
   } else {
@@ -33,6 +43,8 @@ function toggleMaximize() {
     if (lastDragPos) {
       els.win.style.left = lastDragPos.left;
       els.win.style.top = lastDragPos.top;
+      els.win.style.width = lastDragPos.width;
+      els.win.style.height = lastDragPos.height;
       lastDragPos = null;
     }
   }
@@ -54,6 +66,14 @@ els.titlebar.addEventListener("dblclick", toggleMaximize);
       // 처음 드래그하는 순간, 지금 화면에 보이는 위치를 그대로 고정 좌표로 바꿔서 이어서 움직이게 한다
       // (그전까지는 desktop의 flex 중앙 정렬로 위치가 잡혀 있었음).
       els.win.classList.add("positioned");
+      // 안드로이드/폴드8 대응: style.css의 ".window"는 좁은 화면에서 max-width:100%/max-height:85vh로
+      // 눌려 있는데, ".window.positioned"는 그 캡을 없앤다(원래 드래그로 옮긴 뒤엔 원래 크기(예:
+      // 960x640)로 고정폭을 줘야 하기 때문) - 그런데 이 클래스가 붙는 순간 지금 눌려 있던 실제 크기가
+      // 아니라 그 고정폭으로 곧장 튀어버려서, 좁은 화면에서는 드래그를 시작하자마자 창이 갑자기
+      // 화면보다 커지며 밖으로 튀어나가는 문제가 있었다. 지금 실제로 보이던 크기(rect)를 그대로
+      // 인라인 스타일로 못박아서 그 튐을 막는다.
+      els.win.style.width = rect.width + "px";
+      els.win.style.height = rect.height + "px";
     }
     winStartLeft = rect.left;
     winStartTop = rect.top;
@@ -85,7 +105,6 @@ els.titlebar.addEventListener("dblclick", toggleMaximize);
 
 /* ============ 창 크기 조절(리사이즈) - 실제 윈도우처럼 가장자리/모서리를 끌어서 크기를 바꾼다 ============ */
 (function setupWindowResize() {
-  const MIN_W = 480, MIN_H = 320;
   const TASKBAR_H = 48;
   [
     ["rz-n", "n"], ["rz-s", "s"], ["rz-e", "e"], ["rz-w", "w"],
@@ -98,6 +117,11 @@ els.titlebar.addEventListener("dblclick", toggleMaximize);
       e.preventDefault();
       e.stopPropagation(); // 타이틀바 드래그(이동)과 겹치지 않게
 
+      // 최소 크기(480x320)를 고정값으로 두면 화면 자체가 그보다 좁은 안드로이드 폰에서는 창을
+      // 절대 화면 안으로 줄일 수 없다 - 리사이즈를 시작하는 지금 이 순간의 실제 화면 크기를 기준으로
+      // 다시 계산한다(화면을 접거나 돌리는 폴드8에서도 그때그때 맞도록 mousedown마다 새로 잰다).
+      const MIN_W = Math.min(480, Math.max(200, window.innerWidth - 16));
+      const MIN_H = Math.min(320, Math.max(160, window.innerHeight - TASKBAR_H - 16));
       const rect = els.win.getBoundingClientRect();
       const startX = e.clientX, startY = e.clientY;
       const startW = rect.width, startH = rect.height, startLeft = rect.left, startTop = rect.top;
@@ -105,6 +129,12 @@ els.titlebar.addEventListener("dblclick", toggleMaximize);
         // 드래그로 옮긴 적이 없어 아직 desktop의 flex 중앙 정렬로 잡혀 있던 상태라면, 지금 위치를
         // 고정 좌표로 못박아야 한쪽 가장자리를 고정한 채 반대쪽만 늘이고 줄일 수 있다.
         els.win.classList.add("positioned");
+        // setupWindowDrag와 같은 이유 - ".positioned"가 반응형 캡을 없애면서 폭/높이가 원래 크게로
+        // 튀는 것을 막는다. 특히 세로(n/s) 손잡이만 끌 때는 이 함수가 폭(width)을 한 번도 인라인으로
+        // 안 정해줘서(아래 onMove가 dir에 "e"/"w"가 없으면 style.width를 건드리지 않으므로) 이 캡이
+        // 없으면 폭이 튄 채로 영영 안 돌아온다.
+        els.win.style.width = startW + "px";
+        els.win.style.height = startH + "px";
       }
       els.win.classList.add("resizing");
       els.win.style.left = startLeft + "px";

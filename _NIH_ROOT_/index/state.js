@@ -185,6 +185,89 @@ function applyCustomIconConfig(icons) {
     settings: typeof src.settings === "string" ? src.settings : ""
   };
 }
+// 요청: 툴박스(toolbox_set.json + 메뉴 메이커 "툴박스" 탭) - 탐색기의 "툴박스" 위치에 보여줄
+// 외부 링크 목록. url이 없는 항목은 아예 목록에서 뺀다(빈 채로 저장돼도 조용히 무시). name이
+// 비어 있으면 url의 마지막 조각(파일명처럼 보이는 부분)으로 대신 채워, 항목이 "이름 없음"으로
+// 뜨는 일이 없게 한다.
+let toolboxItems = [];
+// 요청: "이름에 1\2\3\GitTool.7z.001 처럼 적으면 마지막 조각이 파일 이름이 되고 나머지 앞은
+// 폴더가 되게" - 이름에 백슬래시(\)가 있으면 그 앞부분들을 툴박스 안의 하위 폴더 경로로, 맨
+// 마지막 조각만 실제로 보이는 파일 이름으로 쓴다(실제 윈도우 경로 표기와 같은 방식 - 이
+// 앱에서 저장소 경로를 사람이 읽는 문구로 보여줄 때도 항상 백슬래시를 쓴다, showRepoFileProperties
+// 등 참고). 폴더 트리 자체(toolboxTree)는 toolboxItems를 기반으로 매번 다시 계산해서 만든다 -
+// 저장된 순서를 그대로 유지해야(메뉴 메이커의 ▲/▼로 손으로 정렬한 순서가 곧 표시 순서) 하므로
+// 알파벳 정렬은 하지 않는다(plain object의 문자열 키는 삽입 순서를 그대로 유지한다).
+let toolboxTree = { folders: {}, files: [] };
+function toolboxSplitNamePath(rawName) {
+  const parts = String(rawName || "").split("\\").map(s => s.trim()).filter(Boolean);
+  if (!parts.length) return { dirs: [], baseName: "새 항목" };
+  return { dirs: parts.slice(0, -1), baseName: parts[parts.length - 1] };
+}
+function buildToolboxTree(items) {
+  const root = { folders: {}, files: [] };
+  items.forEach(item => {
+    const { dirs, baseName } = toolboxSplitNamePath(item.name);
+    let cur = root;
+    dirs.forEach(dirName => {
+      if (!cur.folders[dirName]) cur.folders[dirName] = { folders: {}, files: [] };
+      cur = cur.folders[dirName];
+    });
+    // toolboxNode로 실어 보내는 값은 baseName(맨 마지막 조각)을 화면에 보일 이름으로 쓰고,
+    // fullName에 원래 적은 전체 경로 문자열을 남겨(속성 창 등에서 참고용으로만 쓸 수 있게) 둔다.
+    cur.files.push(Object.assign({}, item, { name: baseName, fullName: item.name }));
+  });
+  return root;
+}
+function applyToolboxConfig(data) {
+  const raw = (data && Array.isArray(data.items)) ? data.items : [];
+  toolboxItems = raw
+    .filter(it => it && typeof it.url === "string" && it.url.trim())
+    .map(it => {
+      const url = it.url.trim();
+      let fallbackName = "";
+      try { fallbackName = decodeURIComponent(url.split(/[?#]/)[0].split("/").filter(Boolean).pop() || ""); } catch (e) { fallbackName = url; }
+      return {
+        name: (typeof it.name === "string" && it.name.trim()) ? it.name.trim() : (fallbackName || "새 항목"),
+        url,
+        icon: typeof it.icon === "string" ? it.icon : "",
+        popup: !!it.popup,
+        width: Number(it.width) || 900,
+        height: Number(it.height) || 640
+      };
+    });
+  toolboxTree = buildToolboxTree(toolboxItems);
+}
+/* 바탕 화면 링크(desktop_set.json) - 툴박스와 같은 모양의 목록({ items: [{ name, url, icon, popup... }] })을
+   바탕화면 아이콘으로 보여준다(desktop-fs.js의 dfsRenderDesktop). 정리 규칙은 applyToolboxConfig를 그대로
+   빌려 쓰고(임시로 돌려본 뒤 원래 툴박스 상태로 되돌리지 않도록 계산만 따로 한다), 바탕화면에는 폴더가
+   없으므로 이름의 백슬래시 앞부분은 버리고 마지막 조각만 아이콘 이름으로 쓴다. id는 위치 기억용 키다. */
+let desktopLinkItems = [];
+function applyDesktopSetConfig(data) {
+  const raw = (data && Array.isArray(data.items)) ? data.items : [];
+  const seen = new Set();
+  // 주소를 비워두고 이름 칸에만 저장소 경로를 적은 경우(예: 이름 = "음악\\노래.mp3")에도 아이콘이 나타나도록,
+  // 주소가 없으면 이름을 저장소 안 경로로 본다(백슬래시는 슬래시로).
+  const urlOf = it => (typeof it.url === "string" && it.url.trim()) ? it.url.trim()
+    : (typeof it.name === "string" && it.name.trim() && it.name.trim() !== "새 항목") ? it.name.trim().replace(/\\/g, "/") : "";
+  desktopLinkItems = raw
+    .filter(it => it && urlOf(it))
+    .map(it => {
+      const url = urlOf(it);
+      let fallbackName = "";
+      try { fallbackName = decodeURIComponent(url.split(/[?#]/)[0].split("/").filter(Boolean).pop() || ""); } catch (e) { fallbackName = url; }
+      const fullName = (typeof it.name === "string" && it.name.trim()) ? it.name.trim() : (fallbackName || "새 항목");
+      let id = "link:" + fullName, n = 2;
+      while (seen.has(id)) id = "link:" + fullName + "#" + (n++);
+      seen.add(id);
+      return {
+        id, name: toolboxSplitNamePath(fullName).baseName, fullName, url,
+        icon: typeof it.icon === "string" ? it.icon : "",
+        popup: !!it.popup,
+        width: Number(it.width) || 900,
+        height: Number(it.height) || 640
+      };
+    });
+}
 // 이식성 수정: icon_set.json/menu_set.json 안의 아이콘 경로가 예전엔 "/File-Garage/_NIH_ROOT_/..."
 // 처럼 레포 이름을 그대로 박아넣은 절대경로였다 - 레포 이름이 바뀌거나(포크/이름변경) 다른 곳에
 // 호스팅하면 전부 깨졌다. resolveIconSrc는 문자열 안에서 "_NIH_ROOT_"가 시작하는 위치를 찾아 그
@@ -305,6 +388,88 @@ function resolveFileIcon(name, size, path) {
   }
   return isHtml(name) ? htmlFileIcon(size) : fileIcon(size);
 }
+// 요청: 툴박스 항목 아이콘 - 실제 파일이 아니라 외부 주소로 가는 바로가기이므로, 바탕화면
+// 바로가기(dfsIconGlyphFor)와 똑같이 오른쪽 아래에 화살표 배지(↪)를 항상 덧붙인다. 아이콘은
+// toolbox_set.json에 직접 지정된 것(icon)이 있으면 그걸 쓰고, 없으면 항목 이름의 확장자를 보고
+// 저장소 파일과 같은 규칙(resolveFileIcon)으로 기본 아이콘을 고른다 - 예를 들어 이름을
+// "GitTool.7z.001"로 지어두면 실제 저장소의 .001 파일처럼 자연스러운 기본 아이콘이 붙는다
+// (요청: "실제(사실 실제는 아님) 파일로 추가됨").
+/* 요청: 주소가 이 페이지 자신의 플래그먼트(#툴박스, #폴더/파일.txt, 또는 같은 주소 + #...)인 링크는 어떤
+   폴더/파일을 가리키는지 알 수 있으므로, 아이콘을 따로 지정하지 않았으면 그 대상의 아이콘을 자동으로 쓴다.
+   같은 페이지 링크가 아니면 null. 폴더/파일 구분은 이미 읽어둔 목록(dirCache, toolboxTree)에서 먼저 찾고,
+   아직 안 읽은 경로면 마지막 조각에 확장자가 있는지로 짐작한다(네트워크를 새로 타지 않는다). */
+/* 버그 리포트: 주소에 "VishwaJai - Eastern Arctic Dubstep.mp3"처럼 저장소 안의 파일 경로를 그대로(플래그먼트 없이)
+   적은 경우 - 이것도 이 사이트 안의 상대 주소라 어떤 저장소 파일/폴더인지 알 수 있다. 그 저장소 경로(이름 배열)를
+   돌려주고, 이 사이트 밖 주소이거나 탐색기에 안 보이는 경로(_NIH_ 포함, index.html 자신)면 null. */
+function dfRepoPathFromUrl(url) {
+  try {
+    const u = new URL(url, location.href);
+    if (u.origin !== location.origin || u.pathname === location.pathname) return null;
+    const base = location.pathname.replace(/[^/]*$/, "");
+    if (u.pathname.indexOf(base) !== 0) return null;
+    const p = u.pathname.slice(base.length).split("/").filter(Boolean).map(seg => { try { return decodeURIComponent(seg); } catch (e) { return seg; } });
+    if (!p.length || p.some(seg => /_NIH_/i.test(seg))) return null;
+    if (p.length === 1 && p[0].toLowerCase() === "index.html") return null;
+    return p;
+  } catch (e) {
+    return null;
+  }
+}
+let dfLinkIconDepth = 0; // 링크가 서로를 가리키는 경우(툴박스 항목 A -> #툴박스/A)의 무한 반복 방지
+function dfSamePageLinkIcon(url, size) {
+  if (dfLinkIconDepth > 3) return null;
+  dfLinkIconDepth++;
+  try { return dfSamePageLinkIconInner(url, size); } finally { dfLinkIconDepth--; }
+}
+function dfSamePageLinkIconInner(url, size) {
+  const hash = dfSamePageDeepLinkHash(url);
+  if (hash != null && typeof hashToPath !== "function") return null;
+  const p = hash != null ? (hashToPath(hash) || []) : dfRepoPathFromUrl(url); // 플래그먼트 주소 또는 저장소 안 상대 경로
+  if (!p) return null;
+  if (!p.length) return resolveRepoRootIcon(size);
+  if (p.length === 1) {
+    if (p[0] === DESKTOP_TREE_NAME) return resolveDesktopIcon(size, true);
+    if (p[0] === RECYCLEBIN_TREE_NAME) return resolveRecycleBinIcon(size, !(typeof dfsRecycleBinHasItems !== "undefined" && dfsRecycleBinHasItems));
+    if (p[0] === TOOLBOX_TREE_NAME) return resolveToolboxRootIcon(size);
+  }
+  const name = p[p.length - 1];
+  if (p[0] === TOOLBOX_TREE_NAME) {
+    let cur = toolboxTree;
+    for (let i = 1; i < p.length - 1 && cur; i++) cur = cur.folders[p[i]];
+    if (cur && cur.folders[name]) return resolveFolderIcon(p, size, false);
+    const tb = cur ? cur.files.find(f => f.name === name) : null;
+    if (tb) return toolboxIconInner({ name, toolboxNode: tb }, size); // 배지(↪)는 바깥에서 한 번만 붙인다
+  }
+  let isFolder = dirCache.has(p.join("/")), file = null;
+  if (!isFolder) {
+    const parent = dirCache.get(p.slice(0, -1).join("/"));
+    if (parent) {
+      if ((parent.folders || []).some(f => (f && f.name !== undefined ? f.name : f) === name)) isFolder = true;
+      else file = (parent.files || []).find(f => f.name === name) || null;
+    }
+    if (!isFolder && !file) isFolder = !/\.[A-Za-z0-9_]{1,8}$/.test(name);
+  }
+  if (isFolder) return resolveFolderIcon(p, size, false);
+  if (file && file.dfsNode && typeof dfsIconGlyphFor === "function") return dfsIconGlyphFor(file.dfsNode, size);
+  return resolveFileIcon(name, size, p);
+}
+function toolboxIconInner(it, size) {
+  const node = it.toolboxNode || {};
+  return node.icon
+    ? `<img src="${escapeHtml(resolveIconSrc(node.icon))}" style="width:${size}px;height:${size}px;object-fit:contain;">`
+    : (dfSamePageLinkIcon(node.url, size) || resolveFileIcon(toolboxIconNameFor(it.name, node.url), size, null));
+}
+// 이름에 확장자가 없으면(예: 기본 이름 "새 항목") 주소의 마지막 조각(파일명)으로 확장자 아이콘을 고른다.
+function toolboxIconNameFor(name, url) {
+  if (/\.[A-Za-z0-9_]{1,8}$/.test(name || "")) return name;
+  let last = "";
+  try { last = decodeURIComponent(String(url || "").split(/[?#]/)[0].split("/").filter(Boolean).pop() || ""); } catch (e) {}
+  return /\.[A-Za-z0-9_]{1,8}$/.test(last) ? last : name;
+}
+function toolboxIconGlyphFor(it, size) {
+  const inner = toolboxIconInner(it, size);
+  return `<span style="position:relative;display:inline-block;">${inner}<span class="df-icon-shortcut-badge">↪</span></span>`;
+}
 function resolveRepoRootIcon(size) {
   return customIconConfig.repoRoot ? customImgIcon(customIconConfig.repoRoot, size) : folderIcon(size, true);
 }
@@ -322,6 +487,18 @@ function resolveRecycleBinIcon(size, isEmpty) {
 // 요청 #144: 트리의 "바탕 화면" 항목 아이콘 - 커스텀 아이콘이 없으면 예전 그대로 파란 폴더.
 function resolveDesktopIcon(size, blue) {
   return customIconConfig.desktop ? customImgIcon(customIconConfig.desktop, size) : folderIcon(size, blue);
+}
+// 툴박스 트리 루트 아이콘 - 바탕화면/휴지통/환경설정처럼 icon_set.json에 지정 가능한 고정
+// 슬롯으로 만들지는 않는다(요청 범위 밖) - 대신 다른 최상위 항목들과 한눈에 구분되도록 작은
+// 공구함 모양 SVG를 그린다.
+function resolveToolboxRootIcon(size) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4 15a3 3 0 0 1 3-3h18a3 3 0 0 1 3 3v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9z" fill="#c9491f"/>
+    <path d="M4 15a3 3 0 0 1 3-3h18a3 3 0 0 1 3 3v2H4v-2z" fill="#e8622f"/>
+    <path d="M11 8a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v4h-3V8h-4v4h-3V8z" fill="#8f8f96"/>
+    <rect x="2" y="17" width="28" height="4" fill="#5c5c62"/>
+    <circle cx="16" cy="19" r="2.4" fill="#2b2b2e"/>
+  </svg>`;
 }
 // 요청 #144: 환경설정 창 타이틀바 아이콘 - app-window.js의 .tb-icon이 textContent가 아니라
 // innerHTML로 채워지도록 함께 바꿨으므로(settings-startmenu.js 참고) 여기서 <img> HTML을 그대로
@@ -518,6 +695,9 @@ function dfLsSoundKey() { return "dfLocalSoundSetV1"; }
 function dfLsSoundSkinPrefix() { return "dfLocalSoundSetSkinV1:"; }
 function dfLsSoundSkinKey(skinName) { return dfLsSoundSkinPrefix() + (skinName || "win7"); }
 function dfLsExtRunKey() { return "dfLocalExtRunSetV1"; }
+// 툴박스(toolbox_set.json) - 메뉴/아이콘/사운드/확장자와 완전히 같은 패턴(dfReadLocalOverride 등).
+function dfLsToolboxKey() { return "dfLocalToolboxSetV1"; }
+function dfLsDesktopSetKey() { return "dfLocalDesktopSetV1"; }
 function dfReadLocalOverride(key) {
   try {
     const raw = localStorage.getItem(key);
@@ -759,6 +939,13 @@ function isRecycleBinPath(pathArr) { return pathArr.length > 0 && pathArr[0] ===
 // 바탕화면이든 휴지통이든 - "실제 저장소가 아니라 dexie로 읽어야 하는 경로인가?"를 함께 물어야
 // 하는 곳(loadDir 라우팅, 캐시 무효화 등)에서 쓴다.
 function isDfsPath(pathArr) { return isDesktopPath(pathArr) || isRecycleBinPath(pathArr); }
+// 요청: "GitTool.7z 받기" 같은 하드코딩된 다운로드 버튼 대신, 저장소에 커밋된 toolbox_set.json(+
+// 메뉴 메이커의 "툴박스" 탭이 localStorage에 남기는 로컬 반영)으로 구성되는 외부 링크 모음을
+// 탐색기의 별도 최상위 위치로 보여준다. 바탕화면/휴지통과 달리 dexie(개인 브라우저 저장소)가
+// 아니라 이 저장소 자체에 커밋되는 공용 목록이라, isDfsPath에는 포함시키지 않고 loadDir에서
+// 따로 분기한다(data-and-hash.js의 loadToolboxDir). 하위 폴더는 없이 항목들만 평평하게 나열한다.
+const TOOLBOX_TREE_NAME = "툴박스";
+function isToolboxPath(pathArr) { return pathArr.length > 0 && pathArr[0] === TOOLBOX_TREE_NAME; }
 
 /* ============ 색인 제외 규칙 (indexer.ahk가 이미 거르지만, html도 자체적으로 한번 더 거른다) ============
    - 이름에 "_NIH_"가 포함되면(대소문자 무관) 모든 위치에서 제외
@@ -781,7 +968,7 @@ function filterNames(names, pathArr) {
   // 리포트: 루트에서 readme.md가 계속 보임). .nojekyll(GitHub Pages가 _NIH_ 폴더를 서빙하게
   // 해주는 설정 파일 - index.html 주석 참고)도 사용자용 색인에는 나올 이유가 없는 저장소 관리용
   // 파일이라 같이 숨긴다.
-  const rootOnly = new Set([".git", "index.html", "readme.md", ".nojekyll", DESKTOP_TREE_NAME.toLowerCase(), RECYCLEBIN_TREE_NAME.toLowerCase()]);
+  const rootOnly = new Set([".git", "index.html", "readme.md", ".nojekyll", DESKTOP_TREE_NAME.toLowerCase(), RECYCLEBIN_TREE_NAME.toLowerCase(), TOOLBOX_TREE_NAME.toLowerCase()]);
   return names.filter(name => {
     if (/_NIH_/i.test(name)) return false;
     if (name === "pages.json") return false;

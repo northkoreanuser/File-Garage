@@ -35,6 +35,31 @@ function renderNavPane() {
     if (dtEntry) els.navPane.appendChild(buildTreeDom(dtEntry, [DESKTOP_TREE_NAME]));
   }
 
+  // 툴박스 - 커밋된 toolbox_set.json(+ 메뉴 메이커의 로컬 반영)으로 구성되는 외부 링크 모음.
+  // 바탕화면/휴지통과 달리 dexie(개인 브라우저 저장소)가 아니라 이 저장소에 커밋되는 공용
+  // 목록이라 dfsDb 여부와 무관하게 항상 보인다. 하위 폴더가 없으므로(loadToolboxDir이 항상
+  // folders: []를 돌려줌) buildTreeDom을 불러도 화살표로 펼칠 하위 트리는 없고 항목(파일처럼
+  // 보이는 링크)만 바로 나열된다.
+  {
+    const tbKey = TOOLBOX_TREE_NAME;
+    const tbRow = document.createElement("div");
+    tbRow.className = "nav-root" + (!treeFileHighlightKey && currentPath.join("/") === tbKey ? " selected" : "") + (treeFocusKey === tbKey ? " kbd-focus" : "");
+    tbRow.innerHTML = `${resolveToolboxRootIcon(16)}<span>${escapeHtml(TOOLBOX_TREE_NAME)}</span>`;
+    tbRow.onclick = () => { els.navPane.focus(); navigate([TOOLBOX_TREE_NAME]); closeNavPaneIfNarrow(); };
+    tbRow.ondblclick = () => navigate([TOOLBOX_TREE_NAME]);
+    tbRow.oncontextmenu = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showContextMenu(e.clientX, e.clientY, [
+        { label: "열기", action: () => navigate([TOOLBOX_TREE_NAME]) },
+        { label: "툴박스 메이커 열기", action: () => dfsOpenMenuMakerInWindow({ initialTab: "toolbox" }) }
+      ]);
+    };
+    els.navPane.appendChild(tbRow);
+    const tbEntry = dirCache.get(tbKey);
+    if (tbEntry) els.navPane.appendChild(buildTreeDom(tbEntry, [TOOLBOX_TREE_NAME]));
+  }
+
   // 휴지통 - 저장소 루트와 나란한 별도의 최상위 항목(사용자 지시: "바탕 화면에 휴지통 추가
   // 트리에도 추가 아이콘은 동일 사용"). 요청 #113 - 별도의 오버레이 패널이 아니라 저장소
   // 루트/바탕화면과 똑같이 통합 탐색기 창(navigate)으로 들어간다(진짜 탐색기 휴지통처럼).
@@ -229,7 +254,7 @@ function buildTreeDom(entry, pathArr) {
   files.forEach(f => {
     const childPath = [...pathArr, f.name];
     const key = childPath.join("/");
-    const it = { name: f.name, size: f.size, path: childPath, type: fileTypeFor(f.name), dfsNode: f.dfsNode };
+    const it = { name: f.name, size: f.size, path: childPath, type: fileTypeFor(f.name), dfsNode: f.dfsNode, toolboxNode: f.toolboxNode };
 
     const row = document.createElement("div");
     row.className = "tree-row tree-file-row" + (treeFileHighlightKey === key ? " selected" : "") + (treeFocusKey === key ? " kbd-focus" : "");
@@ -239,7 +264,7 @@ function buildTreeDom(entry, pathArr) {
     const spacer = document.createElement("span");
     spacer.className = "tree-arrow empty";
     row.appendChild(spacer);
-    row.insertAdjacentHTML("beforeend", it.dfsNode ? dfsIconGlyphFor(it.dfsNode, 15) : resolveFileIcon(f.name, 15, childPath));
+    row.insertAdjacentHTML("beforeend", it.dfsNode ? dfsIconGlyphFor(it.dfsNode, 15) : it.toolboxNode ? toolboxIconGlyphFor(it, 15) : resolveFileIcon(f.name, 15, childPath));
     const label = document.createElement("span");
     label.textContent = displayName(f.name); // 요청 #141: .sc는 트리에서도 확장자를 숨긴다
     row.appendChild(label);
@@ -277,7 +302,7 @@ function flattenVisibleTree() {
     files.forEach(f => {
       const childPath = [...pathArr, f.name];
       const key = childPath.join("/");
-      const it = { name: f.name, size: f.size, path: childPath, type: fileTypeFor(f.name), dfsNode: f.dfsNode };
+      const it = { name: f.name, size: f.size, path: childPath, type: fileTypeFor(f.name), dfsNode: f.dfsNode, toolboxNode: f.toolboxNode };
       list.push({ key, type: "file", pathArr: childPath, item: it });
     });
   }
@@ -293,8 +318,19 @@ function flattenVisibleTree() {
     list.push({ key: dtKey, type: "folder", pathArr: [DESKTOP_TREE_NAME] });
     const dtEntry = dirCache.get(dtKey);
     if (dtEntry) walk(dtEntry, [DESKTOP_TREE_NAME]);
+  }
 
-    // 휴지통도 저장소 루트/바탕화면과 나란한 별도의 최상위 항목이므로 방향키 탐색 목록에 이어 추가.
+  // 툴박스도 저장소 루트/바탕화면과 나란한 별도의 최상위 항목이므로 방향키 탐색 목록에 이어
+  // 추가한다 - dfsDb와 무관하게 항상 존재한다(renderNavPane과 같은 이유).
+  {
+    const tbKey = TOOLBOX_TREE_NAME;
+    list.push({ key: tbKey, type: "folder", pathArr: [TOOLBOX_TREE_NAME] });
+    const tbEntry = dirCache.get(tbKey);
+    if (tbEntry) walk(tbEntry, [TOOLBOX_TREE_NAME]);
+  }
+
+  if (dfsDb) {
+    // 휴지통도 저장소 루트/바탕화면/툴박스와 나란한 별도의 최상위 항목이므로 방향키 탐색 목록에 이어 추가.
     const rbKey = RECYCLEBIN_TREE_NAME;
     list.push({ key: rbKey, type: "folder", pathArr: [RECYCLEBIN_TREE_NAME] });
     const rbEntry = dirCache.get(rbKey);

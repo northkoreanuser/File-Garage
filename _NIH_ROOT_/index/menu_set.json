@@ -26,9 +26,9 @@
   ],
   "tray": [
     {
-      "name": "새 항목",
+      "name": "AutoHotkey",
       "url": "https://www.autohotkey.com/download/ahk-v2.exe",
-      "icon": "/_NIH_ROOT_/index/ui/icon/menu/traybar/autohotkey.svg"
+      "icon": "_NIH_ROOT_/index/ui/icon/menu/traybar/autohotkey.svg"
     }
   ]
 }

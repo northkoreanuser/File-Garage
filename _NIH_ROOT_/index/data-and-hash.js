@@ -15,6 +15,10 @@ async function loadDir(pathArr) {
   // 점은 동일하기 때문). dirCache에도 똑같이 채워 넣어서 동기적으로 읽는 트리 그리기 함수들이
   // 그대로 동작하게 한다.
   if (isDfsPath(pathArr)) return loadDesktopDir(pathArr);
+  // 툴박스(toolbox_set.json + 로컬 반영)는 저장소도 dexie도 아니라 메모리에 이미 올라와 있는
+  // toolboxItems(state.js)를 그대로 목록으로 돌려준다 - 네트워크/await가 필요 없지만, dirCache에도
+  // 똑같이 채워 넣어야 트리를 동기적으로 그리는 buildTreeDom 등이 그대로 동작한다(아래 참고).
+  if (isToolboxPath(pathArr)) return loadToolboxDir(pathArr);
   const key = pathArr.join("/");
   if (dirCache.has(key)) return dirCache.get(key);
 
@@ -144,6 +148,32 @@ async function loadDesktopDir(pathArr) {
   return entry;
 }
 
+/* ---------------- 툴박스 경로 읽기 ----------------
+   pathArr[0]이 TOOLBOX_TREE_NAME인 경로 - state.js의 toolboxTree(applyToolboxConfig가 이름의
+   백슬래시(\) 구분자를 기준으로 미리 만들어둔 폴더 트리)를 pathArr[1:] 만큼 그대로 따라 내려가서
+   그 위치의 folders/files를 돌려준다. 진짜 저장소 폴더 읽기(loadDir)와 똑같은
+   {folders:[이름,...], files:[{name,size,...},...]} 모양이라, 트리/내용창/방향키 등 나머지
+   로직은 폴더가 몇 단계든 전혀 손대지 않고 그대로 재사용된다. 각 파일 객체에 toolboxNode로 원본
+   항목을 그대로 실어 보내서, dfsNode와 완전히 같은 방식으로 content-pane.js/tree-pane.js/
+   context-menu.js/keyboard-and-activate.js가 "진짜 파일이 아니라 툴박스 바로가기"임을 알아채고
+   따로 처리한다(각 파일의 it.dfsNode 검사 옆에 it.toolboxNode 검사를 나란히 추가해둔 곳들 참고).
+   중간에 없는 폴더 이름을 만나면(toolbox_set.json이 바뀌어 그 사이 사라진 경로 등) 오류를 던지는
+   대신 조용히 빈 폴더로 취급한다 - 어차피 사용자가 직접 손으로 관리하는 목록이라, 저장소 폴더처럼
+   "삭제됐거나 이름이 바뀌었을 수 있음" 오류 화면을 보여줄 것까지는 없다. */
+function loadToolboxDir(pathArr) {
+  const key = pathArr.join("/");
+  let node = toolboxTree;
+  for (let i = 1; i < pathArr.length && node; i++) {
+    node = node.folders[pathArr[i]] || null;
+  }
+  const entry = {
+    folders: node ? Object.keys(node.folders) : [],
+    files: node ? node.files.map(item => ({ name: item.name, size: 0, toolboxNode: item })) : []
+  };
+  dirCache.set(key, entry);
+  return entry;
+}
+
 /* ============ 경로 <-> 주소창 플래그먼트(#...) ============
    형식: #<현재경로>|tree=<펼쳐진 트리 폴더 목록(콤마로 구분, 각각 encodeURIComponent)>|nav=<0 또는 없음>
    |tree= 부분이 없으면 예전처럼 경로만 있는 것으로 취급(하위호환). |nav= 부분(트리 칸/navPane
@@ -237,7 +267,8 @@ function openNavPaneRespectingHash() {
    탐색창을 자동으로 접어 내용을 바로 보여준다. 넓은 화면(항상 옆에 두고 쓰는 형태)에서는 폴더를
    클릭할 때마다 탐색창이 접히면 오히려 불편하므로 이 자동 닫힘을 적용하지 않는다. */
 function closeNavPaneIfNarrow() {
-  if (window.matchMedia("(max-width: 720px)").matches) closeNavPane();
+  // 좁은 화면 여부는 fake-rotate.js가 <html>에 붙이는 .narrow 클래스로 본다(가짜 가로 모드에서는 돌린 뒤의 폭 기준).
+  if (document.documentElement.classList.contains("narrow")) closeNavPane();
 }
 async function resolveInitialPath(pathArr) {
   let p = (pathArr || []).slice();

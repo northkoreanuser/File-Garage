@@ -151,7 +151,7 @@ async function main() {
   // menu_set.json/icon_set.json/sound_set.json(요청 #122로 메뉴/아이콘/사운드 3개로 분리)은
   // 있으면 반영, 없거나 잘못돼도 조용히 무시(선택 기능). 전부 _NIH_ROOT_/index/ 안에 있다
   // (트리/색인에는 안 보이지만 GitHub Pages는 그대로 서빙 - .nojekyll 필요, index.html 주석 참고).
-  loadAllMenuMakerConfigs().then(cfg => {
+  loadAllMenuMakerConfigs().then(async cfg => {
     renderAppList(cfg.menu.start, els.startApps);
     renderTrayIcons(cfg.menu.tray);
     // 폴더/확장자별 커스텀 아이콘 + 저장소 루트/휴지통 아이콘 반영. 이미 그려진 트리/바탕화면/
@@ -164,6 +164,14 @@ async function main() {
     // 요청 #143: 확장자별 더블클릭 개별 설정(extension_run_set.json) 반영 - keyboard-and-activate.js의
     // activate()가 extensionRunActionFor()로 이 설정을 참조한다.
     applyExtensionRunSetConfig(cfg.extRun);
+    // 툴박스(toolbox_set.json) 반영 - settings-startmenu.js의 applyToolboxConfigAndRefresh가
+    // dirCache도 함께 채워 넣는다(트리를 동기적으로 읽는 buildTreeDom/flattenVisibleTree가 아래
+    // renderNavPane()부터 곧바로 정확하게 그려지도록, 그리고 이름에 백슬래시로 적은 하위 폴더가
+    // 있어도 지금 보고 있는 경로/펼쳐둔 트리 가지까지 함께 다시 채워지도록 - 위 함수 주석 참고).
+    await applyToolboxConfigAndRefresh(cfg.toolbox);
+    // 바탕 화면 링크(desktop_set.json) 반영 - 바탕화면이 이미 그려져 있었다면 아이콘을 다시 그린다.
+    applyDesktopSetConfig(cfg.desktop);
+    if (typeof dfsRenderDesktop === "function") dfsRenderDesktop();
     // 커스텀 아이콘 설정이 이 시점(비동기)에야 도착하므로, 이미 그려져 있던 타이틀바 아이콘도
     // 다시 계산해야 한다(부팅 직후엔 아직 customIconConfig가 비어 있어 기본 아이콘으로 그려졌었음).
     updateWinTitlebarIcon();

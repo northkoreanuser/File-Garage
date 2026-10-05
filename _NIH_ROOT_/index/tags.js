@@ -198,9 +198,9 @@ async function openTagEditorForFolder(pathArr) {
   const overlay = document.createElement("div");
   overlay.className = "confirm-overlay";
   overlay.innerHTML = `
-    <div class="confirm-panel" style="width:min(560px, 90vw);">
+    <div class="confirm-panel" style="width:min(560px, calc(var(--vw, 1vw) * 90));">
       <div class="confirm-message">태그 편집 - ${escapeHtml(pathArr.length ? pathArr.join("/") : (repoName || "루트"))}</div>
-      <div class="tag-editor-rows" style="max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin:4px 0;"></div>
+      <div class="tag-editor-rows" style="max-height:calc(var(--vh, 1vh) * 50);overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin:4px 0;"></div>
       <div style="font-size:11.5px;opacity:.7;">쉼표 또는 공백으로 여러 태그를 구분해서 적으세요. (예: 웹, html, js)</div>
       <div style="display:flex;justify-content:flex-end;">
         <button class="settings-button settings-button-neutral tag-editor-reset-root" style="font-size:11.5px;">태그 저장 위치 변경</button>

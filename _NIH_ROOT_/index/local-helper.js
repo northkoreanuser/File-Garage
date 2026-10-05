@@ -67,7 +67,11 @@ function dfNoteWebhookDownloadSucceeded() { dfNoteWebhookInUse(); }
    저장소의 모든 실제 파일을 그대로 서빙하므로, 경로만 알면(absoluteFileUrl) 내려받는 데
    아무 문제가 없다. ============ */
 const LOCALSERVER_TOOL_PATH = ["_NIH_ROOT_", "tools", "localserver.ahk"];
-const GITTOOL_TOOL_PATH = ["_NIH_ROOT_", "tools", "Git 올인원.cmd"];
+// 요청: 예전엔 여기에 GITTOOL_TOOL_PATH(Git 올인원.cmd, 환경설정의 "GitTool.7z 받기" 버튼용)도
+// 있었다 - 그 대상 파일이 GitTool.7z.001/.002로 쪼개지고 앞으로도 더 늘어날 수 있어서, 하드코딩된
+// 다운로드 버튼 하나로는 대응이 안 된다는 지적에 따라 버튼째 제거했다(settings-startmenu.js 참고).
+// 그런 식으로 바뀔 수 있는 외부/대용량 파일들은 이제 툴박스(menu-maker.js의 "툴박스" 탭 +
+// state.js의 TOOLBOX_TREE_NAME)로 옮겨서, 코드를 고치지 않고도 목록을 자유롭게 늘리고 줄인다.
 // 로컬 헬퍼 없이(당연히 - 헬퍼가 없어서 이 함수를 부르는 상황이므로) 브라우저 자체 다운로드로
 // 저장소의 실제 파일을 바로 내려받는다. localHelperDownload를 거치면 헬퍼가 없을 때 다시
 // offerHelperDownload를 부르는 순환에 빠지므로, 일부러 별도 경로로 둔다(닭과 달걀 문제 회피).

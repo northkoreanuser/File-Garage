@@ -29,7 +29,7 @@
   }
 
   .desktop {
-    min-height: 100vh;
+    min-height: calc(var(--vh, 1vh) * 100);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -42,7 +42,7 @@
     width: 960px;
     max-width: 100%;
     height: 640px;
-    max-height: 85vh;
+    max-height: calc(var(--vh, 1vh) * 85);
     background: #c0c0c0;
     /* 바깥쪽 남색 테두리(0 0 0 1px #000080)를 추가했다 - 예전엔 회색 베벨만 있어서
        타이틀바의 남색과 어울리는 "파란 테두리"가 창 프레임에 전혀 없었다(요청 3-나). */
@@ -322,7 +322,7 @@
     display: flex; align-items: center; gap: 8px; padding: 4px 6px;
     cursor: var(--cur-link); font-size: 12px; color: #000;
   }
-  .start-app-row:hover { background: #000080; color: #fff; }
+  .start-app-row:hover, .start-app-row.kb-focus { background: #000080; color: #fff; }
   .start-app-row:hover .start-app-chevron { color: #fff; }
   .start-app-icon {
     width: 18px; height: 18px; flex: 0 0 18px; overflow: hidden;
@@ -347,8 +347,8 @@
   }
   .settings-overlay.open { display: flex; }
   .settings-panel {
-    width: 380px; max-width: calc(100vw - 32px);
-    max-height: calc(100vh - 48px);
+    width: 380px; max-width: calc(calc(var(--vw, 1vw) * 100) - 32px);
+    max-height: calc(calc(var(--vh, 1vh) * 100) - 48px);
     background: #c0c0c0;
     box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #000, inset 2px 2px 0 #dfdfdf, inset -2px -2px 0 #808080, 3px 3px 8px rgba(0,0,0,.4);
     overflow: hidden;
@@ -392,7 +392,7 @@
     display: flex; align-items: center; justify-content: center; z-index: 2050;
   }
   .confirm-panel {
-    width: min(340px, calc(100vw - 32px)); min-width: 260px; max-width: calc(100vw - 32px);
+    width: min(340px, calc(calc(var(--vw, 1vw) * 100) - 32px)); min-width: 260px; max-width: calc(calc(var(--vw, 1vw) * 100) - 32px);
     background: #c0c0c0;
     box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #000, inset 2px 2px 0 #dfdfdf, inset -2px -2px 0 #808080, 3px 3px 8px rgba(0,0,0,.4);
     padding: 14px; display: flex; flex-direction: column; gap: 12px;
@@ -475,20 +475,22 @@
     pointer-events: none; z-index: 1;
   }
 
-  @media (max-width: 720px) {
-    .desktop { padding: 8px 8px 64px; }
-    .window { height: 90vh; max-height: none; }
-    .search-box { display: none; }
-    #btnSearchMode { display: none; }
-    .nav-toggle { display: flex; }
-    .nav-pane {
+  /* 좁은 화면 규칙: 예전의 @media (max-width: 720px). 가짜 가로 모드(fake-rotate.js)에서는 실제 뷰포트 폭이 아니라
+     돌린 뒤의 폭으로 판단해야 해서, fake-rotate.js가 <html>에 붙이는 .narrow 클래스로 바꿨다(:where라 우선순위는 그대로). */
+
+    :where(html.narrow) .desktop { padding: 8px 8px 64px; }
+    :where(html.narrow) .window { height: calc(var(--vh, 1vh) * 90); max-height: none; }
+    :where(html.narrow) .search-box { display: none; }
+    :where(html.narrow) #btnSearchMode { display: none; }
+    :where(html.narrow) .nav-toggle { display: flex; }
+    :where(html.narrow) .nav-pane {
       position: absolute; z-index: 5; top: 0; bottom: 0; left: 0;
       transform: translateX(-100%);
       transition: transform .15s ease;
       box-shadow: 2px 0 10px rgba(0,0,0,.15);
     }
-    .nav-pane.open { transform: translateX(0); }
-  }
+    :where(html.narrow) .nav-pane.open { transform: translateX(0); }
+
 
   /* ============ 가짜 마우스(커스텀 커서) 예외 규칙 (요청 11, 정정됨) ============
      예전엔 "보통 상태"/"평범한 기본 커서"를 브라우저 네이티브 커서(cursor:default)로 잘못
