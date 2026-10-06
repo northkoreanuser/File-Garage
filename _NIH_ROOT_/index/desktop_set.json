@@ -8,12 +8,26 @@
     {
       "name": "Simple Vault",
       "url": "_NIH_ROOT_/tools/Simple_Vault.html",
-      "icon": ""
+      "icon": "",
+      "popup": true,
+      "width": 900,
+      "height": 640
     },
     {
-      "name": "URL-Locker",
+      "name": "Ent",
+      "url": "_NIH_ROOT_/tools/Ent.html",
+      "icon": "",
+      "popup": true,
+      "width": 900,
+      "height": 640
+    },
+    {
+      "name": "URL Locker",
       "url": "_NIH_ROOT_/tools/URL-Locker.html#lock=1",
-      "icon": ""
+      "icon": "",
+      "popup": true,
+      "width": 900,
+      "height": 640
     }
   ]
 }

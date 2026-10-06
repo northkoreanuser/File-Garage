@@ -301,7 +301,7 @@
     display: flex; align-items: center; gap: 9px; padding: 7px 8px;
     cursor: var(--cur-link); font-size: 12.5px; color: #fff;
   }
-  .start-app-row:hover { background: #1BA1E2; }
+  .start-app-row:hover, .start-app-row.kb-focus { background: #1BA1E2; }
   .start-app-icon {
     width: 20px; height: 20px; flex: 0 0 20px; overflow: hidden;
     display: flex; align-items: center; justify-content: center;

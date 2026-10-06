@@ -129,7 +129,7 @@ function ensureJSZip() {
 // openShortcutUrl과 같은 크기의 작은 별도 창으로 연다.
 async function viewOnPages(it, popup) {
   const url = await githubRawUrl(it);
-  if (popup) dfOpenNewTab(url, "_blank", "width=1000,height=700,resizable=yes,scrollbars=yes,noopener");
+  if (popup) dfOpenRawPopup(it.name, url); // 가짜 팝업(앱 안 창)으로 먼저 연다 - context-menu.js
   else dfOpenNewTab(url, "_blank", "noopener,noreferrer");
 }
 // "GitHub에서 다운로드" - 단순 링크 이동이 아니라 fetch로 받아서 blob으로 강제 저장한다.
@@ -236,6 +236,37 @@ function applyToolboxConfig(data) {
       };
     });
   toolboxTree = buildToolboxTree(toolboxItems);
+}
+/* 바탕 화면 링크(desktop_set.json) - 툴박스와 같은 모양의 목록({ items: [{ name, url, icon, popup... }] })을
+   바탕화면 아이콘으로 보여준다(desktop-fs.js의 dfsRenderDesktop). 정리 규칙은 applyToolboxConfig를 그대로
+   빌려 쓰고(임시로 돌려본 뒤 원래 툴박스 상태로 되돌리지 않도록 계산만 따로 한다), 바탕화면에는 폴더가
+   없으므로 이름의 백슬래시 앞부분은 버리고 마지막 조각만 아이콘 이름으로 쓴다. id는 위치 기억용 키다. */
+let desktopLinkItems = [];
+function applyDesktopSetConfig(data) {
+  const raw = (data && Array.isArray(data.items)) ? data.items : [];
+  const seen = new Set();
+  // 주소를 비워두고 이름 칸에만 저장소 경로를 적은 경우(예: 이름 = "음악\\노래.mp3")에도 아이콘이 나타나도록,
+  // 주소가 없으면 이름을 저장소 안 경로로 본다(백슬래시는 슬래시로).
+  const urlOf = it => (typeof it.url === "string" && it.url.trim()) ? it.url.trim()
+    : (typeof it.name === "string" && it.name.trim() && it.name.trim() !== "새 항목") ? it.name.trim().replace(/\\/g, "/") : "";
+  desktopLinkItems = raw
+    .filter(it => it && urlOf(it))
+    .map(it => {
+      const url = urlOf(it);
+      let fallbackName = "";
+      try { fallbackName = decodeURIComponent(url.split(/[?#]/)[0].split("/").filter(Boolean).pop() || ""); } catch (e) { fallbackName = url; }
+      const fullName = (typeof it.name === "string" && it.name.trim()) ? it.name.trim() : (fallbackName || "새 항목");
+      let id = "link:" + fullName, n = 2;
+      while (seen.has(id)) id = "link:" + fullName + "#" + (n++);
+      seen.add(id);
+      return {
+        id, name: toolboxSplitNamePath(fullName).baseName, fullName, url,
+        icon: typeof it.icon === "string" ? it.icon : "",
+        popup: !!it.popup,
+        width: Number(it.width) || 900,
+        height: Number(it.height) || 640
+      };
+    });
 }
 // 이식성 수정: icon_set.json/menu_set.json 안의 아이콘 경로가 예전엔 "/File-Garage/_NIH_ROOT_/..."
 // 처럼 레포 이름을 그대로 박아넣은 절대경로였다 - 레포 이름이 바뀌거나(포크/이름변경) 다른 곳에
@@ -363,11 +394,81 @@ function resolveFileIcon(name, size, path) {
 // 저장소 파일과 같은 규칙(resolveFileIcon)으로 기본 아이콘을 고른다 - 예를 들어 이름을
 // "GitTool.7z.001"로 지어두면 실제 저장소의 .001 파일처럼 자연스러운 기본 아이콘이 붙는다
 // (요청: "실제(사실 실제는 아님) 파일로 추가됨").
-function toolboxIconGlyphFor(it, size) {
+/* 요청: 주소가 이 페이지 자신의 플래그먼트(#툴박스, #폴더/파일.txt, 또는 같은 주소 + #...)인 링크는 어떤
+   폴더/파일을 가리키는지 알 수 있으므로, 아이콘을 따로 지정하지 않았으면 그 대상의 아이콘을 자동으로 쓴다.
+   같은 페이지 링크가 아니면 null. 폴더/파일 구분은 이미 읽어둔 목록(dirCache, toolboxTree)에서 먼저 찾고,
+   아직 안 읽은 경로면 마지막 조각에 확장자가 있는지로 짐작한다(네트워크를 새로 타지 않는다). */
+/* 버그 리포트: 주소에 "VishwaJai - Eastern Arctic Dubstep.mp3"처럼 저장소 안의 파일 경로를 그대로(플래그먼트 없이)
+   적은 경우 - 이것도 이 사이트 안의 상대 주소라 어떤 저장소 파일/폴더인지 알 수 있다. 그 저장소 경로(이름 배열)를
+   돌려주고, 이 사이트 밖 주소이거나 탐색기에 안 보이는 경로(_NIH_ 포함, index.html 자신)면 null. */
+function dfRepoPathFromUrl(url) {
+  try {
+    const u = new URL(url, location.href);
+    if (u.origin !== location.origin || u.pathname === location.pathname) return null;
+    const base = location.pathname.replace(/[^/]*$/, "");
+    if (u.pathname.indexOf(base) !== 0) return null;
+    const p = u.pathname.slice(base.length).split("/").filter(Boolean).map(seg => { try { return decodeURIComponent(seg); } catch (e) { return seg; } });
+    if (!p.length || p.some(seg => /_NIH_/i.test(seg))) return null;
+    if (p.length === 1 && p[0].toLowerCase() === "index.html") return null;
+    return p;
+  } catch (e) {
+    return null;
+  }
+}
+let dfLinkIconDepth = 0; // 링크가 서로를 가리키는 경우(툴박스 항목 A -> #툴박스/A)의 무한 반복 방지
+function dfSamePageLinkIcon(url, size) {
+  if (dfLinkIconDepth > 3) return null;
+  dfLinkIconDepth++;
+  try { return dfSamePageLinkIconInner(url, size); } finally { dfLinkIconDepth--; }
+}
+function dfSamePageLinkIconInner(url, size) {
+  const hash = dfSamePageDeepLinkHash(url);
+  if (hash != null && typeof hashToPath !== "function") return null;
+  const p = hash != null ? (hashToPath(hash) || []) : dfRepoPathFromUrl(url); // 플래그먼트 주소 또는 저장소 안 상대 경로
+  if (!p) return null;
+  if (!p.length) return resolveRepoRootIcon(size);
+  if (p.length === 1) {
+    if (p[0] === DESKTOP_TREE_NAME) return resolveDesktopIcon(size, true);
+    if (p[0] === RECYCLEBIN_TREE_NAME) return resolveRecycleBinIcon(size, !(typeof dfsRecycleBinHasItems !== "undefined" && dfsRecycleBinHasItems));
+    if (p[0] === TOOLBOX_TREE_NAME) return resolveToolboxRootIcon(size);
+  }
+  const name = p[p.length - 1];
+  if (p[0] === TOOLBOX_TREE_NAME) {
+    let cur = toolboxTree;
+    for (let i = 1; i < p.length - 1 && cur; i++) cur = cur.folders[p[i]];
+    if (cur && cur.folders[name]) return resolveFolderIcon(p, size, false);
+    const tb = cur ? cur.files.find(f => f.name === name) : null;
+    if (tb) return toolboxIconInner({ name, toolboxNode: tb }, size); // 배지(↪)는 바깥에서 한 번만 붙인다
+  }
+  let isFolder = dirCache.has(p.join("/")), file = null;
+  if (!isFolder) {
+    const parent = dirCache.get(p.slice(0, -1).join("/"));
+    if (parent) {
+      if ((parent.folders || []).some(f => (f && f.name !== undefined ? f.name : f) === name)) isFolder = true;
+      else file = (parent.files || []).find(f => f.name === name) || null;
+    }
+    if (!isFolder && !file) isFolder = !/\.[A-Za-z0-9_]{1,8}$/.test(name);
+  }
+  if (isFolder) return resolveFolderIcon(p, size, false);
+  if (file && file.dfsNode && typeof dfsIconGlyphFor === "function") return dfsIconGlyphFor(file.dfsNode, size);
+  return resolveFileIcon(name, size, p);
+}
+function toolboxIconInner(it, size) {
   const node = it.toolboxNode || {};
-  const inner = node.icon
+  return node.icon
     ? `<img src="${escapeHtml(resolveIconSrc(node.icon))}" style="width:${size}px;height:${size}px;object-fit:contain;">`
-    : resolveFileIcon(it.name, size, null);
+    : (dfSamePageLinkIcon(node.url, size) || resolveFileIcon(toolboxIconNameFor(it.name, node.url), size, null));
+}
+// 이름에 확장자가 없으면(예: 기본 이름 "새 항목") 주소의 마지막 조각(파일명)으로 확장자 아이콘을 고른다.
+function toolboxIconNameFor(name, url) {
+  if (/\.[A-Za-z0-9_]{1,8}$/.test(name || "")) return name;
+  // 주소의 "경로" 마지막 조각만 본다 - 그냥 "/"로 자르면 https://example.com 의 ".com"을 확장자로 잘못 본다.
+  let last = "";
+  try { last = decodeURIComponent(new URL(String(url || ""), location.href).pathname.split("/").filter(Boolean).pop() || ""); } catch (e) {}
+  return /\.[A-Za-z0-9_]{1,8}$/.test(last) ? last : name;
+}
+function toolboxIconGlyphFor(it, size) {
+  const inner = toolboxIconInner(it, size);
   return `<span style="position:relative;display:inline-block;">${inner}<span class="df-icon-shortcut-badge">↪</span></span>`;
 }
 function resolveRepoRootIcon(size) {
@@ -597,6 +698,7 @@ function dfLsSoundSkinKey(skinName) { return dfLsSoundSkinPrefix() + (skinName |
 function dfLsExtRunKey() { return "dfLocalExtRunSetV1"; }
 // 툴박스(toolbox_set.json) - 메뉴/아이콘/사운드/확장자와 완전히 같은 패턴(dfReadLocalOverride 등).
 function dfLsToolboxKey() { return "dfLocalToolboxSetV1"; }
+function dfLsDesktopSetKey() { return "dfLocalDesktopSetV1"; }
 function dfReadLocalOverride(key) {
   try {
     const raw = localStorage.getItem(key);

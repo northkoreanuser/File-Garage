@@ -22,14 +22,43 @@
           "height": 640
         },
         {
-          "name": "URL-Locker.html",
+          "name": "Simple Vault",
+          "url": "_NIH_ROOT_/tools/Simple_Vault.html",
+          "icon": "",
+          "popup": true,
+          "width": 900,
+          "height": 640
+        },
+        {
+          "name": "Ent",
+          "url": "_NIH_ROOT_/tools/Ent.html",
+          "icon": "",
+          "popup": true,
+          "width": 900,
+          "height": 640
+        },
+        {
+          "name": "URL Locker",
           "url": "_NIH_ROOT_/tools/URL-Locker.html#lock=1",
-          "icon": ""
+          "icon": "",
+          "popup": true,
+          "width": 900,
+          "height": 640
         }
       ]
+    },
+    {
+      "name": "툴박스",
+      "url": "#툴박스",
+      "icon": ""
     }
   ],
   "tray": [
+    {
+      "name": "툴박스",
+      "url": "#툴박스",
+      "icon": ""
+    },
     {
       "name": "AutoHotkey",
       "url": "https://www.autohotkey.com/download/ahk-v2.exe",

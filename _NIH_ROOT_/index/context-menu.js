@@ -257,6 +257,10 @@ function buildFileMenuItems(it) {
   // 예전엔 html 전용이었다(사용자 지시로 일반화됨). 요청 #142로 더블클릭 기본값 자체는 "helper"로
   // 바뀌었지만, 이 우클릭 메뉴 항목은 기본값과 무관하게 항상 표시된다.
   items.push({ label: "새 탭에서 열기", action: () => viewAsHostedPage(it) });
+  // 요청: html 파일은 "팝업으로 열기"도 - 시작 메뉴 등의 팝업 항목과 같은 앱 안 창(가짜 팝업)으로 먼저 열고,
+  // 진짜 브라우저 창이 필요하면 그 창 위쪽의 "새 창으로 열기"를 누른다. 주소는 "새 탭에서 열기"와 같은 이 사이트의 실제 경로.
+  // 요청: html뿐 아니라 모든 파일에 기본 항목으로 둔다(텍스트/이미지/음악 등은 브라우저가 그 창 안에서 바로 보여준다).
+  items.push({ label: "팝업으로 열기", action: () => viewAsHostedPage(it, true) });
   // 열기/다운로드는 이 사이트에서는 항상 로컬 프로그램(webhook)을 통해서만 가능하므로
   // 굳이 "로컬 프로그램으로"라고 설명을 덧붙이지 않는다.
   items.push({ label: "열기", action: () => localHelperOpen(it) });
@@ -269,9 +273,11 @@ function buildFileMenuItems(it) {
   // 또 다른 바로가기"를 만드는 것도 유효한 시나리오이기 때문).
   items.push({ label: "바탕 화면에 바로가기 만들기", action: () => dfsCreateDesktopShortcutFromRepoItem(it) });
   if (settings.githubLinksEnabled) {
-    items.push({ label: "브라우저에서 보기", action: () => viewOnPages(it) });
-    // 요청: "브라우저에서 보기"의 팝업 버전 - 새 탭 대신 작은 별도 창으로 연다.
-    items.push({ label: "브라우저에서 보기 (팝업)", action: () => viewOnPages(it, true) });
+    // 요청: "팝업으로 열기"(이 사이트의 실제 주소)와 헷갈리지 않게 이름을 "raw 보기"로 바꿨다(예전 "브라우저에서
+    // 보기") - 이쪽은 GitHub의 raw 주소로 파일 내용을 그대로 보여주는 것이다. 팝업 버전은 앱 안 창(가짜 팝업)으로
+    // 열고, 진짜 브라우저 창이 필요하면 그 창의 "새 창으로 열기"를 누른다(state.js의 viewOnPages).
+    items.push({ label: "raw 보기", action: () => viewOnPages(it) });
+    items.push({ label: "raw 보기 (팝업)", action: () => viewOnPages(it, true) });
     items.push({ label: "저장소에서 보기", action: () => openInRepo(it) });
     items.push({ label: "브라우저에서 다운로드", action: () => downloadFromGithub(it) });
   }
@@ -367,6 +373,34 @@ function dfsRecycleBinItemMenuItems(it) {
     } }
   ];
 }
+// "raw 보기 (팝업)" - GitHub raw 주소는 다른 페이지 안에 넣는 것(iframe)을 거부하므로, 내용을 직접 받아와서
+// blob: 주소로 앱 안 창에 보여준다(글자는 그대로 텍스트로, 이미지/음악/영상/PDF는 그 형식 그대로).
+// 못 받아오면 raw 주소를 그대로 넣어 본다. 창의 "새 창으로 열기"는 원래 raw 주소를 진짜 팝업으로 연다.
+async function dfOpenRawPopup(name, url) {
+  let frameSrc = url;
+  try {
+    const res = await fetch(url);
+    if (res.ok) {
+      const blob = await res.blob();
+      const keep = /^(image|audio|video)\//.test(blob.type || "") || blob.type === "application/pdf";
+      frameSrc = URL.createObjectURL(keep ? blob : new Blob([blob], { type: "text/plain;charset=utf-8" }));
+    }
+  } catch (e) { /* 아래에서 raw 주소 그대로 시도 */ }
+  return dfOpenPopupInApp({ name: name, url: url, frameSrc: frameSrc, iconHtml: resolveFileIcon(name, 16, null), width: 1000, height: 700 }, 1000, 700);
+}
+// html 파일을 앱 안 창(가짜 팝업)으로 연다 - 저장소 파일(실제 주소)과 바탕화면 가상 파일(blob: 주소) 공용.
+function dfOpenHtmlPopup(name, url) {
+  return dfOpenPopupInApp({ name: name, url: url, iconHtml: resolveFileIcon(name, 16, null), width: 1000, height: 700 }, 1000, 700);
+}
+// 바탕화면(가상 파일시스템)의 html 파일 - 내용으로 blob: 주소를 만들어 연다(스크립트도 실행된다).
+function dfsOpenHtmlNodeAsPopup(node) {
+  // 이름은 .html인데 html 형식으로 저장돼 있지 않은 텍스트 파일만 따로 html로 만들어 준다 - 나머지(html, 일반
+  // 텍스트, 이미지 같은 이진 파일)는 dfsNodeBlobUrl이 형식에 맞는 blob: 주소를 준다.
+  const url = (!node.binary && node.fileType !== "html" && isHtml(node.name))
+    ? URL.createObjectURL(new Blob([node.content || ""], { type: "text/html;charset=utf-8" }))
+    : dfsNodeBlobUrl(node);
+  return dfOpenHtmlPopup(node.name, url);
+}
 function dfsDesktopFileMenuItems(it) {
   const refresh = () => dfsBroadcastChange();
   const node = it.dfsNode;
@@ -411,6 +445,7 @@ function dfsDesktopFileMenuItems(it) {
   if (!node.binary && it.type === "html") {
     fileItems.push({ label: "새 탭에서 보기(뷰어)", action: () => dfsOpenHtmlAsViewerTab(node) });
   }
+  fileItems.push({ label: "팝업으로 열기", action: () => dfsOpenHtmlNodeAsPopup(node) }); // 모든 파일 공통
   fileItems.push(
     // 실제 탐색기 파일 메뉴와 순서를 맞춘다: 다운로드(웹훅으로 로컬 헬퍼가 저장) 다음
     // 브라우저에서 다운로드(강제 blob 다운로드).

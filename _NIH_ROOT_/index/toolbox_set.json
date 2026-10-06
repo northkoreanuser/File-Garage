@@ -3,32 +3,58 @@
     {
       "name": "GitTool\\GitTool.7z.001",
       "url": "_NIH_ROOT_/tools/GitTool.7z.001",
-      "icon": ""
+      "icon": "",
+      "popup": true,
+      "width": 900,
+      "height": 640
     },
     {
       "name": "GitTool\\GitTool.7z.002",
       "url": "_NIH_ROOT_/tools/GitTool.7z.001",
-      "icon": ""
+      "icon": "",
+      "popup": true,
+      "width": 900,
+      "height": 640
     },
     {
       "name": "ahk-v2.exe",
       "url": "https://www.autohotkey.com/download/ahk-v2.exe",
-      "icon": "_NIH_ROOT_/index/ui/icon/menu/traybar/autohotkey.svg"
+      "icon": "_NIH_ROOT_/index/ui/icon/menu/traybar/autohotkey.svg",
+      "popup": true,
+      "width": 900,
+      "height": 640
     },
     {
       "name": "vault_gui.exe",
       "url": "_NIH_ROOT_/tools/vault_gui.exe",
-      "icon": "_NIH_ROOT_/index/ui/icon/Vault.ico"
+      "icon": "_NIH_ROOT_/index/ui/icon/Vault.ico",
+      "popup": true,
+      "width": 900,
+      "height": 640
     },
     {
       "name": "Simple Vault",
       "url": "_NIH_ROOT_/tools/Simple_Vault.html",
-      "icon": ""
+      "icon": "",
+      "popup": true,
+      "width": 900,
+      "height": 640
     },
     {
-      "name": "URL-Locker",
+      "name": "Ent",
+      "url": "_NIH_ROOT_/tools/Ent.html",
+      "icon": "",
+      "popup": true,
+      "width": 900,
+      "height": 640
+    },
+    {
+      "name": "URL Locker",
       "url": "_NIH_ROOT_/tools/URL-Locker.html#lock=1",
-      "icon": ""
+      "icon": "",
+      "popup": true,
+      "width": 900,
+      "height": 640
     }
   ]
 }

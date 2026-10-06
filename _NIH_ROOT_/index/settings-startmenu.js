@@ -60,7 +60,8 @@ const AVAILABLE_THEMES = new Set(["default", "win98", "win2000", "winxp", "winvi
 // index.html과 같은 origin의 상대 경로로 직접 불러온다(base64 내장 없이, 진짜 파일 그대로).
 // ui 폴더는 _NIH_ROOT_/index/ui 아래로 옮겨졌다(사용자 지시 - 인덱스 관련 리소스를 index/ 밑으로 모음).
 function themeStylesheetUrl(name) {
-  return `_NIH_ROOT_/index/ui/theme/${AVAILABLE_THEMES.has(name) ? name : "win7"}/style.css`;
+  // ?v= : index.html의 빌드 번호(NIH_VER) - 테마 css가 예전 것으로 캐시되지 않게 한다.
+  return `_NIH_ROOT_/index/ui/theme/${AVAILABLE_THEMES.has(name) ? name : "win7"}/style.css` + (window.NIH_VER ? "?v=" + window.NIH_VER : "");
 }
 function applyTheme(name) {
   if (!els.themeLink) return;
@@ -153,7 +154,7 @@ function dfsBuildSettingsBodyHtml() {
       <div class="settings-divider"></div>
       <div class="settings-row">
         <label class="settings-check"><input type="checkbox" id="setGithubLinks"> GitHub 바로가기 표시</label>
-        <div class="settings-hint">우클릭 메뉴에 "브라우저에서 보기 / 저장소에서 보기 / 브라우저에서 다운로드"를 추가로 표시합니다.</div>
+        <div class="settings-hint">우클릭 메뉴에 "raw 보기 / 저장소에서 보기 / 브라우저에서 다운로드"를 추가로 표시합니다.</div>
       </div>
       <div class="settings-divider"></div>
       <div class="settings-row">
@@ -237,6 +238,10 @@ function dfsBuildSettingsBodyHtml() {
         <span class="settings-label">툴박스</span>
         <button class="settings-button settings-button-neutral" id="setToolboxMakerBtn">툴박스 메이커 열기</button>
         <div class="settings-hint">탐색기의 "툴박스" 위치에 보여줄 외부 링크(exe/zip 등 어떤 주소든) 목록을 GUI로 편집합니다(toolbox_set.json). 이름/주소(URL)/아이콘을 지정하면, 탐색기 안에서는 실제로 존재하는 파일처럼 나타나고 열면 그 주소로 이동합니다 - 절대/상대 경로 구분 없이 아무 사이트의 주소나 넣을 수 있습니다. 저장은 다른 저장/다운로드 버튼과 같은 방식이며, 받은 파일을 저장소의 _NIH_ROOT_/index/toolbox_set.json 위치에 덮어써야 실제로 반영됩니다.</div>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-row">
+        <div class="settings-hint">빌드 ${window.NIH_VER || "?"}</div>
       </div>
     </div>
   `;
@@ -476,7 +481,77 @@ function setupStartMenu(owner) {
 }
 // 요청 #164: Ctrl+Win(윈도우 키) 단축키로도 시작 메뉴를 열고 닫을 수 있게 - keyboard-and-activate.js의
 // 전역 keydown 리스너에서 호출한다(시작 버튼 클릭과 완전히 같은 동작).
-function toggleStartMenu() { els.startMenu.classList.toggle("open"); }
+/* 시작 메뉴 방향키 이동 (버그 리포트: 시작 메뉴를 열어도 방향키가 뒤의 탐색기 선택을 움직였다)
+   시작 메뉴가 열려 있는 동안에는 방향키/Enter/Esc를 여기서 가로채 메뉴 안에서만 쓴다(게임패드의 십자키도
+   방향키로 들어오므로 같이 해결된다).
+     - 위/아래: 항목 이동(끝에서 반대쪽으로), 오른쪽/Enter: 하위 메뉴 열기 또는 실행, 왼쪽: 하위 메뉴 닫기
+     - Esc 또는 다시 토글: 닫고, 키보드 포커스를 메뉴를 열기 전 자리로 되돌린다
+   fromKey: 키보드/패드로 열었을 때 true - 첫 항목을 바로 강조한다(마우스로 열면 강조 없이 시작). */
+let startKbPrevFocus = null;
+function startMenuIsOpen() { return els.startMenu.classList.contains("open"); }
+function startKbRows() {
+  const subs = openSubmenuEls.filter(el => el.isConnected);
+  const box = subs.length ? subs[subs.length - 1] : els.startMenu;
+  return [...box.querySelectorAll(".start-app-row")].filter(r => r.offsetParent !== null);
+}
+function startKbCurrent() {
+  const rows = startKbRows();
+  return rows.find(r => r.classList.contains("kb-focus")) || null;
+}
+function startKbFocus(row) {
+  document.querySelectorAll(".start-app-row.kb-focus").forEach(r => r.classList.remove("kb-focus"));
+  if (!row) return;
+  row.classList.add("kb-focus");
+  if (row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
+}
+function closeStartMenu(restoreFocus) {
+  closeAllSubmenus();
+  els.startMenu.classList.remove("open");
+  startKbFocus(null);
+  const prev = startKbPrevFocus;
+  startKbPrevFocus = null;
+  if (restoreFocus && prev && prev !== document.body && prev.isConnected && prev.focus) prev.focus({ preventScroll: true });
+}
+function toggleStartMenu(fromKey) {
+  if (startMenuIsOpen()) { closeStartMenu(true); return; }
+  startKbPrevFocus = document.activeElement;
+  els.startMenu.classList.add("open");
+  startKbFocus(fromKey ? startKbRows()[0] : null);
+}
+function startKbOpenSub(row) {
+  if (!row || !row.querySelector(".start-app-chevron")) return false;
+  row.click(); // 하위 메뉴 열기(openSubmenuFor가 새 하위 메뉴를 목록 끝에 추가한다)
+  const sub = openSubmenuEls[openSubmenuEls.length - 1];
+  if (sub) { sub._kbParentRow = row; startKbFocus(startKbRows()[0]); }
+  return true;
+}
+document.addEventListener("keydown", (e) => {
+  if (!startMenuIsOpen()) return;
+  if (typeof activeCtxMenu !== "undefined" && activeCtxMenu) return; // 시작 항목의 우클릭 메뉴가 떠 있으면 그쪽이 먼저
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+  if (!["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight", "Enter", "Escape"].includes(e.key)) return;
+  e.preventDefault();
+  e.stopImmediatePropagation(); // 뒤의 탐색기/바탕화면/트리의 방향키 이동이 같이 움직이지 않게
+  if (e.key === "Escape") { closeStartMenu(true); return; }
+  const rows = startKbRows();
+  if (!rows.length) return;
+  const cur = startKbCurrent(), i = cur ? rows.indexOf(cur) : -1;
+  if (e.key === "ArrowDown") startKbFocus(rows[i < 0 ? 0 : (i + 1) % rows.length]);
+  else if (e.key === "ArrowUp") startKbFocus(rows[i < 0 ? rows.length - 1 : (i - 1 + rows.length) % rows.length]);
+  else if (e.key === "ArrowRight") { if (cur) startKbOpenSub(cur); else startKbFocus(rows[0]); }
+  else if (e.key === "ArrowLeft") {
+    const subs = openSubmenuEls.filter(el => el.isConnected);
+    if (!subs.length) return;
+    const last = subs[subs.length - 1], parent = last._kbParentRow;
+    openSubmenuEls = openSubmenuEls.filter(el => el !== last);
+    last.remove();
+    startKbFocus(parent && parent.isConnected ? parent : startKbRows()[0]);
+  }
+  else if (e.key === "Enter") {
+    if (!cur) return;
+    if (!startKbOpenSub(cur)) cur.click(); // 실행(항목의 click이 메뉴도 닫는다 - 새로 뜬 창의 포커스는 건드리지 않음)
+  }
+}, true);
 
 /* ============ menu_set.json / icon_set.json / sound_set.json (요청 #122) ============
    예전엔 _NIH_ROOT_/menu/ 아래 start.json+tray.json 두 파일 -> 그 다음엔 메뉴 메이커가 다루기
@@ -497,6 +572,7 @@ const EXTENSION_RUN_SET_JSON_PATH = "_NIH_ROOT_/index/extension_run_set.json";
 // 버튼 대신, 툴박스(메뉴 메이커의 "툴박스" 탭)로 이런 항목들을 자유롭게 관리한다 - 모양은
 // { "items": [ { "name": "...", "url": "...", "icon": "...", "popup": false }, ... ] }.
 const TOOLBOX_SET_JSON_PATH = "_NIH_ROOT_/index/toolbox_set.json";
+const DESKTOP_SET_JSON_PATH = "_NIH_ROOT_/index/desktop_set.json";
 async function fetchJsonQuiet(path) {
   try {
     const res = await fetch(path, { cache: "no-store" });
@@ -538,6 +614,17 @@ async function loadToolboxSetConfig() {
   if (local) return local;
   const data = await fetchJsonQuiet(TOOLBOX_SET_JSON_PATH);
   return data || {};
+}
+// 바탕 화면 링크(desktop_set.json) - 툴박스와 같은 방식(로컬 미리보기 override가 있으면 그것 우선).
+async function loadDesktopSetConfig() {
+  const local = dfReadLocalOverride(dfLsDesktopSetKey());
+  if (local) return local;
+  const data = await fetchJsonQuiet(DESKTOP_SET_JSON_PATH);
+  return data || {};
+}
+async function refreshDesktopSetConfig() {
+  applyDesktopSetConfig(await loadDesktopSetConfig());
+  if (typeof dfsRenderDesktop === "function") dfsRenderDesktop();
 }
 // 요청 #121: 스킨 폴더(_NIH_ROOT_/index/ui/theme/<스킨>/) 안에도 icon_set.json이 있을 수 있다
 // (메뉴 메이커의 "스킨용으로 저장" 체크박스로 만들어진다). menu_set.json/sound_set.json은 스킨
@@ -604,10 +691,10 @@ function mergeIconSetConfigs(base, skin, skinPriority) {
 // icon_set.json도 미리 같이 읽어와 skinIcons/skinName으로 함께 건네준다(dfsOpenMenuMakerInWindow가
 // 창을 만들기 전에 한 번 호출해서 초기 데이터로 넘겨준다).
 async function loadAllMenuMakerConfigs() {
-  const [menu, icons, sounds, skinIcons, skinSounds, extRun, toolbox] = await Promise.all([
-    loadMenuSetConfig(), loadIconSetConfig(), loadSoundSetConfig(), loadSkinIconSetConfig(settings.theme), loadSkinSoundSetConfig(settings.theme), loadExtensionRunSetConfig(), loadToolboxSetConfig()
+  const [menu, icons, sounds, skinIcons, skinSounds, extRun, toolbox, desktop] = await Promise.all([
+    loadMenuSetConfig(), loadIconSetConfig(), loadSoundSetConfig(), loadSkinIconSetConfig(settings.theme), loadSkinSoundSetConfig(settings.theme), loadExtensionRunSetConfig(), loadToolboxSetConfig(), loadDesktopSetConfig()
   ]);
-  return { menu: menu || { start: [], tray: [] }, icons: icons || {}, sounds: sounds || {}, skinIcons: skinIcons || {}, skinSounds: skinSounds || {}, skinName: settings.theme, extRun: extRun || {}, toolbox: toolbox || { items: [] } };
+  return { menu: menu || { start: [], tray: [] }, icons: icons || {}, sounds: sounds || {}, skinIcons: skinIcons || {}, skinSounds: skinSounds || {}, skinName: settings.theme, extRun: extRun || {}, toolbox: toolbox || { items: [] }, desktop: desktop || { items: [] } };
 }
 // 부팅 시 + 스킨/스킨아이콘우선 설정이 바뀔 때마다 다시 불러서 화면에 반영한다(applyCustomIconConfig
 // 이후 화면들을 다시 그려야 실제로 아이콘이 바뀐 게 보인다).
@@ -702,6 +789,8 @@ window.addEventListener("storage", (e) => {
     dfDebouncedLsRefresh("extRun", () => loadExtensionRunSetConfig().then(applyExtensionRunSetConfig));
   } else if (e.key === dfLsToolboxKey()) {
     dfDebouncedLsRefresh("toolbox", refreshToolboxConfig);
+  } else if (e.key === dfLsDesktopSetKey()) {
+    dfDebouncedLsRefresh("desktopSet", refreshDesktopSetConfig);
   }
 });
 function makeAppIcon(item, className) {
@@ -714,19 +803,124 @@ function makeAppIcon(item, className) {
     img.onerror = () => { wrap.innerHTML = ""; wrap.textContent = (item.name || "?").charAt(0).toUpperCase(); };
     wrap.appendChild(img);
   } else {
-    wrap.textContent = (item.name || "?").charAt(0).toUpperCase();
+    // 아이콘을 지정하지 않았어도 주소가 이 페이지의 플래그먼트(#폴더/파일)면 그 대상의 아이콘을 자동으로 쓴다.
+    const auto = item.url ? dfSamePageLinkIcon(item.url, 20) : null;
+    // 요청: 시작 메뉴(와 트레이)도 툴박스/바탕 화면처럼 확장자별 아이콘을 쓴다 - 이름이나 주소의 파일명에 확장자가
+    // 있으면(예: URL-Locker.html, tool.exe) 그 확장자의 아이콘, 없으면(일반 사이트 주소 등) 예전처럼 이름 첫 글자.
+    const fileName = toolboxIconNameFor(item.name || "", item.url || "");
+    if (auto) wrap.innerHTML = auto;
+    else if (item.url && /\.(?=[A-Za-z0-9_]*[A-Za-z])[A-Za-z0-9_]{1,8}$/.test(fileName)) wrap.innerHTML = resolveFileIcon(fileName, 20, null);
+    else wrap.textContent = (item.name || "?").charAt(0).toUpperCase();
   }
   return wrap;
 }
 // 요청 #131: menu_set.json 항목은 이제 "새 탭 열기"가 항상 기본값이고(선택할 필요 없음), 팝업
 // 여부만 고른다. mode를 주면 항목에 저장된 기본값(item.popup)과 무관하게 그 자리에서 한 번만
 // 강제로 그 방식으로 연다(트레이 우클릭 메뉴 등에서 사용 - dfSetupTrayIconContextMenu 참고).
+// 탐색기(드라이브) 창을 띄워(닫힘/최소화 해제 + 맨 앞으로) 해시가 가리키는 곳으로 이동한다.
+function dfShowExplorerAtHash(hash) {
+  els.win.classList.remove("closed", "minimized");
+  els.taskbarApp.classList.add("active");
+  persistWindowOpen(true);
+  if (typeof dfAppWinBringToFront === "function") dfAppWinBringToFront(els.win);
+  dfNavigateSamePageLink(hash);
+}
+/* 이 사이트 안의 경로(이름 배열)를 가리키는 링크 열기.
+   요청: "폴더 주소가 아닌 파일이면 드라이브 띄우지 마라"(음악 재생 창과 탐색기가 같이 떴음) - 그래서
+     - 폴더(루트/툴박스/바탕 화면/휴지통 포함): 탐색기를 띄워 그 폴더로 이동
+     - 파일: 탐색기는 건드리지 않고 그 파일만 더블클릭한 것처럼 연다(뷰어/플레이어/에디터 등)
+     - 어느 쪽인지 목록에서 못 찾음: notFound()에 맡긴다
+   폴더/파일 구분은 부모 폴더 목록에서 찾는다(파일 경로를 폴더로 읽어보려다 실패하는 헛요청을 하지 않는다). */
+async function dfOpenInternalPath(p, notFound, onRepoFile) {
+  const asFolder = () => dfShowExplorerAtHash("#" + pathToHash(p));
+  if (p.length === 0 || (p.length === 1 && (isDfsPath(p) || isToolboxPath(p)))) { asFolder(); return; }
+  const name = p[p.length - 1];
+  try {
+    if (isDfsPath(p)) {
+      const node = await dfsNodeAtPath(p).catch(() => null);
+      if (!node) { notFound(); return; }
+      if (node.type === "folder") asFolder(); else dfsActivate(node);
+      return;
+    }
+    const dir = await loadDir(p.slice(0, -1));
+    if ((dir.folders || []).some(f => (f && f.name !== undefined ? f.name : f) === name)) { asFolder(); return; }
+    const f = (dir.files || []).find(x => x.name === name);
+    if (!f) { notFound(); return; }
+    // 툴박스 항목이 자기 자신을 가리키는 주소면(#툴박스/자기이름) 끝없이 되돌아오므로 열지 않는다.
+    if (f.toolboxNode) {
+      const selfHash = dfSamePageDeepLinkHash(f.toolboxNode.url);
+      if (selfHash != null && (hashToPath(selfHash) || []).join("/") === p.join("/")) return;
+    }
+    // 팝업으로 설정된 항목이 저장소의 평범한 파일을 가리키면, 더블클릭 동작(대개 새 탭 - 전체화면이 풀린다)으로
+    // 넘기지 않고 호출한 쪽이 그 파일 주소를 팝업으로 열게 한다.
+    if (onRepoFile && !f.dfsNode && !f.toolboxNode) { onRepoFile(p.map(encodeURIComponent).join("/")); return; }
+    // content-pane.js가 파일 칸에 만드는 것과 같은 모양 - activate()가 실제 더블클릭과 똑같이 판단한다.
+    activate({ name: f.name, size: f.size, crc32: f.crc32, path: p, type: fileTypeFor(f.name), dfsNode: f.dfsNode, toolboxNode: f.toolboxNode });
+  } catch (e) {
+    notFound();
+  }
+}
+// 팝업 항목을 앱 안 창으로 연다(전체화면 유지용 - 위 activateExternalItem 참고). 프레임 안에 넣는 것을 거부하는
+// 사이트는 빈 화면으로 나올 수 있어서, 위쪽 줄에 "새 창으로 열기"(진짜 팝업 - 이때는 브라우저가 전체화면을 푼다)를 둔다.
+function dfOpenPopupInApp(item, w, h) {
+  let url = item.url;
+  try { url = new URL(item.url, location.href).href; } catch (e) {}
+  const handle = dfCreateAppWindow({
+    title: item.name || url,
+    icon: item.iconHtml ? item.iconHtml : item.icon ? `<img src="${escapeHtml(resolveIconSrc(item.icon))}" style="width:16px;height:16px;object-fit:contain;" alt="">` : "\u{1F310}",
+    width: w,
+    height: h + 70, // 타이틀바 + 주소 줄만큼 더해서 안쪽 화면이 설정한 크기가 되게
+    bodyHtml:
+      '<div style="flex:0 0 auto;display:flex;gap:8px;align-items:center;padding:3px 8px;font-size:11.5px;background:rgba(0,0,0,.06);">' +
+        `<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.7;">${escapeHtml(url)}</span>` +
+        '<button class="settings-button settings-button-neutral df-frame-out" title="화면이 비어 보이면(프레임을 거부하는 사이트) 진짜 새 창으로 엽니다 - 브라우저가 전체화면을 풉니다">새 창으로 열기</button>' +
+      '</div>' +
+      '<iframe style="flex:1;min-height:0;width:100%;border:0;background:#fff;" allow="clipboard-read; clipboard-write; fullscreen"></iframe>'
+  });
+  const frame = handle.bodyEl.querySelector("iframe");
+  frame.src = item.frameSrc || url; // frameSrc: 창 안에 실제로 보여줄 주소가 따로 있을 때(raw 보기 - 받아온 내용의 blob:)
+  handle.bodyEl.querySelector(".df-frame-out").onclick = () => { handle.close(); activateExternalItem(item, "realpopup"); };
+  // 창을 끌거나 크기를 바꾸는 동안 마우스가 iframe 위로 지나가면 움직임이 끊긴다 - 그동안만 iframe이 마우스를 못 받게 한다.
+  handle.el.addEventListener("mousedown", (e) => {
+    if (e.target === frame) return;
+    frame.style.pointerEvents = "none";
+    const restore = () => { frame.style.pointerEvents = ""; window.removeEventListener("mouseup", restore, true); };
+    window.addEventListener("mouseup", restore, true);
+  }, true);
+  return handle;
+}
 function activateExternalItem(item, mode) {
   if (!item || !item.url) return;
-  const asPopup = mode ? mode === "popup" : !!item.popup;
+  // 요청: 주소가 "#툴박스"처럼 플래그먼트뿐이거나 이 페이지 자신의 주소 + 플래그먼트면 새 탭을 띄우지 않고
+  // 지금 탐색기(드라이브) 창에서 그 위치를 연다 - 폴더면 이동, 파일이면 더블클릭한 것처럼 연다
+  // (bootstrap.js의 dfApplyHashNavigation). 우클릭 메뉴에서 "새 탭/팝업으로 열기"를 직접 고른 경우(mode)는 그대로 둔다.
+  if (!mode) {
+    // 버그 리포트: 팝업으로 설정한 항목인데도 전체화면이 풀렸다 - 항목이 저장소 안의 파일을 가리키면 아래의
+    // "드라이브에서 열기"가 팝업 설정을 무시하고 그 파일의 더블클릭 동작(새 탭 열기 = 전체화면 해제)으로 넘겨
+    // 버리고 있었다. 팝업 항목이면 파일은 항상 팝업으로 연다(팝업은 전체화면을 풀지 않는다). 폴더는 그대로 탐색기.
+    const asPopupFile = item.popup ? (fileUrl) => activateExternalItem(Object.assign({}, item, { url: fileUrl }), "popup") : null;
+    const hash = dfSamePageDeepLinkHash(item.url);
+    if (hash != null) {
+      dfOpenInternalPath(hashToPath(hash) || [], () => dfShowExplorerAtHash(hash), asPopupFile);
+      return;
+    }
+    // 저장소 안의 파일/폴더를 상대 경로로 적은 주소(예: "VishwaJai - Eastern Arctic Dubstep.mp3")도 탐색기에 실제로
+    // 있는 항목이면 같은 방식으로 연다. 목록에 없으면(색인에 안 실린 파일 등) 예전처럼 새 탭/팝업.
+    const repoPath = dfRepoPathFromUrl(item.url);
+    if (repoPath) {
+      dfOpenInternalPath(repoPath, () => activateExternalItem(item, item.popup ? "popup" : "tab"), item.popup ? () => activateExternalItem(item, "popup") : null);
+      return;
+    }
+  }
+  const asPopup = mode ? (mode === "popup" || mode === "realpopup") : !!item.popup;
   if (asPopup) {
     const w = item.width || 900;
     const h = item.height || 640;
+    // 요청: "팝업으로 설정되면 절대 전체화면을 해제하지 마라." 이 앱은 팝업을 열 때 전체화면을 풀지 않지만(코드에
+    // 그런 호출이 없다), 브라우저가 새 창이 뜨는 순간 스스로 전체화면을 풀어버리고 이건 페이지에서 막을 수 없다.
+    // 그래서 전체화면인 동안에는 브라우저 창을 새로 띄우지 않고, 같은 크기의 앱 안 창(iframe)으로 연다 - 브라우저
+    // 창이 생기지 않으니 전체화면이 풀릴 일이 없다. 전체화면이 아닐 때는 예전처럼 진짜 팝업 창으로 연다.
+    if (dfIsFullscreen() && mode !== "realpopup") { dfOpenPopupInApp(item, w, h); return; }
     const left = Math.round(((window.screen.width || 1280) - w) / 2);
     const top = Math.round(((window.screen.height || 800) - h) / 2);
     dfOpenNewTab(item.url, "_blank", `popup=yes,width=${w},height=${h},left=${left},top=${top}`);

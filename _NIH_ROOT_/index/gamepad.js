@@ -57,8 +57,11 @@
     '#gpCursor.on { display: block; }\n' +
     // 패드로 조작하는 동안에는 진짜 마우스 커서를 숨긴다(마우스가 연결돼 있어도 커서는 하나만 보인다).
     'html.gp-active, html.gp-active * { cursor: none !important; }\n' +
+    // 버그 리포트: 진짜 커서만 숨기면 그 자리에 있던 것(트레이 아이콘 등)의 마우스 오버 효과와 툴팁이 그대로 남는다 -
+    // 패드로 조작하는 동안 화면 전체를 투명한 막으로 덮어 진짜 마우스가 아무것도 가리키지 못하게 한다.
+    '#gpShield { position: fixed; inset: 0; z-index: 2147483646; display: none; background: transparent; }\n' +
+    'html.gp-active #gpShield { display: block; }\n' +
     '#gpCursor.drag { filter: drop-shadow(0 0 5px #3a8fe0); opacity: .8; }\n' +
-    '.gp-focus { background: rgba(90,160,220,.32) !important; box-shadow: inset 0 0 0 1px rgba(150,200,240,.9) !important; }\n' +
     '.gp-tray { display: none; align-items: center; padding: 0 6px; font-size: 15px; cursor: var(--cur-link, pointer); }\n' +
     '.gp-tray.on { display: flex; }\n' +
     '#gpOsk { position: fixed; left: 50%; bottom: 56px; transform: translateX(-50%); z-index: 2147483000; display: none; flex-direction: column; gap: 4px;' +
@@ -88,6 +91,9 @@
   styleEl.textContent = css;
   document.head.appendChild(styleEl);
 
+  const shieldEl = document.createElement("div");
+  shieldEl.id = "gpShield";
+  document.body.appendChild(shieldEl);
   const cursorEl = document.createElement("div");
   cursorEl.id = "gpCursor";
   document.body.appendChild(cursorEl);
@@ -115,7 +121,7 @@
       ["LB / RB", "뒤로 / 앞으로"],
       ["RT", "Enter"],
       ["LT (누르고)", "느린 커서 · LT + A = Ctrl+클릭(여러 개 선택)"],
-      ["Start", "시작 메뉴 (열려 있는 동안 십자키 = 항목 이동, 좌우 = 하위 메뉴, RT/A = 실행)"],
+      ["Start", "시작 메뉴 (열려 있는 동안 십자키 = 항목 이동, 좌우 = 하위 메뉴, RT = 실행, B = 닫기)"],
       ["Back (Select)", "이 안내 열기 / 닫기"]
     ].map((r) => "<b>" + r[0] + "</b><span>" + r[1] + "</span>").join("") +
     '</div><div class="gp-help-note">화면 키보드가 열려 있을 때: 십자키 = 키 사이 이동 · X = 지우기 · LB = 한/영 · RB = Shift<br>' +
@@ -129,7 +135,10 @@
 
   /* ---------------- 가짜 마우스 ---------------- */
   function under() {
-    return document.elementFromPoint(cx, cy) || document.body;
+    // 진짜 마우스를 가리는 막(#gpShield)은 건너뛰고 그 아래의 실제 요소를 찾는다.
+    const list = document.elementsFromPoint(cx, cy);
+    for (let i = 0; i < list.length; i++) if (list[i] !== shieldEl) return list[i];
+    return document.body;
   }
   function fire(type, target, o) {
     const ev = new MouseEvent(type, Object.assign({
@@ -615,85 +624,8 @@
     if (best) { cx = best.x; cy = best.y; placeCursor(); }
   }
 
-  /* ---------------- 시작 메뉴: 십자키 포커스 ----------------
-     시작 메뉴가 열리면 십자키가 메뉴 항목을 오르내린다(커서도 그 항목 위로 따라가서 A로 바로 누를 수 있다).
-     오른쪽 = 하위 메뉴 열기, 왼쪽 = 하위 메뉴 닫기, RT/A = 실행. Start나 B로 다시 닫으면 키보드 포커스와
-     커서를 메뉴를 열기 전 자리로 되돌린다(항목을 실행해서 닫힌 경우에는 새로 뜬 창을 건드리지 않는다). */
-  const startMenuEl = document.getElementById("startMenu");
-  let smWas = false, smRow = null, smPrevFocus = null, smPrevCur = null, smRestore = false;
-  function startOpen() { return !!(startMenuEl && startMenuEl.classList.contains("open")); }
-  function smSubs() { return (typeof openSubmenuEls !== "undefined" && Array.isArray(openSubmenuEls)) ? openSubmenuEls.filter((el) => el.isConnected) : []; }
-  function smRows() {
-    const subs = smSubs(), box = subs.length ? subs[subs.length - 1] : startMenuEl;
-    return Array.prototype.filter.call(box.querySelectorAll(".start-app-row"), (r) => r.offsetParent !== null);
-  }
-  function smFocus(row) {
-    if (smRow) smRow.classList.remove("gp-focus");
-    smRow = row || null;
-    if (!smRow) return;
-    smRow.classList.add("gp-focus");
-    if (smRow.scrollIntoView) smRow.scrollIntoView({ block: "nearest" });
-    const r = smRow.getBoundingClientRect();
-    cx = r.left + Math.min(r.width / 2, 120); cy = r.top + r.height / 2;
-    placeCursor();
-  }
-  function smStep(dir) {
-    const rows = smRows();
-    if (!rows.length) return;
-    let i = rows.indexOf(smRow);
-    if (dir === "ArrowDown") smFocus(rows[i < 0 ? 0 : (i + 1) % rows.length]);
-    else if (dir === "ArrowUp") smFocus(rows[i < 0 ? rows.length - 1 : (i - 1 + rows.length) % rows.length]);
-    else if (dir === "ArrowRight") {
-      if (i < 0 || !smRow.querySelector(".start-app-chevron")) return;
-      const parent = smRow;
-      parent.click(); // 하위 메뉴 열기
-      const next = smRows();
-      if (next.length && next[0] !== rows[0]) { smFocus(next[0]); smRow._gpParent = parent; }
-    } else if (dir === "ArrowLeft") {
-      const subs = smSubs();
-      if (!subs.length) return;
-      const parent = (smRow && smRow._gpParent) || null;
-      const last = subs[subs.length - 1];
-      openSubmenuEls.splice(openSubmenuEls.indexOf(last), 1);
-      last.remove();
-      const back = smRows();
-      smFocus(parent && parent.isConnected ? parent : back[0]);
-    }
-  }
-  function smActivate() {
-    if (smRow && smRow.isConnected) {
-      if (smRow.querySelector(".start-app-chevron")) smStep("ArrowRight"); else smRow.click();
-      return true;
-    }
-    return false;
-  }
-  function smClose() { // Start/B로 직접 닫는 경우 - 닫힌 뒤 원래 자리로 되돌린다
-    smRestore = true;
-    if (typeof closeAllSubmenus === "function") closeAllSubmenus();
-    startMenuEl.classList.remove("open");
-  }
-  function smWatch() {
-    const open = startOpen();
-    if (open === smWas) {
-      if (open && smRow && !smRow.isConnected) smFocus(smRows()[0]); // 메뉴가 다시 그려진 경우
-      return;
-    }
-    smWas = open;
-    if (open) {
-      if (!smPrevFocus) smPrevFocus = document.activeElement;
-      smPrevCur = [cx, cy];
-      smRestore = false;
-      smFocus(smRows()[0]);
-    } else {
-      if (smRow) smRow.classList.remove("gp-focus");
-      smRow = null;
-      if (smRestore) {
-        if (smPrevFocus && smPrevFocus !== document.body && smPrevFocus.isConnected && smPrevFocus.focus) smPrevFocus.focus({ preventScroll: true });
-        if (smPrevCur) { cx = smPrevCur[0]; cy = smPrevCur[1]; placeCursor(); }
-      }
-      smPrevFocus = null; smPrevCur = null; smRestore = false;
-    }
-  }
+  // 시작 메뉴 안의 이동은 앱 자체의 방향키 처리(settings-startmenu.js)가 맡는다 - 패드는 방향키/Enter/Esc만 보낸다.
+  function startOpen() { const m = document.getElementById("startMenu"); return !!(m && m.classList.contains("open")); }
 
   /* ---------------- 버튼 처리 ---------------- */
   function scrollTarget(t, vertical) {
@@ -708,9 +640,9 @@
   function dpad(dir) { // dir: "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight"
     const dx = dir === "ArrowLeft" ? -1 : dir === "ArrowRight" ? 1 : 0, dy = dir === "ArrowUp" ? -1 : dir === "ArrowDown" ? 1 : 0;
     if (oskOn) { oskStep(dx, dy); return; }
-    if (startOpen()) { smStep(dir); return; }
     const t = under();
     const media = t.closest && t.closest("video, audio");
+    if (startOpen()) { sendKey(dir); return; } // 커서가 영상 위에 있더라도 시작 메뉴가 먼저다
     if (media) {
       if (dx) { try { media.currentTime = Math.max(0, media.currentTime + dx * 5); } catch (e) {} }
       else media.volume = Math.max(0, Math.min(1, media.volume - dy * 0.1));
@@ -729,19 +661,16 @@
         break;
       case BTN.B:
         if (oskOn) oskClose();
-        else if (startOpen()) smClose();
         else sendKey("Escape");
         break;
       case BTN.Y: if (oskOn) oskClose(); else if (fieldOf(document.activeElement)) oskOpen(); break;
       case BTN.LB: if (oskOn) oskPress("lang"); else sendKey("ArrowLeft", { altKey: true }); break;
       case BTN.RB: if (oskOn) oskPress("shift"); else sendKey("ArrowRight", { altKey: true }); break;
       case BTN.RT:
-        if (!oskOn && startOpen() && smActivate()) break;
         oskCommit(); sendKey("Enter");
         break;
       case BTN.START:
-        if (startOpen()) smClose();
-        else if (typeof toggleStartMenu === "function") { smPrevFocus = document.activeElement; toggleStartMenu(); }
+        if (typeof toggleStartMenu === "function") toggleStartMenu(true);
         break;
       case BTN.UP: dpad("ArrowUp"); break;
       case BTN.DOWN: dpad("ArrowDown"); break;
@@ -801,7 +730,6 @@
     if (dirHeld !== repKey) { repKey = dirHeld; repAt = t + REP_FIRST; }
     else if (repKey && t >= repAt) { repAt = t + REP_NEXT; dpad(repKey); }
     prev = now;
-    smWatch();
 
     if (sm > DEAD) {
       const k = (sm - DEAD) / (1 - DEAD), sp = SCROLL_SPEED * k * k * dt;

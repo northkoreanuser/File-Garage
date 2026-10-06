@@ -26,7 +26,7 @@ document.addEventListener("keydown", (e) => {
   // 브라우저까지 이벤트가 안 올 수도 있다 - 그런 경우는 이 페이지에서 어떻게 할 수 있는 방법이 없다.
   if ((e.key === "Meta" && e.ctrlKey) || (e.key === "Control" && e.metaKey)) {
     e.preventDefault();
-    toggleStartMenu();
+    toggleStartMenu(true);
     return;
   }
   // 요청 #126: Ctrl+E = 루트 탐색기 열기(단, 지금 "닫혀 있을 때만" - 이미 열려 있으면 사용자가
@@ -128,6 +128,11 @@ function triggerDeleteSelected(permanent) {
   if (treeFileHighlightKey !== null) {
     const entry = flattenVisibleTree().find(en => en.key === treeFileHighlightKey);
     if (entry && entry.item) triggerSingleDelete(entry.item, permanent, findDeleteAction);
+    return;
+  }
+  // 요청: 휴지통 하나만 선택된 상태에서 Delete = 휴지통 비우기 - 트리에서 휴지통 자체가 선택돼 있을 때도 같다.
+  if (navFocused && currentPath.length === 1 && isRecycleBinPath(currentPath)) {
+    dfsEmptyRecycleBin().then(() => dfsBroadcastChange());
   }
 }
 // 요청 #159: buildFileMenuItems가 만드는 "삭제" 액션은 항상 dfsDelete(휴지통 이동)만 호출하므로
@@ -369,7 +374,9 @@ function viewAsHostedPage(it, popup) {
   } else {
     url = path.map(encodeURIComponent).join("/");
   }
-  if (popup) dfOpenNewTab(url, "_blank", "width=1000,height=700,resizable=yes,scrollbars=yes,noopener");
+  // 요청: 팝업은 기본이 가짜 팝업(앱 안 창) - 우클릭의 "팝업으로 열기"와 메뉴 메이커 확장자 탭의 더블클릭 동작
+  // "팝업으로 열기" 둘 다 여기로 온다. 진짜 브라우저 창은 그 창의 "새 창으로 열기"로 연다.
+  if (popup) dfOpenHtmlPopup(it.name, url);
   else dfOpenNewTab(url, "_blank", "noopener,noreferrer");
 }
 // 요청 #141: 저장소에 올라간 .sc 파일의 실제 내용(JSON 텍스트)을 읽어서 그 안의 주소로 이동한다 -

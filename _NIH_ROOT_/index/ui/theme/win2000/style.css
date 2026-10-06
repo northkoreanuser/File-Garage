@@ -328,7 +328,7 @@
     display: flex; align-items: center; gap: 8px; padding: 4px 6px;
     cursor: var(--cur-link); font-size: 12px; color: #000;
   }
-  .start-app-row:hover { background: #0a246a; color: #fff; }
+  .start-app-row:hover, .start-app-row.kb-focus { background: #0a246a; color: #fff; }
   .start-app-row:hover .start-app-chevron { color: #fff; }
   .start-app-icon {
     width: 18px; height: 18px; flex: 0 0 18px; overflow: hidden;
