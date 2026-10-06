@@ -20,6 +20,11 @@
           "popup": true,
           "width": 900,
           "height": 640
+        },
+        {
+          "name": "URL-Locker.html",
+          "url": "_NIH_ROOT_/tools/URL-Locker.html#lock=1",
+          "icon": ""
         }
       ]
     }

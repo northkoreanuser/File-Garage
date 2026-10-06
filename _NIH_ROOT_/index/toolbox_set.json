@@ -18,11 +18,16 @@
     {
       "name": "vault_gui.exe",
       "url": "_NIH_ROOT_/tools/vault_gui.exe",
-      "icon": "_NIH_ROOT_/tools/_ico_/vault_gui.ico"
+      "icon": "_NIH_ROOT_/index/ui/icon/Vault.ico"
     },
     {
       "name": "Simple Vault",
       "url": "_NIH_ROOT_/tools/Simple_Vault.html",
+      "icon": ""
+    },
+    {
+      "name": "URL-Locker",
+      "url": "_NIH_ROOT_/tools/URL-Locker.html#lock=1",
       "icon": ""
     }
   ]

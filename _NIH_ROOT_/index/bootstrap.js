@@ -169,9 +169,6 @@ async function main() {
     // renderNavPane()부터 곧바로 정확하게 그려지도록, 그리고 이름에 백슬래시로 적은 하위 폴더가
     // 있어도 지금 보고 있는 경로/펼쳐둔 트리 가지까지 함께 다시 채워지도록 - 위 함수 주석 참고).
     await applyToolboxConfigAndRefresh(cfg.toolbox);
-    // 바탕 화면 링크(desktop_set.json) 반영 - 바탕화면이 이미 그려져 있었다면 아이콘을 다시 그린다.
-    applyDesktopSetConfig(cfg.desktop);
-    if (typeof dfsRenderDesktop === "function") dfsRenderDesktop();
     // 커스텀 아이콘 설정이 이 시점(비동기)에야 도착하므로, 이미 그려져 있던 타이틀바 아이콘도
     // 다시 계산해야 한다(부팅 직후엔 아직 customIconConfig가 비어 있어 기본 아이콘으로 그려졌었음).
     updateWinTitlebarIcon();

@@ -142,7 +142,7 @@ async function dfsNextIconPos(parentId) {
   // 열의 위쪽 두 자리)에 고정으로 그려지므로(dfsRenderDesktop 참고), 실제 사용자 아이콘은 그만큼
   // 밀어서 배치한다.
   const siblings = await dfsDb.nodes.where("parentId").equals(parentId).toArray();
-  const idx = siblings.length + (parentId === DFS_DESKTOP_ROOT ? 2 + desktopLinkItems.length : 0); // +바탕 화면 링크(desktop_set.json) 아이콘 수
+  const idx = siblings.length + (parentId === DFS_DESKTOP_ROOT ? 2 : 0);
   const maxRows = dfsMaxGridRows();
   const col = Math.floor(idx / maxRows), row = idx % maxRows;
   return { x: 24 + col * 96, y: 24 + row * 100 };
@@ -204,29 +204,6 @@ function dfsNearestFreeCell(occupied, col, row, maxRows) {
 }
 // 지금 바탕화면에 있는 모든 아이콘(진짜 dexie 노드 + 저장소 루트/휴지통 특수 아이콘 2개)의 현재
 // 픽셀 위치를 한 목록으로 모은다 - 격자 스냅/충돌 판정에서 두 종류를 똑같이 다루기 위함.
-// 바탕 화면 링크(desktop_set.json) 아이콘들의 위치 - 사용자가 끌어 옮긴 적이 있으면 저장된 자리(특수 아이콘과
-// 같은 localStorage), 없으면 다른 아이콘이 없는 첫 빈 격자 칸(첫 열 위에서부터)을 차례로 준다.
-function dfsDesktopLinkPositions(nodes, specialPos) {
-  if (!desktopLinkItems.length) return [];
-  const key = (x, y) => { const c = dfsPixelToCell(x, y); return c.col + "," + c.row; };
-  const occupied = new Set(nodes.map(n => key(n.x ?? 24, n.y ?? 24)));
-  const rr = specialPos[DFS_REPOROOT_ICON_ID] || { x: 24, y: 24 }, rb = specialPos[DFS_RECYCLEBIN_ICON_ID] || { x: 24, y: 124 };
-  occupied.add(key(rr.x, rr.y)); occupied.add(key(rb.x, rb.y));
-  desktopLinkItems.forEach(it => { const p = specialPos[it.id]; if (p) occupied.add(key(p.x, p.y)); });
-  const maxRows = Math.max(1, dfsMaxGridRows());
-  let cursor = 0;
-  return desktopLinkItems.map(it => {
-    const saved = specialPos[it.id];
-    if (saved) return { item: it, x: saved.x, y: saved.y };
-    for (;; cursor++) {
-      const col = Math.floor(cursor / maxRows), row = cursor % maxRows;
-      if (occupied.has(col + "," + row)) continue;
-      occupied.add(col + "," + row);
-      const px = dfsCellToPixel(col, row);
-      return { item: it, x: px.x, y: px.y };
-    }
-  });
-}
 async function dfsAllDesktopIconPositions() {
   const nodes = await dfsChildren(DFS_DESKTOP_ROOT);
   const specialPos = dfsLoadSpecialIconPos();
@@ -235,7 +212,6 @@ async function dfsAllDesktopIconPositions() {
   const recycleBinPos = specialPos[DFS_RECYCLEBIN_ICON_ID] || { x: 24, y: 124 };
   list.push({ id: DFS_REPOROOT_ICON_ID, isSpecial: true, x: repoRootPos.x, y: repoRootPos.y });
   list.push({ id: DFS_RECYCLEBIN_ICON_ID, isSpecial: true, x: recycleBinPos.x, y: recycleBinPos.y });
-  dfsDesktopLinkPositions(nodes, specialPos).forEach(p => list.push({ id: p.item.id, isSpecial: true, x: p.x, y: p.y }));
   return list;
 }
 function dfsSaveIconPosition(id, isSpecial, x, y) {
@@ -1281,20 +1257,6 @@ async function dfsRenderDesktop() {
       { label: "속성", action: () => dfsShowRecycleBinProperties() }
     ]
   );
-  // 바탕 화면 링크(desktop_set.json, 메뉴 메이커의 "바탕 화면" 탭) - 툴박스 항목과 같은 외부 주소 바로가기를
-  // 특수 아이콘과 같은 방식(옮길 수 있지만 지우거나 이름을 바꿀 수는 없음)으로 그린다.
-  dfsDesktopLinkPositions(items, dfsSpecialPos).forEach(p => {
-    const link = p.item;
-    const it = { name: link.name, path: [DESKTOP_TREE_NAME, link.name], type: fileTypeFor(link.name), toolboxNode: link };
-    dfsRenderSpecialIcon(
-      link.id, p.x, p.y, toolboxIconGlyphFor(it, 40), link.name,
-      () => activateExternalItem(link),
-      () => [
-        ...buildToolboxItemMenuItems(it),
-        { label: "바탕 화면 메이커 열기", action: () => dfsOpenMenuMakerInWindow({ initialTab: "desktop" }) }
-      ]
-    );
-  });
   items.forEach(node => {
     const icon = document.createElement("div");
     const isSelected = dfsSelectedIconId === node.id || dfsMultiSelected.has(node.id);
@@ -2086,14 +2048,8 @@ async function dfsRenameSelectedIcon() {
 async function dfsDeleteSelectedIcons(permanent) {
   // Delete는 여러 개 선택돼 있어도 확인 대화상자 하나로 한꺼번에 지운다(다중 선택된 상태에서
   // 하나씩 확인창이 겹쳐 뜨는 걸 피하기 위함). 특수 아이콘(문자열 id)은 지울 수 없으므로 제외한다.
-  const allIds = dfsMultiSelected.size ? [...dfsMultiSelected] : (dfsSelectedIconId !== null ? [dfsSelectedIconId] : []);
-  // 요청: 휴지통 하나만 선택된 상태에서 Delete = 휴지통 비우기(확인창은 dfsEmptyRecycleBin이 띄운다).
-  if (allIds.length === 1 && allIds[0] === DFS_RECYCLEBIN_ICON_ID) {
-    await dfsEmptyRecycleBin();
-    await dfsBroadcastChange();
-    return;
-  }
-  const ids = allIds.filter(id => typeof id === "number");
+  const ids = (dfsMultiSelected.size ? [...dfsMultiSelected] : (dfsSelectedIconId !== null ? [dfsSelectedIconId] : []))
+    .filter(id => typeof id === "number");
   if (!ids.length) return;
   const nodes = (await Promise.all(ids.map(id => dfsDb.nodes.get(id)))).filter(Boolean);
   if (!nodes.length) return;
@@ -2144,7 +2100,6 @@ els.dfIconLayer.addEventListener("keydown", async (e) => {
     for (const sid of specialIds) {
       if (sid === DFS_REPOROOT_ICON_ID) await openRealExplorerAt([]);
       else if (sid === DFS_RECYCLEBIN_ICON_ID) await openRealExplorerAt([RECYCLEBIN_TREE_NAME]);
-      else { const link = desktopLinkItems.find(l => l.id === sid); if (link) activateExternalItem(link); }
     }
     const nodes = (await Promise.all(realIds.map(id => dfsDb.nodes.get(id)))).filter(Boolean);
     for (const node of nodes) await dfsActivate(node);

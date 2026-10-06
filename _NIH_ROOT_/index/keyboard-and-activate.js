@@ -26,7 +26,7 @@ document.addEventListener("keydown", (e) => {
   // 브라우저까지 이벤트가 안 올 수도 있다 - 그런 경우는 이 페이지에서 어떻게 할 수 있는 방법이 없다.
   if ((e.key === "Meta" && e.ctrlKey) || (e.key === "Control" && e.metaKey)) {
     e.preventDefault();
-    toggleStartMenu(true);
+    toggleStartMenu();
     return;
   }
   // 요청 #126: Ctrl+E = 루트 탐색기 열기(단, 지금 "닫혀 있을 때만" - 이미 열려 있으면 사용자가
@@ -128,11 +128,6 @@ function triggerDeleteSelected(permanent) {
   if (treeFileHighlightKey !== null) {
     const entry = flattenVisibleTree().find(en => en.key === treeFileHighlightKey);
     if (entry && entry.item) triggerSingleDelete(entry.item, permanent, findDeleteAction);
-    return;
-  }
-  // 요청: 휴지통 하나만 선택된 상태에서 Delete = 휴지통 비우기 - 트리에서 휴지통 자체가 선택돼 있을 때도 같다.
-  if (navFocused && currentPath.length === 1 && isRecycleBinPath(currentPath)) {
-    dfsEmptyRecycleBin().then(() => dfsBroadcastChange());
   }
 }
 // 요청 #159: buildFileMenuItems가 만드는 "삭제" 액션은 항상 dfsDelete(휴지통 이동)만 호출하므로

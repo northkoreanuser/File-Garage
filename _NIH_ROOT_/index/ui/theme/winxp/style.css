@@ -343,7 +343,7 @@
     display: flex; align-items: center; gap: 9px; padding: 6px 8px;
     border-radius: 5px; cursor: var(--cur-link); font-size: 12.5px; color: #16345c;
   }
-  .start-app-row:hover, .start-app-row.kb-focus { background: linear-gradient(180deg, #7fb8ff 0%, #3b8fee 100%); color: #fff; }
+  .start-app-row:hover { background: linear-gradient(180deg, #7fb8ff 0%, #3b8fee 100%); color: #fff; }
   .start-app-icon {
     width: 20px; height: 20px; flex: 0 0 20px; border-radius: 4px; overflow: hidden;
     display: flex; align-items: center; justify-content: center;
