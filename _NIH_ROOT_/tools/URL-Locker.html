@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL LOCKER🔐</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d0f14'/%3E%3Crect x='8' y='15' width='16' height='12' rx='3' fill='%234fffb0'/%3E%3Cpath d='M11 15v-4a5 5 0 0 1 10 0v4' fill='none' stroke='%234fffb0' stroke-width='2.5' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='21' r='2' fill='%230d0f14'/%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+:root {
+    --bg: #0d0f14;
+    --surface: #161920;
+    --surface2: #1e2230;
+    --border: #2a2f42;
+    --accent: #4fffb0;
+    --accent-dim: #1a3d2e;
+    --accent-glow: rgba(79, 255, 176, 0.15);
+    --text: #e8ecf4;
+    --text-dim: #6b7394;
+    --red: #ff4f6a;
+    --red-dim: #3d1a22;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: 'IBM Plex Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px 80px;
+}
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 48px 48px;
+    opacity: 0.3;
+    pointer-events: none;
+}
+.wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 520px;
+    z-index: 1;
+}
+.header {
+    text-align: center;
+    margin-bottom: 48px;
+}
+.logo {
+    font-family: 'Syne', sans-serif;
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text);
+}
+.logo span { color: var(--accent); }
+.subtitle {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-top: 6px;
+}
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    position: relative;
+    overflow: hidden;
+}
+.card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.6;
+}
+.security-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent-dim);
+    border: 1px solid rgba(79,255,176,0.3);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 0.65rem;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+}
+.security-badge .dot {
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+.field { margin-bottom: 20px; }
+.field label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+}
+.input-wrap { position: relative; }
+.field input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 13px 16px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--text);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+    -webkit-appearance: none;
+}
+.field input::placeholder { color: #3a3f58; }
+.field input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.field input.has-toggle { padding-right: 46px; }
+.toggle-vis {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 2px;
+    font-size: 1rem;
+    line-height: 1;
+    transition: color 0.2s;
+}
+.toggle-vis:hover { color: var(--text); }
+.key-area {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 11px 14px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    line-height: 1.5;
+    color: var(--text);
+    outline: none;
+    resize: vertical;
+    word-break: break-all;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.key-area::placeholder { color: #3a3f58; }
+.key-area:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.key-note {
+    color: var(--accent);
+    font-size: 0.6rem;
+    letter-spacing: 0.04em;
+    text-transform: none;
+}
+.key-note.bad { color: var(--red); }
+.priv-box {
+    margin-top: 12px;
+    padding: 12px 14px;
+    background: rgba(255,79,106,0.08);
+    border: 1px solid rgba(255,79,106,0.4);
+    border-radius: 10px;
+}
+.priv-title {
+    font-size: 0.62rem;
+    letter-spacing: 0.06em;
+    color: var(--red);
+    margin-bottom: 8px;
+}
+.algo-select-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.algo-select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 13px 16px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--text);
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7394' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 36px;
+}
+.algo-select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.algo-select option {
+    background: var(--surface2);
+    color: var(--text);
+}
+.security-level {
+    display: flex;
+    gap: 4px;
+}
+.security-level .sec-seg {
+    flex: 1;
+    height: 3px;
+    border-radius: 2px;
+    transition: background 0.3s;
+    background: var(--border);
+}
+.strength-bar {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
+}
+.strength-bar .seg {
+    flex: 1;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    transition: background 0.3s;
+}
+.strength-bar.s1 .seg:nth-child(1)      { background: var(--red); }
+.strength-bar.s2 .seg:nth-child(-n+2)   { background: #ff9f4f; }
+.strength-bar.s3 .seg:nth-child(-n+3)   { background: #ffe04f; }
+.strength-bar.s4 .seg                   { background: var(--accent); }
+.strength-label {
+    font-size: 0.6rem;
+    color: var(--text-dim);
+    margin-top: 4px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+.kdf-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    margin-bottom: 24px;
+}
+.kdf-info .icon { font-size: 1rem; }
+.kdf-info strong { color: var(--accent); }
+.btn-primary {
+    width: 100%;
+    padding: 14px;
+    background: var(--accent);
+    color: #0a1a12;
+    border: none;
+    border-radius: 10px;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    position: relative;
+    overflow: hidden;
+}
+.btn-primary:hover:not(:disabled) { opacity: 0.9; }
+.btn-primary:active:not(:disabled) { transform: scale(0.98); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-secondary {
+    flex: 1;
+    padding: 11px 16px;
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+}
+.btn-secondary:hover { border-color: var(--accent); background: var(--accent-dim); }
+.spinner-wrap {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 20px 0 4px;
+}
+.spinner-wrap.active { display: flex; }
+.spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner-label {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+.kdf-progress {
+    font-size: 0.68rem;
+    color: var(--accent);
+    margin-top: -6px;
+}
+.result-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 24px;
+}
+.result-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+}
+.result-url {
+    font-size: 0.78rem;
+    color: var(--accent);
+    word-break: break-all;
+    line-height: 1.6;
+    padding: 12px;
+    background: var(--bg);
+    border-radius: 8px;
+    border: 1px solid var(--accent-dim);
+}
+.result-url a {
+    color: inherit;
+    text-decoration: none;
+}
+.result-url a:hover { text-decoration: underline; }
+.qr-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+}
+#qrcode {
+    border-radius: 10px;
+    border: 6px solid white;
+}
+.btn-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+}
+.decrypt-preview {
+    margin-top: 24px;
+    padding: 16px;
+    background: var(--accent-dim);
+    border: 1px solid rgba(79,255,176,0.25);
+    border-radius: 12px;
+}
+.decrypt-preview .preview-label {
+    font-size: 0.65rem;
+    color: var(--accent);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+.decrypt-preview .preview-url { display: none; }
+@keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20%      { transform: translateX(-8px); }
+    40%      { transform: translateX(8px); }
+    60%      { transform: translateX(-6px); }
+    80%      { transform: translateX(6px); }
+}
+.shake { animation: shake 0.4s ease; }
+.field input.error {
+    border-color: var(--red);
+    box-shadow: 0 0 0 3px rgba(255,79,106,0.15);
+}
+.divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0;
+    color: var(--text-dim);
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+.divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+.footer {
+    margin-top: 32px;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    text-align: center;
+    line-height: 1.8;
+    letter-spacing: 0.06em;
+}
+.footer strong { color: var(--accent); }
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.card { animation: fadeUp 0.4s ease; }
+.copy-feedback {
+    display: inline-block;
+    transition: transform 0.1s;
+}
+</style>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/argon2-browser@1.18.0/dist/argon2-bundled.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+</head>
+<body>
+<div class="wrapper">
+    <div class="header">
+        <div class="logo">URL<span>LOCKER</span> 🔐</div>
+        <div class="subtitle">Encrypted URL vault</div>
+    </div>
+
+    <div class="card">
+
+                <div id="encryptSection" style="display:none">
+            <div class="security-badge">
+                <span class="dot"></span>
+                <span id="badgeText">AES-256-GCM · Argon2id</span>
+            </div>
+
+            <div class="field">
+                <label>🔗 URL</label>
+                <input type="url" id="urlInput" placeholder="https://example.com/" autocomplete="off">
+            </div>
+
+                        <div class="field" id="pubKeyField" style="display:none">
+                <label>🔑 PUBLIC KEY <span id="pubKeyNote" class="key-note"></span></label>
+                <textarea id="pubKeyInput" class="key-area" rows="4" spellcheck="false" autocomplete="off"
+                          placeholder="받는 사람의 공개키 붙여넣기&#10;(개인키를 붙여넣으면 공개키로 자동 변환)"></textarea>
+                <div class="btn-row" style="margin-top:8px">
+                    <button class="btn-secondary" id="keygenBtn" onclick="handleKeygen()">🗝 새 키 쌍 발급</button>
+                </div>
+                <div id="privKeyBox" class="priv-box" style="display:none">
+                    <div class="priv-title">🔒 PRIVATE KEY — 지금 저장하세요. 다시 표시되지 않습니다</div>
+                    <textarea id="privKeyOutput" class="key-area" rows="4" readonly spellcheck="false"></textarea>
+                    <div class="btn-row" style="margin-top:8px">
+                        <button class="btn-secondary" onclick="copyPrivKey(this)">📋 개인키 복사</button>
+                        <button class="btn-secondary" onclick="downloadKeyPair()">⬇ 키 쌍 저장</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="field" id="keyField">
+                <label>🔑 KEY</label>
+                <div class="input-wrap">
+                    <input type="password" id="keyInput" class="has-toggle" placeholder="암호화 키 입력" autocomplete="new-password">
+                    <button class="toggle-vis" onclick="toggleVis('keyInput', this)" tabindex="-1">👁</button>
+                </div>
+                <div class="strength-bar" id="strengthBar">
+                    <span class="seg"></span><span class="seg"></span>
+                    <span class="seg"></span><span class="seg"></span>
+                </div>
+                <div class="strength-label" id="strengthLabel"></div>
+            </div>
+
+            <div class="field">
+                <label>💡 HINT <span style="color:var(--text-dim);font-size:0.6rem;letter-spacing:0.06em;text-transform:none;margin-left:4px;">(선택사항 · 평문 저장)</span></label>
+                <input type="text" id="hintInput" placeholder="키 힌트 입력 (없으면 비워두세요)" autocomplete="off">
+            </div>
+
+                        <div class="field">
+                <label>⚙️ ALGORITHM</label>
+                <div class="algo-select-wrap">
+                    <select id="algoSelect" class="algo-select">
+                        <option value="mlkem768">ML-KEM-768 &nbsp;(PQC KEM · 공개키)</option>
+                        <option value="rsa">RSA-OAEP 3072 &nbsp;(공개키)</option>
+                        <option disabled>────────────────────</option>
+                        <option value="argon2id" selected>Argon2id &nbsp;(권장 · 최강)</option>
+                        <option value="scrypt">scrypt &nbsp;(메모리 하드 · 64MB)</option>
+                        <option value="bcrypt">bcrypt &nbsp;(cost 12)</option>
+                        <option value="pbkdf2">PBKDF2-SHA256 &nbsp;(호환성)</option>
+                        <option value="xor">XOR &nbsp;⚠️ (교육용)</option>
+                    </select>
+                                        <div id="securityLevel" class="security-level">
+                        <span class="sec-seg" style="background:#4fffb0"></span>
+                        <span class="sec-seg" style="background:#4fffb0"></span>
+                        <span class="sec-seg" style="background:#4fffb0"></span>
+                        <span class="sec-seg" style="background:#4fffb0"></span>
+                        <span class="sec-seg" style="background:#4fffb0"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="kdf-info">
+                <span class="icon">🛡</span>
+                <span>키는 <strong>Argon2id</strong>으로 파생 — 브루트포스 저항</span>
+            </div>
+
+            <button class="btn-primary" id="lockBtn" onclick="handleEncrypt()">LOCK IT!</button>
+
+            <div class="spinner-wrap" id="encryptSpinner">
+                <div class="spinner"></div>
+                <div class="spinner-label">키 파생 중</div>
+                <div class="kdf-progress">Argon2id 처리 중...</div>
+            </div>
+        </div>
+
+                <div id="decryptSection" style="display:none">
+            <div class="security-badge">
+                <span class="dot"></span>
+                잠긴 URL 감지됨
+            </div>
+
+            <div id="hintBox" style="display:none;margin-bottom:20px;padding:12px 16px;background:var(--surface2);border:1px solid rgba(79,255,176,0.25);border-radius:10px;">
+                <div style="font-size:0.62rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--accent);margin-bottom:5px;">💡 HINT</div>
+                <div id="hintText" style="font-size:0.85rem;color:var(--text);word-break:break-all;"></div>
+            </div>
+
+            <div class="field">
+                <label id="decryptKeyLabel">🔑 KEY</label>
+                <div class="input-wrap">
+                    <input type="password" id="decryptKeyInput" class="has-toggle"
+                           placeholder="암호화에 사용한 KEY 입력" autocomplete="current-password">
+                    <button class="toggle-vis" onclick="toggleVis('decryptKeyInput', this)" tabindex="-1">👁</button>
+                </div>
+            </div>
+
+                        <div class="field" id="decryptAlgoField">
+                <label>⚙️ ALGORITHM
+                    <span id="algoAutoNote" style="display:none;color:var(--accent);font-size:0.6rem;text-transform:none;letter-spacing:0.04em;margin-left:6px;"></span>
+                </label>
+                <select id="decryptAlgoSelect" class="algo-select">
+                    <option value="mlkem768">ML-KEM-768 (PQC KEM)</option>
+                    <option value="rsa">RSA-OAEP</option>
+                    <option disabled>────────────────────</option>
+                    <option value="argon2id" selected>Argon2id</option>
+                    <option value="scrypt">scrypt</option>
+                    <option value="bcrypt">bcrypt</option>
+                    <option value="pbkdf2">PBKDF2-SHA256</option>
+                    <option value="xor">XOR</option>
+                </select>
+                <div style="font-size:0.6rem;color:var(--text-dim);margin-top:5px;letter-spacing:0.05em;">
+                    ※ 암호화 시 사용한 알고리즘과 일치해야 합니다
+                </div>
+            </div>
+
+            <button class="btn-primary" id="unlockBtn" onclick="handleDecrypt()">UNLOCK</button>
+
+            <div class="spinner-wrap" id="decryptSpinner">
+                <div class="spinner"></div>
+                <div class="spinner-label">복호화 중</div>
+                <div class="kdf-progress">키 파생 + 인증 확인...</div>
+            </div>
+        </div>
+
+                <div id="resultSection" style="display:none">
+            <div class="result-label">🔒 암호화된 URL</div>
+            <div class="result-url" id="encryptedUrlDisplay"></div>
+
+            <div class="qr-wrap">
+                <img id="qrcode" width="180" height="180" alt="QR Code">
+            </div>
+
+            <div class="btn-row">
+                <button class="btn-secondary" onclick="copyEncrypted()">📋 URL 복사</button>
+                <button class="btn-secondary" onclick="downloadQR()">⬇ QR 저장</button>
+                <button class="btn-secondary" onclick="resetAll()">↺ 새로 만들기</button>
+            </div>
+        </div>
+
+    </div>
+    <div class="footer">
+        모든 암호화는 <strong>브라우저 내</strong>에서 처리됩니다.<br>
+        키나 원본 URL은 서버로 전송되지 않습니다.<br>
+        <strong>ML-KEM / RSA / Argon2id / scrypt / PBKDF2 / bcrypt / XOR</strong> → <strong>AES-256-GCM</strong> (인증된 암호화)
+    </div>
+</div>
+<script>
+const ARGON2_MEM=65536;const ARGON2_TIME=3;const ARGON2_PARALLELISM=1;const ARGON2_HASHLEN=32;async function deriveKey_argon2id(password,salt){const result=await argon2.hash({pass:password,salt:salt,type:argon2.ArgonType.Argon2id,mem:ARGON2_MEM,time:ARGON2_TIME,parallelism:ARGON2_PARALLELISM,hashLen:ARGON2_HASHLEN,});return crypto.subtle.importKey('raw',result.hash,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);}
+const PBKDF2_ITERATIONS=600_000;const _enc_pbkdf2=new TextEncoder();async function deriveKey_pbkdf2(password,salt){const keyMaterial=await crypto.subtle.importKey('raw',_enc_pbkdf2.encode(password),'PBKDF2',false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:PBKDF2_ITERATIONS,hash:'SHA-256'},keyMaterial,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);}
+const BCRYPT_COST=12;const _enc_bcrypt=new TextEncoder();function _getBcrypt(){return(typeof dcodeIO!=='undefined'&&dcodeIO.bcrypt)?dcodeIO.bcrypt:(typeof bcrypt!=='undefined'?bcrypt:null);}
+async function deriveKey_bcrypt(password,saltBytes){const bc=_getBcrypt();if(!bc)throw new Error('bcryptjs 라이브러리가 로드되지 않았습니다.');const hexSeed=Array.from(saltBytes).map(b=>b.toString(16).padStart(2,'0')).join('');const bcryptSalt=await new Promise((resolve,reject)=>bc.genSalt(BCRYPT_COST,(err,s)=>err?reject(err):resolve(s)));const saltHash=await crypto.subtle.digest('SHA-256',_enc_bcrypt.encode(hexSeed));const saltB64=btoa(String.fromCharCode(...new Uint8Array(saltHash))).replace(/\+/g,'.').replace(/\//g,'/').slice(0,22);const bcryptSaltStr=`$2a$${String(BCRYPT_COST).padStart(2,'0')}$${saltB64}`;const bcryptHash=await new Promise((resolve,reject)=>bc.hash(password,bcryptSaltStr,(err,h)=>err?reject(err):resolve(h)));const rawKey=await crypto.subtle.digest('SHA-256',_enc_bcrypt.encode(bcryptHash));return crypto.subtle.importKey('raw',rawKey,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);}
+const SCRYPT_N=65536;const SCRYPT_R=8;const SCRYPT_P=2;const SCRYPT_DKLEN=32;const _enc_scrypt=new TextEncoder();function _salsa20_8(x){let x0=x[0],x1=x[1],x2=x[2],x3=x[3],x4=x[4],x5=x[5],x6=x[6],x7=x[7],x8=x[8],x9=x[9],x10=x[10],x11=x[11],x12=x[12],x13=x[13],x14=x[14],x15=x[15],u;for(let i=0;i<4;i++){u=x0+x12|0;x4^=u<<7|u>>>25;u=x4+x0|0;x8^=u<<9|u>>>23;u=x8+x4|0;x12^=u<<13|u>>>19;u=x12+x8|0;x0^=u<<18|u>>>14;u=x5+x1|0;x9^=u<<7|u>>>25;u=x9+x5|0;x13^=u<<9|u>>>23;u=x13+x9|0;x1^=u<<13|u>>>19;u=x1+x13|0;x5^=u<<18|u>>>14;u=x10+x6|0;x14^=u<<7|u>>>25;u=x14+x10|0;x2^=u<<9|u>>>23;u=x2+x14|0;x6^=u<<13|u>>>19;u=x6+x2|0;x10^=u<<18|u>>>14;u=x15+x11|0;x3^=u<<7|u>>>25;u=x3+x15|0;x7^=u<<9|u>>>23;u=x7+x3|0;x11^=u<<13|u>>>19;u=x11+x7|0;x15^=u<<18|u>>>14;u=x0+x3|0;x1^=u<<7|u>>>25;u=x1+x0|0;x2^=u<<9|u>>>23;u=x2+x1|0;x3^=u<<13|u>>>19;u=x3+x2|0;x0^=u<<18|u>>>14;u=x5+x4|0;x6^=u<<7|u>>>25;u=x6+x5|0;x7^=u<<9|u>>>23;u=x7+x6|0;x4^=u<<13|u>>>19;u=x4+x7|0;x5^=u<<18|u>>>14;u=x10+x9|0;x11^=u<<7|u>>>25;u=x11+x10|0;x8^=u<<9|u>>>23;u=x8+x11|0;x9^=u<<13|u>>>19;u=x9+x8|0;x10^=u<<18|u>>>14;u=x15+x14|0;x12^=u<<7|u>>>25;u=x12+x15|0;x13^=u<<9|u>>>23;u=x13+x12|0;x14^=u<<13|u>>>19;u=x14+x13|0;x15^=u<<18|u>>>14;}
+x[0]+=x0;x[1]+=x1;x[2]+=x2;x[3]+=x3;x[4]+=x4;x[5]+=x5;x[6]+=x6;x[7]+=x7;x[8]+=x8;x[9]+=x9;x[10]+=x10;x[11]+=x11;x[12]+=x12;x[13]+=x13;x[14]+=x14;x[15]+=x15;}
+function _scryptBlockMix(B,Y,X,r){const n=2*r;for(let k=0;k<16;k++)X[k]=B[(n-1)*16+k];for(let i=0;i<n;i++){for(let k=0;k<16;k++)X[k]^=B[i*16+k];_salsa20_8(X);Y.set(X,((i>>1)+(i&1)*r)*16);}
+B.set(Y);}
+function _scryptROMix(X,N,r){const len=32*r;const V=new Uint32Array(len*N);const Y=new Uint32Array(len);const T=new Uint32Array(16);for(let i=0;i<N;i++){V.set(X,i*len);_scryptBlockMix(X,Y,T,r);}
+for(let i=0;i<N;i++){const j=(X[len-16]&(N-1))*len;for(let k=0;k<len;k++)X[k]^=V[j+k];_scryptBlockMix(X,Y,T,r);}}
+async function _scryptPbkdf2(keyMaterial,salt,bytes){return new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:1,hash:'SHA-256'},keyMaterial,bytes*8));}
+async function scryptRaw(pwBytes,salt,N,r,p,dkLen){const km=await crypto.subtle.importKey('raw',pwBytes,'PBKDF2',false,['deriveBits']);const B=await _scryptPbkdf2(km,salt,p*128*r);const dv=new DataView(B.buffer);const len=32*r;const X=new Uint32Array(len);await new Promise(res=>setTimeout(res,0));for(let i=0;i<p;i++){const off=i*128*r;for(let k=0;k<len;k++)X[k]=dv.getUint32(off+k*4,true);_scryptROMix(X,N,r);for(let k=0;k<len;k++)dv.setUint32(off+k*4,X[k],true);}
+return _scryptPbkdf2(km,B,dkLen);}
+async function deriveKey_scrypt(password,salt){const rawKey=await scryptRaw(_enc_scrypt.encode(password),salt,SCRYPT_N,SCRYPT_R,SCRYPT_P,SCRYPT_DKLEN);return crypto.subtle.importKey('raw',rawKey,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);}
+const _enc_xor=new TextEncoder();const _dec_xor=new TextDecoder();async function _xorKeyStream(password,salt,length){const pwBytes=_enc_xor.encode(password);const stream=new Uint8Array(length);let filled=0;let counter=0;while(filled<length){const block=new Uint8Array(pwBytes.length+salt.length+4);block.set(pwBytes,0);block.set(salt,pwBytes.length);const view=new DataView(block.buffer,pwBytes.length+salt.length);view.setUint32(0,counter,false);const hash=new Uint8Array(await crypto.subtle.digest('SHA-256',block));const take=Math.min(hash.length,length-filled);stream.set(hash.subarray(0,take),filled);filled+=take;counter+=1;}
+return stream;}
+async function encryptXOR(plaintext,password){const salt=crypto.getRandomValues(new Uint8Array(16));const plainBytes=_enc_xor.encode(plaintext);const keyStream=await _xorKeyStream(password,salt,plainBytes.length);const cipher=new Uint8Array(16+plainBytes.length);cipher.set(salt,0);for(let i=0;i<plainBytes.length;i++){cipher[16+i]=plainBytes[i]^keyStream[i];}
+return btoa(String.fromCharCode(...cipher)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+async function decryptXOR(encoded,password){const b64=encoded.replace(/-/g,'+').replace(/_/g,'/');const pad=(4-b64.length%4)%4;const raw=Uint8Array.from(atob(b64+'='.repeat(pad)),c=>c.charCodeAt(0));const salt=raw.slice(0,16);const cipherBytes=raw.slice(16);const keyStream=await _xorKeyStream(password,salt,cipherBytes.length);const plainBytes=new Uint8Array(cipherBytes.length);for(let i=0;i<cipherBytes.length;i++){plainBytes[i]=cipherBytes[i]^keyStream[i];}
+return _dec_xor.decode(plainBytes);}
+var nobleMlKem=(()=>{var q=Object.defineProperty;var Mt=Object.getOwnPropertyDescriptor;var zt=Object.getOwnPropertyNames;var Dt=Object.prototype.hasOwnProperty;var Xt=(t,e,n)=>e in t?q(t,e,{enumerable:!0,configurable:!0,writable:!0,value:n}):t[e]=n;var vt=(t,e)=>{for(var n in e)q(t,n,{get:e[n],enumerable:!0})},Vt=(t,e,n,s)=>{if(e&&typeof e=="object"||typeof e=="function")for(let o of zt(e))!Dt.call(t,o)&&o!==n&&q(t,o,{get:()=>e[o],enumerable:!(s=Mt(e,o))||s.enumerable});return t};var Zt=t=>Vt(q({},"__esModule",{value:!0}),t);var S=(t,e,n)=>Xt(t,typeof e!="symbol"?e+"":e,n);var Be={};vt(Be,{ml_kem768:()=>Pt});var Q=BigInt(4294967295),ht=BigInt(32);function Gt(t,e=!1){return e?{h:Number(t&Q),l:Number(t>>ht&Q)}:{h:Number(t>>ht&Q)|0,l:Number(t&Q)|0}}function gt(t,e=!1){let n=t.length,s=new Uint32Array(n),o=new Uint32Array(n);for(let r=0;r<n;r++){let{h:c,l:f}=Gt(t[r],e);[s[r],o[r]]=[c,f]}return[s,o]}function st(t){return t instanceof Uint8Array||ArrayBuffer.isView(t)&&t.constructor.name==="Uint8Array"&&"BYTES_PER_ELEMENT"in t&&t.BYTES_PER_ELEMENT===1}var J=t=>t?`"${t}" `:"";function R(t,e=""){if(typeof t!="number")throw new TypeError(J(e)+"expected number, got "+typeof t);if(!Number.isSafeInteger(t)||t<0)throw new RangeError(J(e)+"expected integer >= 0, got "+t);return t}function wt(t,e=""){if(typeof t!="boolean")throw new TypeError(J(e)+"expected boolean, got type="+typeof t);return t}function H(t,e,n=""){if(st(t)&&(e===void 0||t.length===e))return t;e!==void 0&&R(e,"length");let s=st(t),o=e!==void 0?` of length ${e}`:"",r=s?`length=${t.length}`:`type=${typeof t}`,c=J(n)+"expected Uint8Array"+o+", got "+r;throw s?new RangeError(c):new TypeError(c)}var Yt=(t,e)=>{if(t===null||typeof t!="object"||Array.isArray(t))throw new TypeError((e==="object"?"":`"${e}" `)+"expected object, got type="+typeof t)},xt=(t,e)=>{Yt(t,e);let n=Object.getPrototypeOf(t);if(n!==Object.prototype&&n!==null)throw new TypeError(`"${e}" expected plain object`);if(Object.hasOwn(t,"__proto__"))throw new TypeError(`"${e}.__proto__" is not allowed`)};function ct(t,e=!0){if(t.destroyed)throw new Error("hash was destroyed");if(e&&t.finished)throw new Error("digest() was already called")}function bt(t,e){H(t,void 0,"output");let n=e.outputLen;if(!(t.length>=n))throw new RangeError('"output" expected length >= '+n)}function D(t){return new Uint32Array(t.buffer,t.byteOffset,Math.floor(t.byteLength/4))}function it(...t){for(let e=0;e<t.length;e++)t[e].fill(0)}var mt=new Uint8Array(new Uint32Array([287454020]).buffer)[0]===68;function qt(t){return t<<24&4278190080|t<<8&16711680|t>>>8&65280|t>>>24&255}function Qt(t){for(let e=0;e<t.length;e++)t[e]=qt(t[e]);return t}var M=mt?t=>t:Qt;function ft(t,e,n="opts"){return xt(t,"defaults"),e!==void 0&&xt(e,n),Object.assign(Object.create(null),t,e)}function ut(t,e={}){if(typeof t!="function")throw new TypeError('"hashCons" expected function, got type='+typeof t);e=ft({},e,"info");let n=(o,r)=>t(r).update(o).digest(),s=t(void 0);return n.outputLen=s.outputLen,n.blockLen=s.blockLen,n.canXOF=s.canXOF,n.create=o=>t(o),Object.assign(n,e),Object.freeze(n)}function Et(t=32){R(t,"bytesLength");let e=typeof globalThis=="object"?globalThis.crypto:null;if(typeof e?.getRandomValues!="function")throw new Error("crypto.getRandomValues must be defined");if(t>65536)throw new RangeError(`"bytesLength" expected <= 65536, got ${t}`);return e.getRandomValues(new Uint8Array(t))}var X=t=>({oid:Uint8Array.from([6,9,96,134,72,1,101,3,4,2,t])});var Jt=BigInt(0),v=BigInt(1),Wt=BigInt(2),te=BigInt(7),ee=BigInt(256),ne=BigInt(113),At=[],Bt=[],kt=[];for(let t=0,e=v,n=1,s=0;t<24;t++){[n,s]=[s,(2*n+3*s)%5],At.push(2*(5*s+n)),Bt.push((t+1)*(t+2)/2%64);let o=Jt;for(let r=0;r<7;r++)e=(e<<v^(e>>te)*ne)%ee,e&Wt&&(o^=v<<(v<<BigInt(r))-v);kt.push(o)}var _t=gt(kt,!0),re=_t[0],oe=_t[1],se=(t,e,n)=>t<<n|e>>>32-n,ce=(t,e,n)=>e<<n|t>>>32-n,ie=(t,e,n)=>e<<n-32|t>>>64-n,fe=(t,e,n)=>t<<n-32|e>>>64-n,Tt=(t,e,n)=>n>32?ie(t,e,n):se(t,e,n),Ot=(t,e,n)=>n>32?fe(t,e,n):ce(t,e,n),z=new Uint32Array(10);function ue(t,e=24){if(!(t instanceof Uint32Array))throw new TypeError('"s" expected Uint32Array(50), got type='+typeof t);if(t.length!==50)throw new RangeError('"s" expected Uint32Array(50), got length='+t.length);if(R(e,"rounds"),e<1||e>24)throw new Error('"rounds" expected integer 1..24');for(let n=24-e;n<24;n++){for(let r=0;r<10;r++)z[r]=t[r]^t[r+10]^t[r+20]^t[r+30]^t[r+40];for(let r=0;r<10;r+=2){let c=(r+8)%10,f=(r+2)%10,p=z[f],a=z[f+1],k=Tt(p,a,1)^z[c],x=Ot(p,a,1)^z[c+1];for(let _=0;_<50;_+=10)t[r+_]^=k,t[r+_+1]^=x}let s=t[2],o=t[3];for(let r=0;r<24;r++){let c=Bt[r],f=Tt(s,o,c),p=Ot(s,o,c),a=At[r];s=t[a],o=t[a+1],t[a]=f,t[a+1]=p}for(let r=0;r<50;r+=10){let c=t[r],f=t[r+1],p=t[r+2],a=t[r+3];t[r]^=~t[r+2]&t[r+4],t[r+1]^=~t[r+3]&t[r+5],t[r+2]^=~t[r+4]&t[r+6],t[r+3]^=~t[r+5]&t[r+7],t[r+4]^=~t[r+6]&t[r+8],t[r+5]^=~t[r+7]&t[r+9],t[r+6]^=~t[r+8]&c,t[r+7]^=~t[r+9]&f,t[r+8]^=~c&p,t[r+9]^=~f&a}t[0]^=re[n],t[1]^=oe[n]}it(z)}var W=class t{constructor(e,n,s,o=!1,r=24){S(this,"state");S(this,"pos",0);S(this,"posOut",0);S(this,"finished",!1);S(this,"state32");S(this,"destroyed",!1);S(this,"blockLen");S(this,"suffix");S(this,"outputLen");S(this,"canXOF");S(this,"enableXOF",!1);S(this,"rounds");if(R(e,"blockLen"),R(n,"suffix"),R(r,"rounds"),wt(o,"enableXOF"),this.blockLen=e,this.suffix=n,this.outputLen=s,this.enableXOF=o,this.canXOF=o,this.rounds=r,R(s,"outputLen"),!(0<e&&e<200))throw new Error('"blockLen" must be 1..199');this.state=new Uint8Array(200),this.state32=D(this.state)}clone(){return this._cloneInto()}keccak(){M(this.state32),ue(this.state32,this.rounds),M(this.state32),this.posOut=0,this.pos=0}update(e){ct(this),H(e);let{blockLen:n,state:s,state32:o}=this,r=e.length,c=n%4===0&&e.byteOffset%4===0,f=n/4,p=c&&r>=n?D(e):void 0;for(let a=0;a<r;){if(p!==void 0&&this.pos===0&&a%4===0&&r-a>=n){for(let x=0,_=a/4;x<f;x++)o[x]^=p[_+x];a+=n,this.pos=n,this.keccak();continue}let k=Math.min(n-this.pos,r-a);for(let x=0;x<k;x++)s[this.pos++]^=e[a++];this.pos===n&&this.keccak()}return this}finish(){if(this.finished)return;this.finished=!0;let{state:e,suffix:n,pos:s,blockLen:o}=this;e[s]^=n,(n&128)!==0&&s===o-1&&this.keccak(),e[o-1]^=128,this.keccak()}writeInto(e){ct(this,!1),H(e),this.finish();let n=this.state,{blockLen:s}=this;for(let o=0,r=e.length;o<r;){this.posOut>=s&&this.keccak();let c=Math.min(s-this.posOut,r-o);e.set(n.subarray(this.posOut,this.posOut+c),o),this.posOut+=c,o+=c}return e}xofInto(e){if(!this.enableXOF)throw new Error("XOF is not enabled");return this.writeInto(e)}xof(e){return R(e),this.xofInto(new Uint8Array(e))}digestInto(e){if(bt(e,this),this.finished)throw new Error("digest() was already called");this.writeInto(e.length===this.outputLen?e:e.subarray(0,this.outputLen)),this.destroy()}digest(){let e=new Uint8Array(this.outputLen);return this.digestInto(e),e}destroy(){this.destroyed=!0,it(this.state)}_cloneInto(e){let{blockLen:n,suffix:s,outputLen:o,rounds:r,enableXOF:c}=this;return e||(e=new t(n,s,o,c,r)),e.blockLen=n,e.state32.set(this.state32),e.pos=this.pos,e.posOut=this.posOut,e.finished=this.finished,e.rounds=r,e.suffix=s,e.outputLen=o,e.enableXOF=c,e.canXOF=this.canXOF,e.destroyed=this.destroyed,e}},Lt=(t,e,n,s={})=>ut(()=>new W(e,t,n),s);var Ut=Lt(6,136,32,X(8));var $t=Lt(6,72,64,X(10));var jt=(t,e,n,s={})=>ut((o={})=>(o=ft({},o),new W(e,t,o.dkLen===void 0?n:o.dkLen,!0)),s),It=jt(31,168,16,X(11)),tt=jt(31,136,32,X(12));function pt(t,e="object"){if(t===null||typeof t!="object"||Array.isArray(t))throw new TypeError(e==="object"?"expected valid options object":`"${e}" expected object, got type=${typeof t}`);return t}function St(t,e={},n={},s="object"){pt(t,s),pt(e,"fields"),pt(n,"optFields");function o(c,f,p){let a=s==="object"?`param "${String(c)}"`:`"${s}.${String(c)}"`,k=t[c];if(!Object.hasOwn(t,c)&&(p?k!==void 0:f!=="function"))throw new TypeError(`${a} is invalid: expected own property`);if(p&&k===void 0)return;let x=typeof k;if(x!==f||k===null)throw new TypeError(`${a} is invalid: expected ${f}, got ${x}`)}let r=(c,f)=>Object.entries(c).forEach(([p,a])=>o(p,a,f));r(e,!1),r(n,!0)}function V(t,e="n"){if(typeof t!="number")throw new TypeError(`wrong u32 integer "${e}": expected number, got type=${typeof t}`);if(!Number.isSafeInteger(t)||t<0||t>4294967295)throw new RangeError(`wrong u32 integer "${e}": expected 0..4294967295, got ${t}`);return t}function Rt(t){return V(t,"x"),(t&t-1)===0&&t!==0}function at(t,e){if(V(t),typeof e!="number")throw new TypeError('"bits" expected number, got type='+typeof e);if(!Number.isSafeInteger(e)||e<0||e>32)throw new Error(`expected integer 0 <= bits <= 32, got ${e}`);let n=0;for(let s=0;s<e;s++,t>>>=1)n=n<<1|t&1;return n>>>0}function Kt(t){return V(t),31-Math.clz32(t)}function Ht(t){if(!t||typeof t!="object"||typeof t.length!="number")throw new TypeError('"values" expected array-like, got type='+typeof t);let e=t.length;if(!Rt(e))throw new Error("expected positive power-of-two length, got "+e);let n=Kt(e);for(let s=0;s<e;s++){let o=at(s,n);if(s<o){let r=t[s];t[s]=t[o],t[o]=r}}return t}var dt=(t,e)=>{St(e,{N:"number",roots:"object",dit:"boolean"},{invertButterflies:"boolean",skipStages:"number",brp:"boolean"},"coreOpts");let{N:n,roots:s,dit:o,invertButterflies:r=!1,skipStages:c=0,brp:f=!0}=e;V(n,"coreOpts.N");let p=Kt(n);if(!Rt(n))throw new Error("FFT: Polynomial size should be power of two");V(c,"coreOpts.skipStages");let a=p===0?0:p-1;if(c>a)throw new Error(`FFT: wrong skipStages: expected 0 <= skipStages <= ${a}`);if(s.length!==n)throw new Error(`FFT: wrong roots length: expected ${n}, got ${s.length}`);let k=o!==r;return x=>{if(x.length!==n)throw new Error("FFT: wrong Polynomial length");o&&f&&Ht(x);for(let _=0,m=1;_<p-c;_++){let E=o?_+1+c:p-_,A=1<<E,B=A>>1,b=n>>E;for(let T=0;T<n;T+=A)for(let i=0,u=m++;i<B;i++){let d=r?o?n-u:u:i*b,w=T+i,l=T+i+B,y=s[d],g=x[l],O=x[w];if(k){let h=t.mul(g,y);x[w]=t.add(O,h),x[l]=t.sub(O,h)}else r?(x[w]=t.add(g,O),x[l]=t.mul(t.sub(g,O),y)):(x[w]=t.add(O,g),x[l]=t.mul(t.sub(O,g),y))}}return!o&&f&&Ht(x),x}};var K=H;var et=Et;function pe(t,e,n=()=>{}){if(!Array.isArray(t))throw new TypeError(`"${e}" expected array, got type=${typeof t}`);for(let s=0;s<t.length;s++)n(t[s],`${e}[${s}]`);return t}function F(t,e){if(t=H(t),e=H(e),t.length!==e.length)return!1;let n=0;for(let s=0;s<t.length;s++)n|=t[s]^e[s];return n===0}function lt(t){return new Uint8Array(H(t))}function Z(t,...e){let n=o=>typeof o=="number"?o:o.bytesLen,s=e.reduce((o,r)=>o+n(r),0);return{bytesLen:s,encode:o=>{let r=new Uint8Array(s);for(let c=0,f=0;c<e.length;c++){let p=e[c],a=n(p),k=typeof p=="number"?o[c]:p.encode(o[c]);H(k,a,t),r.set(k,f),typeof p!="number"&&k.fill(0),f+=a}return r},decode:o=>{H(o,s,t);let r=[];for(let c of e){let f=n(c),p=o.subarray(0,f);r.push(typeof c=="number"?p:c.decode(p)),o=o.subarray(f)}return r}}}function nt(t,e){let n=t,s=e*n.bytesLen;return{bytesLen:s,encode:o=>{let r=pe(o,"u");if(r.length!==e)throw new RangeError(`vecCoder.encode: wrong length=${r.length}. Expected: ${e}`);let c=new Uint8Array(s);for(let f=0,p=0;f<r.length;f++){let a=n.encode(r[f]);c.set(a,p),a.fill(0),p+=a.length}return c},decode:o=>{H(o,s);let r=[];for(let c=0;c<o.length;c+=n.bytesLen)r.push(n.decode(o.subarray(c,c+n.bytesLen)));return r}}}function L(...t){for(let e of t)if(Array.isArray(e))for(let n of e)n.fill(0);else e.fill(0)}function rt(t){if(R(t,"bits"),t>32)throw new RangeError('"bits" expected <= 32, got '+t);return t===32?4294967295:~(-1<<t)>>>0}var Nt=t=>{let{newPoly:e,N:n,Q:s,F:o,ROOT_OF_UNITY:r,brvBits:c,isKyber:f}=t,p=(i,u=s)=>{let d=i%u|0;return(d>=0?d|0:u+d|0)|0},a=(i,u=s)=>{let d=p(i,u)|0;return(d>u>>1?d-u|0:d)|0};function k(){let i=e(n);for(let u=0;u<n;u++){let d=at(u,c),w=BigInt(r)**BigInt(d)%BigInt(s);i[u]=Number(w)|0}return i}let x=k(),_=i=>{throw new Error("not implemented")},m=f?{add:(i,u)=>{let d=i+u|0;return d>=s?d-s|0:d},sub:(i,u)=>{let d=i-u|0;return d<0?d+s|0:d},mul:(i,u)=>p((i|0)*(u|0))|0,inv:_}:{add:(i,u)=>p((i|0)+(u|0))|0,sub:(i,u)=>p((i|0)-(u|0))|0,mul:(i,u)=>p((i|0)*(u|0))|0,inv:_},E={N:n,roots:x,invertButterflies:!0,skipStages:f?1:0,brp:!1},A=dt(m,{dit:!1,...E}),B=dt(m,{dit:!0,...E}),b={encode:i=>A(i),decode:i=>{B(i);for(let u=0;u<i.length;u++)i[u]=p(o*i[u]);return i}};return{mod:p,smod:a,nttZetas:x,NTT:{encode:i=>b.encode(i),decode:i=>b.decode(i)},bitsCoder:(i,u)=>{for(let l=0,y=0;l<n;l++)y+=i,y>32&&rt(y),y%=8;let d=rt(i),w=i*(n/8);return{bytesLen:w,encode:l=>{let y=l,g=new Uint8Array(w);for(let O=0,h=0,j=0,N=0;O<y.length;O++)for(h|=(u.encode(y[O])&d)<<j,j+=i;j>=8;j-=8,h>>=8)g[N++]=h&255;return g},decode:l=>{let y=e(n);for(let g=0,O=0,h=0,j=0;g<l.length;g++)for(O|=l[g]<<h,h+=8;h>=i;h-=i,O>>=i)y[j++]=u.decode(O&d);return y}}}}},ae=t=>(e,n)=>{n||(n=t.blockLen);let s=new Uint8Array(e.length+2);s.set(e);let o=e.length,r=new Uint8Array(n),c=t.create({}),f=0,p=0;return{stats:()=>({calls:f,xofs:p}),get:(a,k)=>(s[o+0]=a,s[o+1]=k,c.destroy(),c=t.create({}).update(s),f++,()=>(p++,c.xofInto(r))),clean:()=>{c.destroy(),L(r,s)}}},Ft=ae(It);var $=256,U=3329,de=3303,le=17,I=Nt({N:$,Q:U,F:de,ROOT_OF_UNITY:le,newPoly:t=>new Uint16Array(t),brvBits:7,isKyber:!0}),ye=Object.freeze({512:Object.freeze({N:$,Q:U,K:2,ETA1:3,ETA2:2,du:10,dv:4,RBGstrength:128}),768:Object.freeze({N:$,Q:U,K:3,ETA1:2,ETA2:2,du:10,dv:4,RBGstrength:192}),1024:Object.freeze({N:$,Q:U,K:4,ETA1:2,ETA2:2,du:11,dv:5,RBGstrength:256})}),he=t=>{if(t>=12)return{encode:n=>n,decode:n=>n>=U?n-U:n};let e=2**(t-1);return{encode:n=>((n<<t)+U/2)/U,decode:n=>n*U+e>>>t}},ge=t=>I.bitsCoder(t,t===12?{encode:e=>e,decode:e=>e>=U?e-U:e}:{encode:e=>e,decode:e=>e}),G=t=>t===12?ge(12):I.bitsCoder(t,he(t));function P(t,e){let n=t,s=e;for(let o=0;o<$;o++){let r=n[o]+s[o];n[o]=r>=U?r-U:r}}function xe(t,e){let n=t,s=e;for(let o=0;o<$;o++){let r=n[o]-s[o];n[o]=r<0?r+U:r}}function we(t,e,n,s,o){let r=I.mod(I.mod(e*s)*o+t*n),c=I.mod(t*s+e*n);return{c0:r,c1:c}}function ot(t,e){let n=t,s=e;for(let o=0;o<$/2;o++){let r=I.nttZetas[64+(o>>1)];o&1&&(r=-r);let{c0:c,c1:f}=we(n[2*o+0],n[2*o+1],s[2*o+0],s[2*o+1],r);n[2*o+0]=c,n[2*o+1]=f}return n}function yt(t){let e=t,n=new Uint16Array($);for(let s=0;s<$;){let o=e();if(o.length%3)throw new Error("SampleNTT: unaligned block");for(let r=0;s<$&&r+3<=o.length;r+=3){let c=(o[r+0]>>0|o[r+1]<<8)&4095,f=(o[r+1]>>4|o[r+2]<<4)&4095;c<U&&(n[s++]=c),s<$&&f<U&&(n[s++]=f)}}return n}var be=(t,e)=>{let n=new Uint16Array($),s=D(t);M(s);let o=0;for(let r=0,c=0,f=0,p=0;r<s.length;r++){let a=s[r];for(let k=0;k<32;k++)f+=a&1,a>>=1,o+=1,o===e?(p=f,f=0):o===2*e&&(n[c++]=I.mod(p-f),f=0,o=0)}if(M(s),o)throw new Error(`sampleCBD: leftover bits: ${o}`);return n};function Y(t,e,n,s){return be(t(s*$/4,e,n),s)}var me=t=>{let e=t,{K:n,PRF:s,XOF:o,HASH512:r,ETA1:c,ETA2:f,du:p,dv:a}=e,k=G(1),x=G(a),_=G(p),m=Z("publicKey",nt(G(12),n),32),E=nt(G(12),n),A=Z("ciphertext",nt(_,n),x),B=Z("seed",32,32),b=(T,i,u,d)=>{let w=[];for(let h=0;h<n;h++)w.push(I.NTT.encode(Y(s,d,h,c)));let l=new Uint16Array($),y=[];for(let h=0;h<n;h++){let j=Y(s,d,n+h,f),N=new Uint16Array($);for(let C=0;C<n;C++){let Ct=i(h,C);P(N,ot(Ct,w[C]))}P(j,I.NTT.decode(N)),y.push(j),P(l,ot(T[h],w[h])),L(N)}let g=Y(s,d,2*n,f);P(g,I.NTT.decode(l));let O=k.decode(u);return P(O,g),L(T,w,l,g),A.encode([y,O])};return{secretCoder:E,lengths:{secretKey:E.bytesLen,publicKey:m.bytesLen,cipherText:A.bytesLen},keygen:T=>{K(T,32,"seed");let i=new Uint8Array(33);i.set(T),i[32]=n;let u=r(i),[d,w]=B.decode(u),l=[],y=[];for(let h=0;h<n;h++)l.push(I.NTT.encode(Y(s,w,h,c)));let g=o(d);for(let h=0;h<n;h++){let j=I.NTT.encode(Y(s,w,n+h,c));for(let N=0;N<n;N++){let C=yt(g.get(N,h));P(j,ot(C,l[N]))}y.push(j)}g.clean();let O={publicKey:m.encode([y,d]),secretKey:E.encode(l)};return L(d,w,l,y,i,u),O},encrypt:(T,i,u)=>{let[d,w]=m.decode(T),l=o(w),y=b(d,(g,O)=>yt(l.get(g,O)),i,u);return l.clean(),y},prepare:T=>{let[i,u]=m.decode(T),d=o(u),w=[];for(let l=0;l<n;l++)for(let y=0;y<n;y++)w.push(yt(d.get(l,y)));return d.clean(),{encrypt:(l,y)=>b(i.map(g=>g.slice()),(g,O)=>w[g*n+O].slice(),l,y),clean:()=>L(i,w)}},decrypt:(T,i)=>{let[u,d]=A.decode(T),w=E.decode(i),l=new Uint16Array($);for(let g=0;g<n;g++)P(l,ot(w[g],I.NTT.encode(u[g])));xe(d,I.NTT.decode(l));let y=k.encode(d);return L(l,w,u,d),y}}};function Ee(t){let e=t,n=me(e),{HASH256:s,HASH512:o,KDF:r}=e,{secretCoder:c,lengths:f}=n,p=Z("secretKey",f.secretKey,f.publicKey,32,32),a=32,k=64,x=(m,E)=>{let A=m.subarray(0,384*e.K),B=c.encode(c.decode(lt(A))),b=F(B,A);if(L(B),!b)throw new Error(`ML-KEM.${E}: wrong publicKey modulus`)},_=Object.freeze({...f,seed:64,msg:a,msgRand:a,secretKey:p.bytesLen});return Object.freeze({info:Object.freeze({type:"ml-kem"}),lengths:_,keygen:m=>{let E=m===void 0,A=E?et(k):m,B,b;try{K(A,k,"seed");let T=n.keygen(A.subarray(0,32)),i=T.publicKey;B=T.secretKey,b=s(i);let u=p.encode([B,i,b,A.subarray(32)]);return{publicKey:i,secretKey:u}}finally{B!==void 0&&L(B),b!==void 0&&L(b),E&&L(A)}},getPublicKey:m=>{let[E,A,B,b]=p.decode(m);return Uint8Array.from(A)},encapsulate:(m,E)=>{let A=E===void 0,B=A?et(a):E,b;try{return K(m,f.publicKey,"publicKey"),K(B,a,"message"),x(m,"encapsulate"),b=o.create().update(B).update(s(m)).digest(),{cipherText:n.encrypt(m,B,b.subarray(32,64)),sharedSecret:b.subarray(0,32)}}finally{b!==void 0&&L(b.subarray(32)),A&&L(B)}},decapsulate:(m,E)=>{K(E,p.bytesLen,"secretKey"),K(m,f.cipherText,"cipherText");let A=p.bytesLen-96,B=A+32,b=s(E.subarray(A/2,B));if(!F(b,E.subarray(B,B+32)))throw new Error("invalid secretKey: hash check failed");let[T,i,u,d]=p.decode(E),w=n.decrypt(m,T),l=o.create().update(w).update(u).digest(),y=l.subarray(0,32),g=n.encrypt(i,w,l.subarray(32,64)),O=F(m,g),h=r.create({dkLen:32}).update(d).update(m).digest();return L(w,g,l.subarray(32),O?h:y),O?y:h},prepare:m=>{K(m,f.publicKey,"publicKey"),x(m,"prepare");let E=lt(m),A=s(E),B=n.prepare(E);return Object.freeze({publicKey:E,encapsulate:b=>{let T=b===void 0,i=T?et(a):b,u;try{return K(i,a,"message"),u=o.create().update(i).update(A).digest(),{cipherText:B.encrypt(i,u.subarray(32,64)),sharedSecret:u.subarray(0,32)}}finally{u!==void 0&&L(u.subarray(32)),T&&L(i)}},decapsulate:(b,T)=>{K(T,p.bytesLen,"secretKey"),K(b,f.cipherText,"cipherText");let[i,u,d,w]=p.decode(T);if(!F(u,E)||!F(d,A))throw new Error("ML-KEM.decapsulate: secretKey does not match prepared publicKey");let l=n.decrypt(b,i),y=o.create().update(l).update(A).digest(),g=y.subarray(0,32),O=B.encrypt(l,y.subarray(32,64)),h=F(b,O),j=r.create({dkLen:32}).update(w).update(b).digest();return L(l,O,y.subarray(32),h?j:g),h?g:j},clean:B.clean})}})}function Te(t,e,n){return tt.create({dkLen:t}).update(e).update(new Uint8Array([n])).digest()}var Oe={HASH256:Ut,HASH512:$t,KDF:tt,XOF:Ft,PRF:Te},Ae=t=>Ee({...Oe,...t});var Pt=Ae(ye[768]);return Zt(Be);})();const PK_RSA_BITS=3072;const PK_RSA_ALG={name:'RSA-OAEP',hash:'SHA-256'};const PK_IV_LEN=12;const MLKEM_PK_LEN=1184;const MLKEM_SK_LEN=2400;const MLKEM_SEED=64;const MLKEM_CT_LEN=1088;const PK_LABEL={mlkem768:'ML-KEM-768 ',rsa:''};const _enc_pk=new TextEncoder();const _dec_pk=new TextDecoder();function isPkAlgo(algo){return algo==='mlkem768'||algo==='rsa';}
+function _pkB64(bytes){let s='';for(let i=0;i<bytes.length;i+=0x8000)s+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return btoa(s);}
+function _pkUnB64(text){const b64=text.replace(/-/g,'+').replace(/_/g,'/').replace(/=+$/,'');return Uint8Array.from(atob(b64+'='.repeat((4-b64.length%4)%4)),c=>c.charCodeAt(0));}
+function _pkPem(algo,type,bytes){const label=PK_LABEL[algo]+(type==='private'?'PRIVATE KEY':'PUBLIC KEY');return`-----BEGIN ${label}-----\n${_pkB64(new Uint8Array(bytes)).match(/.{1,64}/g).join('\n')}\n-----END ${label}-----`;}
+async function pkParseKey(text){let bytes;try{bytes=_pkUnB64(String(text).replace(/-----(?:BEGIN|END) [A-Z0-9 -]+?-----/g,'').replace(/\s+/g,''));}
+catch{return null;}
+if(bytes.length===MLKEM_PK_LEN)return{algo:'mlkem768',type:'public',bytes};if(bytes.length===MLKEM_SEED||bytes.length===MLKEM_SK_LEN)return{algo:'mlkem768',type:'private',bytes};if(bytes.length<100)return null;try{const key=await crypto.subtle.importKey('pkcs8',bytes,PK_RSA_ALG,true,['decrypt']);return{algo:'rsa',type:'private',bytes,key};}catch{}
+try{const key=await crypto.subtle.importKey('spki',bytes,PK_RSA_ALG,true,['encrypt']);return{algo:'rsa',type:'public',bytes,key};}catch{}
+return null;}
+async function _pkToPublic(k){if(k.type==='public')return k;if(k.algo==='mlkem768'){const bytes=k.bytes.length===MLKEM_SEED?nobleMlKem.ml_kem768.keygen(k.bytes).publicKey:k.bytes.slice(1152,1152+MLKEM_PK_LEN);return{algo:k.algo,type:'public',bytes};}
+const jwk=await crypto.subtle.exportKey('jwk',k.key);const key=await crypto.subtle.importKey('jwk',{kty:'RSA',n:jwk.n,e:jwk.e,alg:'RSA-OAEP-256',ext:true},PK_RSA_ALG,true,['encrypt']);return{algo:k.algo,type:'public',key,bytes:new Uint8Array(await crypto.subtle.exportKey('spki',key))};}
+async function pkPublicText(parsed){const pub=await _pkToPublic(parsed);return _pkPem(pub.algo,'public',pub.bytes);}
+async function pkGenerate(algo){if(algo==='mlkem768'){const seed=crypto.getRandomValues(new Uint8Array(MLKEM_SEED));const pub=nobleMlKem.ml_kem768.keygen(seed).publicKey;return{publicKey:_pkPem(algo,'public',pub),privateKey:_pkPem(algo,'private',seed)};}
+const pair=await crypto.subtle.generateKey({...PK_RSA_ALG,modulusLength:PK_RSA_BITS,publicExponent:new Uint8Array([1,0,1])},true,['encrypt','decrypt']);return{publicKey:_pkPem(algo,'public',await crypto.subtle.exportKey('spki',pair.publicKey)),privateKey:_pkPem(algo,'private',await crypto.subtle.exportKey('pkcs8',pair.privateKey)),};}
+async function _pkLoad(keyText,algo){const k=await pkParseKey(keyText);if(!k)throw new Error('키를 인식할 수 없습니다.');if(k.algo!==algo)throw new Error('선택한 알고리즘과 키 종류가 다릅니다.');return k;}
+async function pkEncrypt(plaintext,keyText,algo){const pub=await _pkToPublic(await _pkLoad(keyText,algo));let head,rawKey;if(algo==='mlkem768'){const kem=nobleMlKem.ml_kem768.encapsulate(pub.bytes);head=kem.cipherText;rawKey=kem.sharedSecret;}else{rawKey=crypto.getRandomValues(new Uint8Array(32));head=new Uint8Array(await crypto.subtle.encrypt({name:'RSA-OAEP'},pub.key,rawKey));}
+const iv=crypto.getRandomValues(new Uint8Array(PK_IV_LEN));const key=await crypto.subtle.importKey('raw',rawKey,{name:'AES-GCM',length:256},false,['encrypt']);const ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,_enc_pk.encode(plaintext)));const out=new Uint8Array(head.length+PK_IV_LEN+ct.length);out.set(head,0);out.set(iv,head.length);out.set(ct,head.length+PK_IV_LEN);return _pkB64(out).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+async function pkDecrypt(encoded,keyText,algo){const k=await _pkLoad(keyText,algo);if(k.type!=='private')throw new Error('개인키가 필요합니다.');const raw=_pkUnB64(encoded);let headLen,rawKey;if(algo==='mlkem768'){headLen=MLKEM_CT_LEN;const sk=k.bytes.length===MLKEM_SEED?nobleMlKem.ml_kem768.keygen(k.bytes).secretKey:k.bytes;rawKey=nobleMlKem.ml_kem768.decapsulate(raw.slice(0,headLen),sk);}else{headLen=Math.ceil(k.key.algorithm.modulusLength/8);rawKey=await crypto.subtle.decrypt({name:'RSA-OAEP'},k.key,raw.slice(0,headLen));}
+const iv=raw.slice(headLen,headLen+PK_IV_LEN);const key=await crypto.subtle.importKey('raw',rawKey,{name:'AES-GCM',length:256},false,['decrypt']);return _dec_pk.decode(await crypto.subtle.decrypt({name:'AES-GCM',iv},key,raw.slice(headLen+PK_IV_LEN)));}
+const SALT_LEN=16;const IV_LEN=12;const _enc_aes=new TextEncoder();const _dec_aes=new TextDecoder();async function deriveKey(password,salt,algorithm='argon2id'){switch(algorithm){case'pbkdf2':return deriveKey_pbkdf2(password,salt);case'bcrypt':return deriveKey_bcrypt(password,salt);case'scrypt':return deriveKey_scrypt(password,salt);case'argon2id':default:return deriveKey_argon2id(password,salt);}}
+async function encryptAES(plaintext,password,algorithm='argon2id'){if(algorithm==='xor')return encryptXOR(plaintext,password);if(isPkAlgo(algorithm))return pkEncrypt(plaintext,password,algorithm);const salt=crypto.getRandomValues(new Uint8Array(SALT_LEN));const iv=crypto.getRandomValues(new Uint8Array(IV_LEN));const key=await deriveKey(password,salt,algorithm);const cipherbuf=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,_enc_aes.encode(plaintext));const out=new Uint8Array(SALT_LEN+IV_LEN+cipherbuf.byteLength);out.set(salt,0);out.set(iv,SALT_LEN);out.set(new Uint8Array(cipherbuf),SALT_LEN+IV_LEN);return btoa(String.fromCharCode(...out)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
+async function decryptAES(encoded,password,algorithm='argon2id'){if(algorithm==='xor')return decryptXOR(encoded,password);if(isPkAlgo(algorithm))return pkDecrypt(encoded,password,algorithm);const b64=encoded.replace(/-/g,'+').replace(/_/g,'/');const pad=(4-b64.length%4)%4;const raw=Uint8Array.from(atob(b64+'='.repeat(pad)),c=>c.charCodeAt(0));const salt=raw.slice(0,SALT_LEN);const iv=raw.slice(SALT_LEN,SALT_LEN+IV_LEN);const ciphertext=raw.slice(SALT_LEN+IV_LEN);const key=await deriveKey(password,salt,algorithm);const plainbuf=await crypto.subtle.decrypt({name:'AES-GCM',iv},key,ciphertext);return _dec_aes.decode(plainbuf);}
+const FALLBACK_URL='https://youtu.be/EWjw8MSmKi4?t=0';let _encryptedUrl='';let _savedHash=null;let _savedAlgo='argon2id';let _failCount=0;let _blasting=false;const ALGO_META={mlkem768:{label:'ML-KEM-768',badge:'AES-256-GCM · ML-KEM-768',kdfInfo:'AES 키는 <strong>ML-KEM-768</strong> 캡슐화로 생성 — 양자 내성 · 개인키로만 해제',spinner:'ML-KEM-768 캡슐화 중...',security:5,warn:null,},rsa:{label:'RSA-OAEP',badge:'AES-256-GCM · RSA-OAEP',kdfInfo:'AES 키는 <strong>RSA-OAEP (SHA-256)</strong>로 래핑 — 개인키로만 해제',spinner:'RSA-OAEP 래핑 중...',security:4,warn:null,},argon2id:{label:'Argon2id',badge:'AES-256-GCM · Argon2id',kdfInfo:'키는 <strong>Argon2id</strong>으로 파생 — 브루트포스 저항',spinner:'Argon2id 처리 중...',security:5,warn:null,},scrypt:{label:'scrypt',badge:'AES-256-GCM · scrypt',kdfInfo:'키는 <strong>scrypt N=2¹⁶ · r=8 · p=2</strong>으로 파생 — 메모리 하드 (64MB)',spinner:'scrypt 처리 중 (64MB)...',security:4,warn:null,},pbkdf2:{label:'PBKDF2',badge:'AES-256-GCM · PBKDF2 · 600K',kdfInfo:'키는 <strong>PBKDF2-SHA256 × 600,000</strong>으로 파생 — 브루트포스 저항',spinner:'PBKDF2 · 600,000 iterations...',security:3,warn:null,},bcrypt:{label:'bcrypt',badge:'AES-256-GCM · bcrypt (cost 12)',kdfInfo:'키는 <strong>bcrypt cost=12</strong>으로 파생',spinner:'bcrypt 처리 중 (cost 12)...',security:4,warn:null,},xor:{label:'XOR',badge:'XOR 스트림 암호',kdfInfo:'⚠️ <strong>XOR</strong>은 보안 강도가 낮습니다 — 교육 목적에만 사용',spinner:'XOR 처리 중...',security:1,warn:'⚠️ XOR은 보안 강도가 낮습니다. 민감한 URL에는 사용하지 마세요.',},};const _PATH=window.location.pathname;function _baseUrl(){return window.location.href.split(/[?#]/)[0];}
+function _blastOff(){if(_blasting)return;_blasting=true;history.replaceState(null,'',window.location.pathname);window.location.replace(FALLBACK_URL);}
+function _attachSecurityListeners(){document.addEventListener('visibilitychange',()=>{if(document.hidden)_blastOff();});window.addEventListener('blur',()=>_blastOff());document.addEventListener('contextmenu',e=>{e.preventDefault();e.stopPropagation();_blastOff();});document.addEventListener('keydown',e=>{const c=e.key.toUpperCase();const ctrl=e.ctrlKey||e.metaKey;if(e.key==='F12'){e.preventDefault();_blastOff();return;}
+if(ctrl&&e.shiftKey&&['I','J','C','K','E'].includes(c)){e.preventDefault();_blastOff();return;}
+if(ctrl&&['U','S','P'].includes(c)){e.preventDefault();_blastOff();return;}
+if(ctrl&&['A','F'].includes(c)){e.preventDefault();return;}
+if(e.key==='F6'){e.preventDefault();_blastOff();return;}},true);document.addEventListener('selectstart',e=>e.preventDefault());document.addEventListener('dragstart',e=>e.preventDefault());const _devtoolsCheck=setInterval(()=>{if(window.outerWidth-window.innerWidth>160||window.outerHeight-window.innerHeight>160){clearInterval(_devtoolsCheck);_blastOff();}},500);(function _devtoolsTiming(){const start=performance.now();debugger;if(performance.now()-start>100){_blastOff();return;}
+setTimeout(_devtoolsTiming,1000);})();}
+function _getSelectedAlgo(){return document.getElementById('algoSelect')?.value||'argon2id';}
+function _updateAlgoUI(algo){const meta=ALGO_META[algo]||ALGO_META['argon2id'];const pk=isPkAlgo(algo);document.getElementById('keyField').style.display=pk?'none':'';document.getElementById('pubKeyField').style.display=pk?'':'none';const badge=document.getElementById('badgeText');if(badge)badge.textContent=meta.badge;const kdfInfo=document.querySelector('.kdf-info span:last-child');if(kdfInfo)kdfInfo.innerHTML=meta.kdfInfo;const kdfProg=document.querySelector('#encryptSection .kdf-progress');if(kdfProg)kdfProg.textContent=meta.spinner;let warnBox=document.getElementById('algoWarnBox');if(meta.warn){if(!warnBox){warnBox=document.createElement('div');warnBox.id='algoWarnBox';warnBox.style.cssText='margin-bottom:16px;padding:10px 14px;background:rgba(255,79,106,0.1);border:1px solid rgba(255,79,106,0.4);border-radius:8px;font-size:0.7rem;color:#ff4f6a;letter-spacing:0.04em;';const kdfEl=document.querySelector('.kdf-info');kdfEl.parentNode.insertBefore(warnBox,kdfEl);}
+warnBox.textContent=meta.warn;warnBox.style.display='block';}else if(warnBox){warnBox.style.display='none';}
+const secBar=document.getElementById('securityLevel');if(secBar){secBar.querySelectorAll('.sec-seg').forEach((seg,i)=>{seg.style.background=i<meta.security?(meta.security<=1?'#ff4f6a':meta.security<=2?'#ff9f4f':meta.security<=3?'#ffe04f':'#4fffb0'):'var(--border)';});}}
+async function handleEncrypt(){const url=document.getElementById('urlInput').value.trim();const algo=_getSelectedAlgo();const key=isPkAlgo(algo)?document.getElementById('pubKeyInput').value.trim():document.getElementById('keyInput').value;if(!url||!key){alert(isPkAlgo(algo)?'URL과 공개키를 모두 입력하세요.':'URL과 KEY를 모두 입력하세요.');return;}
+if(!isValidUrl(url)){alert('올바른 URL 형식을 입력하세요.');return;}
+setEncryptLoading(true);try{const hash=await encryptAES(url,key,algo);const hint=document.getElementById('hintInput').value.trim();const base=_baseUrl();_encryptedUrl=`${base}#hash=${hash}&algorithm=${algo}`
++(hint?`&hint=${encodeURIComponent(hint)}`:'');document.getElementById('encryptSection').style.display='none';document.getElementById('resultSection').style.display='block';document.getElementById('encryptedUrlDisplay').innerHTML=`<a href="${_encryptedUrl}" target="_blank" rel="noopener noreferrer">${_encryptedUrl}</a>`;_renderQR(_encryptedUrl);}catch(e){console.error(e);alert('암호화 중 오류가 발생했습니다: '+(e.message||e));}
+setEncryptLoading(false);}
+function _renderQR(url){const img=document.getElementById('qrcode');const tryLevel=(levels)=>{if(!levels.length){img.parentNode.style.display='none';return;}
+QRCode.toDataURL(url,{errorCorrectionLevel:levels[0],width:180},(err,dataUrl)=>{if(err)return tryLevel(levels.slice(1));img.parentNode.style.display='';img.src=dataUrl;});};tryLevel(['H','L']);}
+let _keyPair=null;let _pkParseSeq=0;let _pkConverted='';function _setPubKeyNote(text,bad){const note=document.getElementById('pubKeyNote');note.textContent=text;note.classList.toggle('bad',!!bad);}
+async function _onPubKeyInput(){const input=document.getElementById('pubKeyInput');const seq=++_pkParseSeq;const text=input.value.trim();if(!text){_setPubKeyNote('');return;}
+if(text===_pkConverted)return;const k=await pkParseKey(text);if(seq!==_pkParseSeq)return;if(!k){_setPubKeyNote('✗ 인식할 수 없는 키',true);return;}
+if(k.type==='private'){const pub=await pkPublicText(k);if(seq!==_pkParseSeq)return;input.value=_pkConverted=pub;}
+const sel=document.getElementById('algoSelect');if(sel.value!==k.algo){sel.value=k.algo;_updateAlgoUI(k.algo);}
+_setPubKeyNote(k.type==='private'?`✓ ${ALGO_META[k.algo].label} 개인키 인식 → 공개키로 변환`:`✓ ${ALGO_META[k.algo].label} 공개키`);}
+async function handleKeygen(){const algo=_getSelectedAlgo();const btn=document.getElementById('keygenBtn');const orig=btn.textContent;btn.disabled=true;btn.textContent='⏳ 발급 중...';try{_keyPair={algo,...(await pkGenerate(algo))};++_pkParseSeq;document.getElementById('pubKeyInput').value=_keyPair.publicKey;document.getElementById('privKeyOutput').value=_keyPair.privateKey;document.getElementById('privKeyBox').style.display='block';_setPubKeyNote(`✓ ${ALGO_META[algo].label} 새 키 쌍 발급됨`);}catch(e){console.error(e);alert('키 발급 중 오류가 발생했습니다: '+(e.message||e));}
+btn.disabled=false;btn.textContent=orig;}
+function copyPrivKey(btn){navigator.clipboard.writeText(document.getElementById('privKeyOutput').value).then(()=>{flashBtn(btn,'✅ 복사됨');});}
+function downloadKeyPair(){if(!_keyPair)return;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([_keyPair.publicKey+'\n\n'+_keyPair.privateKey+'\n'],{type:'text/plain'}));a.download=`url-locker-${_keyPair.algo}-keypair.txt`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
+function _clearPrivKey(){_keyPair=null;document.getElementById('privKeyOutput').value='';document.getElementById('privKeyBox').style.display='none';}
+function _updateDecryptUI(algo){const pk=isPkAlgo(algo);document.getElementById('decryptKeyLabel').textContent=pk?'🔑 PRIVATE KEY':'🔑 KEY';document.getElementById('decryptKeyInput').placeholder=pk?'개인키 붙여넣기':'암호화에 사용한 KEY 입력';}
+function setEncryptLoading(on){document.getElementById('lockBtn').style.display=on?'none':'block';document.getElementById('encryptSpinner').classList.toggle('active',on);}
+async function handleDecrypt(){const key=document.getElementById('decryptKeyInput').value;const algo=document.getElementById('decryptAlgoSelect')?.value||_savedAlgo;if(!key||!_savedHash)return;setDecryptLoading(true);const keyInput=document.getElementById('decryptKeyInput');keyInput.classList.remove('error');try{const decrypted=await decryptAES(_savedHash,key,algo);history.replaceState(null,'',window.location.pathname);window.location.replace(decrypted);}catch(e){_failCount++;if(_failCount>=1){_blastOff();return;}
+keyInput.classList.add('error');keyInput.classList.remove('shake');void keyInput.offsetWidth;keyInput.classList.add('shake');keyInput.value='';setTimeout(()=>keyInput.classList.remove('error'),1500);}
+setDecryptLoading(false);}
+function setDecryptLoading(on){document.getElementById('unlockBtn').style.display=on?'none':'block';document.getElementById('decryptSpinner').classList.toggle('active',on);}
+function copyEncrypted(){navigator.clipboard.writeText(_encryptedUrl).then(()=>{flashBtn(event.target,'✅ 복사됨');});}
+function downloadQR(){const img=document.getElementById('qrcode');if(!img.src)return;const a=document.createElement('a');a.href=img.src;a.download='url-locker-qr.png';a.click();}
+function resetAll(){document.getElementById('resultSection').style.display='none';document.getElementById('encryptSection').style.display='block';document.getElementById('urlInput').value='';document.getElementById('keyInput').value='';document.getElementById('hintInput').value='';document.getElementById('strengthBar').className='strength-bar';document.getElementById('strengthLabel').textContent='';_clearPrivKey();_encryptedUrl='';}
+function toggleVis(inputId,btn){const input=document.getElementById(inputId);const isText=input.type==='text';input.type=isText?'password':'text';btn.textContent=isText?'👁':'🙈';}
+function flashBtn(btn,label){const orig=btn.textContent;btn.textContent=label;setTimeout(()=>{btn.textContent=orig;},1500);}
+function isValidUrl(str){try{return['http:','https:'].includes(new URL(str).protocol);}
+catch{return false;}}
+function calcStrength(pw){if(!pw)return 0;let score=0;if(pw.length>=8)score++;if(pw.length>=14)score++;if(/[A-Z]/.test(pw)&&/[a-z]/.test(pw))score++;if(/\d/.test(pw)&&/[^A-Za-z0-9]/.test(pw))score++;return Math.min(score,4);}
+const STRENGTH_LABELS=['','취약','보통','양호','강함'];document.getElementById('keyInput').addEventListener('input',function(){const s=calcStrength(this.value);const bar=document.getElementById('strengthBar');const lbl=document.getElementById('strengthLabel');bar.className='strength-bar'+(s?` s${s}`:'');lbl.textContent=this.value?STRENGTH_LABELS[s]:'';});document.getElementById('algoSelect')?.addEventListener('change',function(){_updateAlgoUI(this.value);});document.getElementById('decryptAlgoSelect')?.addEventListener('change',function(){_updateDecryptUI(this.value);});document.getElementById('pubKeyInput')?.addEventListener('input',_onPubKeyInput);['urlInput','keyInput'].forEach(id=>{document.getElementById(id)?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();handleEncrypt();}});});document.getElementById('decryptKeyInput')?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();handleDecrypt();}});function _renderFmt(fmt,fmtTpl,title,url){if(fmtTpl){return fmtTpl.replace(/\{title\}/g,title).replace(/\{url\}/g,url);}
+switch(fmt){case'2':return`[${title}](${url})`;case'3':return`<a href="${url}">${title}</a>`;case'4':return`<a href="${url}"><button>🔐${title}</button></a>`;case'5':return`<a href="${url}" style="text-decoration:none;display:inline-block;animation:v 0.45s ease-in-out infinite alternate"><button style="font-size:18px;padding:16px 32px;border:none;border-radius:12px;background:#222;color:#fff;cursor:pointer">🔒${title}</button></a><style>@keyframes v{from{transform:translateY(-5px)}to{transform:translateY(5px)}}</style>`;case'6':return`<a href="${url}" target="_blank" title="${title}"><img src="https://raw.githubusercontent.com/northkoreanuser/HTML/refs/heads/main/URL-Locker/Images/lock.svg" width="60" height="78" alt="Locked URL"></a>`;default:return title?`${title}\n${url}`:url;}}
+async function handleAutoEncrypt(params){const autoUrl=params.get('url');const autoPw=params.get('pw');const autoHint=params.get('hint');const autoFmt=params.get('fmt');const autoFmtTpl=params.get('fmtTpl');const autoTitle=params.get('title')||'';const autoAlgo=params.get('algorithm')||'argon2id';const base=_baseUrl();history.replaceState(null,'',_PATH+'#lock=1');document.getElementById('encryptSection').style.display='none';const spinEl=document.getElementById('encryptSpinner');spinEl.style.display='flex';spinEl.classList.add('active');try{const hash=await encryptAES(autoUrl,autoPw,autoAlgo);_encryptedUrl=`${base}#hash=${hash}&algorithm=${autoAlgo}`
++(autoHint?'&hint='+encodeURIComponent(autoHint):'');spinEl.classList.remove('active');spinEl.style.display='none';document.getElementById('resultSection').style.display='block';document.getElementById('encryptedUrlDisplay').innerHTML=`<a href="${_encryptedUrl}" target="_blank" rel="noopener noreferrer">${_encryptedUrl}</a>`;const fmtOutput=(autoFmt||autoFmtTpl)?_renderFmt(autoFmt,autoFmtTpl,autoTitle,_encryptedUrl):_encryptedUrl;navigator.clipboard.writeText(fmtOutput).then(()=>{_showAutoCloseBar(true,fmtOutput);setTimeout(()=>{if(!window.closed)window.close();},1500);}).catch(()=>{_showFmtFallback(autoFmt,autoFmtTpl,autoTitle,fmtOutput);_showAutoCloseBar(false,fmtOutput);});_renderQR(_encryptedUrl);}catch(err){spinEl.classList.remove('active');spinEl.style.display='none';alert('자동 암호화 중 오류가 발생했습니다: '+(err.message||err));history.replaceState(null,'',_PATH+'#lock=1');document.getElementById('encryptSection').style.display='block';const sel=document.getElementById('algoSelect');if(ALGO_META[autoAlgo])sel.value=autoAlgo;_updateAlgoUI(sel.value);}}
+function _showAutoCloseBar(copied,fmtOutput){const bar=document.createElement('div');bar.id='autoCloseBar';bar.style.cssText=['margin-top:16px','padding:12px 16px','border-radius:10px','font-size:0.72rem','display:flex','align-items:center','justify-content:space-between','gap:12px',copied?'background:var(--accent-dim);border:1px solid rgba(79,255,176,0.35);color:var(--accent)':'background:var(--surface2);border:1px solid var(--border);color:var(--text-dim)',].join(';');const msg=document.createElement('span');const btn=document.createElement('button');btn.className='btn-secondary';btn.style.cssText='flex:none;padding:7px 14px;font-size:0.72rem';if(copied){let sec=1;msg.textContent=`✅ 복사됨 — ${sec}초 후 탭 닫기`;btn.textContent='✕ 닫기';btn.onclick=()=>window.close();const iv=setInterval(()=>{sec--;if(sec<=0){clearInterval(iv);return;}
+msg.textContent=`✅ 복사됨 — ${sec}초 후 탭 닫기`;},1000);}else{msg.textContent='⚠️ 클립보드 권한 없음 — 수동으로 복사하세요';btn.textContent='✕ 탭 닫기';btn.onclick=()=>window.close();}
+bar.appendChild(msg);bar.appendChild(btn);document.getElementById('resultSection').appendChild(bar);}
+function _showFmtFallback(autoFmt,autoFmtTpl,autoTitle,fmtOutput){const fmtLabel=autoFmtTpl?'🛠 커스텀 템플릿':autoFmt==='2'?'📝 마크다운':autoFmt==='3'?'🏷 링크 태그':'📄 일반 (제목 + URL)';const fmtCard=document.createElement('div');fmtCard.className='result-card';fmtCard.style.marginTop='16px';fmtCard.innerHTML=`
+        <div class="result-label">${fmtLabel}</div>
+        <div class="result-url" style="cursor:pointer;user-select:all;">${fmtOutput.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+        <div class="btn-row" style="margin-top:12px;">
+            <button class="btn-secondary" id="fmtCopyBtn">📋 복사</button>
+        </div>`;document.getElementById('resultSection').appendChild(fmtCard);document.getElementById('fmtCopyBtn').onclick=()=>{navigator.clipboard.writeText(fmtOutput).then(()=>{flashBtn(document.getElementById('fmtCopyBtn'),'✅ 복사됨');setTimeout(()=>window.close(),800);});};}
+(function init(){const params=new URLSearchParams(window.location.hash.length>1?window.location.hash.slice(1):window.location.search);window.addEventListener('hashchange',()=>window.location.reload());const hash=params.get('hash');const hint=params.get('hint');const marker=params.get('v');const lock=params.get('lock');const algo=params.get('algorithm')||'argon2id';if(marker==='1'){history.replaceState(null,'',window.location.pathname);window.location.replace(FALLBACK_URL);return;}
+if(hash){_savedHash=hash;_savedAlgo=algo;history.replaceState(null,'',_PATH+'#v=1');document.getElementById('decryptSection').style.display='block';document.title='URL LOCKED 🔐';document.querySelector('.logo').innerHTML='URL<span>LOCKED</span> 🔐';document.querySelector('.subtitle').textContent='Decrypt & access your URL';const algoSel=document.getElementById('decryptAlgoSelect');if(algoSel){algoSel.value=algo;_updateDecryptUI(algoSel.value);const algoField=document.getElementById('decryptAlgoField');if(algoField){const autoNote=document.getElementById('algoAutoNote');if(autoNote){autoNote.textContent=`알고리즘 자동 감지: ${(ALGO_META[algo]||{}).label || algo}`;autoNote.style.display='block';}}}
+if(hint){document.getElementById('hintBox').style.display='block';document.getElementById('hintText').textContent=hint;}
+_attachSecurityListeners();return;}
+if(lock==='1'){const autoUrl=params.get('url');const autoPw=params.get('pw');if(autoUrl&&autoPw){handleAutoEncrypt(params);}else{history.replaceState(null,'',_PATH+'#lock=1');document.getElementById('encryptSection').style.display='block';_updateAlgoUI(_getSelectedAlgo());}
+return;}
+_blastOff();})();
+</script>
+</body>
+</html>
