@@ -44,8 +44,7 @@ th small{color:var(--mute);font-size:12px;font-variant-numeric:tabular-nums}
 #m button,#m a{display:block;width:100%;padding:8px 10px;font:inherit;color:inherit;text-align:left;text-decoration:none;background:none;border:0;border-radius:6px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #m button{font-weight:600}
 #m button:hover,#m a:hover,#m button:focus-visible,#m a:focus-visible{background:var(--field);outline:0}
-#ml{margin-top:4px;padding-top:4px;border-top:1px solid var(--line)}
-#ml i{display:block;padding:8px 10px;color:var(--mute);font-style:normal}
+#ml:not(:empty),#mn{margin-top:4px;padding-top:4px;border-top:1px solid var(--line)}
 dialog{width:min(440px,calc(100vw - 32px));max-height:calc(100vh - 48px);padding:20px;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 dialog::backdrop{background:rgba(0,0,0,.35)}
 .dh{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
@@ -133,7 +132,7 @@ th{width:52px;padding-right:10px}th img{width:22px;height:22px}
 </table>
 <p id="e" hidden>결과 없음</p>
 </main>
-<div id="m" role="menu" hidden><button id="mh" role="menuitem">하이퍼 링크</button><div id="ml"></div></div>
+<div id="m" role="menu" hidden><button id="mh" role="menuitem">하이퍼 링크</button><div id="ml"></div><div id="mn"><a id="mw" role="menuitem" target="_blank" rel="noopener">나무위키</a></div></div>
 <div id="sh" hidden><label for="sl">이 검색으로 바로 열리는 링크</label><div><input id="sl" type="text" readonly spellcheck="false"><button id="sc" type="button">복사</button></div></div>
 <dialog id="d" aria-labelledby="dn">
 <div class="dh"><b id="dn"></b><button id="dx" type="button" aria-label="닫기">✕</button></div>
@@ -267,14 +266,14 @@ if(!ev.detail&&!x&&!y){var r=c.getBoundingClientRect();x=r.left+r.width/2;y=r.to
 key=c.dataset.k;m.dataset.n=c.querySelector('.n').textContent;
 ml.textContent='';
 links(key).forEach(function(l){var a=el('a',l.t);a.href=l.u;a.target='_blank';a.rel='noopener';a.title=l.u;a.setAttribute('role','menuitem');ml.appendChild(a)});
-if(!links(key).length)ml.appendChild(el('i','없음'));
+$('mw').href=c.href;
 m.hidden=false;
 m.style.left=Math.max(4,Math.min(x,innerWidth-m.offsetWidth-4))+'px';
 m.style.top=Math.max(4,Math.min(y,innerHeight-m.offsetHeight-4))+'px';
 }
 document.addEventListener('mousedown',function(ev){if(!m.hidden&&!m.contains(ev.target))hide()});
 addEventListener('scroll',hide,true);addEventListener('resize',hide);addEventListener('blur',hide);
-ml.addEventListener('click',hide);
+ml.addEventListener('click',hide);$('mw').addEventListener('click',hide);
 $('mh').onclick=function(){hide();$('dn').textContent=m.dataset.n;reset();render();d.showModal();du.focus()};
 function reset(){edit=-1;du.value='';dt.value='';da.textContent='추가';bad(false)}
 function bad(on){du.classList.toggle('bad',on);de.hidden=!on}

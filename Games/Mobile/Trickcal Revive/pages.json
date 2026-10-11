@@ -1,7 +1,8 @@
 {
   "folders": [],
   "files": [
-    {"name": "Apostle_Search.html", "size": 621249, "crc32": "CEACF69A"},
-    {"name": "hyperlink.json", "size": 29172, "crc32": "2FAE6729"}
+    {"name": "Apostle_Search.html", "size": 621288, "crc32": "42C235ED"},
+    {"name": "hyperlink.json", "size": 29172, "crc32": "2FAE6729"},
+    {"name": "namu-extract.user.js", "size": 30936, "crc32": "E684DB8F"}
   ]
 }
