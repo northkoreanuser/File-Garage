@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>AUTO LIGHT</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: #0b0d10; color: #e8eaed;
+    font-family: system-ui, -apple-system, "Noto Sans KR", sans-serif;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px; padding: 24px; text-align: center;
+  }
+  #mode { font-size: 13px; letter-spacing: 1px; color: #8b949e; min-height: 16px; }
+  #val {
+    font-size: 26vw; font-weight: 700; line-height: 1;
+    font-variant-numeric: tabular-nums; color: #ffd54a;
+  }
+  @media (min-width: 600px) { #val { font-size: 150px; } }
+  #unit { font-size: 22px; color: #8b949e; }
+  #torch { font-size: 18px; min-height: 24px; }
+  #torch.on { color: #ffd54a; }
+
+  /* 토글 */
+  .sw { position: relative; width: 84px; height: 44px; margin-top: 10px; }
+  .sw input { opacity: 0; width: 100%; height: 100%; position: absolute; inset: 0; z-index: 1; }
+  .sw span {
+    position: absolute; inset: 0; background: #1c2128; border-radius: 22px; transition: background .15s;
+  }
+  .sw span::after {
+    content: ""; position: absolute; top: 4px; left: 4px; width: 36px; height: 36px;
+    background: #8b949e; border-radius: 50%; transition: transform .15s, background .15s;
+  }
+  .sw input:checked + span { background: #ffd54a; }
+  .sw input:checked + span::after { transform: translateX(40px); background: #111; }
+
+  /* display:none 이면 프레임이 안 나올 수 있어서 1px 로 숨김 */
+  video { position: fixed; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+  canvas { display: none; }
+</style>
+</head>
+<body>
+  <div id="mode"></div>
+  <div id="val">--</div>
+  <div id="unit">lux</div>
+  <div id="torch"></div>
+  <label class="sw"><input type="checkbox" id="tg"><span></span></label>
+
+  <video id="v" playsinline muted></video>
+  <canvas id="c" width="32" height="24"></canvas>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var elMode = $('mode'), elVal = $('val'), elUnit = $('unit'), elTorch = $('torch'), tg = $('tg');
+  var v = $('v'), c = $('c'), ctx = c.getContext('2d', { willReadFrequently: true });
+
+  // 임계값 (히스테리시스): 이하면 켜고, 이상이면 끔
+  var LUX_ON = 30, LUX_OFF = 80;      // 조도 센서 (lux)
+  var CAM_ON = 12, CAM_OFF = 55;      // 카메라 추정 (%)
+  var SWITCH_GAP = 1000;              // 최소 전환 간격 (ms)
+
+  var run = 0;                        // 실행 세대 (끄면 증가 → 이전 루프 종료)
+  var stream = null, track = null, sensor = null;
+  var torch = false, noTorch = false, lastSwitch = 0, isLux = false;
+
+  function torchLabel() {
+    if (noTorch) { elTorch.textContent = '플래시 미지원'; elTorch.className = ''; return; }
+    elTorch.textContent = torch ? '플래시 ON' : '플래시 OFF';
+    elTorch.className = torch ? 'on' : '';
+  }
+
+  function setTorch(b) {
+    if (!track || noTorch || b === torch) return;
+    var now = Date.now();
+    if (now - lastSwitch < SWITCH_GAP) return;
+    lastSwitch = now;
+    torch = b;
+    torchLabel();
+    track.applyConstraints({ advanced: [{ torch: b }] }).catch(function () {
+      torch = false; noTorch = true; torchLabel();
+    });
+  }
+
+  function feed(val) {
+    elVal.textContent = Math.round(val);
+    var onTh = isLux ? LUX_ON : CAM_ON, offTh = isLux ? LUX_OFF : CAM_OFF;
+    if (val <= onTh) setTorch(true);
+    else if (val >= offTh) setTorch(false);
+  }
+
+  // 조도 센서 시도 — 실패는 조용히 reject
+  function startSensor(id) {
+    return new Promise(function (resolve, reject) {
+      if (!('AmbientLightSensor' in window)) return reject();
+      var s, got = false;
+      try { s = new AmbientLightSensor({ frequency: 10 }); } catch (e) { return reject(); }
+      s.onreading = function () {
+        if (id !== run) { try { s.stop(); } catch (_) {} return; }
+        if (!got) {
+          got = true; sensor = s; isLux = true;
+          elMode.textContent = '조도 센서'; elUnit.textContent = 'lux';
+          resolve();
+        }
+        feed(s.illuminance);
+      };
+      s.onerror = function () { if (!got) reject(); };
+      try { s.start(); } catch (e) { return reject(); }
+      setTimeout(function () {
+        if (!got) { try { s.stop(); } catch (_) {} reject(); }
+      }, 1500);
+    });
+  }
+
+  // 카메라 휘도 루프 (후면 카메라 스트림 재사용)
+  function startCamLoop(id) {
+    isLux = false;
+    elMode.textContent = '카메라 추정'; elUnit.textContent = '%';
+    (function tick() {
+      if (id !== run) return;
+      if (v.readyState >= 2) {
+        ctx.drawImage(v, 0, 0, c.width, c.height);
+        var d = ctx.getImageData(0, 0, c.width, c.height).data, sum = 0;
+        for (var i = 0; i < d.length; i += 4)
+          sum += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+        feed(sum / (d.length / 4) / 255 * 100);
+      }
+      setTimeout(tick, 100);
+    })();
+  }
+
+  function start() {
+    var id = ++run;
+    torch = false; noTorch = false; lastSwitch = 0;
+    elMode.textContent = '시작 중';
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 160 }, height: { ideal: 120 } },
+      audio: false
+    }).then(function (s) {
+      if (id !== run) { s.getTracks().forEach(function (t) { t.stop(); }); return; }
+      stream = s; track = s.getVideoTracks()[0];
+      v.srcObject = s;
+      return v.play().catch(function () {}).then(function () {
+        if (id !== run) return;
+        torchLabel();
+        return startSensor(id).catch(function () {
+          if (id === run) startCamLoop(id);
+        });
+      });
+    }).catch(function () {
+      if (id !== run) return;
+      stop();
+      elMode.textContent = '카메라 권한 필요 (HTTPS)';
+    });
+  }
+
+  function stop() {
+    run++;
+    tg.checked = false;
+    if (sensor) { try { sensor.stop(); } catch (_) {} sensor = null; }
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+    track = null; torch = false;
+    v.srcObject = null;
+    elVal.textContent = '--';
+    elMode.textContent = '';
+    elTorch.textContent = ''; elTorch.className = '';
+  }
+
+  tg.onchange = function () { tg.checked ? start() : stop(); };
+
+  // 백그라운드로 가면 끔
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden && tg.checked) stop();
+  });
+})();
+</script>
+</body>
+</html>
