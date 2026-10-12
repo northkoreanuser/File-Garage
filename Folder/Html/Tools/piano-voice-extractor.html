@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>목소리 추출기</title>
+<style>
+:root{
+  --bg:#eef1f5; --panel:#ffffff; --ink:#151a22; --muted:#5d6675; --line:#d3d9e2;
+  --accent:#1f5fd0; --accent-ink:#ffffff; --seg:rgba(31,95,208,.16); --sel:rgba(224,120,30,.22); --head:#e0491c;
+  box-sizing:border-box;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#12161c; --panel:#1b2129; --ink:#e9edf3; --muted:#97a1b1; --line:#2d3643;
+    --accent:#6ea0ff; --accent-ink:#0c1118; --seg:rgba(110,160,255,.20); --sel:rgba(255,160,70,.22); --head:#ff7a4a;}
+}
+*,*::before,*::after{box-sizing:inherit}
+html{background:var(--bg)}
+body{margin:0;padding:16px;max-width:920px;margin-inline:auto;color:var(--ink);background:var(--bg);
+  font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
+  line-height:1.5;font-size:15px}
+h1{font-size:22px;margin:4px 0 4px}
+h2{font-size:16px;margin:0 0 10px}
+p.lead{margin:0 0 12px;color:var(--muted)}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+label.drop{display:block;border:2px dashed var(--line);border-radius:10px;padding:22px 14px;text-align:center;cursor:pointer;color:var(--muted)}
+label.drop:hover,label.drop:focus-within,label.drop.over{border-color:var(--accent);color:var(--ink)}
+label.drop input{position:absolute;opacity:0;width:1px;height:1px}
+.cv{position:relative}
+.cv .head{position:absolute;top:0;bottom:0;width:2px;background:var(--head);pointer-events:none;display:none}
+canvas{display:block;width:100%;background:transparent;border-radius:6px;border:1px solid var(--line)}
+#wave{height:150px;cursor:crosshair;touch-action:none}
+#roll{height:200px;cursor:pointer}
+.field input[type=file]{font:inherit;font-size:13px;color:var(--ink)}
+.row.sub{border:1px dashed var(--line);border-radius:8px;padding:8px 10px}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin:10px 0}
+.field{display:flex;flex-direction:column;gap:2px;font-size:13px;color:var(--muted);min-width:130px;flex:1}
+.field input[type=range]{width:100%}
+.field input[type=number],.field select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+.field output{color:var(--ink);font-variant-numeric:tabular-nums}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:8px 12px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row[hidden]{display:none}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.radio{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:14px}
+.radio label{display:flex;align-items:center;gap:4px;border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer}
+.radio label:has(input:checked){border-color:var(--accent);background:var(--seg)}
+.radio label:has(input:disabled){opacity:.45;cursor:not-allowed}
+#info,#status,#selInfo{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;margin:8px 0 0}
+ul#segs{list-style:none;margin:10px 0 0;padding:0;max-height:300px;overflow-y:auto;border-top:1px solid var(--line)}
+ul#segs li{display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--line);font-size:14px;font-variant-numeric:tabular-nums}
+ul#segs li span{flex:1}
+ul#segs li button{padding:4px 10px;font-size:13px}
+.hint{font-size:13px;color:var(--muted);margin:8px 0 0}
+#busy{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-bottom:12px;font-size:13px;font-variant-numeric:tabular-nums}
+#busy[hidden]{display:none}
+#busy progress{flex:1;height:10px;accent-color:var(--accent)}
+</style>
+</head>
+<body>
+<h1>목소리 추출기</h1>
+<p class="lead">mp3를 올리면 목소리와 반주를 나누고, 파형을 쪼개고, 여러 악기나 말하는 피아노로 다시 연주해줍니다. 모든 처리는 이 브라우저 안에서 CPU 코어를 전부 써서 돌아가요.</p>
+<div id="busy" hidden><span id="busyT">작업 중</span><progress id="prog" max="1" value="0"></progress><span id="busyP">0%</span></div>
+
+<section>
+  <label class="drop"><input type="file" id="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.flac,.json,application/json">오디오 또는 음표 JSON 선택 (또는 여기에 끌어다 놓기)</label>
+  <p id="info">파일을 선택하세요.</p>
+  <div class="btns"><button id="cfgSave">설정 JSON 저장</button><button id="cfgLoad">설정 JSON 불러오기</button><input type="file" id="cfgFile" accept=".json,application/json" hidden></div>
+  <p class="hint" style="margin-top:0">'목소리 분리'와 '악기 복구와 말하는 피아노'의 설정을 한 파일로 저장하고 불러와요.</p>
+</section>
+
+<section>
+  <h2>목소리 분리</h2>
+  <div class="row">
+    <label class="field">분리 방식
+      <select id="sepMethod"><option value="center">가운데 추출 (스테레오 원곡만 있을 때)</option><option value="inst">반주(inst) 위상 반전 (원곡 − 반주)</option></select></label>
+  </div>
+  <div class="row sub" id="instOpts" hidden>
+    <label class="field">반주(inst) 파일 <input type="file" id="instFile" accept="audio/*,.mp3,.wav,.ogg,.m4a,.flac"></label>
+    <label class="field">자동 맞춤
+      <select id="instAuto"><option value="on">켬 (시간·세기를 알아서 맞춤)</option><option value="off">끔 (아래 값 그대로)</option></select></label>
+    <label class="field">반주 시간 이동 (ms) <input type="number" id="instOff" value="0" step="0.01"></label>
+    <label class="field">반주 세기 (배) <input type="number" id="instGain" value="1" step="0.001" min="0" max="4"></label>
+  </div>
+  <p class="hint" id="instInfo" hidden>같은 곡의 반주(inst) 파일을 넣으면 원곡에서 반주를 위상 반전으로 빼서 목소리만 남겨요. 시간이 1샘플만 어긋나도 반주가 남으므로 자동 맞춤이 가장 잘 맞는 지점과 세기를 찾아줘요. 마스터링이 다른 반주면 조금 남을 수 있어요.</p>
+  <div class="row" id="centerOpts">
+    <label class="field">분리 강도 <output id="pO">6</output>
+      <input type="range" id="p" min="1" max="20" step="1" value="6"></label>
+    <label class="field">목소리 저역 컷 <output id="loO">120 Hz</output>
+      <input type="range" id="lo" min="40" max="400" step="10" value="120"></label>
+    <label class="field">목소리 고역 컷 <output id="hiO">9000 Hz</output>
+      <input type="range" id="hi" min="2000" max="16000" step="250" value="9000"></label>
+  </div>
+  <div class="btns">
+    <button id="sepBtn" class="primary" disabled>목소리 분리</button>
+    <button id="playVoc" disabled>목소리 재생</button>
+    <button id="playAcc" disabled>반주 재생</button>
+    <button id="saveVoc" disabled>목소리 WAV</button>
+    <button id="saveAcc" disabled>반주 WAV (스테레오)</button>
+  </div>
+  <div class="radio" role="radiogroup" aria-label="작업할 소리">
+    <span>아래 작업에 쓸 소리:</span>
+    <label><input type="radio" name="srcSel" value="orig" checked> 원본</label>
+    <label><input type="radio" name="srcSel" value="vocal" disabled> 목소리</label>
+    <label><input type="radio" name="srcSel" value="acc" disabled> 반주</label>
+  </div>
+  <p class="hint" id="centerHint">스테레오 가운데에 모인 소리(보통 보컬)를 뽑아내고 나머지를 반주로 남겨요. 강도를 올리면 더 깨끗하지만 목소리가 얇아지고, 내리면 두껍지만 악기가 섞여요. 모노 파일은 좌우 차이가 없어서 대역만 걸러져요.</p>
+</section>
+
+<section>
+  <h2>파형과 구간 분할</h2>
+  <div class="cv"><canvas id="wave" aria-label="파형: 클릭하면 그 위치부터 재생, 끌면 구간 선택"></canvas><div class="head" id="waveHead"></div></div>
+  <p id="selInfo">클릭하면 그 위치부터 재생, 끌면 구간 선택. 선택한 뒤에는 양 끝 선을 끌어 늘리거나 줄이고, 안쪽을 끌어 옮길 수 있어요.</p>
+  <div class="btns">
+    <button id="playAll" disabled>전체 재생</button>
+    <button id="playSel" disabled>선택 재생</button>
+    <button id="clearSel" disabled>선택 해제</button>
+    <button id="stop" disabled>정지</button>
+    <button id="saveAll" disabled>WAV 저장</button>
+  </div>
+  <div class="row">
+    <label class="field">무음 기준 <output id="thO">0.020</output>
+      <input type="range" id="th" min="0.002" max="0.1" step="0.002" value="0.02"></label>
+    <label class="field">끊는 최소 무음 <output id="msO">120 ms</output>
+      <input type="range" id="ms" min="20" max="800" step="10" value="120"></label>
+    <label class="field">조각 최소 길이 <output id="minO">30 ms</output>
+      <input type="range" id="minLen" min="10" max="1000" step="10" value="30"></label>
+  </div>
+  <div class="row">
+    <label class="field">RAW 샘플레이트
+      <select id="rawRate"><option value="0">원본 그대로</option><option value="22050">22050 Hz</option><option value="16726">16726 Hz (C-3 트래커)</option><option value="8363">8363 Hz (C-2 트래커)</option></select></label>
+    <label class="field">RAW 형식
+      <select id="rawFmt"><option value="u8">8비트 부호 없음</option><option value="s8">8비트 부호 있음 (ProTracker)</option></select></label>
+  </div>
+  <div class="btns">
+    <button id="saveRaw" disabled>8비트 RAW</button>
+    <button id="saveZip" disabled>조각 전부 ZIP</button>
+  </div>
+  <p id="segInfo" class="hint"></p>
+  <ul id="segs"></ul>
+  <p class="hint">음절이 무음으로 딱 안 떨어지면 기준을 낮추거나 최소 무음을 줄여보세요.</p>
+</section>
+
+<section>
+  <h2>악기 복구와 말하는 피아노</h2>
+  <div class="cv"><canvas id="roll" aria-label="건반별 에너지 (아래가 저음)"></canvas><div class="head" id="rollHead"></div></div>
+  <div class="row">
+    <label class="field">방식
+      <select id="mode"><option value="ens">악기 편성 (음표 복구)</option><option value="piano">말하는 피아노 (연속 합성)</option></select></label>
+    <label class="field">프레임 간격 <output id="hopO">20 ms</output>
+      <input type="range" id="hop" min="5" max="60" step="5" value="20"></label>
+    <label class="field">동시에 잡을 음 수 <output id="kO">24</output>
+      <input type="range" id="k" min="1" max="88" step="1" value="24"></label>
+    <label class="field">조옮김 (반음)
+      <input type="number" id="tr" value="0" min="-24" max="24"></label>
+  </div>
+  <div class="row" id="ensOpts">
+    <label class="field">편성
+      <select id="preset"><option value="auto">자동 (음높이와 길이로 배정)</option><option value="mix">자유 혼합 (음마다 다른 악기)</option><option value="orch">오케스트라</option><option value="band">밴드</option><option value="bells">벨과 오르간</option><option value="piano">피아노만</option><option value="chip">8비트 칩튠</option></select></label>
+    <label class="field">박자 맞추기
+      <select id="quant"><option value="0">끔</option><option value="16">16분음표</option><option value="8">8분음표</option><option value="4">4분음표</option></select></label>
+    <label class="field">BPM
+      <input type="number" id="bpm" value="120" min="40" max="300"></label>
+    <label class="field">드럼
+      <select id="drums"><option value="on">넣기</option><option value="off">빼기</option></select></label>
+  </div>
+  <div class="row" id="pianoOpts" hidden>
+    <label class="field">음색
+      <select id="wavetype"><option value="sine">사인파</option><option value="tri">삼각파</option><option value="saw">톱니파</option><option value="piano">피아노 배음</option><option value="organ">오르간 배음</option></select></label>
+  </div>
+  <div class="btns">
+    <button id="analyze" class="primary" disabled>분석하고 만들기</button>
+    <button id="playPiano" disabled>결과 재생</button>
+    <button id="stopPiano" disabled>정지</button>
+    <button id="savePiano" disabled>결과 WAV</button>
+    <button id="saveMidi" disabled>MIDI</button>
+    <button id="saveJson" disabled>음표 데이터 JSON</button>
+  </div>
+  <p id="status"></p>
+  <p class="hint">위의 건반 그림을 클릭하면 결과를 그 위치부터 재생해요. 구간을 선택했으면 그 구간만, 아니면 전체를 변환해요(길이 제한 없음). 같은 분석으로 편성·박자·조옮김만 바꿔 다시 만들면 분석을 건너뛰어서 훨씬 빨라요. 목소리는 위에서 분리한 뒤 "목소리"를 골라 말하는 피아노로 바꾸면 잘 들려요. MIDI는 악기별 트랙과 드럼(10채널)으로 나눠 저장돼요.</p>
+</section>
+
+<!-- ===================== 워커 (분석·분리·합성을 코어마다 나눠 돌림) ===================== -->
+<script type="text/js-worker" id="wsrc">
+let FN = 0, CT, ST, RV, HW;
+function setup(n){
+  if(FN === n) return; FN = n;
+  const h = n >> 1; CT = new Float64Array(h); ST = new Float64Array(h);
+  for(let k=0;k<h;k++){ CT[k] = Math.cos(2*Math.PI*k/n); ST[k] = -Math.sin(2*Math.PI*k/n); }
+  RV = new Uint32Array(n); const bits = Math.round(Math.log2(n));
+  for(let i=0;i<n;i++){ let r = 0, x = i; for(let b=0;b<bits;b++){ r = (r<<1) | (x&1); x >>= 1; } RV[i] = r; }
+  HW = new Float64Array(n); for(let i=0;i<n;i++) HW[i] = .5 - .5*Math.cos(2*Math.PI*i/n);
+}
+function fft(re, im){
+  const n = FN;
+  for(let i=0;i<n;i++){ const j = RV[i]; if(j > i){ let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+  for(let size=2; size<=n; size<<=1){
+    const half = size >> 1, step = n/size;
+    for(let i=0;i<n;i+=size){
+      for(let j=0,k=0;j<half;j++,k+=step){
+        const a = i+j, b = a+half, c = CT[k], s = ST[k];
+        const tr = re[b]*c - im[b]*s, ti = re[b]*s + im[b]*c;
+        re[b] = re[a]-tr; im[b] = im[a]-ti; re[a] += tr; im[a] += ti;
+      }
+    }
+  }
+}
+
+/* --- 분석: 실수 프레임 두 개를 복소수 FFT 한 번에 --- */
+function analyze(a){
+  const N = 4096, H = N/2, KEYS = 88; setup(N);
+  const {data, base, f0, f1, hop, sr, K} = a, nf = f1 - f0, dl = data.length;
+  const lo = new Int32Array(KEYS), hi = new Int32Array(KEYS), tilt = new Float64Array(KEYS);
+  for(let k=0;k<KEYS;k++){
+    const f = 440*Math.pow(2, (k+21-69)/12);
+    lo[k] = Math.max(1, Math.round(f*Math.pow(2,-1/24)*N/sr)); hi[k] = Math.min(H-1, Math.max(lo[k], Math.round(f*Math.pow(2,1/24)*N/sr)));
+    tilt[k] = Math.sqrt(f/500);
+  }
+  const bLow = Math.round(150*N/sr), bM1 = Math.round(1000*N/sr), bM2 = Math.min(H-1, Math.round(5000*N/sr));
+  const bH1 = Math.min(H-1, Math.round(6000*N/sr)), bH2 = Math.min(H-1, Math.round(16000*N/sr));
+  const raw = new Float32Array(nf*KEYS), low = new Float32Array(nf), mid = new Float32Array(nf), hiE = new Float32Array(nf);
+  const re = new Float64Array(N), im = new Float64Array(N), mA = new Float64Array(H), mB = new Float64Array(H), tmp = new Float32Array(KEYS);
+  let gmax = 0;
+  const fill = (row, mag) => {
+    let s = 0; for(let i=1;i<=bLow;i++) s += mag[i]; low[row] = s;
+    s = 0; for(let i=bM1;i<=bM2;i++) s += mag[i]; mid[row] = s;
+    s = 0; for(let i=bH1;i<=bH2;i++) s += mag[i]; hiE[row] = s;
+    const o = row*KEYS;
+    for(let k=0;k<KEYS;k++){
+      if(lo[k] >= H-1){ tmp[k] = 0; continue; }
+      let m = 0; for(let i=lo[k]; i<=hi[k]; i++) if(mag[i] > m) m = mag[i];
+      tmp[k] = m*tilt[k];
+    }
+    raw.set(tmp, o);
+    if(K < KEYS){ tmp.sort(); const thr = tmp[KEYS-K]; for(let k=0;k<KEYS;k++) if(raw[o+k] < thr) raw[o+k] = 0; }
+    for(let k=0;k<KEYS;k++) if(raw[o+k] > gmax) gmax = raw[o+k];
+  };
+  for(let fr=f0; fr<f1; fr+=2){
+    const two = fr+1 < f1, sa = fr*hop - H - base, sb = sa + hop;
+    for(let i=0;i<N;i++){
+      const ja = sa+i, jb = sb+i;
+      re[i] = (ja>=0 && ja<dl ? data[ja] : 0)*HW[i];
+      im[i] = two && jb>=0 && jb<dl ? data[jb]*HW[i] : 0;
+    }
+    fft(re, im);
+    for(let k=0;k<H;k++){
+      const k2 = (N-k) & (N-1), zr = re[k], zi = im[k], wr = re[k2], wi = im[k2];
+      const ar = zr+wr, ai = zi-wi, br = zi+wi, bi = zr-wr;
+      mA[k] = .5*Math.sqrt(ar*ar + ai*ai); mB[k] = .5*Math.sqrt(br*br + bi*bi);
+    }
+    fill(fr-f0, mA); if(two) fill(fr+1-f0, mB);
+  }
+  return {raw, low, mid, hi: hiE, gmax};
+}
+
+/* --- 목소리 분리: 좌우를 한 FFT로, 가운데(같은 크기·같은 위상) 성분만 마스크 --- */
+function separate(a){
+  const {L, R, base, f0, f1, hop, N, sr, p, loHz, hiHz} = a; setup(N);
+  const H = N/2, dl = L.length, norm = 1/(3*N/(8*hop)) / N;
+  const start = f0*hop - H, olen = (f1-f0-1)*hop + N;
+  const v = new Float32Array(olen), al = new Float32Array(olen), ar = new Float32Array(olen);
+  const re = new Float64Array(N), im = new Float64Array(N), re2 = new Float64Array(N), im2 = new Float64Array(N);
+  const Vr = new Float64Array(H+1), Vi = new Float64Array(H+1), Ar = new Float64Array(H+1), Ai = new Float64Array(H+1), Br = new Float64Array(H+1), Bi = new Float64Array(H+1);
+  const bw = new Float64Array(H+1);
+  for(let k=0;k<=H;k++){ const f = k*sr/N; bw[k] = (f < loHz ? Math.pow(f/loHz, 4) : 1) * (f > hiHz ? Math.pow(hiHz/f, 4) : 1); }
+  for(let fr=f0; fr<f1; fr++){
+    const s = fr*hop - H - base;
+    for(let i=0;i<N;i++){ const j = s+i; if(j>=0 && j<dl){ re[i] = L[j]*HW[i]; im[i] = R[j]*HW[i]; } else { re[i] = 0; im[i] = 0; } }
+    fft(re, im);
+    for(let k=0;k<=H;k++){
+      const k2 = (N-k) & (N-1), zr = re[k], zi = im[k], wr = re[k2], wi = im[k2];
+      const lr = .5*(zr+wr), li = .5*(zi-wi), rr = .5*(zi+wi), ri = -.5*(zr-wr);
+      const l = Math.sqrt(lr*lr + li*li), r = Math.sqrt(rr*rr + ri*ri);
+      const ctr = 1 - Math.abs(l-r)/(l+r+1e-12), coh = (lr*rr + li*ri)/(l*r+1e-12);
+      const c = coh > 0 ? ctr*coh : 0, m = Math.pow(c, p)*bw[k];
+      const vr = m*.5*(lr+rr), vi = m*.5*(li+ri);
+      Vr[k] = vr; Vi[k] = vi; Ar[k] = lr-vr; Ai[k] = li-vi; Br[k] = rr-vr; Bi[k] = ri-vi;
+    }
+    // 역변환 1: 목소리 + i·반주L  (켤레 대칭으로 전체 스펙트럼 복원)
+    for(let k=0;k<N;k++){
+      let vr, vi, xr, xi;
+      if(k <= H){ vr = Vr[k]; vi = Vi[k]; xr = Ar[k]; xi = Ai[k]; }
+      else { const q = N-k; vr = Vr[q]; vi = -Vi[q]; xr = Ar[q]; xi = -Ai[q]; }
+      re2[k] = vr - xi; im2[k] = -(vi + xr);
+      let br, bi; if(k <= H){ br = Br[k]; bi = Bi[k]; } else { br = Br[N-k]; bi = -Bi[N-k]; }
+      re[k] = br; im[k] = -bi;
+    }
+    fft(re2, im2); fft(re, im);
+    const o = (fr-f0)*hop;
+    for(let i=0;i<N;i++){
+      const w = HW[i]*norm;
+      v[o+i] += re2[i]*w; al[o+i] += -im2[i]*w; ar[o+i] += re[i]*w;
+    }
+  }
+  return {start, v, al, ar};
+}
+
+/* --- 합성용 파형표 --- */
+const TS = 2048, tblCache = new Map();
+const HARM = {piano:[1,.55,.3,.18,.1,.06,.03], organ:[1,.7,.5,.35,.2,.1], flute:[1,.12,.04], bass:[1,.5,.28,.12], sine:[1]};
+function table(name, f, sr){
+  const oct = Math.max(0, Math.floor(Math.log2(Math.max(f, 20)/27.5)));
+  const maxH = Math.max(1, Math.floor(sr*.45/(27.5*Math.pow(2, oct+1))));
+  let amps;
+  if(name === 'saw'){ amps = []; for(let h=1; h<=Math.min(maxH, 96); h++) amps.push(1/h); }
+  else if(name === 'tri'){ amps = []; for(let h=1; h<=Math.min(maxH, 63); h++) amps.push(h%2 ? (((h-1)/2)%2 ? -1 : 1)/(h*h) : 0); }
+  else amps = (HARM[name] || HARM.sine).slice(0, maxH);
+  const key = name + '|' + amps.length + '|' + sr;
+  let T = tblCache.get(key); if(T) return T;
+  T = new Float32Array(TS+1); let pk = 0;
+  for(let i=0;i<TS;i++){ let s = 0; for(let h=0;h<amps.length;h++) if(amps[h]) s += amps[h]*Math.sin(2*Math.PI*(h+1)*i/TS); T[i] = s; if(Math.abs(s) > pk) pk = Math.abs(s); }
+  if(pk > 0) for(let i=0;i<TS;i++) T[i] /= pk;
+  T[TS] = T[0]; tblCache.set(key, T); return T;
+}
+function lpc(fc, sr, hp){
+  fc = Math.max(20, Math.min(fc, sr*.45));
+  const w = 2*Math.PI*fc/sr, cs = Math.cos(w), al = Math.sin(w)/(2*.7071), a0 = 1+al;
+  return hp ? [(1+cs)/2/a0, -(1+cs)/a0, (1+cs)/2/a0, -2*cs/a0, (1-al)/a0]
+            : [(1-cs)/2/a0, (1-cs)/a0, (1-cs)/2/a0, -2*cs/a0, (1-al)/a0];
+}
+
+/* --- 말하는 피아노: 건반마다 연속 사인(또는 배음) + 프레임 사이 선형 음량 --- */
+function synthPiano(a){
+  const {M, fBase, nfr, frames, hop, sr, w0, w1, type, tr} = a, KEYS = 88, out = new Float32Array(w1-w0);
+  for(let k=0;k<KEYS;k++){
+    let any = false; for(let i=0;i<nfr && !any;i++) if(M[i*KEYS+k] > 0) any = true;
+    if(!any) continue;
+    const f = 440*Math.pow(2, (k+21-69+tr)/12); if(f >= sr*.48) continue;
+    const T = table(type, f, sr), inc = f/sr;
+    const gAt = fr => { const i = fr - fBase; return fr < frames && i >= 0 && i < nfr ? M[i*KEYS+k] : 0; };
+    for(let s=w0; s<w1; ){
+      const fr = Math.floor(s/hop), sEnd = Math.min(w1, (fr+1)*hop);
+      const g0 = gAt(fr), g1 = gAt(fr+1);
+      if(g0 === 0 && g1 === 0){ s = sEnd; continue; }
+      let ph = (f*s/sr) % 1;
+      for(; s<sEnd; s++){
+        const x = ph*TS, i = x|0, fx = x-i, y = T[i] + (T[i+1]-T[i])*fx;
+        out[s-w0] += y*(g0 + (g1-g0)*((s - fr*hop)/hop))*.12;
+        ph += inc; if(ph >= 1) ph -= 1;
+      }
+    }
+  }
+  return {out};
+}
+
+/* --- 악기 편성: 음표마다 직접 계산 --- */
+function renderNote(out, w0, w1, n, sr){
+  const f = n.f, d = n.d, inst = n.inst; if(f >= sr*.48) return;
+  let A = (0.25 + 0.75*n.v)*0.4;
+  let mode = 0, att = .01, he = d, rel = .1, tau = .3, end = 0;
+  let T = null, T2 = null, vib = 0, filt = 0, c0 = 0, c1 = 0, sweepT = 0, chip = 0, duty = .5;
+  const sus = (at, rl) => { att = Math.min(at, Math.max(.005, d*.5)); he = Math.max(att, d); rel = rl; end = he + rel + .02; mode = 0; };
+  const dec = (at, tu) => { att = at; tau = tu; end = at + tu*4.6; mode = 1; };   // -40dB에서 끊음
+  switch(inst){
+    case 'piano': T = table('piano', f, sr); dec(.004, Math.min(Math.max(.5 - f/4000, .12), .5, d*.6 + .1)); break;
+    case 'pluck': T = table('saw', f, sr); filt = 2; c0 = Math.min(f*10, 9000); c1 = Math.max(f*2, 200); sweepT = .25; dec(.003, Math.min(.3, .06 + d*.4)); break;
+    case 'bell': T = table('sine', f, sr); if(f*2.76 < sr*.45) T2 = table('sine', f*2.76, sr); dec(.002, f < 500 ? .7 : .4); end = Math.min(end, 2.5); break;
+    case 'strings': T = table('saw', f, sr); filt = 1; c0 = Math.min(f*5, 7000); vib = .004; sus(.07, .12); break;
+    case 'brass': T = table('saw', f, sr); filt = 3; c0 = f*1.5; c1 = Math.min(f*7, 8000); sweepT = .09; sus(.04, .08); break;
+    case 'flute': T = table('flute', f, sr); vib = .005; sus(.05, .1); break;
+    case 'organ': T = table('organ', f, sr); sus(.01, .04); break;
+    case 'chip': chip = 1; duty = d < .2 ? .25 : .5; A *= .45; sus(.002, .03); break;
+    case 'chipbass': chip = 2; A *= .7; sus(.002, .03); break;
+    default: T = table('bass', f, sr); filt = 1; c0 = 900; sus(.01, .1);
+  }
+  const s0 = Math.round(n.t*sr); let s1 = s0 + Math.ceil(end*sr);
+  if(s1 <= w0 || s0 >= w1) return; if(s1 > w1) s1 = w1;
+  const inc = f/sr, inc2 = f*2.76/sr;
+  const nAtt = Math.max(1, Math.round(att*sr)), nHe = Math.round(he*sr), nRel = Math.max(1, Math.round(rel*sr)), dk = Math.exp(-1/(tau*sr));
+  const vw = 2*Math.PI*5.5/sr;
+  let ph = 0, ph2 = 0, x1 = 0, x2 = 0, y1 = 0, y2 = 0, cf = filt ? lpc(c0, sr) : null, fi = inc, g = 0;
+  let b0 = cf ? cf[0] : 0, b1 = cf ? cf[1] : 0, b2 = cf ? cf[2] : 0, a1 = cf ? cf[3] : 0, a2 = cf ? cf[4] : 0;
+  const cnt = s1 - s0, nSweep = Math.round((sweepT + .04)*sr);
+  for(let i=0; i<cnt; i++){
+    // 음량: 곱셈/덧셈만으로 이어서 계산
+    if(i < nAtt) g = A*i/nAtt;
+    else if(mode === 1) g = i === nAtt ? A : g*dk;
+    else if(i < nHe) g = A;
+    else { g = A*(1 - (i-nHe)/nRel); if(g < 0) g = 0; }
+    if((i & 63) === 0){
+      if(vib) fi = inc*(1 + vib*Math.sin(vw*i));
+      if(filt > 1 && i <= nSweep){
+        const k = Math.min(1, i/sr/sweepT), c = lpc(filt === 2 ? c0*Math.pow(c1/c0, k) : c0 + (c1-c0)*k, sr);
+        b0 = c[0]; b1 = c[1]; b2 = c[2]; a1 = c[3]; a2 = c[4];
+      }
+    }
+    let y;
+    if(chip === 1) y = ph < duty ? 1 : -1;
+    else if(chip === 2) y = 4*Math.abs(ph - .5) - 1;
+    else { const x = ph*TS, j = x|0; y = T[j] + (T[j+1]-T[j])*(x-j); }
+    ph += fi; if(ph >= 1) ph -= 1;
+    if(T2){ const x = ph2*TS, j = x|0; y += .35*(T2[j] + (T2[j+1]-T2[j])*(x-j)); ph2 += inc2; if(ph2 >= 1) ph2 -= 1; }
+    if(filt){ const yy = b0*y + b1*x1 + b2*x2 - a1*y1 - a2*y2; x2 = x1; x1 = y; y2 = y1; y1 = yy; y = yy; }
+    const o = s0 + i - w0;
+    if(o >= 0) out[o] += y*g;
+  }
+}
+function renderDrum(out, w0, w1, h, sr){
+  const a = .25 + .75*h.v, s0 = Math.round(h.t*sr);
+  const dur = h.type === 'kick' ? .3 : h.type === 'snare' ? .18 : .07;
+  let s1 = s0 + Math.ceil(dur*sr); if(s1 <= w0 || s0 >= w1) return; if(s1 > w1) s1 = w1;
+  let seed = (s0*2654435761 + 12345) >>> 0 || 1;
+  const rnd = () => { seed ^= seed << 13; seed >>>= 0; seed ^= seed >>> 17; seed ^= seed << 5; seed >>>= 0; return seed/2147483648 - 1; };
+  let ph = 0, ph2 = 0, x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  const cf = h.type === 'kick' ? null : lpc(h.type === 'snare' ? 1200 : 7000, sr, true);
+  const gA = h.type === 'kick' ? a*.9 : h.type === 'snare' ? a*.6 : a*.3, TA = h.type === 'kick' ? .28 : h.type === 'snare' ? .16 : .05, kA = Math.log(.001/gA)/TA;
+  const gB = a*.4, kB = Math.log(.001/gB)/.1;
+  for(let s=s0; s<s1; s++){
+    const t = (s-s0)/sr; let y;
+    if(h.type === 'kick'){
+      const f = 160*Math.pow(45/160, Math.min(t, .12)/.12); ph += f/sr; if(ph >= 1) ph -= 1;
+      y = t < .28 ? Math.sin(2*Math.PI*ph)*gA*Math.exp(kA*t) : 0;
+    } else {
+      const xn = rnd(), yy = cf[0]*xn + cf[1]*x1 + cf[2]*x2 - cf[3]*y1 - cf[4]*y2; x2 = x1; x1 = xn; y2 = y1; y1 = yy;
+      y = t < TA ? yy*gA*Math.exp(kA*t) : 0;
+      if(h.type === 'snare' && t < .1){ ph2 += 190/sr; if(ph2 >= 1) ph2 -= 1; y += (4*Math.abs(ph2-.5)-1)*gB*Math.exp(kB*t); }
+    }
+    if(s >= w0) out[s-w0] += y;
+  }
+}
+function synthEns(a){
+  const {notes, drums, w0, w1, sr} = a, out = new Float32Array(w1-w0);
+  for(let i=0;i<notes.length;i++) renderNote(out, w0, w1, notes[i], sr);
+  for(let i=0;i<drums.length;i++) renderDrum(out, w0, w1, drums[i], sr);
+  for(let i=0;i<out.length;i++) out[i] *= .25;
+  return {out};
+}
+
+function handle(type, a){
+  if(type === 'analyze') return analyze(a);
+  if(type === 'separate') return separate(a);
+  if(type === 'piano') return synthPiano(a);
+  if(type === 'ens') return synthEns(a);
+  throw new Error('알 수 없는 작업: ' + type);
+}
+if(typeof WorkerGlobalScope !== 'undefined' && self instanceof WorkerGlobalScope){
+  self.onmessage = e => {
+    const {id, type, args} = e.data;
+    try{
+      const res = handle(type, args), tr = [];
+      for(const k in res){ const v = res[k]; if(v && v.buffer instanceof ArrayBuffer) tr.push(v.buffer); }
+      self.postMessage({id, res}, tr);
+    }catch(err){ self.postMessage({id, err: String(err && err.message || err)}); }
+  };
+}
+</script>
+
+<script>
+const $ = s => document.querySelector(s);
+const KEYS = 88, MIDI0 = 21;
+const keyFreq = k => 440 * Math.pow(2, (k + MIDI0 - 69)/12);
+let ctx, src = null, sep = null, srcSel = 'orig', segs = [], sel = null, res = null, cache = null, lastNotes = null;
+let rollM = null, rollFrames = 0, outSr = 44100, outName = 'output';
+
+function getCtx(){ if(!ctx) ctx = new (window.AudioContext||window.webkitAudioContext)(); return ctx; }
+function setEnabled(ids, on){ ids.forEach(i => $(i).disabled = !on); }
+function fmt(t){ return t.toFixed(2); }
+function mmss(t){ const m = Math.floor(t/60), s = t - m*60; return m + ':' + (s < 10 ? '0' : '') + s.toFixed(1); }
+const tick = () => new Promise(r => setTimeout(r, 0));
+
+/* ---------- 워커 풀 ---------- */
+const WSRC = $('#wsrc').textContent;
+const NW = Math.max(2, Math.min(12, navigator.hardwareConcurrency || 4));
+let pool = null;
+function getPool(){
+  if(pool) return pool;
+  try{
+    const url = URL.createObjectURL(new Blob([WSRC], {type:'text/javascript'}));
+    pool = Array.from({length: NW}, () => {
+      const w = new Worker(url); w.q = new Map();
+      w.onmessage = e => { const {id, res, err} = e.data, p = w.q.get(id); w.q.delete(id); if(p) err ? p.rej(new Error(err)) : p.res(res); };
+      w.onerror = e => { w.q.forEach(p => p.rej(new Error(e.message || '워커 오류'))); w.q.clear(); };
+      return w;
+    });
+  }catch(e){
+    // 워커를 못 쓰는 환경이면 같은 코드를 메인에서 돌린다
+    const handle = new Function(WSRC + '\nreturn handle;')();
+    pool = [{local: handle}];
+  }
+  return pool;
+}
+let jid = 0;
+function runOn(w, t){
+  if(w.local) return tick().then(() => w.local(t.type, t.args));
+  return new Promise((res, rej) => { const id = ++jid; w.q.set(id, {res, rej}); w.postMessage({id, type: t.type, args: t.args}, t.transfer || []); });
+}
+async function runAll(tasks, label, onResult){
+  const P = getPool(); let next = 0, done = 0;
+  busy(label, 0);
+  await Promise.all(P.map(async w => {
+    while(next < tasks.length){
+      const i = next++, r = await runOn(w, tasks[i]);
+      tasks[i] = null; onResult(r, i); done++; busy(label, done/tasks.length);
+    }
+  }));
+}
+function busy(label, v){
+  if(label == null){ $('#busy').hidden = true; return; }
+  $('#busy').hidden = false; $('#busyT').textContent = label; $('#prog').value = v; $('#busyP').textContent = Math.round(v*100) + '%';
+}
+
+/* ---------- 불러오기 ---------- */
+async function loadFile(file){
+  if(!file) return;
+  stopPlay();
+  if(/\.json$/i.test(file.name) || /json/.test(file.type)) return loadJson(file);
+  $('#info').textContent = '디코딩 중...';
+  try{
+    const audio = await getCtx().decodeAudioData(await file.arrayBuffer());
+    const sr = audio.sampleRate, ch = audio.numberOfChannels, n = audio.length;
+    const L = new Float32Array(audio.getChannelData(0)), R = ch > 1 ? new Float32Array(audio.getChannelData(1)) : L;
+    const mono = new Float32Array(n);
+    for(let c=0;c<ch;c++){ const d = audio.getChannelData(c), k = 1/ch; for(let i=0;i<n;i++) mono[i] += d[i]*k; }
+    let diff = 0; if(R !== L) for(let i=0;i<n;i+=97) diff += Math.abs(L[i]-R[i]);
+    src = {L, R, mono, sr, stereo: diff > 1e-3, name: file.name.replace(/\.[^.]+$/, '')};
+    $('#info').textContent = file.name + ' / ' + sr + ' Hz / ' + ch + 'ch' + (src.stereo ? '' : ' (좌우 같음)') + ' / ' + mmss(n/sr) + ' / ' + n.toLocaleString() + ' 샘플';
+    sep = null; sel = null; res = null; cache = null; lastNotes = null; bufCache = new WeakMap();
+    setSrc('orig');
+    document.querySelectorAll('input[name=srcSel]').forEach(r => r.disabled = r.value !== 'orig');
+    clearRoll();
+    setEnabled(['#playAll','#stop','#saveAll','#saveRaw','#analyze','#sepBtn'], true);
+    setEnabled(['#playVoc','#playAcc','#saveVoc','#saveAcc','#playPiano','#stopPiano','#savePiano','#saveJson','#saveMidi','#playSel','#clearSel'], false);
+    updSel(); resplit();
+  }catch(e){
+    $('#info').textContent = '디코딩 실패: 이 파일은 브라우저가 읽을 수 없는 형식이에요. mp3나 wav로 다시 시도해보세요.';
+  }
+}
+$('#file').addEventListener('change', e => loadFile(e.target.files[0]));
+const drop = document.querySelector('label.drop');
+['dragover','dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); loadFile(e.dataTransfer.files[0]); });
+
+/* ---------- 작업할 소리 ---------- */
+function cur(){
+  if(srcSel === 'vocal' && sep) return sep.vocal;
+  if(srcSel === 'acc' && sep){
+    if(!sep.accMono){ const n = sep.accL.length, m = new Float32Array(n); for(let i=0;i<n;i++) m[i] = (sep.accL[i] + sep.accR[i])*.5; sep.accMono = m; }
+    return sep.accMono;
+  }
+  return src.mono;
+}
+function curChs(){
+  if(srcSel === 'vocal' && sep) return [sep.vocal];
+  if(srcSel === 'acc' && sep) return [sep.accL, sep.accR];
+  return src.stereo ? [src.L, src.R] : [src.mono];
+}
+function srcLabel(){ return {orig:'원본', vocal:'목소리', acc:'반주'}[srcSel]; }
+function setSrc(v){
+  srcSel = v; document.querySelectorAll('input[name=srcSel]').forEach(r => r.checked = r.value === v);
+  cache = null;
+}
+document.querySelectorAll('input[name=srcSel]').forEach(r => r.addEventListener('change', () => { if(r.checked){ stopPlay(); setSrc(r.value); resplit(); } }));
+
+/* ---------- 목소리 분리 ---------- */
+[['p','pO',''],['lo','loO',' Hz'],['hi','hiO',' Hz']].forEach(([i,o,u]) => $('#'+i).addEventListener('input', () => $('#'+o).textContent = $('#'+i).value + u));
+/* ---------- 반주(inst) 위상 반전 ---------- */
+let inst = null;
+function syncSep(){ const v = $('#sepMethod').value === 'inst'; $('#instOpts').hidden = !v; $('#instInfo').hidden = !v; $('#centerOpts').hidden = v; $('#centerHint').hidden = v; }
+$('#sepMethod').addEventListener('change', syncSep); syncSep();
+$('#instFile').addEventListener('change', async e => { const f = e.target.files[0]; if(!f) return;
+  try{ const a = await getCtx().decodeAudioData(await f.arrayBuffer()), ch = a.numberOfChannels, n = a.length;
+    const L = new Float32Array(a.getChannelData(0)), R = ch > 1 ? new Float32Array(a.getChannelData(1)) : L, mono = new Float32Array(n);
+    for(let i=0;i<n;i++) mono[i] = (L[i] + R[i])*.5;
+    inst = {L, R, mono, name: f.name}; $('#instInfo').textContent = '반주: ' + f.name + ' / ' + ch + 'ch / ' + mmss(n/a.sampleRate) + (src ? '' : ' — 원곡 파일도 선택하세요.');
+  }catch(err){ inst = null; $('#instInfo').textContent = '반주 파일을 읽을 수 없어요: ' + f.name; } });
+// 메인 스레드용 FFT (길이 2의 거듭제곱 · 제자리)
+function fftIP(re, im, inv){
+  const n = re.length;
+  for(let i=1, j=0; i<n; i++){ let b = n >> 1; for(; j & b; b >>= 1) j ^= b; j ^= b; if(i < j){ let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+  for(let len=2; len<=n; len<<=1){ const a = (inv ? 2 : -2)*Math.PI/len, wr = Math.cos(a), wi = Math.sin(a);
+    for(let i=0; i<n; i+=len){ let cr = 1, ci = 0;
+      for(let j=0; j<len/2; j++){ const u = i+j, v = u+len/2, tr = re[v]*cr - im[v]*ci, ti = re[v]*ci + im[v]*cr;
+        re[v] = re[u]-tr; im[v] = im[u]-ti; re[u] += tr; im[u] += ti; const nr = cr*wr - ci*wi; ci = cr*wi + ci*wr; cr = nr; } } }
+}
+// 반주가 원곡보다 몇 샘플 늦게/빨리 시작하는지(lag)와 세기: ① 1/4로 줄인 신호를 FFT 상호상관으로 대강 → ② 원래 해상도에서 ±8샘플을 직접 비교 → ③ 겹치는 곳 전체로 최소제곱 세기
+function alignInst(){
+  const o = src.mono, y = inst.mono, sr = src.sr, D = 4, maxLag = Math.round(3*sr/D);
+  const st = Math.min(Math.floor(o.length*.15), Math.max(0, o.length - 40*sr)), len = Math.min(Math.floor(30*sr), o.length - st);
+  const dec = (x, a, n) => { const m = Math.floor(n/D), r = new Float64Array(m); for(let i=0;i<m;i++){ let s = 0; for(let k=0;k<D;k++){ const j = a + i*D + k; s += j >= 0 && j < x.length ? x[j] : 0; } r[i] = s; } return r; };
+  const A = dec(o, st, len), B = dec(y, st - maxLag*D, len + 2*maxLag*D);
+  let N = 1; while(N < A.length + B.length) N <<= 1;
+  const ar = new Float64Array(N), ai = new Float64Array(N), br = new Float64Array(N), bi = new Float64Array(N); ar.set(A); br.set(B);
+  fftIP(ar, ai); fftIP(br, bi);
+  for(let k=0;k<N;k++){ const r = br[k]*ar[k] + bi[k]*ai[k], i = bi[k]*ar[k] - br[k]*ai[k]; ar[k] = r; ai[k] = i; } // B · conj(A)
+  fftIP(ar, ai, true);
+  let best = 0, bv = -Infinity; for(let m=0; m<=2*maxLag; m++){ const v = ar[m]; if(v > bv){ bv = v; best = m; } }
+  let lag = (maxLag - best)*D; // 원곡 t 에는 반주 t − lag 가 맞음
+  const w0 = st, w1 = Math.min(o.length, st + Math.floor(3*sr)); let bl = lag, bc = -Infinity;
+  for(let d=-D*2; d<=D*2; d++){ const L = lag + d; let c = 0; for(let t=w0; t<w1; t++){ const j = t - L; if(j >= 0 && j < y.length) c += o[t]*y[j]; } if(c > bc){ bc = c; bl = L; } }
+  return bl;
+}
+function instGain(x, y, lag){ let xy = 0, yy = 0; for(let t=0; t<x.length; t+=3){ const j = t - lag; if(j < 0 || j >= y.length) continue; xy += x[t]*y[j]; yy += y[j]*y[j]; } return yy > 0 ? xy/yy : 1; }
+async function separateInst(){
+  if(!inst){ throw new Error('반주(inst) 파일을 먼저 선택하세요'); }
+  const sr = src.sr, n = src.mono.length; busy('반주 맞추는 중', .2); await tick();
+  let lag, gL, gR;
+  if($('#instAuto').value === 'on'){ lag = alignInst(); busy('반주 맞추는 중', .6); await tick();
+    gL = instGain(src.L, inst.L, lag); gR = src.R === src.L ? gL : instGain(src.R, inst.R, lag);
+    $('#instOff').value = (lag/sr*1000).toFixed(2); $('#instGain').value = ((gL + gR)/2).toFixed(3); }
+  else { lag = Math.round(+$('#instOff').value/1000*sr); gL = gR = +$('#instGain').value || 1; }
+  const vocal = new Float32Array(n), accL = new Float32Array(n), accR = new Float32Array(n);
+  let eo = 0, ev = 0;
+  for(let t=0; t<n; t++){ const j = t - lag, il = j >= 0 && j < inst.L.length ? inst.L[j]*gL : 0, ir = j >= 0 && j < inst.R.length ? inst.R[j]*gR : 0;
+    accL[t] = il; accR[t] = ir; const vl = src.L[t] - il, vr = src.R[t] - ir; vocal[t] = (vl + vr)*.5; eo += src.mono[t]*src.mono[t]; ev += vocal[t]*vocal[t]; }
+  busy('반주 맞추는 중', 1);
+  return {vocal, accL, accR, note: ' · 위상 반전: 반주 ' + (lag/sr*1000).toFixed(2) + 'ms 이동, 세기 ' + ((gL+gR)/2).toFixed(3) + ', 남은 소리 ' + (10*Math.log10((ev+1e-12)/(eo+1e-12))).toFixed(1) + 'dB'};
+}
+$('#sepBtn').onclick = async () => {
+  if(!src) return;
+  if($('#sepMethod').value === 'inst'){ stopPlay(); const T0 = performance.now(); setEnabled(['#sepBtn','#analyze'], false);
+    try{ const r = await separateInst(); sep = {vocal: r.vocal, accL: r.accL, accR: r.accR};
+      document.querySelectorAll('input[name=srcSel]').forEach(x => x.disabled = false); setEnabled(['#playVoc','#playAcc','#saveVoc','#saveAcc'], true);
+      if(srcSel !== 'orig'){ cache = null; resplit(); }
+      $('#info').textContent = $('#info').textContent.replace(/ · (분리|위상 반전).*$/, '') + r.note + ' · ' + ((performance.now()-T0)/1000).toFixed(1) + '초';
+    }catch(e){ $('#info').textContent = $('#info').textContent.replace(/ · (분리|위상 반전).*$/, '') + ' · 분리 오류: ' + e.message; }
+    busy(null); setEnabled(['#sepBtn','#analyze'], true); return; }
+  stopPlay(); const T0 = performance.now();
+  setEnabled(['#sepBtn','#analyze'], false);
+  try{
+    const N = 2048, hop = 512, len = src.mono.length, frames = Math.ceil(len/hop) + 2, sr = src.sr;
+    const chunk = Math.max(64, Math.ceil(frames/(NW*4)));
+    const vocal = new Float32Array(len), accL = new Float32Array(len), accR = new Float32Array(len), tasks = [];
+    const p = +$('#p').value, loHz = +$('#lo').value, hiHz = +$('#hi').value;
+    for(let f0=-2; f0<frames; f0+=chunk){
+      const f1 = Math.min(frames, f0+chunk), sl = Math.max(0, f0*hop - N), el = Math.min(len, f1*hop + N);
+      const L = src.L.slice(sl, el), R = src.R === src.L ? L.slice() : src.R.slice(sl, el);
+      tasks.push({type:'separate', args:{L, R, base: sl, f0, f1, hop, N, sr, p, loHz, hiHz}, transfer:[L.buffer, R.buffer]});
+    }
+    await runAll(tasks, '목소리 분리 중', r => {
+      const o = r.start;
+      for(let i=Math.max(0,-o), e=Math.min(r.v.length, len-o); i<e; i++){ vocal[o+i] += r.v[i]; accL[o+i] += r.al[i]; accR[o+i] += r.ar[i]; }
+    });
+    sep = {vocal, accL, accR};
+    document.querySelectorAll('input[name=srcSel]').forEach(r => r.disabled = false);
+    setEnabled(['#playVoc','#playAcc','#saveVoc','#saveAcc'], true);
+    if(srcSel !== 'orig'){ cache = null; resplit(); }
+    $('#info').textContent = $('#info').textContent.replace(/ · (분리|위상 반전).*$/, '') + ' · 분리 ' + ((performance.now()-T0)/1000).toFixed(1) + '초' + (src.stereo ? '' : ' (모노라 대역만 걸러짐)');
+  }catch(e){ $('#info').textContent = '분리 오류: ' + e.message; }
+  busy(null); setEnabled(['#sepBtn','#analyze'], true);
+};
+$('#playVoc').onclick = () => sep && playBuf([sep.vocal], src.sr, 0, null, null);
+$('#playAcc').onclick = () => sep && playBuf([sep.accL, sep.accR], src.sr, 0, null, null);
+$('#saveVoc').onclick = () => sep && download(wavBlob([sep.vocal], src.sr), src.name + '_voice.wav');
+$('#saveAcc').onclick = () => sep && download(wavBlob([sep.accL, sep.accR], src.sr), src.name + '_inst.wav');
+
+/* ---------- 파형 + 무음 분할 ---------- */
+function split(d, sr, th, minSilMs, minLenMs){
+  const win = Math.floor(sr*0.01), need = Math.max(1, Math.round(minSilMs/10));
+  const out = []; let start = -1, quiet = 0, lastLoud = 0;
+  for(let i=0;i<d.length;i+=win){
+    const e = Math.min(i+win, d.length); let sum = 0;
+    for(let j=i;j<e;j++) sum += Math.abs(d[j]);
+    if(sum/(e-i) > th){ if(start<0) start = i; lastLoud = e; quiet = 0; }
+    else if(start>=0 && ++quiet >= need){ out.push([start,lastLoud]); start = -1; quiet = 0; }
+  }
+  if(start>=0) out.push([start,lastLoud]);
+  const pad = Math.floor(sr*0.02);
+  return out.map(([a,b]) => [Math.max(0,a-pad), Math.min(d.length,b+pad)]).filter(([a,b]) => b-a > sr*minLenMs/1000);
+}
+let rsT;
+function resplit(){
+  clearTimeout(rsT);
+  rsT = setTimeout(() => {
+    if(!src) return;
+    segs = split(cur(), src.sr, +$('#th').value, +$('#ms').value, +$('#minLen').value);
+    renderSegs(); drawWave();
+  }, 60);
+}
+$('#th').addEventListener('input', () => { $('#thO').textContent = (+$('#th').value).toFixed(3); resplit(); });
+$('#ms').addEventListener('input', () => { $('#msO').textContent = $('#ms').value + ' ms'; resplit(); });
+$('#minLen').addEventListener('input', () => { $('#minO').textContent = $('#minLen').value + ' ms'; resplit(); });
+
+function renderSegs(){
+  const sr = src.sr;
+  $('#segInfo').textContent = segs.length + '개 조각 (' + srcLabel() + ')';
+  setEnabled(['#saveZip'], segs.length > 0);
+  $('#segs').innerHTML = segs.map(([a,b], i) =>
+    '<li><span>' + (i+1) + '번  ' + fmt(a/sr) + ' – ' + fmt(b/sr) + '초 (' + fmt((b-a)/sr) + 's)</span>' +
+    '<button data-play="' + i + '">재생</button><button data-pick="' + i + '">선택</button><button data-wav="' + i + '">WAV</button></li>').join('');
+}
+$('#segs').addEventListener('click', e => {
+  const d = e.target.dataset, sr = src.sr;
+  if(d.play !== undefined){ const [a,b] = segs[+d.play]; playBuf(curChs(), sr, a/sr, (b-a)/sr, 'wave'); }
+  if(d.pick !== undefined){ const [a,b] = segs[+d.pick]; sel = [a,b]; updSel(); drawWave(); }
+  if(d.wav !== undefined){ const [a,b] = segs[+d.wav]; download(wavBlob(curChs().map(c => c.subarray(a,b)), sr), segName(+d.wav)); }
+});
+const segName = i => (src.name || 'part') + '_' + String(i+1).padStart(3,'0') + '.wav';
+
+function drawWave(){
+  const c = $('#wave'), dpr = window.devicePixelRatio || 1;
+  const w = Math.floor(c.clientWidth*dpr), h = Math.floor(c.clientHeight*dpr);
+  c.width = w; c.height = h;
+  const g = c.getContext('2d'), cs = getComputedStyle(document.documentElement);
+  g.clearRect(0,0,w,h);
+  if(!src) return;
+  const d = cur(), n = d.length;
+  g.fillStyle = cs.getPropertyValue('--seg').trim();
+  segs.forEach(([a,b]) => { const x1 = a/n*w, x2 = b/n*w; g.fillRect(x1, 0, Math.max(1,x2-x1), h); });
+  if(sel){ g.fillStyle = cs.getPropertyValue('--sel').trim(); g.fillRect(sel[0]/n*w, 0, Math.max(2, (sel[1]-sel[0])/n*w), h);
+    const hc = cs.getPropertyValue('--head').trim(), dpr2 = window.devicePixelRatio || 1; g.fillStyle = hc; // 양 끝 손잡이 (끌어서 늘리고 줄임)
+    for(const sx of [sel[0]/n*w, sel[1]/n*w]){ g.fillRect(sx - dpr2, 0, 2*dpr2, h); g.fillRect(sx - 4*dpr2, h/2 - 14*dpr2, 8*dpr2, 28*dpr2); } }
+  g.fillStyle = cs.getPropertyValue('--ink').trim();
+  const step = n / w;
+  for(let x=0;x<w;x++){
+    const s = Math.floor(x*step), e = Math.min(n, Math.floor((x+1)*step));
+    const stride = Math.max(1, Math.floor((e-s)/96));
+    let mn = 1, mx = -1;
+    for(let j=s;j<e;j+=stride){ const v = d[j]; if(v<mn) mn=v; if(v>mx) mx=v; }
+    if(mn>mx) continue;
+    const y1 = (1-mx)*h/2, y2 = (1-mn)*h/2;
+    g.fillRect(x, y1, 1, Math.max(1, y2-y1));
+  }
+}
+window.addEventListener('resize', () => { drawWave(); drawRoll(); });
+
+// 파형: 클릭 = 그 위치부터 재생 / 빈 곳 끌기 = 새 구간 / 양 끝 선 끌기 = 늘리고 줄이기 (창 크기 바꾸듯) / 구간 안쪽 끌기 = 통째로 옮기기
+let wDrag = null;
+const wave = $('#wave'), EDGE = 7;
+const xToSample = x => { const r = wave.getBoundingClientRect(); return Math.round(Math.max(0, Math.min(1, (x - r.left)/r.width)) * cur().length); };
+const sToX = sm => { const r = wave.getBoundingClientRect(); return r.left + sm/cur().length*r.width; };
+function hitSel(x){ if(!sel) return ''; const a = sToX(sel[0]), b = sToX(sel[1]); if(Math.abs(x - a) <= EDGE) return 'l'; if(Math.abs(x - b) <= EDGE) return 'r'; if(x > a && x < b) return 'm'; return ''; }
+wave.addEventListener('pointerdown', e => { if(!src) return; wave.setPointerCapture(e.pointerId); const s0 = xToSample(e.clientX);
+  wDrag = {x: e.clientX, s: s0, moved: false, mode: hitSel(e.clientX) || 'new', sel0: sel ? sel.slice() : null}; });
+wave.addEventListener('pointermove', e => {
+  if(!wDrag){ const h = src ? hitSel(e.clientX) : ''; wave.style.cursor = h === 'l' || h === 'r' ? 'ew-resize' : h === 'm' ? 'grab' : 'crosshair'; return; }
+  if(Math.abs(e.clientX - wDrag.x) > 4) wDrag.moved = true; if(!wDrag.moved) return;
+  const s = xToSample(e.clientX), n = cur().length, d = wDrag, m = d.mode;
+  if(m === 'new') sel = [Math.min(s, d.s), Math.max(s, d.s)];
+  else if(m === 'l'){ const a = Math.min(s, d.sel0[1] - 1); sel = [Math.max(0, a), d.sel0[1]]; }
+  else if(m === 'r'){ const b = Math.max(s, d.sel0[0] + 1); sel = [d.sel0[0], Math.min(n, b)]; }
+  else { const w = d.sel0[1] - d.sel0[0]; let a = d.sel0[0] + (s - d.s); a = Math.max(0, Math.min(n - w, a)); sel = [a, a + w]; wave.style.cursor = 'grabbing'; }
+  updSel(); drawWave(); });
+wave.addEventListener('pointerup', e => {
+  if(!wDrag) return;
+  const d = wDrag; wDrag = null;
+  if(!d.moved) playBuf(curChs(), src.sr, d.s/src.sr, null, 'wave');
+  else if(sel && sel[1]-sel[0] < src.sr*.02){ sel = d.mode === 'new' ? null : d.sel0; updSel(); drawWave(); }
+});
+function updSel(){
+  const on = !!(src && sel);
+  setEnabled(['#playSel','#clearSel'], on);
+  $('#saveAll').textContent = on ? '선택 WAV' : '전체 WAV';
+  $('#saveRaw').textContent = on ? '선택 8비트 RAW' : '8비트 RAW';
+  $('#selInfo').textContent = on
+    ? '선택: ' + fmt(sel[0]/src.sr) + ' – ' + fmt(sel[1]/src.sr) + '초 (' + fmt((sel[1]-sel[0])/src.sr) + 's) · 저장과 변환에 이 구간만 쓰여요.'
+    : '클릭하면 그 위치부터 재생, 끌면 구간 선택. 선택한 구간은 저장과 변환에 쓰여요.';
+}
+$('#playSel').onclick = () => sel && playBuf(curChs(), src.sr, sel[0]/src.sr, (sel[1]-sel[0])/src.sr, 'wave');
+$('#clearSel').onclick = () => { sel = null; updSel(); drawWave(); };
+function range(){ const n = cur().length; return sel ? sel : [0, n]; }
+
+/* ---------- 재생 (재생 위치 표시) ---------- */
+let play = null, bufCache = new WeakMap();
+function stopPlay(){ if(play){ try{ play.s.stop(); }catch(e){} play = null; } heads(); }
+function playBuf(chs, rate, off, dur, target){
+  stopPlay();
+  const c = getCtx(); if(c.state === 'suspended') c.resume();
+  let b = bufCache.get(chs[0]);
+  if(!b || b.numberOfChannels !== chs.length){ b = c.createBuffer(chs.length, chs[0].length, rate); chs.forEach((d,i) => b.copyToChannel(d, i)); bufCache.set(chs[0], b); }
+  const s = c.createBufferSource(); s.buffer = b; s.connect(c.destination);
+  off = Math.max(0, Math.min(off || 0, b.duration - .01));
+  dur ? s.start(0, off, dur) : s.start(0, off);
+  play = {s, t0: c.currentTime, off, total: b.duration, target};
+  s.onended = () => { if(play && play.s === s){ play = null; heads(); } };
+  requestAnimationFrame(animHead);
+}
+function heads(){ $('#waveHead').style.display = 'none'; $('#rollHead').style.display = 'none'; }
+function animHead(){
+  if(!play) return;
+  const t = play.off + (getCtx().currentTime - play.t0);
+  if(play.target){
+    const el = play.target === 'wave' ? $('#waveHead') : $('#rollHead');
+    const total = play.target === 'roll' && res ? res.span : play.total;
+    el.style.display = 'block'; el.style.left = Math.min(100, t/total*100) + '%';
+  }
+  requestAnimationFrame(animHead);
+}
+
+/* ---------- 저장 ---------- */
+function wavBytes(chs, rate){
+  const nc = chs.length, n = chs[0].length, b = new ArrayBuffer(44 + n*2*nc), v = new DataView(b);
+  const w = (o,s) => { for(let i=0;i<s.length;i++) v.setUint8(o+i, s.charCodeAt(i)); };
+  w(0,'RIFF'); v.setUint32(4, 36 + n*2*nc, true); w(8,'WAVE'); w(12,'fmt '); v.setUint32(16,16,true);
+  v.setUint16(20,1,true); v.setUint16(22,nc,true); v.setUint32(24,rate,true); v.setUint32(28,rate*2*nc,true);
+  v.setUint16(32,2*nc,true); v.setUint16(34,16,true); w(36,'data'); v.setUint32(40,n*2*nc,true);
+  const i16 = new Int16Array(b, 44, n*nc);
+  for(let i=0;i<n;i++) for(let c=0;c<nc;c++){ const s = Math.max(-1, Math.min(1, chs[c][i])); i16[i*nc+c] = s < 0 ? s*0x8000 : s*0x7fff; }
+  return new Uint8Array(b);
+}
+const wavBlob = (chs, rate) => new Blob([wavBytes(chs, rate)], {type:'audio/wav'});
+function download(blob, name){
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+// 압축 없는 ZIP
+const CRC = (() => { const t = new Uint32Array(256); for(let n=0;n<256;n++){ let c = n; for(let k=0;k<8;k++) c = c&1 ? 0xEDB88320 ^ (c>>>1) : c>>>1; t[n] = c>>>0; } return t; })();
+function crc32(u){ let c = 0xFFFFFFFF; for(let i=0;i<u.length;i++) c = CRC[(c ^ u[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function zipBlob(files){
+  const enc = new TextEncoder(), parts = [], cen = []; let off = 0;
+  files.forEach(f => {
+    const nm = enc.encode(f.name), crc = crc32(f.data), sz = f.data.length;
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0,0x04034b50,true); h.setUint16(4,20,true); h.setUint16(6,0x0800,true); h.setUint16(8,0,true);
+    h.setUint32(14,crc,true); h.setUint32(18,sz,true); h.setUint32(22,sz,true); h.setUint16(26,nm.length,true);
+    parts.push(h.buffer, nm, f.data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0,0x02014b50,true); c.setUint16(4,20,true); c.setUint16(6,20,true); c.setUint16(8,0x0800,true);
+    c.setUint32(16,crc,true); c.setUint32(20,sz,true); c.setUint32(24,sz,true); c.setUint16(28,nm.length,true); c.setUint32(42,off,true);
+    cen.push(c.buffer, nm);
+    off += 30 + nm.length + sz;
+  });
+  const cl = cen.reduce((s,x) => s + x.byteLength, 0), e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0,0x06054b50,true); e.setUint16(8,files.length,true); e.setUint16(10,files.length,true); e.setUint32(12,cl,true); e.setUint32(16,off,true);
+  return new Blob([...parts, ...cen, e.buffer], {type:'application/zip'});
+}
+function resample(d, from, to){
+  if(!to || to === from) return d;
+  const n = Math.floor(d.length*to/from), out = new Float32Array(n), r = from/to;
+  // 내릴 때 앨리어싱 줄이려고 구간 평균
+  for(let i=0;i<n;i++){
+    const a = i*r, b = Math.min(d.length-1, a + r); let s = 0, c = 0;
+    for(let j=Math.floor(a); j<=Math.floor(b); j++){ s += d[j]; c++; }
+    out[i] = c ? s/c : 0;
+  }
+  return out;
+}
+$('#playAll').onclick = () => playBuf(curChs(), src.sr, 0, null, 'wave');
+$('#stop').onclick = stopPlay;
+$('#saveAll').onclick = () => { const [a,b] = range(); download(wavBlob(curChs().map(c => c.subarray(a,b)), src.sr), src.name + (sel ? '_sel' : '') + '_' + srcSel + '.wav'); };
+$('#saveRaw').onclick = () => {
+  const [a,b] = range(), to = +$('#rawRate').value || src.sr, d = resample(cur().subarray(a,b), src.sr, to), s8 = $('#rawFmt').value === 's8';
+  const u = new Uint8Array(d.length);
+  for(let i=0;i<d.length;i++){ const v = Math.max(-128, Math.min(127, Math.round(d[i]*127))); u[i] = s8 ? v & 255 : v + 128; }
+  download(new Blob([u], {type:'application/octet-stream'}), src.name + '_' + (s8 ? 's8' : 'u8') + '_' + to + 'hz.raw');
+};
+$('#saveZip').onclick = async () => {
+  busy('ZIP 만드는 중', 0); await tick();
+  const files = [], chs = curChs();
+  for(let i=0;i<segs.length;i++){
+    const [a,b] = segs[i]; files.push({name: segName(i), data: wavBytes(chs.map(c => c.subarray(a,b)), src.sr)});
+    if(i % 20 === 0){ busy('ZIP 만드는 중', i/segs.length); await tick(); }
+  }
+  download(zipBlob(files), (src.name || 'parts') + '_' + srcSel + '_parts.zip'); busy(null);
+};
+
+/* ---------- 분석 ---------- */
+['hop','k'].forEach(id => $('#'+id).addEventListener('input', () => { $('#hopO').textContent = $('#hop').value + ' ms'; $('#kO').textContent = $('#k').value; }));
+function syncMode(){ const ens = $('#mode').value === 'ens'; $('#ensOpts').hidden = !ens; $('#pianoOpts').hidden = ens; }
+$('#mode').addEventListener('change', syncMode); syncMode();
+
+async function computeAnalysis(a, b, hopMs, K, key){
+  const sr = src.sr, d = cur(), len = d.length, hop = Math.max(1, Math.round(sr*hopMs/1000));
+  const frames = Math.max(1, Math.floor((b-a)/hop));
+  let chunk = Math.max(40, Math.ceil(frames/(NW*4))); chunk += chunk & 1;
+  const raw = new Float32Array(frames*KEYS), low = new Float32Array(frames), mid = new Float32Array(frames), hi = new Float32Array(frames), tasks = [];
+  for(let f0=0; f0<frames; f0+=chunk){
+    const f1 = Math.min(frames, f0+chunk), sl = Math.max(0, a + f0*hop - 2048), el = Math.min(len, a + f1*hop + 2048);
+    const data = d.slice(sl, el);
+    tasks.push({type:'analyze', args:{data, base: sl - a, f0, f1, hop, sr, K}, transfer:[data.buffer], f0});
+  }
+  const f0s = tasks.map(t => t.f0); let gmax = 1e-9;
+  await runAll(tasks, '분석 중', (r, i) => {
+    const f0 = f0s[i];
+    raw.set(r.raw, f0*KEYS); low.set(r.low, f0); mid.set(r.mid, f0); hi.set(r.hi, f0);
+    if(r.gmax > gmax) gmax = r.gmax;
+  });
+  const M = new Float32Array(frames*KEYS), ig = 1/gmax;
+  for(let i=0;i<M.length;i++){ const v = raw[i]; if(v > 0){ const m = Math.pow(v*ig, 0.6); if(m > 0.03) M[i] = m; } }
+  return {key, M, frames, hop, hopMs, a, b, low, mid, hi};
+}
+
+/* --- 말하는 피아노 --- */
+async function renderPiano(c){
+  const sr = src.sr, len = c.frames*c.hop + Math.floor(sr*0.2), tr = +$('#tr').value || 0, type = $('#wavetype').value;
+  const out = new Float32Array(len), cs = Math.max(sr, Math.ceil(len/(NW*3))), tasks = [], w0s = [];
+  for(let w0=0; w0<len; w0+=cs){
+    const w1 = Math.min(len, w0+cs), fa = Math.max(0, Math.floor(w0/c.hop)), fb = Math.min(c.frames, Math.ceil(w1/c.hop) + 2);
+    const M = c.M.slice(fa*KEYS, fb*KEYS);
+    tasks.push({type:'piano', args:{M, fBase: fa, nfr: fb-fa, frames: c.frames, hop: c.hop, sr, w0, w1, type, tr}, transfer:[M.buffer]}); w0s.push(w0);
+  }
+  await runAll(tasks, '피아노 합성 중', (r, i) => out.set(r.out, w0s[i]));
+  finishOutput(out, c);
+  lastNotes = extractNotes(c).map(n => ({...n, midi: Math.max(0, Math.min(127, n.k + MIDI0 + tr)), inst:'piano'})); lastNotes.drums = []; lastNotes.bpm = +$('#bpm').value || 120;
+  res.json = { mode: 'continuous', sampleRate: sr, hopMs: c.hopMs, firstMidi: MIDI0 + tr, start: +(c.a/sr).toFixed(3), frames: [] };
+  for(let fr=0;fr<c.frames;fr++){
+    const row = [];
+    for(let k=0;k<KEYS;k++){ const v = c.M[fr*KEYS+k]; if(v > 0) row.push([k+MIDI0+tr, Math.round(v*100)]); }
+    res.json.frames.push(row);
+  }
+  return c.frames + '프레임';
+}
+
+/* --- 악기 편성 --- */
+function extractNotes(c){
+  const M = c.M, frames = c.frames, hopS = c.hopMs/1000, notes = [];
+  for(let k=0;k<KEYS;k++){
+    let on = false, st = 0, peak = 0, gap = 0, prev = 0, last = 0;
+    const close = end => { const len = end - st + 1; if(len >= 2) notes.push({k, t: st*hopS, d: len*hopS, v: peak}); on = false; peak = 0; };
+    for(let fr=0;fr<frames;fr++){
+      const v = M[fr*KEYS+k];
+      if(v > 0.08){
+        if(on && fr-st >= 3 && v > prev*1.6 && v > 0.2) close(fr-1);
+        if(!on){ on = true; st = fr; peak = 0; }
+        if(v > peak) peak = v;
+        gap = 0; last = fr;
+      } else if(on){ gap++; if(gap > 2) close(last); }
+      prev = v;
+    }
+    if(on) close(last);
+  }
+  notes.sort((a,b) => a.t - b.t);
+  return notes;
+}
+function detectDrums(c){
+  const out = [], hopS = c.hopMs/1000;
+  [['kick', c.low], ['snare', c.mid], ['hat', c.hi]].forEach(([type, e]) => {
+    const n = e.length, flux = new Float32Array(n);
+    for(let i=1;i<n;i++) flux[i] = Math.max(0, e[i]-e[i-1]);
+    const sorted = Float32Array.from(flux).sort();
+    const p95 = sorted[Math.floor(n*0.95)] || 1e-9;
+    const w = Math.max(2, Math.round(0.4/hopS)), pre = new Float64Array(n+1);
+    for(let i=0;i<n;i++) pre[i+1] = pre[i] + flux[i];
+    const minGap = Math.round((type === 'hat' ? 0.06 : 0.12)/hopS); let lastHit = -1e9;
+    for(let i=1;i<n-1;i++){
+      const a = Math.max(0, i-w), b = Math.min(n, i+w+1), mean = (pre[b]-pre[a])/(b-a);
+      if(flux[i] > mean*2.2 && flux[i] >= flux[i-1] && flux[i] >= flux[i+1] && flux[i] > p95*0.25 && i-lastHit >= minGap){
+        out.push({t: i*hopS, type, v: Math.min(1, flux[i]/p95)}); lastHit = i;
+      }
+    }
+  });
+  return out.sort((a,b) => a.t - b.t);
+}
+const PRESETS = {
+  auto:  {bass:'bass',     sus:['brass','strings','flute'],   sh:['piano','pluck','bell']},
+  orch:  {bass:'strings',  sus:['strings','brass','flute'],   sh:['pluck','pluck','bell']},
+  band:  {bass:'bass',     sus:['organ','organ','strings'],   sh:['pluck','piano','bell']},
+  bells: {bass:'bass',     sus:['organ','bell','bell'],       sh:['piano','bell','bell']},
+  piano: {bass:'piano',    sus:['piano','piano','piano'],     sh:['piano','piano','piano']},
+  chip:  {bass:'chipbass', sus:['chip','chip','chip'],        sh:['chip','chip','chip']}
+};
+const MIXLIST = ['piano','strings','brass','flute','organ','pluck','bell'];
+
+async function renderEnsemble(c){
+  const sr = src.sr, tr = +$('#tr').value || 0;
+  let notes = extractNotes(c);
+  if(notes.length > 200000){ notes.sort((a,b) => b.v - a.v); notes = notes.slice(0, 200000).sort((a,b) => a.t - b.t); }
+  const q = +$('#quant').value, bpm = +$('#bpm').value || 120, step = q > 0 ? 60/bpm*4/q : 0;
+  if(step){ notes.forEach(n => { n.t = Math.round(n.t/step)*step; n.d = Math.max(step, Math.round(n.d/step)*step); }); }
+  const drums = $('#drums').value === 'on' ? detectDrums(c) : [];
+  if(step) drums.forEach(h => { h.t = Math.round(h.t/step)*step; });
+  const presetName = $('#preset').value, P = PRESETS[presetName];
+  notes.forEach((n,i) => {
+    const k = Math.max(0, Math.min(KEYS-1, n.k + tr)), midi = k + MIDI0; n.k = k; n.midi = midi; n.f = keyFreq(k);
+    if(presetName === 'mix') n.inst = midi < 45 ? 'bass' : MIXLIST[(n.k*7 + i*3) % MIXLIST.length];
+    else if(presetName === 'chip') n.inst = midi < 48 ? P.bass : 'chip';
+    else if(midi < 45) n.inst = P.bass;
+    else { const reg = midi < 55 ? 0 : midi < 76 ? 1 : 2; n.inst = (n.d >= 0.25 ? P.sus : P.sh)[reg]; }
+  });
+  const len = Math.ceil((c.frames*c.hop/sr + 3)*sr), out = new Float32Array(len);
+  const cs = Math.max(sr*2, Math.ceil(len/(NW*3))), tasks = [], w0s = [];
+  const lite = notes.map(n => ({f: n.f, t: n.t, d: n.d, v: n.v, inst: n.inst}));
+  let ni = 0;
+  for(let w0=0; w0<len; w0+=cs){
+    const w1 = Math.min(len, w0+cs), t0 = w0/sr, t1 = w1/sr;
+    // 이 구간에 걸치는 음표만 보낸다 (가장 긴 꼬리 3초)
+    while(ni < lite.length && lite[ni].t + lite[ni].d + 3 < t0) ni++;
+    const part = [];
+    for(let j=ni; j<lite.length && lite[j].t < t1; j++) if(lite[j].t + lite[j].d + 3 >= t0) part.push(lite[j]);
+    const dp = drums.filter(h => h.t < t1 && h.t + .4 >= t0);
+    tasks.push({type:'ens', args:{notes: part, drums: dp, w0, w1, sr}}); w0s.push(w0);
+  }
+  await runAll(tasks, '악기 합성 중', (r, i) => out.set(r.out, w0s[i]));
+  finishOutput(out, c);
+  lastNotes = notes; lastNotes.drums = drums; lastNotes.bpm = bpm;
+  const cnt = {}; notes.forEach(n => cnt[n.inst] = (cnt[n.inst]||0) + 1);
+  res.json = {
+    mode: 'ensemble', sampleRate: sr, preset: presetName, quantize: q, bpm, transpose: tr, start: +(c.a/sr).toFixed(3),
+    notes: notes.map(n => ({midi: n.midi, t: +n.t.toFixed(3), dur: +n.d.toFixed(3), vel: +n.v.toFixed(2), inst: n.inst})),
+    drums: drums.map(h => ({t: +h.t.toFixed(3), type: h.type, vel: +h.v.toFixed(2)}))
+  };
+  return '음표 ' + notes.length + '개 (' + Object.entries(cnt).map(([k,v]) => k + ' ' + v).join(', ') + '), 드럼 ' + drums.length + '회';
+}
+
+// 피크 대신 거의 최대치(99.97%) 기준으로 맞추고 넘치는 건 부드럽게 눌러서 소리가 작아지지 않게
+function finishOutput(out, c){
+  const B = 2048, hist = new Uint32Array(B); let pk = 0;
+  for(let i=0;i<out.length;i++){ const a = Math.abs(out[i]); if(a > pk) pk = a; }
+  if(pk > 0){
+    for(let i=0;i<out.length;i++) hist[Math.min(B-1, Math.floor(Math.abs(out[i])/pk*(B-1)))]++;
+    let need = out.length*0.0003, j = B-1; while(j > 0 && need > 0){ need -= hist[j]; j--; }
+    const ref = Math.max(pk*0.3, (j+1)/(B-1)*pk), g = 0.8/ref;
+    for(let i=0;i<out.length;i++){
+      let y = out[i]*g; const a = Math.abs(y);
+      if(a > .8) y = Math.sign(y)*(.8 + .18*Math.tanh((a-.8)/.18));
+      out[i] = y;
+    }
+  }
+  outSr = c.sr || src.sr; res = {out, span: c.frames*c.hop/outSr, json: null};
+}
+
+$('#analyze').onclick = async () => {
+  if(!src) return;
+  stopPlay(); const T0 = performance.now();
+  setEnabled(['#analyze','#sepBtn','#playPiano','#savePiano','#saveJson','#saveMidi'], false);
+  try{
+    const [a,b] = range(), hopMs = +$('#hop').value, K = +$('#k').value;
+    const key = [srcSel, a, b, hopMs, K, src.sr].join('|');
+    if(!cache || cache.key !== key) cache = await computeAnalysis(a, b, hopMs, K, key);
+    outName = src.name; rollM = cache.M; rollFrames = cache.frames; drawRoll();
+    const msg = $('#mode').value === 'piano' ? await renderPiano(cache) : await renderEnsemble(cache);
+    $('#status').textContent = '완료 (' + srcLabel() + ', ' + fmt((b-a)/src.sr) + '초 분량): ' + msg + ' · ' + ((performance.now()-T0)/1000).toFixed(1) + '초 걸림, 코어 ' + getPool().length + '개';
+    playBuf([res.out], src.sr, 0, null, 'roll');
+  }catch(e){
+    $('#status').textContent = '오류: ' + e.message;
+  }
+  busy(null);
+  setEnabled(['#analyze','#sepBtn'], true);
+  if(res) setEnabled(['#playPiano','#stopPiano','#savePiano','#saveJson','#saveMidi'], true);
+};
+
+function clearRoll(){ rollM = null; rollFrames = 0; drawRoll(); }
+function drawRoll(){
+  const c = $('#roll'), dpr = window.devicePixelRatio || 1;
+  c.width = Math.floor(c.clientWidth*dpr); c.height = Math.floor(c.clientHeight*dpr);
+  const g = c.getContext('2d'); g.clearRect(0,0,c.width,c.height);
+  if(!rollM) return;
+  // 화면 너비에 맞춰 프레임을 묶어서(최대값) 그린다
+  const W = Math.min(rollFrames, c.width), per = rollFrames/W;
+  const off = document.createElement('canvas'); off.width = W; off.height = KEYS;
+  const og = off.getContext('2d'), img = og.createImageData(W, KEYS);
+  const acc = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+  const rgb = acc.startsWith('#') ? [1,3,5].map(i => parseInt(acc.substr(i,2),16)) : [31,95,208];
+  for(let x=0;x<W;x++){
+    const fa = Math.floor(x*per), fb = Math.max(fa+1, Math.floor((x+1)*per));
+    for(let k=0;k<KEYS;k++){
+      let v = 0; for(let fr=fa; fr<fb; fr++){ const m = rollM[fr*KEYS+k]; if(m > v) v = m; }
+      const p = ((KEYS-1-k)*W + x)*4;
+      img.data[p] = rgb[0]; img.data[p+1] = rgb[1]; img.data[p+2] = rgb[2]; img.data[p+3] = Math.round(Math.min(1, v)*255);
+    }
+  }
+  og.putImageData(img, 0, 0);
+  g.imageSmoothingEnabled = false;
+  g.drawImage(off, 0, 0, c.width, c.height);
+}
+
+/* ---------- MIDI ---------- */
+function midiBlob(notes, drums, bpm){
+  const tpq = 480, tps = tpq*bpm/60;
+  const GM = {piano:0, strings:48, brass:61, flute:73, organ:19, pluck:25, bell:14, bass:33, chip:80, chipbass:38};
+  const NAME = {piano:'Piano', strings:'Strings', brass:'Brass', flute:'Flute', organ:'Organ', pluck:'Guitar', bell:'Bells', bass:'Bass', chip:'Square', chipbass:'Triangle'};
+  const vlq = n => { const b = [n & 127]; while(n >>= 7) b.unshift((n & 127) | 128); return b; };
+  const text = (type, s) => { const u = Array.from(new TextEncoder().encode(s)); return [0xFF, type, ...vlq(u.length), ...u]; };
+  const track = (evs, head) => {
+    evs.sort((a,b) => a.t - b.t || a.o - b.o);
+    const d = [...head]; let last = 0;
+    evs.forEach(e => { d.push(...vlq(e.t - last), ...e.b); last = e.t; });
+    d.push(0, 0xFF, 0x2F, 0);
+    return [0x4D,0x54,0x72,0x6B, (d.length>>>24)&255, (d.length>>>16)&255, (d.length>>>8)&255, d.length&255, ...d];
+  };
+  const tracks = [];
+  const us = Math.round(60e6/bpm);
+  tracks.push(track([], [0, 0xFF, 0x51, 3, (us>>16)&255, (us>>8)&255, us&255, 0, 0xFF, 0x58, 4, 4, 2, 24, 8, 0, ...text(3, 'Tempo')]));
+  const groups = {}; notes.forEach(n => (groups[n.inst] = groups[n.inst] || []).push(n));
+  let ch = 0;
+  Object.keys(groups).forEach(inst => {
+    if(ch === 9) ch++; if(ch > 15) ch = 0; const c = ch++;
+    const evs = [];
+    groups[inst].forEach(n => {
+      const t = Math.round(n.t*tps), e = Math.max(t+1, Math.round((n.t+n.d)*tps)), v = Math.max(1, Math.min(127, Math.round(30 + n.v*97)));
+      evs.push({t, o:1, b:[0x90|c, n.midi, v]}, {t: e, o:0, b:[0x80|c, n.midi, 0]});
+    });
+    tracks.push(track(evs, [0, ...text(3, NAME[inst] || inst), 0, 0xC0|c, GM[inst] || 0]));
+  });
+  if(drums && drums.length){
+    const DN = {kick:36, snare:38, hat:42}, evs = [];
+    drums.forEach(h => { const t = Math.round(h.t*tps), v = Math.max(1, Math.min(127, Math.round(40 + h.v*87))); evs.push({t, o:1, b:[0x99, DN[h.type], v]}, {t: t + Math.round(tpq/8), o:0, b:[0x89, DN[h.type], 0]}); });
+    tracks.push(track(evs, [0, ...text(3, 'Drums')]));
+  }
+  const hdr = [0x4D,0x54,0x68,0x64, 0,0,0,6, 0,1, 0,tracks.length, (tpq>>8)&255, tpq&255];
+  return new Blob([new Uint8Array([...hdr, ...tracks.flat()])], {type:'audio/midi'});
+}
+
+$('#playPiano').onclick = () => { if(res) playBuf([res.out], outSr, 0, null, 'roll'); };
+$('#stopPiano').onclick = stopPlay;
+$('#roll').addEventListener('pointerdown', e => { if(!res) return; const r = $('#roll').getBoundingClientRect(), t = Math.max(0, Math.min(1, (e.clientX - r.left)/r.width))*res.span; playBuf([res.out], outSr, t, null, 'roll'); }); // 누른 위치부터 재생
+$('#savePiano').onclick = () => { if(res) download(wavBlob([res.out], outSr), outName + '_' + (res.json && res.json.mode === 'ensemble' ? 'ens' : res.json && res.json.mode === 'continuous' ? 'piano' : $('#mode').value) + '.wav'); };
+$('#saveJson').onclick = () => { if(res && res.json) download(new Blob([JSON.stringify(res.json)], {type:'application/json'}), outName + '_notes.json'); };
+$('#saveMidi').onclick = () => { if(lastNotes) download(midiBlob(lastNotes, lastNotes.drums, lastNotes.bpm || +$('#bpm').value || 120), outName + '.mid'); };
+
+/* ---------- 설정 저장 · 불러오기 (목소리 분리 + 악기 복구 · 말하는 피아노) ---------- */
+const CFG = { sep: ['sepMethod','p','lo','hi','instAuto','instOff','instGain'], synth: ['mode','hop','k','tr','preset','quant','bpm','drums','wavetype'] };
+$('#cfgSave').onclick = () => { const o = {app: 'voice-extractor', version: 1}; for(const g in CFG){ o[g] = {}; CFG[g].forEach(id => o[g][id] = $('#'+id).value); }
+  download(new Blob([JSON.stringify(o, null, 2)], {type:'application/json'}), 'voice-extractor-settings.json'); }; /* 설정 파일: 음악 파일 이름과 상관없이 고정 이름 */
+$('#cfgLoad').onclick = () => $('#cfgFile').click();
+function applyCfg(o, fname){ let n = 0;
+    for(const g in CFG) if(o[g]) CFG[g].forEach(id => { if(o[g][id] == null) return; const el = $('#'+id); el.value = o[g][id]; n++; el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input')); });
+    syncSep(); syncMode(); $('#status').textContent = '설정 ' + n + '개를 불러왔어요 (' + fname + ')'; }
+$('#cfgFile').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if(!f) return;
+  try{ const o = JSON.parse(await f.text()); if(o.mode === 'ensemble' || o.mode === 'continuous') return loadJson(f); let n = 0;
+    for(const g in CFG) if(o[g]) CFG[g].forEach(id => { if(o[g][id] == null) return; const el = $('#'+id); el.value = o[g][id]; n++; el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input')); });
+    syncSep(); syncMode(); $('#status').textContent = '설정 ' + n + '개를 불러왔어요 (' + f.name + ')';
+  }catch(err){ $('#status').textContent = '설정 파일을 읽을 수 없어요: ' + err.message; } });
+
+/* ---------- 음표 JSON 불러와서 재생 (음악 파일 대신) ---------- */
+async function loadJson(file){
+  let j; try{ j = JSON.parse(await file.text()); }catch(e){ $('#info').textContent = 'JSON을 읽을 수 없어요: ' + e.message; return; }
+  if(j && (j.sep || j.synth) && !j.mode) return applyCfg(j, file.name);   // 설정 파일이면 설정으로
+  if(!j || (j.mode !== 'ensemble' && j.mode !== 'continuous')){ $('#info').textContent = '음표 JSON이 아니에요 (mode가 ensemble/continuous여야 해요).'; return; }
+  const T0 = performance.now(), sr = j.sampleRate || getCtx().sampleRate;
+  outName = file.name.replace(/\.[^.]+$/, '').replace(/_notes$/, '');
+  setEnabled(['#playPiano','#stopPiano','#savePiano','#saveJson','#saveMidi'], false);
+  try{
+    let msg;
+    if(j.mode === 'ensemble'){
+      const notes = (j.notes || []).map(n => ({midi: n.midi, t: +n.t || 0, d: Math.max(.01, +n.dur || .1), v: n.vel == null ? .7 : +n.vel, inst: n.inst || 'piano'}))
+        .filter(n => n.midi >= 0 && n.midi <= 127).sort((a,b) => a.t - b.t);
+      const drums = (j.drums || []).map(h => ({t: +h.t || 0, type: h.type, v: h.vel == null ? .7 : +h.vel})).filter(h => /^(kick|snare|hat)$/.test(h.type)).sort((a,b) => a.t - b.t);
+      const endT = Math.max(0, ...notes.map(n => n.t + n.d), ...drums.map(h => h.t + .3));
+      const hopMs = 10, hop = Math.round(sr*hopMs/1000), frames = Math.max(1, Math.ceil(endT*1000/hopMs));
+      const M = new Float32Array(frames*KEYS);
+      notes.forEach(n => { const k = n.midi - MIDI0; if(k < 0 || k >= KEYS) return; const a = Math.floor(n.t*1000/hopMs), b = Math.min(frames, Math.ceil((n.t+n.d)*1000/hopMs));
+        for(let fr=a; fr<b; fr++) if(M[fr*KEYS+k] < n.v) M[fr*KEYS+k] = Math.max(.15, n.v); });
+      rollM = M; rollFrames = frames; drawRoll();
+      const lite = notes.map(n => ({f: 440*Math.pow(2, (n.midi-69)/12), t: n.t, d: n.d, v: n.v, inst: n.inst}));
+      const len = Math.ceil((endT + 3)*sr), out = new Float32Array(len), cs = Math.max(sr*2, Math.ceil(len/(NW*3))), tasks = [], w0s = [];
+      let ni = 0;
+      for(let w0=0; w0<len; w0+=cs){
+        const w1 = Math.min(len, w0+cs), t0 = w0/sr, t1 = w1/sr;
+        while(ni < lite.length && lite[ni].t + lite[ni].d + 3 < t0) ni++;
+        const part = []; for(let q=ni; q<lite.length && lite[q].t < t1; q++) if(lite[q].t + lite[q].d + 3 >= t0) part.push(lite[q]);
+        tasks.push({type:'ens', args:{notes: part, drums: drums.filter(h => h.t < t1 && h.t + .4 >= t0), w0, w1, sr}}); w0s.push(w0);
+      }
+      await runAll(tasks, '악기 합성 중', (r, i) => out.set(r.out, w0s[i]));
+      finishOutput(out, {frames, hop, sr});
+      lastNotes = notes; lastNotes.drums = drums; lastNotes.bpm = j.bpm || 120;
+      msg = '악기 편성 · 음표 ' + notes.length + '개, 드럼 ' + drums.length + '회';
+    } else {
+      const hopMs = +j.hopMs || 10, hop = Math.max(1, Math.round(sr*hopMs/1000)), rows = j.frames || [], frames = Math.max(1, rows.length), fm = j.firstMidi == null ? MIDI0 : +j.firstMidi;
+      const M = new Float32Array(frames*KEYS);
+      rows.forEach((row, fr) => (row || []).forEach(([m, pct]) => { const k = m - MIDI0; if(k >= 0 && k < KEYS) M[fr*KEYS+k] = Math.max(0, Math.min(1, pct/100)); }));
+      rollM = M; rollFrames = frames; drawRoll();
+      const len = frames*hop + Math.floor(sr*0.2), out = new Float32Array(len), cs = Math.max(sr, Math.ceil(len/(NW*3))), tasks = [], w0s = [], type = $('#wavetype').value;
+      for(let w0=0; w0<len; w0+=cs){
+        const w1 = Math.min(len, w0+cs), fa = Math.max(0, Math.floor(w0/hop)), fb = Math.min(frames, Math.ceil(w1/hop) + 2), Ms = M.slice(fa*KEYS, fb*KEYS);
+        tasks.push({type:'piano', args:{M: Ms, fBase: fa, nfr: fb-fa, frames, hop, sr, w0, w1, type, tr: 0}, transfer:[Ms.buffer]}); w0s.push(w0);
+      }
+      await runAll(tasks, '피아노 합성 중', (r, i) => out.set(r.out, w0s[i]));
+      finishOutput(out, {frames, hop, sr});
+      const c = {M, frames, hopMs};
+      lastNotes = extractNotes(c).map(n => ({...n, midi: n.k + MIDI0, inst: 'piano'})); lastNotes.drums = []; lastNotes.bpm = +$('#bpm').value || 120;
+      msg = '말하는 피아노 · ' + frames + '프레임';
+    }
+    res.json = j;
+    $('#info').textContent = file.name + ' (음표 JSON) / ' + mmss(res.span) + ' · 위쪽 오디오 기능은 오디오 파일을 열어야 써요';
+    $('#status').textContent = 'JSON 재생: ' + msg + ' · ' + ((performance.now()-T0)/1000).toFixed(1) + '초 걸림';
+    setEnabled(['#playPiano','#stopPiano','#savePiano','#saveJson','#saveMidi'], true);
+    playBuf([res.out], outSr, 0, null, 'roll');
+  }catch(e){ $('#status').textContent = 'JSON 재생 오류: ' + e.message; }
+  busy(null);
+}
+
+drawWave();
+</script>
+</body>
+</html>
