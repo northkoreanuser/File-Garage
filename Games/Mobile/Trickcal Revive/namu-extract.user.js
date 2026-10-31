@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         namu.wiki 카드 이름 추출
 // @namespace    k.namu.extract
-// @version      1.44
+// @version      1.45
 // @match        https://namu.wiki/w/*
 // @grant        GM_setClipboard
 // @grant        GM_xmlhttpRequest
@@ -259,7 +259,7 @@
   // 저장되는 HTML 에는 카드 데이터(DATA)와 아이콘 주소(ICON)만 넣고, 3개 탭의 카드 마크업은 열릴 때 JS 가 그린다.
   // icons: {키: 'data:image/webp;base64,…'} — 단일 HTML 저장 때만 넘긴다. 아이콘 하나가 변수에 한 번만 들어간다.
   // PWA 아이콘: 나무위키의 게임 아이콘(webp)을 받아 PNG 로 바꿔 base64 로 넣는다. 못 받으면 글자 타일로 대체.
-  const APP_ICON_URL = 'https://i.namu.wiki/i/ze-f8X2nl5sxqcTr0KPa7oHsb35B53i46Y77rlDMYmQeujre__6A1rPZovjZaHWUOH7KqCHFXSaAh-Qh9xaJ1K0IEK6KVv3U5UnnM3pdCzCIyNcdeelkPfnVt77xQ-pM5e4bYg4sEBfahWLLcPtvw.webp';
+  const APP_ICON_URL = 'https://i.namu.wiki/i/ze-f8X2nl5sxqcTr0KPa7oHsb35B53i46Y77rlDMYmQeujre__6A1rPZovjZaHWUOH7KqCHFXSaAh-Qh9xaJ1K0IEK6KVv3U5UnnM3pdCzCIyNcdeelkKPfnVt77xQ-pM5e4bYg4sEBfahWLLcPtvw.webp';
   let appIcons = null; // {64,180,192,512: dataURL}
   async function loadAppIcons() {
     if (appIcons) return appIcons;
@@ -267,7 +267,7 @@
     try {
       const blob = await fetchBlob(APP_ICON_URL);
       if (!blob) throw 0;
-      const bmp = await createImageBitmap(blob);
+      const bmp = await new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = URL.createObjectURL(blob); });
       sizes.forEach(sz => {
         const c = document.createElement('canvas'); c.width = c.height = sz;
         const x = c.getContext('2d');
