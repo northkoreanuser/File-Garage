@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         namu.wiki 카드 이름 추출
 // @namespace    k.namu.extract
-// @version      1.45
+// @version      1.46
 // @match        https://namu.wiki/w/*
 // @grant        GM_setClipboard
 // @grant        GM_xmlhttpRequest
@@ -260,21 +260,13 @@
   // icons: {키: 'data:image/webp;base64,…'} — 단일 HTML 저장 때만 넘긴다. 아이콘 하나가 변수에 한 번만 들어간다.
   // PWA 아이콘: 나무위키의 게임 아이콘(webp)을 받아 PNG 로 바꿔 base64 로 넣는다. 못 받으면 글자 타일로 대체.
   const APP_ICON_URL = 'https://i.namu.wiki/i/ze-f8X2nl5sxqcTr0KPa7oHsb35B53i46Y77rlDMYmQeujre__6A1rPZovjZaHWUOH7KqCHFXSaAh-Qh9xaJ1K0IEK6KVv3U5UnnM3pdCzCIyNcdeelkKPfnVt77xQ-pM5e4bYg4sEBfahWLLcPtvw.webp';
-  let appIcons = null; // {64,180,192,512: dataURL}
+  let appIcons = null; // {64,180,192,512: dataURL, type}
   async function loadAppIcons() {
     if (appIcons) return appIcons;
-    const sizes = [64, 180, 192, 512], out = {};
-    try {
-      const blob = await fetchBlob(APP_ICON_URL);
-      if (!blob) throw 0;
-      const bmp = await new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = URL.createObjectURL(blob); });
-      sizes.forEach(sz => {
-        const c = document.createElement('canvas'); c.width = c.height = sz;
-        const x = c.getContext('2d');
-        x.drawImage(bmp, 0, 0, sz, sz);
-        out[sz] = c.toDataURL('image/png');
-      });
-    } catch (e) { sizes.forEach(sz => { out[sz] = appIcon(sz); }); }
+    const sizes = [64, 180, 192, 512], out = { type: 'image/png' };
+    const blob = await fetchBlob(APP_ICON_URL);
+    if (blob) { const d = await blobToDataURL(blob); sizes.forEach(sz => { out[sz] = d; }); out.type = blob.type; }
+    else sizes.forEach(sz => { out[sz] = appIcon(sz); });
     return (appIcons = out);
   }
   function appIcon(size) {
@@ -315,7 +307,7 @@
 // PWA 매니페스트는 열린 뒤에 만든다: data: 매니페스트는 상대 주소를 못 풀어서 start_url 을 이 파일의 절대 주소로 박아야 한다
 (function(){var u=location.href.split('#')[0].split('?')[0];
 var m={name:'트릭컬 리바이브 사도 목록',short_name:'사도 목록',id:u,start_url:u,scope:u.slice(0,u.lastIndexOf('/')+1),display:'standalone',background_color:'#ffffff',theme_color:'#2f6fed',lang:'ko',
-icons:[{src:${JSON.stringify((appIcons || {})[192] || appIcon(192))},sizes:'192x192',type:'image/png',purpose:'any'},{src:${JSON.stringify((appIcons || {})[512] || appIcon(512))},sizes:'512x512',type:'image/png',purpose:'any'}]};
+icons:[{src:${JSON.stringify((appIcons || {})[192] || appIcon(192))},sizes:'192x192',type:'${(appIcons || {}).type || 'image/png'}',purpose:'any'},{src:${JSON.stringify((appIcons || {})[512] || appIcon(512))},sizes:'512x512',type:'${(appIcons || {}).type || 'image/png'}',purpose:'any'}]};
 document.getElementById('mf').href='data:application/manifest+json,'+encodeURIComponent(JSON.stringify(m));})();
 </script>
 <style>
