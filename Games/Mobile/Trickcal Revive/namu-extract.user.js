@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         namu.wiki 카드 이름 추출
 // @namespace    k.namu.extract
-// @version      1.29
+// @version      1.44
 // @match        https://namu.wiki/w/*
 // @grant        GM_setClipboard
 // @grant        GM_xmlhttpRequest
@@ -258,6 +258,34 @@
 
   // 저장되는 HTML 에는 카드 데이터(DATA)와 아이콘 주소(ICON)만 넣고, 3개 탭의 카드 마크업은 열릴 때 JS 가 그린다.
   // icons: {키: 'data:image/webp;base64,…'} — 단일 HTML 저장 때만 넘긴다. 아이콘 하나가 변수에 한 번만 들어간다.
+  // PWA 아이콘: 나무위키의 게임 아이콘(webp)을 받아 PNG 로 바꿔 base64 로 넣는다. 못 받으면 글자 타일로 대체.
+  const APP_ICON_URL = 'https://i.namu.wiki/i/ze-f8X2nl5sxqcTr0KPa7oHsb35B53i46Y77rlDMYmQeujre__6A1rPZovjZaHWUOH7KqCHFXSaAh-Qh9xaJ1K0IEK6KVv3U5UnnM3pdCzCIyNcdeelkPfnVt77xQ-pM5e4bYg4sEBfahWLLcPtvw.webp';
+  let appIcons = null; // {64,180,192,512: dataURL}
+  async function loadAppIcons() {
+    if (appIcons) return appIcons;
+    const sizes = [64, 180, 192, 512], out = {};
+    try {
+      const blob = await fetchBlob(APP_ICON_URL);
+      if (!blob) throw 0;
+      const bmp = await createImageBitmap(blob);
+      sizes.forEach(sz => {
+        const c = document.createElement('canvas'); c.width = c.height = sz;
+        const x = c.getContext('2d');
+        x.drawImage(bmp, 0, 0, sz, sz);
+        out[sz] = c.toDataURL('image/png');
+      });
+    } catch (e) { sizes.forEach(sz => { out[sz] = appIcon(sz); }); }
+    return (appIcons = out);
+  }
+  function appIcon(size) {
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const x = c.getContext('2d');
+    x.fillStyle = '#2f6fed'; x.beginPath(); x.roundRect ? x.roundRect(0, 0, size, size, size * 0.22) : x.rect(0, 0, size, size); x.fill();
+    x.fillStyle = '#fff'; x.font = `700 ${size * 0.56}px Pretendard,"Malgun Gothic",sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText('트', size / 2, size / 2 + size * 0.03);
+    return c.toDataURL('image/png');
+  }
+
   function toHTML(list, raceIcon, icons) {
     const sorted = [...list].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
     // 값 → 아이콘 주소 (성격/배치/포지션/성급/종족 각 값마다 하나)
@@ -276,7 +304,20 @@
 <html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#2f6fed">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="icon" href="${(appIcons || {})[64] || appIcon(64)}">
+<link rel="apple-touch-icon" href="${(appIcons || {})[180] || appIcon(180)}">
+<link rel="manifest" id="mf">
 <title>트릭컬 리바이브 사도 목록</title>
+<script>
+// PWA 매니페스트는 열린 뒤에 만든다: data: 매니페스트는 상대 주소를 못 풀어서 start_url 을 이 파일의 절대 주소로 박아야 한다
+(function(){var u=location.href.split('#')[0].split('?')[0];
+var m={name:'트릭컬 리바이브 사도 목록',short_name:'사도 목록',id:u,start_url:u,scope:u.slice(0,u.lastIndexOf('/')+1),display:'standalone',background_color:'#ffffff',theme_color:'#2f6fed',lang:'ko',
+icons:[{src:${JSON.stringify((appIcons || {})[192] || appIcon(192))},sizes:'192x192',type:'image/png',purpose:'any'},{src:${JSON.stringify((appIcons || {})[512] || appIcon(512))},sizes:'512x512',type:'image/png',purpose:'any'}]};
+document.getElementById('mf').href='data:application/manifest+json,'+encodeURIComponent(JSON.stringify(m));})();
+</script>
 <style>
 :root{--bg:#fff;--fg:#18181b;--mute:#8b8b93;--line:#ececef;--field:#f4f4f5;--on:#fff;--ac:#2f6fed;--err:#d92d20;color-scheme:light dark}
 @media(prefers-color-scheme:dark){:root{--bg:#111113;--fg:#ededf0;--mute:#7d7d86;--line:#232327;--field:#1c1c20;--on:#2e2e34;--ac:#7aa7ff;--err:#ff6b5e}}
@@ -288,11 +329,28 @@ header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 82
 #q{flex:1;min-width:0;height:40px;padding:0 14px;font:inherit;font-size:15px;color:inherit;background:var(--field);border:1px solid transparent;border-radius:10px;outline:0;transition:border-color .15s,background .15s}
 #q:focus{background:var(--bg);border-color:var(--fg)}
 #q::placeholder{color:var(--mute)}
+.qw{position:relative;flex:1;min-width:0;display:flex}
+#qa{position:absolute;right:10px;top:50%;transform:translateY(-50%);padding:1px 6px;font:11px/1.5 ui-monospace,Consolas,monospace;color:var(--mute);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;pointer-events:none}
+.qw.has-a #q{padding-right:60px}
 #n{min-width:2.5em;text-align:right;color:var(--mute);font-variant-numeric:tabular-nums}
 nav{display:flex;padding:3px;background:var(--field);border-radius:10px}
 nav button{height:34px;padding:0 14px;font:inherit;color:var(--mute);background:none;border:0;border-radius:8px;cursor:pointer;white-space:nowrap;transition:color .15s}
 nav button:hover{color:var(--fg)}
 nav button.on{color:var(--fg);font-weight:600;background:var(--on);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+nav select{height:34px;padding:0 10px;font:inherit;color:var(--mute);background:none;border:0;border-radius:8px;cursor:pointer;outline:0;max-width:140px}
+nav select.on{color:var(--fg);font-weight:600;background:var(--on);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+nav select:hover{color:var(--fg)}
+nav select option{color:#000;background:#fff}
+#m a.l{white-space:normal;line-height:1.3}
+#mq{margin-top:4px;padding-top:4px;border-top:1px solid var(--line)}
+#mq>span{display:block;padding:4px 10px 2px;font-size:11px;color:var(--mute)}
+#mqa select{display:block;width:100%;height:32px;margin:2px 0;padding:0 8px;font:inherit;color:inherit;background:var(--field);border:0;border-radius:6px;cursor:pointer;outline:0}
+#mqa select:focus-visible{outline:2px solid var(--fg)}
+#mqa select option{color:#000;background:#fff}
+#dc{display:flex;gap:14px;align-items:center;margin:8px 0 0;font-size:12px;color:var(--mute)}
+#dc label{display:flex;align-items:center;gap:4px;cursor:pointer}
+#dc b{font-weight:600;color:var(--fg)}
+#m a.l small{display:block;margin-top:2px;font-size:11px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 nav button:focus-visible,.c:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
 main{max-width:1080px;margin:0 auto;padding:4px 20px 64px}
 table{width:100%;border-collapse:collapse}
@@ -335,11 +393,13 @@ dialog button:focus-visible,dialog input:focus-visible{outline:2px solid var(--f
 #dl .t b,#dl .t small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #dl .t b{font-weight:600}
 #dl .t small{color:var(--mute);font-size:12px}
-#df{display:grid;grid-template-columns:1fr auto;gap:8px}
+#dl .t small i{font-style:normal;color:var(--ac);margin-right:6px}
+tr.un th b{color:var(--mute);font-weight:500}
+#df{display:grid;grid-template-columns:1fr 1fr auto;gap:8px}
+#df #du{grid-column:1/4}
 #df input{min-width:0;height:38px;padding:0 12px;font:inherit;color:inherit;background:var(--field);border:1px solid transparent;border-radius:9px;outline:0}
 #df input:focus{background:var(--bg);border-color:var(--fg)}
 #df input.bad{border-color:var(--err)}
-#du{grid-column:1/3}
 #da{height:38px;padding:0 16px;font-weight:600;color:var(--bg);background:var(--fg)}
 #da:hover:not(:disabled){color:var(--bg);background:var(--fg);opacity:.85}
 #de{margin:8px 0 0;color:var(--err);font-size:13px}
@@ -357,6 +417,7 @@ dialog button:focus-visible,dialog input:focus-visible{outline:2px solid var(--f
 @media(max-width:560px){
 .bar{flex-wrap:wrap;gap:8px;padding:10px 14px}
 #q{flex-basis:calc(100% - 3.5em)}
+.qw{flex-basis:calc(100% - 3.5em)}
 nav{order:3;width:100%}nav button{flex:1}
 main{padding:0 14px 48px}
 th{width:52px;padding-right:10px}th img{width:22px;height:22px}
@@ -365,24 +426,27 @@ th{width:52px;padding-right:10px}th img{width:22px;height:22px}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head><body>
 <header><div class="bar">
-<input id="q" type="search" placeholder="검색" aria-label="이름 검색" autocomplete="off" spellcheck="false" autofocus>
+<div class="qw"><input id="q" type="search" placeholder="검색" aria-label="이름 검색" autocomplete="off" spellcheck="false" autofocus><kbd id="qa" hidden>Enter</kbd></div>
 <span id="n" aria-live="polite">${list.length}</span>
-<nav><button data-t="t-attr" class="on">성격별</button><button data-t="t-race">종족별</button><button data-t="t-abc">가나다순</button></nav>
+<nav><button data-t="t-attr" class="on">성격별</button><button data-t="t-race">종족별</button><button data-t="t-abc">가나다순</button><select id="cg" title="사용자 분류 보기" aria-label="사용자 분류"><option value="">분류</option></select><button id="pwa" type="button" title="앱(바로가기)으로 설치" hidden>설치</button></nav>
 </div></header>
 <main>
+<table id="t-cat" hidden></table>
 <p id="e" hidden>결과 없음</p>
 </main>
-<div id="m" role="menu" hidden><button id="mh" role="menuitem">하이퍼 링크</button><div id="ml"></div><div id="mn"><a id="mw" role="menuitem" target="_blank" rel="noopener">나무위키</a></div></div>
+<div id="m" role="menu" hidden><button id="mh" role="menuitem">하이퍼 링크</button><div id="ml"></div><div id="mq" hidden><span>분류에 추가</span><div id="mqa"></div></div><div id="mn"><a id="mw" role="menuitem" target="_blank" rel="noopener">나무위키</a></div></div>
 <div id="sh" hidden><label for="sl">이 검색으로 바로 열리는 링크</label><div><input id="sl" type="text" readonly spellcheck="false"><button id="sc" type="button">복사</button></div></div>
 <dialog id="d" aria-labelledby="dn">
 <div class="dh"><b id="dn"></b><button id="dx" type="button" aria-label="닫기">✕</button></div>
 <ul id="dl"></ul>
 <form id="df" novalidate>
-<input id="du" type="text" inputmode="url" placeholder="URL" aria-label="URL" autocomplete="off" spellcheck="false">
-<input id="dt" type="text" placeholder="이름" aria-label="이름" autocomplete="off">
+<input id="dt" type="text" placeholder="이름 (예: 김가령)" aria-label="이름" autocomplete="off" list="dtl"><datalist id="dtl"></datalist>
+<input id="dg" type="text" placeholder="분류 (예: 성우)" aria-label="분류" autocomplete="off" list="dgl"><datalist id="dgl"></datalist>
 <button id="da">추가</button>
+<input id="du" type="text" inputmode="url" placeholder="하이퍼링크 (선택)" aria-label="URL" autocomplete="off" spellcheck="false">
 </form>
 <p id="de" role="alert" hidden>올바른 URL이 아닙니다</p>
+<div id="dc" hidden><b id="dcn"></b><label title="이 분류는 사도 하나에 하나만 둘 수 있다 (예: 성우)"><input type="checkbox" id="dcu">사도당 하나만</label><label title="카드 메뉴의 「분류에 추가」 목록에 이 분류를 보여 준다"><input type="checkbox" id="dcq">메뉴에서 빠른 추가</label></div>
 <div class="dz"><button id="dex" type="button">전체 내보내기</button><button id="dim" type="button">가져오기</button><input id="dfi" type="file" accept=".json,application/json" hidden></div>
 </dialog>
 <script>
@@ -424,6 +488,9 @@ var html=table('t-attr',ATTR_ORDER.map(function(a){return{label:a,icon:ICON.attr
 table('t-race',RACES.map(function(r){return{label:r,icon:ICON.race[r]||'',items:by('c',r)}}),false)+
 table('t-abc',inits.map(function(i){return{label:i,icon:'',items:DATA.filter(function(o){return ini(o.n)===i})}}),false);
 document.getElementById('e').insertAdjacentHTML('beforebegin',html);
+// 사용자 분류 테이블(t-cat)을 그릴 때 쓰도록 공개
+var byKey={};DATA.forEach(function(o){byKey[o.k]=o});
+window.__cards={card:card,icon:icon,esc:esc,byKey:byKey};
 })();
 (function(){
 var q=document.getElementById('q'),n=document.getElementById('n'),e=document.getElementById('e');
@@ -435,7 +502,7 @@ var v=q.value,tag=v.charAt(0)==='#',k=jamo(tag?v.slice(1):v,true);
 document.body.classList.toggle('tag',tag); // 하이퍼링크 검색 중에는 파란 점을 숨긴다
 function hit(c){
 if(!tag)return !k||k.test(c.dataset.j);
-return !!k&&links(c.dataset.k).some(function(l){return k.test(jamo(l.t))});
+return !!k&&links(c.dataset.k).some(function(l){return k.test(jamo(l.t))||(l.g&&k.test(jamo(l.g)))});
 }
 tables.forEach(function(t){[].forEach.call(t.rows,function(r){
 var any=false;
@@ -445,15 +512,23 @@ r.hidden=!any;
 var c=cur().querySelectorAll('.c:not([hidden])').length;
 n.textContent=c;e.hidden=c>0;
 }
+var cg=document.getElementById('cg'),prevTab='t-attr';
+var qa=document.getElementById('qa');
+function canAll(){return !document.getElementById('t-cat').hidden&&!!q.value.trim()}
+function hint(){var on=canAll();qa.hidden=!on;qa.parentNode.classList.toggle('has-a',on)}
 function show(id){
+if(id==='t-cat'){var c0=cur();if(c0&&c0.id!=='t-cat')prevTab=c0.id}
+hint();
 tabs.forEach(function(b){b.classList.toggle('on',b.dataset.t===id)});
 tables.forEach(function(t){t.hidden=t.id!==id});
+cg.classList.toggle('on',id==='t-cat');
+if(id!=='t-cat')cg.value='';
 try{localStorage.setItem('tab',id)}catch(x){}
 find();
 }
 tabs.forEach(function(b){b.onclick=function(){show(b.dataset.t)}});
-q.addEventListener('input',find);
-// 단축키: / 검색창, Esc 지우기, Enter 첫 결과의 나무위키 열기
+q.addEventListener('input',function(){find();hint()});
+// 단축키: / 검색창, Esc 지우기, Enter = (분류 탭이면) 전체 사도에서 검색. 검색창의 Enter 는 그 외 아무 동작도 안 한다
 document.addEventListener('keydown',function(ev){
 if(d.open)return;
 if(ev.key==='Escape'&&!sh.hidden){sh.hidden=true;q.focus();return}
@@ -461,21 +536,63 @@ if(ev.key==='Escape'&&!m.hidden){hide();return}
 if(document.activeElement===sl)return;
 if(ev.key==='/'&&document.activeElement!==q){ev.preventDefault();q.focus();q.select()}
 else if(ev.key==='Escape'){q.value='';find();q.focus()}
-else if(ev.key==='Enter'&&document.activeElement===q&&!ev.isComposing&&q.value){var f=cur().querySelector('.c:not([hidden])');if(f)open(f.href,'_blank','noopener')}
+else if(ev.key==='Enter'&&document.activeElement===q){ev.preventDefault();ev.stopPropagation();if(!ev.isComposing&&canAll())show(prevTab)}
 });
 // ----- 하이퍼 링크: 사도별 링크 등록 -----
 // base = hyperlink.json 에서 읽은 것, db = 이 브라우저(localStorage)에서 고친 것. 같은 사도는 db 가 우선한다.
 function $(id){return document.getElementById(id)}
 function el(tag,text,cls){var x=document.createElement(tag);if(text)x.textContent=text;if(cls)x.className=cls;return x}
 var KEY='trickcal-links',base={},db={},key='',edit=-1;
-var m=$('m'),ml=$('ml'),d=$('d'),dl=$('dl'),du=$('du'),dt=$('dt'),da=$('da'),de=$('de');
+var m=$('m'),ml=$('ml'),d=$('d'),dl=$('dl'),du=$('du'),dt=$('dt'),dg=$('dg'),da=$('da'),de=$('de');
 try{db=JSON.parse(localStorage.getItem(KEY))||{}}catch(x){}
 function links(k){return db[k]||base[k]||[]}
-function own(){if(!db[key])db[key]=links(key).slice();return db[key]}
+// ----- 분류 설정 {분류: {u:사도당 하나만, q:메뉴 빠른 추가}} — localStorage 가 hyperlink.json(__cats) 보다 우선
+var CKEY='trickcal-cats',catsDb={},catsBase={};
+try{catsDb=JSON.parse(localStorage.getItem(CKEY))||{}}catch(x){}
+function catOpt(g){return catsDb[g]||catsBase[g]||{u:false,q:false}}
+function setCatOpt(g,o){catsDb[g]={u:!!o.u,q:!!o.q};try{localStorage.setItem(CKEY,JSON.stringify(catsDb))}catch(x){}}
+function own(){if(!db[key])db[key]=links(key).map(function(l){return{u:l.u||'',t:l.t,g:l.g||''}});return db[key]}
+// ----- 사용자 분류: 항목의 g(분류) 값으로 묶어 보기 -----
+// 등록된 모든 (분류·이름) 조합. 다른 사도에 이미 만든 분류 값을 빠르게 재사용할 때 쓴다
+function allEntries(){var o=merged(),seen={},out=[];Object.keys(o).forEach(function(k){o[k].forEach(function(l){if(!l.g)return;var id=l.g+'\u0000'+l.t;if(seen[id])return;seen[id]=1;out.push({u:l.u||'',t:l.t,g:l.g})})});return out.sort(function(a,b){return a.g.localeCompare(b.g,'ko')||a.t.localeCompare(b.t,'ko')})}
+function cats(){var o=merged(),set=[];Object.keys(o).forEach(function(k){o[k].forEach(function(l){if(l.g&&set.indexOf(l.g)<0)set.push(l.g)})});return set.sort(function(a,b){return a.localeCompare(b,'ko')})}
+function fillCats(){
+var list=cats(),v=cg.value;cg.textContent='';
+var o0=el('option','분류');o0.value='';cg.appendChild(o0);
+list.forEach(function(g){var o=el('option',g);o.value=g;cg.appendChild(o)});
+cg.value=list.indexOf(v)>=0?v:'';
+var dgl=$('dgl');dgl.textContent='';list.forEach(function(g){var o=el('option');o.value=g;dgl.appendChild(o)});
+var dtl=$('dtl');dtl.textContent='';allEntries().forEach(function(e){var o=el('option');o.value=e.t;o.label=e.g;dtl.appendChild(o)});
+}
+// 분류 g 로 테이블을 다시 그린다: 값(예: 성우 이름)마다 한 줄, 그 값이 달린 사도 카드들
+function buildCat(g){
+var C=window.__cards,o=merged(),groups={},names=[];
+Object.keys(o).forEach(function(k){o[k].forEach(function(l){if(l.g!==g)return;if(!groups[l.t]){groups[l.t]={items:[],u:''};names.push(l.t)}if(C.byKey[k]&&groups[l.t].items.indexOf(C.byKey[k])<0)groups[l.t].items.push(C.byKey[k]);if(l.u&&!groups[l.t].u)groups[l.t].u=l.u})});
+names.sort(function(a,b){return a.localeCompare(b,'ko')});
+var t=$('t-cat'),rows='';
+names.forEach(function(nm){var gr=groups[nm];gr.items.sort(function(a,b){return a.n.localeCompare(b.n,'ko')});
+rows+='<tr data-g="'+C.esc(nm)+'"><th scope="row">'+(gr.u?'<a href="'+C.esc(gr.u)+'" target="_blank" rel="noopener" title="'+C.esc(gr.u)+'"><b>'+C.esc(nm)+'</b></a>':'<b>'+C.esc(nm)+'</b>')+'<small>'+gr.items.length+'</small></th><td><div class="g">'+gr.items.map(C.card).join('')+'</div></td></tr>'});
+// 이 분류 값이 하나도 없는 사도 = 미분류 (맨 아래)
+var tagged={};Object.keys(o).forEach(function(k){if(o[k].some(function(l){return l.g===g}))tagged[k]=1});
+var rest=Object.keys(C.byKey).filter(function(k){return !tagged[k]}).map(function(k){return C.byKey[k]}).sort(function(a,b){return a.n.localeCompare(b.n,'ko')});
+if(rest.length)rows+='<tr data-g="" class="un"><th scope="row"><b>미분류</b><small>'+rest.length+'</small></th><td><div class="g">'+rest.map(C.card).join('')+'</div></td></tr>';
+t.innerHTML=rows||'<tr><td style="padding:40px 0;text-align:center;color:var(--mute)">「'+C.esc(g)+'」 분류에 항목 없음</td></tr>';
+t.dataset.g=g;mark();
+}
+function viewCat(g,focus){
+if(!g)return;cg.value=g;buildCat(g);show('t-cat');
+try{localStorage.setItem('cat',g)}catch(x){}
+if(focus){var r=$('t-cat').querySelector('tr[data-g="'+CSS.escape(focus)+'"]');if(r){r.scrollIntoView({block:'start',behavior:'smooth'})}}
+}
+cg.onchange=function(){if(cg.value)viewCat(cg.value);else show('t-attr')};
 function merged(){var o={};Object.keys(base).concat(Object.keys(db)).forEach(function(k){if(links(k).length)o[k]=links(k)});return o}
 function save(){
 if(db[key]&&!db[key].length&&!(base[key]&&base[key].length))delete db[key];
 try{localStorage.setItem(KEY,JSON.stringify(db))}catch(x){}
+// 항목이 하나도 안 남은 분류는 분류 자체(설정 포함)를 지운다
+var live=cats();Object.keys(catsDb).forEach(function(g){if(live.indexOf(g)<0)delete catsDb[g]});try{localStorage.setItem(CKEY,JSON.stringify(catsDb))}catch(x){}
+fillCats();
+if(!$('t-cat').hidden){if(cats().indexOf($('t-cat').dataset.g)>=0)buildCat($('t-cat').dataset.g);else show('t-attr')}
 mark();
 }
 function mark(){[].forEach.call(document.querySelectorAll('.c'),function(c){c.classList.toggle('has',links(c.dataset.k).length>0)});find()}
@@ -510,7 +627,31 @@ var x=ev.clientX,y=ev.clientY;
 if(!ev.detail&&!x&&!y){var r=c.getBoundingClientRect();x=r.left+r.width/2;y=r.top+r.height/2}
 key=c.dataset.k;m.dataset.n=c.querySelector('.n').textContent;
 ml.textContent='';
-links(key).forEach(function(l){var a=el('a',l.t);a.href=l.u;a.target='_blank';a.rel='noopener';a.title=l.u;a.setAttribute('role','menuitem');ml.appendChild(a)});
+// 항목: 이름, 그 아래 작은 글자로 분류. 분류가 있으면 클릭 → 그 분류 탭(하이퍼링크는 거기 줄 제목에 걸려 있음), 분류가 없으면 링크 열기.
+links(key).forEach(function(l){
+var a=el('a','','l');a.setAttribute('role','menuitem');a.appendChild(document.createTextNode(l.t));
+if(l.g){a.href='#';a.title='「'+l.g+'」 분류에서 보기'+(l.u?'\\n'+l.u:'');a.onclick=function(ev){ev.preventDefault();hide();viewCat(l.g,l.t)};a.appendChild(el('small',l.g))}
+else{a.href=l.u;a.target='_blank';a.rel='noopener';a.title=l.u}
+ml.appendChild(a)});
+// 빠른 추가: 다른 사도에 이미 있는 분류 값 중 이 사도에 없는 것. 클릭하면 바로 등록
+// 빠른 추가: 「메뉴에서 빠른 추가」가 켜진 분류마다 드롭다운 하나.
+//  값 고르기 = 추가(사도당 하나만이면 교체) / ＋ 새 입력 = 분류를 채워 둔 하이퍼 링크 창 / 분류 없음 = 이 사도에서 제거
+var mq=$('mq'),mqa=$('mqa'),have=links(key),groups={};
+cats().forEach(function(g){if(catOpt(g).q)groups[g]=[]});
+allEntries().forEach(function(e){if(!groups[e.g])return;if(have.some(function(l){return l.g===e.g&&l.t===e.t}))return;groups[e.g].push(e)});
+mqa.textContent='';var gs=Object.keys(groups);mq.hidden=!gs.length;
+gs.forEach(function(g){var op=catOpt(g),mine=have.filter(function(l){return l.g===g}),cur=op.u?mine[0]:null;
+var sel=el('select');sel.setAttribute('aria-label',g);
+var o0=el('option',cur?g+': '+cur.t:mine.length?g+' ('+mine.length+')':g);o0.value='';sel.appendChild(o0);
+groups[g].forEach(function(e,i){var o=el('option',e.t);o.value=String(i);if(e.u)o.title=e.u;sel.appendChild(o)});
+var on=el('option','＋ 새 '+g+' 입력…');on.value='new';sel.appendChild(on);
+if(mine.length){var orm=el('option','분류 없음'+(cur?'':' ('+mine.length+'개 제거)'));orm.value='rm';sel.appendChild(orm)}
+sel.onchange=function(){var a=own(),v=sel.value;
+if(v==='new'){hide();openDialog(g);return}
+if(v==='rm'){for(var i=a.length-1;i>=0;i--)if(a[i].g===g)a.splice(i,1);save();hide();return}
+var e=groups[g][+v];if(!e)return;var j=cur?a.findIndex(function(l){return l.g===g}):-1;var nl={u:e.u,t:e.t,g:e.g};if(j>=0)a[j]=nl;else a.push(nl);save();hide()};
+sel.onmousedown=function(ev){ev.stopPropagation()};
+mqa.appendChild(sel)});
 $('mw').href=c.href;
 m.hidden=false;
 m.style.left=Math.max(4,Math.min(x,innerWidth-m.offsetWidth-4))+'px';
@@ -518,17 +659,24 @@ m.style.top=Math.max(4,Math.min(y,innerHeight-m.offsetHeight-4))+'px';
 }
 document.addEventListener('mousedown',function(ev){if(!m.hidden&&!m.contains(ev.target))hide()});
 addEventListener('scroll',hide,true);addEventListener('resize',hide);addEventListener('blur',hide);
-ml.addEventListener('click',hide);$('mw').addEventListener('click',hide);
-$('mh').onclick=function(){hide();$('dn').textContent=m.dataset.n;reset();render();d.showModal();du.focus()};
-function reset(){edit=-1;du.value='';dt.value='';da.textContent='추가';bad(false)}
-function bad(on){du.classList.toggle('bad',on);de.hidden=!on}
+ml.addEventListener('click',function(ev){if(ev.target.closest('a[target]')&&!ev.target.closest('u'))hide()});$('mw').addEventListener('click',hide);
+function openDialog(g){$('dn').textContent=m.dataset.n;reset();render();fillCats();if(g){dg.value=g;showCatOpt()}d.showModal();dt.focus()}
+$('mh').onclick=function(){hide();openDialog()};
+function reset(){edit=-1;du.value='';dt.value='';dg.value='';da.textContent='추가';bad(false);showCatOpt()}
+// 분류 칸에 값이 있으면 그 분류의 설정(사도당 하나만 / 메뉴 빠른 추가)을 보여 주고, 새 분류면 기본값(둘 다 꺼짐)으로 만들면서 정한다
+var dc=$('dc'),dcn=$('dcn'),dcu=$('dcu'),dcq=$('dcq');
+function showCatOpt(){var g=dg.value.trim();dc.hidden=!g;if(!g)return;var o=catOpt(g);dcn.textContent=g+(cats().indexOf(g)<0?' (새 분류)':'');dcu.checked=o.u;dcq.checked=o.q}
+dg.addEventListener('input',showCatOpt);
+dcu.onchange=dcq.onchange=function(){var g=dg.value.trim();if(g)setCatOpt(g,{u:dcu.checked,q:dcq.checked})};
+function bad2(msg){de.textContent=msg;de.hidden=false}
+function bad(on){du.classList.toggle('bad',on);de.hidden=!on;if(on)de.textContent='올바른 URL이 아닙니다'}
 function btn(text,label,off,fn){var b=el('button',text);b.type='button';b.title=label;b.setAttribute('aria-label',label);b.disabled=off;b.onclick=fn;return b}
 function render(){
 var a=links(key);dl.textContent='';
 a.forEach(function(l,i){
 var li=el('li','',i===edit?'ed':''),t=el('div','','t');
-t.title='수정';t.appendChild(el('b',l.t));var v=l.u;try{v=decodeURI(v)}catch(x){}t.appendChild(el('small',v));
-t.onclick=function(){if(edit===i){reset();render();return}edit=i;du.value=l.u;dt.value=l.t;da.textContent='저장';bad(false);render();du.focus();du.select()};
+t.title='수정';t.appendChild(el('b',l.t));var v=l.u||'';try{v=decodeURI(v)}catch(x){}var sm=el('small');if(l.g)sm.appendChild(el('i',l.g));sm.appendChild(document.createTextNode(v||(l.g?'':'(링크 없음)')));t.appendChild(sm);
+t.onclick=function(){if(edit===i){reset();render();return}edit=i;du.value=l.u||'';dt.value=l.t;dg.value=l.g||'';da.textContent='저장';bad(false);showCatOpt();render();dt.focus();dt.select()};
 li.appendChild(t);
 li.appendChild(btn('✎','수정',false,t.onclick));
 li.appendChild(btn('↑','위로',i===0,function(){move(i,i-1)}));
@@ -540,14 +688,21 @@ dl.appendChild(li);
 function move(i,j){var a=own(),x=a[i];a[i]=a[j];a[j]=x;if(edit===i)edit=j;else if(edit===j)edit=i;save();render()}
 $('df').addEventListener('submit',function(ev){
 ev.preventDefault();
-var u=toURL(du.value);
-if(!u){bad(true);du.focus();return}
-var l={u:u,t:dt.value.trim()||new URL(u).hostname};
+var uv=du.value.trim(),u='';
+if(uv){u=toURL(uv);if(!u){bad(true);du.focus();return}}
+var t=dt.value.trim()||(u?new URL(u).hostname:'');
+if(!t){dt.focus();return}
+var l={u:u,t:t,g:dg.value.trim()};
 var a=own();
+if(l.g){setCatOpt(l.g,{u:dcu.checked,q:dcq.checked}); // 새 분류면 여기서 설정이 만들어진다
+var j=catOpt(l.g).u?a.findIndex(function(x,i){return x.g===l.g&&i!==edit}):-1; // 사도당 하나만: 기존 것을 바꿔치기
+if(j>=0){if(edit>=0)a.splice(edit,1);a[j>edit&&edit>=0?j-1:j]=l;save();reset();render();dt.focus();return}}
 if(edit>=0)a[edit]=l;else a.push(l);
-save();reset();render();du.focus();
+save();reset();render();dt.focus();
 });
 du.addEventListener('input',function(){bad(false)});
+// 이름을 기존 항목과 똑같이 넣으면 분류·링크를 따라 채운다 (비어 있을 때만)
+dt.addEventListener('input',function(){var e=allEntries().filter(function(x){return x.t===dt.value.trim()})[0];if(e){if(!dg.value)dg.value=e.g;if(!du.value&&e.u)du.value=e.u;showCatOpt()}});
 $('dx').onclick=function(){d.close()};
 d.addEventListener('click',function(ev){if(ev.target===d)d.close()});
 // 불러온 JSON 을 검사해 {사도:[{u,t}]} 형태만 남긴다
@@ -555,14 +710,15 @@ function clean(o){
 var out={};if(!o||typeof o!=='object')return out;
 Object.keys(o).forEach(function(k){
 if(!Array.isArray(o[k]))return;
-var a=o[k].map(function(l){var u=l&&toURL(String(l.u||''));return u?{u:u,t:String(l.t||new URL(u).hostname)}:null}).filter(Boolean);
+var a=o[k].map(function(l){if(!l||typeof l!=='object')return null;var u=l.u?toURL(String(l.u)):'';if(l.u&&!u)return null;var t=String(l.t||(u?new URL(u).hostname:'')).trim();if(!t)return null;var r={u:u||'',t:t};if(l.g)r.g=String(l.g).trim();return r}).filter(Boolean);
 if(a.length)out[k]=a;
 });
 return out;
 }
 // 전체 내보내기(hyperlink.json) / 가져오기
 $('dex').onclick=function(){
-var a=el('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(merged(),null,1)],{type:'application/json'}));
+var out=merged(),co={};cats().forEach(function(g){co[g]=catOpt(g)});out.__cats=co;
+var a=el('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,1)],{type:'application/json'}));
 a.download='hyperlink.json';document.body.appendChild(a);a.click();a.remove();
 };
 $('dim').onclick=function(){$('dfi').click()};
@@ -570,6 +726,7 @@ $('dfi').onchange=function(){
 var f=this.files[0],r=new FileReader();this.value='';if(!f)return;
 r.onload=function(){
 var o;try{o=JSON.parse(r.result)}catch(x){return}
+if(o&&o.__cats&&typeof o.__cats==='object')Object.keys(o.__cats).forEach(function(g){setCatOpt(g,o.__cats[g])});
 o=clean(o);Object.keys(o).forEach(function(k){db[k]=o[k]});
 save();reset();render();
 };
@@ -614,13 +771,19 @@ addEventListener('hashchange',fromHash);
 function load(list){
 if(!list.length||!window.fetch)return;
 fetch(list[0],{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;return r.json()})
-.then(function(o){base=clean(o);mark();if(d.open)render()})
+.then(function(o){if(o&&o.__cats&&typeof o.__cats==='object')catsBase=o.__cats;base=clean(o);fillCats();mark();if(d.open)render();var sg2=null;try{sg2=localStorage.getItem('cat')}catch(x){}if(!$('t-cat').hidden&&sg2)buildCat(sg2)})
 .catch(function(){load(list.slice(1))});
 }
 load((HYPERLINK_JSON_URL?[HYPERLINK_JSON_URL]:[]).concat(location.protocol==='file:'?[]:['hyperlink.json']));
-var s=null;try{s=localStorage.getItem('tab')}catch(x){}
-if(s&&document.getElementById(s))show(s);
+fillCats();
+var s=null,sg=null;try{s=localStorage.getItem('tab');sg=localStorage.getItem('cat')}catch(x){}
+if(s==='t-cat'&&sg&&cats().indexOf(sg)>=0)viewCat(sg);else if(s&&s!=='t-cat'&&document.getElementById(s))show(s);
 fromHash();
+// PWA 설치: 브라우저가 설치 가능하다고 알려 올 때만(https 로 열었을 때) 「설치」 버튼이 뜬다. file:// 에선 브라우저 메뉴의 「바로가기 만들기」를 쓸 것.
+var pwaEv=null,pwaBtn=document.getElementById('pwa');
+addEventListener('beforeinstallprompt',function(ev){ev.preventDefault();pwaEv=ev;pwaBtn.hidden=false});
+pwaBtn.onclick=function(){if(!pwaEv)return;pwaEv.prompt();pwaEv.userChoice.then(function(){pwaEv=null;pwaBtn.hidden=true})};
+addEventListener('appinstalled',function(){pwaBtn.hidden=true});
 })();
 </script>
 </body></html>`;
@@ -680,6 +843,7 @@ fromHash();
   const htmlBlob = h => new Blob([h], { type: 'text/html;charset=utf-8' });
   addButton('저장', async (list, raceIcon, b) => {
     const mode = sel.value;
+    b.textContent = '앱 아이콘…'; await loadAppIcons();
     if (mode === 'raw') { download(htmlBlob(toHTML(list, raceIcon)), '트릭컬_사도목록.html'); return `저장됨 ${list.length}`; }
     const photos = new Set(list.map(o => o.img));
     const got = await fetchIcons(list, raceIcon, prog(b), chk.checked);
