@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         namu.wiki 카드 이름 추출
 // @namespace    k.namu.extract
-// @version      1.47
+// @version      1.49
 // @match        https://namu.wiki/w/*
 // @grant        GM_setClipboard
 // @grant        GM_xmlhttpRequest
@@ -427,7 +427,7 @@ th{width:52px;padding-right:10px}th img{width:22px;height:22px}
 <header><div class="bar">
 <div class="qw"><input id="q" type="search" placeholder="검색" aria-label="이름 검색" autocomplete="off" spellcheck="false" autofocus><kbd id="qa" hidden>Enter</kbd></div>
 <span id="n" aria-live="polite">${list.length}</span>
-<nav><button data-t="t-attr" class="on">성격별</button><button data-t="t-race">종족별</button><button data-t="t-abc">가나다순</button><select id="cg" title="사용자 분류 보기" aria-label="사용자 분류"><option value="">분류</option></select><button id="pwa" type="button" title="앱(바로가기)으로 설치" hidden>설치</button></nav>
+<nav><button data-t="t-attr" class="on">성격별</button><button data-t="t-race">종족별</button><button data-t="t-abc">가나다순</button><button id="cg1" type="button" title="사용자 분류 보기" hidden></button><select id="cg" title="사용자 분류 보기" aria-label="사용자 분류" hidden><option value="">분류</option></select><button id="pwa" type="button" title="앱(바로가기)으로 설치" hidden>설치</button></nav>
 </div></header>
 <main>
 <table id="t-cat" hidden></table>
@@ -511,14 +511,15 @@ r.hidden=!any;
 var c=cur().querySelectorAll('.c:not([hidden])').length;
 n.textContent=c;e.hidden=c>0;
 }
-var cg=document.getElementById('cg'),prevTab='t-attr';
+var cg=document.getElementById('cg'),cg1=document.getElementById('cg1'),prevTab='t-attr';
 var qa=document.getElementById('qa');
 function canAll(){return !document.getElementById('t-cat').hidden&&!!q.value.trim()}
 function hint(){var on=canAll();qa.hidden=!on;qa.parentNode.classList.toggle('has-a',on)}
 function show(id){
 if(id==='t-cat'){var c0=cur();if(c0&&c0.id!=='t-cat')prevTab=c0.id}
 hint();
-tabs.forEach(function(b){b.classList.toggle('on',b.dataset.t===id)});
+tabs.forEach(function(b){if(b.id!=='cg1')b.classList.toggle('on',b.dataset.t===id)});
+cg1.classList.toggle('on',id==='t-cat');
 tables.forEach(function(t){t.hidden=t.id!==id});
 cg.classList.toggle('on',id==='t-cat');
 if(id!=='t-cat')cg.value='';
@@ -560,6 +561,8 @@ var list=cats(),v=cg.value;cg.textContent='';
 var o0=el('option','분류');o0.value='';cg.appendChild(o0);
 list.forEach(function(g){var o=el('option',g);o.value=g;cg.appendChild(o)});
 cg.value=list.indexOf(v)>=0?v:'';
+// 분류가 하나면 드롭다운 대신 그 이름의 버튼 하나, 둘 이상이면 드롭다운, 없으면 둘 다 숨김
+cg1.hidden=list.length!==1;cg.hidden=list.length<2;if(list.length===1)cg1.textContent=list[0];
 var dgl=$('dgl');dgl.textContent='';list.forEach(function(g){var o=el('option');o.value=g;dgl.appendChild(o)});
 var dtl=$('dtl');dtl.textContent='';allEntries().forEach(function(e){var o=el('option');o.value=e.t;o.label=e.g;dtl.appendChild(o)});
 }
@@ -584,6 +587,7 @@ try{localStorage.setItem('cat',g)}catch(x){}
 if(focus){var r=$('t-cat').querySelector('tr[data-g="'+CSS.escape(focus)+'"]');if(r){r.scrollIntoView({block:'start',behavior:'smooth'})}}
 }
 cg.onchange=function(){if(cg.value)viewCat(cg.value);else show('t-attr')};
+cg1.onclick=function(){viewCat(cg1.textContent)};
 function merged(){var o={};Object.keys(base).concat(Object.keys(db)).forEach(function(k){if(links(k).length)o[k]=links(k)});return o}
 function save(){
 if(db[key]&&!db[key].length&&!(base[key]&&base[key].length))delete db[key];
