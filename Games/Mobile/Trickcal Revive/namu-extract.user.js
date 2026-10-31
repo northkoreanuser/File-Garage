@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         namu.wiki 카드 이름 추출
 // @namespace    k.namu.extract
-// @version      1.49
+// @version      1.50
 // @match        https://namu.wiki/w/*
 // @grant        GM_setClipboard
 // @grant        GM_xmlhttpRequest
@@ -425,7 +425,7 @@ th{width:52px;padding-right:10px}th img{width:22px;height:22px}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head><body>
 <header><div class="bar">
-<div class="qw"><input id="q" type="search" placeholder="검색" aria-label="이름 검색" autocomplete="off" spellcheck="false" autofocus><kbd id="qa" hidden>Enter</kbd></div>
+<div class="qw"><input id="q" type="search" placeholder="검색" aria-label="이름 검색" title="이름 검색&#10;#이름 → 하이퍼링크(이름·분류) 검색&#10;# 만 → 하이퍼링크 없는 사도&#10;앞에 - 를 붙이면 반전(안 걸리는 것만)" autocomplete="off" spellcheck="false" autofocus><kbd id="qa" hidden>Enter</kbd></div>
 <span id="n" aria-live="polite">${list.length}</span>
 <nav><button data-t="t-attr" class="on">성격별</button><button data-t="t-race">종족별</button><button data-t="t-abc">가나다순</button><button id="cg1" type="button" title="사용자 분류 보기" hidden></button><select id="cg" title="사용자 분류 보기" aria-label="사용자 분류" hidden><option value="">분류</option></select><button id="pwa" type="button" title="앱(바로가기)으로 설치" hidden>설치</button></nav>
 </div></header>
@@ -496,12 +496,16 @@ var q=document.getElementById('q'),n=document.getElementById('n'),e=document.get
 var tabs=[].slice.call(document.querySelectorAll('nav button')),tables=[].slice.call(document.querySelectorAll('table'));
 function cur(){return tables.filter(function(t){return !t.hidden})[0]}
 function find(){
-// #으로 시작하면 사도 이름 대신 하이퍼링크 이름을 검색한다 (# 만 치면 결과 없음)
-var v=q.value,tag=v.charAt(0)==='#',k=jamo(tag?v.slice(1):v,true);
+// 문법: 이름 검색 / #이름 → 하이퍼링크(이름·분류) 검색 / # 만 → 하이퍼링크가 하나도 없는 사도(미분류)
+//       맨 앞에 - 또는 ! 를 붙이면 반전(검색에 안 걸리는 사도만)
+var v=q.value,neg=v.charAt(0)==='-'||v.charAt(0)==='!';if(neg)v=v.slice(1);
+var tag=v.charAt(0)==='#',k=jamo(tag?v.slice(1):v,true),act=tag||!!k;
 document.body.classList.toggle('tag',tag); // 하이퍼링크 검색 중에는 파란 점을 숨긴다
 function hit(c){
-if(!tag)return !k||k.test(c.dataset.j);
-return !!k&&links(c.dataset.k).some(function(l){return k.test(jamo(l.t))||(l.g&&k.test(jamo(l.g)))});
+var r;
+if(!tag)r=!k||k.test(c.dataset.j);
+else{var ls=links(c.dataset.k);r=k?ls.some(function(l){return k.test(jamo(l.t))||(l.g&&k.test(jamo(l.g)))}):!ls.length}
+return neg&&act?!r:r;
 }
 tables.forEach(function(t){[].forEach.call(t.rows,function(r){
 var any=false;
