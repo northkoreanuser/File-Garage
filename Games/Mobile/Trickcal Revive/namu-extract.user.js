@@ -1,10 +1,12 @@
 // ==UserScript==
 // @name         namu.wiki 카드 이름 추출
 // @namespace    k.namu.extract
-// @version      1.50
+// @version      1.52
 // @match        https://namu.wiki/w/*
 // @grant        GM_setClipboard
 // @grant        GM_xmlhttpRequest
+// @grant        GM_getValue
+// @grant        GM_setValue
 // @connect      namu.wiki
 // @connect      i.namu.wiki
 // @connect      *
@@ -58,6 +60,64 @@
     '_Nf01a3E2e3JYnigRdGzNLrltDpwh-TJsgwG8Im-S1-MfonsUK56TZcYcUrT-1HzLzHXt1Lpv7MwS3b1Jcy7Pg.webp': '탱커',
     'vSyU2uTJYWexJNiXbduLl6YAXxaIMgqAHFSP2HhknQ0l97hAyItLRwqkqnidi1vd2PmDTiJNXyv4kbX2A9KyFA.webp': '서포터',
   };
+  // 아이콘 주소(해시)가 바뀌어도 판별하도록, 아이콘 실물의 8x8 축소본(프리멀티플라이드 RGBA)을 기준표로 둔다.
+  // 표에 없는 파일명은 이미지를 받아 가장 가까운 기준에 맞추고, 결과를 GM 저장소에 기억한다.
+  const SIG = {
+  "attr":{"공명":"AAAAAAAAAABdIhpr4V0885BAJKYsHQs/AAAAAAAAAAAAAAAANhwLPu+SY/r7mWf/95NP/9euWv6DoD/XFCwKQBcQABrakibn9rB3//rs4f/z4Mr/4d2t/53mev8sejCskXEKnvzDMv/33rf/9ebQ/+vhx//n9+b/cOiF/xZ0PqZOPxRc9Lgo//TZrP/v5c3/3+DG/9Dx4f9T6bD/D2hSmwAAAACSdUm65q1x/+Xi3v/CzdD/l9jj/ybs6f8FXl6PAAAAABMRFyKqepD1oHu0/32L2f9Hp+z+IKLE4QIhJ08AAAAAAAAAACogQ1pLNYW5JR9TfAkNFzkAAAAQAAAAAA==","광기":"AAAAAAAAAABfTgdr2LgN85F5AqY3LQA/AAAAAAAAAAAAAAAANiwAPuPMPfro0jX/5s0h/+LDB/++nwPXNy0AQBcTABrLrgbn6tVE//LmjP/58cH/7dhN/+PIDv+IcQSsinMBnuPGB//y437/9uqc/+3cW//366X/4skV/39pA6ZQQgBc4MAC/+rXRP/06Jv/8uJ8//LljP/jyRv/dmEDmwAAAACihgG55Mke/+vbW//s22D/59M9/9/BAf9rVwKPAAAAAB0XACHWtAH038EB/9/BAf/evQP+uZsG4SoiA08AAAAAAAAAAEo8AlqKcgS4U0MDfBgUBDgAAAAQAAAAAA==","냉정":"AAAAAAAAAAAwIF1rbUjV80cskaYaEDc/AAAAAAAAAAAAAAAAGhA2Po1u4PqTdeL/j3Dk/3VO3/9dOrzXGhA3QAoGFxplQcrnp4zl/7mj6P+ymun/wa3r/3RN3/9BK4asQymJnnJK3v+YeeT/1sP0/9nI9/+7o+z/fVrh/z4ofqYnGFBcc0zh/6OE6/+oien/sZHq/7aY6/+JZuX/OSR1mwAAAABPM6K5gFvj/7GU7v+qiuz/ooLq/3ZQ4v80IGuPAAAAAA4IHSFtR9j0dVDj/3VO4f9yS+D+XD264RQNKk8AAAAAAAAAACQWSlpELIq4JxlRfAsHFzgAAAAQAAAAAA==","순수":"AAAAAAAAAAAiSxdrS7Q28y51HqYPKwo/AAAAAAAAAAAAAAAAESoLPnHJYPp902v/aM1V/07BOf89nCrXECsKQAYSBBpFqTHnkduD/+f45f/P8Mj/seao/2DJS/8qbBysKm8cnlLEPP+66rL/0vLN/8/wy//b9tj/i9V6/yZjGaYXPg5cR7cv/6jknv/R9c7/yPLE/8/zyf9ewkj/I1wXmwAAAAAwfx65Ur45/2TGUP/I8sP/ltyJ/0a4Lf8gVBSPAAAAAAgWBSFCqyr0RbYr/0a2Lf9Esiv+OZMl4Q0gCE8AAAAAAAAAABY5DloqbRq4GUAQfAgSBTgAAAAQAAAAAA==","우울":"AAAAAAAAAAAIS1xrGLfX8wd3j6YAKzQ/AAAAAAAAAAAAAAAAASo0PkfL5vpq3PD/K87r/xnG6f8Nn77XASs1QAASFhoSrc7nRtPs/5rn9P+R5fP/tu/3/yDM7f8HboSsBXCInh7L7f+i6vf/0/f5/871+P+H4/L/H8js/wVmfaYAP01cDsDo/zzR7v/E8/n/yfT5/5no9v9N1O//A15ymwAAAAADg6G5O9Du/z3P7f+j6vj/H8jr/w3B6v8CVWePAAAAAAAWHCEIstr0DMLq/xPC6v8KvOT+CZi54QIhKE8AAAAAAAAAAAI7R1oGcYm4A0BOfAESFjgAAAAQAAAAAA==","활발":"AAAAAAAAAABcGhtr0z4+840kJKY1Cws/AAAAAAAAAAAAAAAANQwNPuJoZfrlZWX/53Jy/95EQv+5MjHXNQwMQBYEBBrIOTnn41xa/+2Skv/309L/53d3/99GRf+DIiGshiIhnt9GRf/ocnH//eHh//fLyv/tk5L/2z9A/3kdHaZNEhFc2Tk6//Ghof/71NT/+tHR/+6bm//ZPz//cBsbmwAAAACcJSW53VFR/+qFhP/1s7T/5nZ0/9c3N/9nGBiPAAAAABwGBiHOMzL01zc3/9g5OP/VNjX+sSws4SgKCk8AAAAAAAAAAEgREVqEISG4ThMTfBYGBTgAAAAQAAAAAA=="},
+  "pos":{"딜러":"AAAAAB8JCCGjODSs6FZR8+dVT/OjNjKtHwkIIQAAAAAYBwYZ2VBL5/SdmP/1nZn/8mNd//FfV//ZSUPnFwcHG4csKZDzmJL/86ej//a/vf/wgXv/983L//KCff+FKymZvUI9yPF6df/2wr//8ry5//fCwf/4x8T/8mhh/7w+OdexOze88lxV//J1cf/0pJ//+OPj//BlXv/yVEz/sDo20GAdG2bxVUz/9KOf//OioP/xgHr/99LP//FTS/9fHx6FAgAAApwyL6zvYFn/8lZO//JTS//vWVP/nTMxwAIAABQAAAAAAAAAAkcWFlyJLSipiSwprkgWFm0AAAAQAAAAAA==","서포터":"AAAAAAgPICEwVaWsTIHq80t/6fMuVaWtCA8gIQAAAAAGDBgZRXfc52KU9/9fkfX/W4/z/1aM8v8+c9znBgwYGyVFiZBekfX/p8Lz/5G08/+xyfb/vdH1/02G8/8lRYiZN2W/yFmO8/+RtPT/UYjy/5G19/+1zfT/TYXx/zViv9czXbO8U4ry/5K08v9NhvH/kbX3/7fO9P9OhfD/MFux0BkwYmZKhfL/e6Xy/5S18f+zyvb/hKrz/0uC8/8ZMF+FAAECAipQn6xIgfH/Uonw/1aK8v9IgfL/K1GfwAABAhQAAAAAAAAAAhIlSVwlRoupJkaLrhMkSG0AAAAQAAAAAA==","탱커":"AAAAACAVAiGocRes7qQu8+6kLPOocBWtIBUCIQAAAAAYEAIZ4pon5/u3S//6w2z/+ch1//uxPv/ilyDnGBACG4xdD5D7tUf/+r9f//njuP/65r3/+L5b//qwOP+MXBCZxIQdyPrCZf/65rv/+uO0//rhrf/64bL/+Mt7/8OCGte4exm8+rRB//rQiP/647j/+ea6//nNhP/5uEv/t3oY0GNBCGb7qy7/+q0x//nhsf/65Lb/+bJA//qqK/9iQQqFAgEAAqJsE6z5qin/+cRt//nLef/6qiv/o2wUwAIBABQAAAAAAAAAAkowCVyRXhGpkV8RrkowCG0AAAAQAAAAAA=="},
+  "row":{"모든열":"AAAAACEhISakpKSx6Ojo9Obm5vKdnZ2qGxsbHwAAAAAcHBwg3t7e6+3t7f/v7+//+vr6/+zs7P/Y2NjkFRUVGZGRkZ3AwMD/VFRU/2ZmZv+Ghob/RUVF/+/v7/6BgYGXzMzM2Pv7+/9dXV3/dXV1/0FBQf9nZ2f/h4eH/7y8vNbCwsLN9fX1/01NTf91dXX/TU1N/1tbW/+dnZ3/sbGx0W9vb3vExMT+bW1t/3R0dP+dnZ3/XFxc//X19f5hYWGJBgYGB7CwsMH5+fn+/Pz8//7+/v/5+Pn/pKSkyAMDAxcAAAAABAQEB1dXV3CZmZm5l5eXvVFRUXsBAQEUAAAAAA==","전열":"AAAAACEMDCaeP0Cx21tb9NhZWfKWOzuqGwoKHwAAAAAcCgog0ldZ7OVmZv/kaWj/7a+v/+JpaP/LUFDlFAcHGYs3N53kaGn/43Jy/+V7e//46un/7re3/+JbW/98MDGWwE1O2ONkZf/ql5X/6I6O/+uqrP/+/Pv/5HR1/7BFRNa2SEjN42ho/+mSkf/pkY//7bq5//rw7//gZGP/p0JB0W0pKXvjWlv/4l5e/+Fpaf/89/f/6ZeY/+FZV/9dJSWJBgICCKZBQcLiWVj/4VlY/+R7ev/hWln/nT09yAMBARcAAAAAAwEBB1QhIXCQODi6jjc4vU4fHnoCAAAUAAAAAA==","중열":"AAAAAAsaByY6fyqxVrI/9FSxPfI3eSaqCBUFHwAAAAAJFgYgUqw97GbCUP+s26D/ZsBS/1y+Rv9LpDblBg8FGTNwJJ1gwUr/dMVh/+f04/+136v/bsRa/1q8Qf8sYyCWSJw02F2+Rv+FzHL/odaV//v9+/+Z043/d8Vj/0COLtZDkzDNWrxC/4zOev+y3qj/8Pjt/5DQf/9rwFP/PIYr0SVWGXtYvED/ZL5P//b79v+V0oX/WrxD/1a5P/8gSReJAgUBCDyGKsJWukD/d8Vk/1i7Qf9VuT7/OHwpyAECARcAAAAAAQIBBx5CFXA0dCS6M3IlvRw+FHoAAQAUAAAAAA==","후열":"AAAAAAkTIiY2YqOxUY3k9FCL4fIyXpyqBxAcHwAAAAAIEB0gV4zZ7KfF8f9cmO//XZjt/1qX7/9Ff9LlBgwVGS9WkZ1tou7/+Pr9/4y07v9qoO7/ZJvu/1mW7v8pTICWRHnH2FyX7v+qyPP/6PH6/4aw8P+IsvD/fqzx/zptttY/cr3NV5Xu/8fa9f/R4Pb/iLTy/4Ow7/9xo+//N2iu0SJCcHt1p+7/+vz+/2yi7P9Wkuz/U5Lr/1OR7v8eOWGJAgQHCDZlrMJwpOr/U5Ls/1OT7P9Rkez/NGGjyAECAxcAAAAAAQIDBxszV3AwWpa6MFiVvRkwUnoAAQIUAAAAAA=="}};
+  const LEARN_KEY = 'namu-extract-learned';
+  try { const L = GM_getValue(LEARN_KEY, null); if (L) Object.keys(L).forEach(k => Object.assign({ attr: ATTR, row: ROW, pos: POS }[k], L[k])); } catch (e) {}
+  const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const SIGV = {}; Object.keys(SIG).forEach(k => { SIGV[k] = {}; Object.keys(SIG[k]).forEach(v => { SIGV[k][v] = b64(SIG[k][v]); }); });
+  async function sigOf(blob) { // 원본 크기로 그린 뒤 16등분 박스 평균 → 8x8 (기준표를 만든 방식과 동일)
+    const im = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = URL.createObjectURL(blob); });
+    const W = im.naturalWidth || 128, H = im.naturalHeight || 128;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const x = c.getContext('2d', { willReadFrequently: true });
+    x.drawImage(im, 0, 0); URL.revokeObjectURL(im.src);
+    const d = x.getImageData(0, 0, W, H).data, out = new Uint8Array(256);
+    for (let cy = 0; cy < 8; cy++) for (let cx = 0; cx < 8; cx++) {
+      const x0 = Math.floor(cx * W / 8), x1 = Math.floor((cx + 1) * W / 8), y0 = Math.floor(cy * H / 8), y1 = Math.floor((cy + 1) * H / 8);
+      let r = 0, g = 0, bb = 0, a = 0, n = 0;
+      for (let yy = y0; yy < y1; yy++) for (let xx = x0; xx < x1; xx++) { const i = (yy * W + xx) * 4, al = d[i + 3]; r += d[i] * al; g += d[i + 1] * al; bb += d[i + 2] * al; a += al; n++; }
+      const o = (cy * 8 + cx) * 4; out[o] = r / 255 / n; out[o + 1] = g / 255 / n; out[o + 2] = bb / 255 / n; out[o + 3] = a / n;
+    }
+    return out;
+  }
+  function nearest(sig, kind) { // kind 가 비면 모든 종류에서 찾는다 → {kind, value, dist}
+    let best = null;
+    (kind ? [kind] : Object.keys(SIGV)).forEach(k => Object.keys(SIGV[k]).forEach(v => {
+      let d = 0; const r = SIGV[k][v]; for (let i = 0; i < 256; i++) d += Math.abs(sig[i] - r[i]);
+      if (!best || d < best.dist) best = { kind: k, value: v, dist: d };
+    }));
+    return best;
+  }
+  // 판별 못 한 아이콘(값 '?')을 이미지로 판별해서 표에 넣고 list 에 반영한다
+  async function resolveUnknown(list) {
+    const todo = {};
+    list.forEach(o => { ['attr', 'row', 'pos'].forEach(k => { if (o[k] === '?' && o[k + 'Icon']) todo[o[k + 'Icon']] = k; }); (o._unk || []).forEach(u => { if (!(u in todo)) todo[u] = ''; }); });
+    const urls = Object.keys(todo);
+    if (!urls.length) return;
+    const learned = {};
+    await Promise.all(urls.map(async u => {
+      const blob = await fetchBlob(u); if (!blob) return;
+      try {
+        const n = nearest(await sigOf(blob), todo[u]);
+        if (!n || n.dist > 4000) return; // 기준끼리 최소 거리 5400 → 그 아래만 인정
+        const f = fileOf(u); MAP[n.kind][f] = n.value; (learned[n.kind] = learned[n.kind] || {})[f] = n.value;
+        console.info('[namu-extract] 아이콘 학습:', n.kind, f, '→', n.value, '(거리 ' + n.dist + ')');
+      } catch (e) {}
+    }));
+    if (Object.keys(learned).length) {
+      try { const L = GM_getValue(LEARN_KEY, null) || {}; Object.keys(learned).forEach(k => Object.assign(L[k] = L[k] || {}, learned[k])); GM_setValue(LEARN_KEY, L); } catch (e) {}
+    }
+    list.forEach(o => {
+      ['attr', 'row', 'pos'].forEach(k => { if (o[k] === '?') { const v = MAP[k][fileOf(o[k + 'Icon'])]; if (v) o[k] = v; } });
+      (o._unk || []).forEach(u => { const f = fileOf(u); ['attr', 'row', 'pos'].forEach(k => { if (MAP[k][f] && (!o[k] || o[k] === '?')) { o[k] = MAP[k][f]; o[k + 'Icon'] = u; } }); });
+      delete o._unk;
+    });
+  }
   const ATTR_ORDER = ['순수', '냉정', '광기', '활발', '우울', '공명'];
   // 원본 페이지의 성격별 카드 배경색
   const ATTR_BG = {
@@ -117,7 +177,7 @@
           const u = srcOf(img), f = fileOf(u), alt = (img.getAttribute('alt') || '').trim();
           let k = kindOf(alt);
           if (!k) k = ATTR[f] ? 'attr' : ROW[f] ? 'row' : POS[f] ? 'pos' : '';
-          if (!k) { unknown.add(f + '  alt=' + alt); return; }
+          if (!k) { unknown.add(f + '  alt=' + alt); (o._unk = o._unk || []).push(u); return; } // 종류도 모르는 아이콘 → 이미지로 판별
           if (o[k]) return; // 카드에 두 유닛이 있으면 첫 유닛 기준
           if (k === 'star') { o.star = alt.match(/\d성$/)[0]; o.starIcon = u; return; }
           o[k] = MAP[k][f] || '?';
@@ -446,10 +506,10 @@ th{width:52px;padding-right:10px}th img{width:22px;height:22px}
 </form>
 <p id="de" role="alert" hidden>올바른 URL이 아닙니다</p>
 <div id="dc" hidden><b id="dcn"></b><label title="이 분류는 사도 하나에 하나만 둘 수 있다 (예: 성우)"><input type="checkbox" id="dcu">사도당 하나만</label><label title="카드 메뉴의 「분류에 추가」 목록에 이 분류를 보여 준다"><input type="checkbox" id="dcq">메뉴에서 빠른 추가</label></div>
-<div class="dz"><button id="dex" type="button">전체 내보내기</button><button id="dim" type="button">가져오기</button><input id="dfi" type="file" accept=".json,application/json" hidden></div>
+<div class="dz"><button id="dex" type="button">전체 내보내기</button><button id="dim" type="button">가져오기</button><input id="dfi" type="file" accept=".txt,.json,text/plain,application/json" hidden></div>
 </dialog>
 <script>
-// 하이퍼링크 JSON 주소. 비워 두면 이 HTML 과 같은 폴더의 hyperlink.json 을 자동으로 읽는다.
+// 하이퍼링크 파일 주소(txt 또는 json). 비워 두면 이 HTML 과 같은 폴더의 hyperlink.txt → hyperlink.json 순으로 읽는다.
 // 값을 넣으면 그 주소를 먼저 읽는다.
 // var HYPERLINK_JSON_URL='https://example.com/trickcal/hyperlink.json';
 var HYPERLINK_JSON_URL=${JSON.stringify(HYPERLINK_JSON_URL).replace(/</g, '\\u003c')};
@@ -722,17 +782,35 @@ if(a.length)out[k]=a;
 });
 return out;
 }
-// 전체 내보내기(hyperlink.json) / 가져오기
+// 전체 내보내기(hyperlink.txt) / 가져오기(txt·json)
+// 텍스트 형식(hyperlink.txt): "#사도키" 줄 뒤에 "주소<TAB>이름<TAB>분류" 줄들. 분류 설정은 "@분류<TAB>uq"(u=사도당 하나만, q=빠른 추가)
+function toText(o){
+var L=[];Object.keys(o).forEach(function(k){if(k==='__cats'||!o[k].length)return;L.push('#'+k);o[k].forEach(function(l){L.push((l.u||'')+'\\t'+l.t+(l.g?'\\t'+l.g:''))})});
+var co=o.__cats||{};Object.keys(co).forEach(function(g){L.push('@'+g+'\\t'+(co[g].u?'u':'')+(co[g].q?'q':''))});
+return L.join('\\n')+'\\n';
+}
+function fromText(s){
+var o={},co={},k=null;
+s.split(/\\r?\\n/).forEach(function(ln){
+if(!ln.trim())return;
+if(ln.charAt(0)==='#'){k=ln.slice(1).trim();if(!o[k])o[k]=[];return}
+if(ln.charAt(0)==='@'){var f=ln.slice(1).split('\\t'),fl=f[1]||'';co[f[0].trim()]={u:fl.indexOf('u')>=0,q:fl.indexOf('q')>=0};return}
+if(!k)return;var p=ln.split('\\t');if(!p[1])return;var e={u:p[0].trim(),t:p[1].trim()};if(p[2]&&p[2].trim())e.g=p[2].trim();o[k].push(e);
+});
+o.__cats=co;return o;
+}
+// JSON(hyperlink.json) 과 텍스트(hyperlink.txt) 둘 다 읽는다
+function parseAny(s){s=s.replace(/^\\uFEFF/,'');if(/^\\s*\\{/.test(s)){try{return JSON.parse(s)}catch(x){return null}}return fromText(s)}
 $('dex').onclick=function(){
 var out=merged(),co={};cats().forEach(function(g){co[g]=catOpt(g)});out.__cats=co;
-var a=el('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,1)],{type:'application/json'}));
-a.download='hyperlink.json';document.body.appendChild(a);a.click();a.remove();
+var a=el('a');a.href=URL.createObjectURL(new Blob([toText(out)],{type:'text/plain;charset=utf-8'}));
+a.download='hyperlink.txt';document.body.appendChild(a);a.click();a.remove();
 };
 $('dim').onclick=function(){$('dfi').click()};
 $('dfi').onchange=function(){
 var f=this.files[0],r=new FileReader();this.value='';if(!f)return;
 r.onload=function(){
-var o;try{o=JSON.parse(r.result)}catch(x){return}
+var o=parseAny(r.result);if(!o)return;
 if(o&&o.__cats&&typeof o.__cats==='object')Object.keys(o.__cats).forEach(function(g){setCatOpt(g,o.__cats[g])});
 o=clean(o);Object.keys(o).forEach(function(k){db[k]=o[k]});
 save();reset();render();
@@ -777,11 +855,11 @@ addEventListener('hashchange',fromHash);
 // hyperlink.json 자동 로드: HYPERLINK_JSON_URL 이 있으면 먼저, 없거나 실패하면 같은 폴더의 hyperlink.json
 function load(list){
 if(!list.length||!window.fetch)return;
-fetch(list[0],{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;return r.json()})
+fetch(list[0],{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;return r.text()}).then(function(t){var o=parseAny(t);if(!o)throw 0;return o})
 .then(function(o){if(o&&o.__cats&&typeof o.__cats==='object')catsBase=o.__cats;base=clean(o);fillCats();mark();if(d.open)render();var sg2=null;try{sg2=localStorage.getItem('cat')}catch(x){}if(!$('t-cat').hidden&&sg2)buildCat(sg2)})
 .catch(function(){load(list.slice(1))});
 }
-load((HYPERLINK_JSON_URL?[HYPERLINK_JSON_URL]:[]).concat(location.protocol==='file:'?[]:['hyperlink.json']));
+load((HYPERLINK_JSON_URL?[HYPERLINK_JSON_URL]:[]).concat(location.protocol==='file:'?[]:['hyperlink.txt','hyperlink.json']));
 fillCats();
 var s=null,sg=null;try{s=localStorage.getItem('tab');sg=localStorage.getItem('cat')}catch(x){}
 if(s==='t-cat'&&sg&&cats().indexOf(sg)>=0)viewCat(sg);else if(s&&s!=='t-cat'&&document.getElementById(s))show(s);
@@ -821,8 +899,13 @@ addEventListener('appinstalled',function(){pwaBtn.hidden=true});
     b.addEventListener('click', async () => {
       if (busy) return;
       busy = true;
-      const { list, raceIcon, noAttr } = collect();
-      try { b.textContent = list.length ? await run(list, raceIcon, b) + (noAttr ? ` / 성격 미확인 ${noAttr}` : '') : '없음'; }
+      const { list, raceIcon } = collect();
+      let noAttr = 0;
+      try {
+        b.textContent = '아이콘 판별…'; await resolveUnknown(list);
+        noAttr = list.filter(o => !o.attr || o.attr === '?').length;
+        b.textContent = list.length ? await run(list, raceIcon, b) + (noAttr ? ` / 성격 미확인 ${noAttr}` : '') : '없음';
+      }
       catch (e) { b.textContent = '실패'; console.error(e); }
       setTimeout(() => { b.textContent = label; busy = false; }, noAttr ? 5000 : 2500);
     });
