@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         namu.wiki 카드 이름 추출
 // @namespace    k.namu.extract
-// @version      1.54
+// @version      1.55
 // @match        https://namu.wiki/w/*
 // @grant        GM_setClipboard
 // @grant        GM_xmlhttpRequest
@@ -319,12 +319,26 @@
   // 저장되는 HTML 에는 카드 데이터(DATA)와 아이콘 주소(ICON)만 넣고, 3개 탭의 카드 마크업은 열릴 때 JS 가 그린다.
   // icons: {키: 'data:image/webp;base64,…'} — 단일 HTML 저장 때만 넘긴다. 아이콘 하나가 변수에 한 번만 들어간다.
   // PWA 아이콘: 나무위키의 게임 아이콘(webp)을 받아 PNG 로 바꿔 base64 로 넣는다. 못 받으면 글자 타일로 대체.
-  const APP_ICON_URL = 'https://i.namu.wiki/i/ze-f8X2nl5sxqcTr0KPa7oHsb35B53i46Y77rlDMYmQeujre__6A1rPZovjZaHWUOH7KqCHFXSaAh-Qh9xaJ1K0IEK6KVv3U5UnnM3pdCzCIyNcdeelkKPfnVt77xQ-pM5e4bYg4sEBfahWLLcPtvw.webp';
+  const APP_ICON_URL = 'https://i.namu.wiki/i/Y5D5JjtEuTbop7PWhxhIyHLRjmwTWj13O3Vavnr4tAYugnZzzhjVfjkOOJhUws9Vzmn6t_qKu0MEifsGK43ExS5fqWMRJ76X9uk0dKu1-S7ZjU1w9bm8wrqsK2BvpL1goqWolYlzG686QiCpz58wxg.webp'; // 2026-11 기준. 바뀌면 아래 appIconUrls 가 본문 문서에서 다시 찾는다
+  const APP_ICON_DOC = 'https://namu.wiki/w/' + encodeURIComponent('트릭컬 리바이브');
   const APP_ICON_KEY = 'namu-extract-appicon'; // 한 번 받은 아이콘(dataURL)을 기억 — 주소가 바뀌어도 쓴다
   // 페이지 안의 "트릭컬 리바이브 아이콘" 이미지를 먼저 찾고(주소 해시가 바뀌어도 따라감), 없으면 고정 주소
-  function appIconUrls() {
-    const u = [];
-    document.querySelectorAll('img[alt]').forEach(i => { if (/트릭컬 리바이브 아이콘/.test(i.getAttribute('alt')) && srcOf(i)) u.push(srcOf(i)); });
+  // 아이콘 이미지는 사도 목록이 아니라 「트릭컬 리바이브」 본문 문서에 있다 → 현재 페이지에 없으면 그 문서 HTML 을 받아 주소를 찾는다
+  function iconUrlsInHtml(html) {
+    const out = [], re = /<img\b[^>]*>/g; let m;
+    while ((m = re.exec(html))) {
+      const tag = m[0]; if (!/alt="트릭컬 리바이브 아이콘/.test(tag)) continue;
+      const sm = /data-src="([^"]+)"/.exec(tag) || /\bsrc="(\/\/i\.namu\.wiki[^"]+)"/.exec(tag);
+      if (sm) out.push(sm[1].startsWith('//') ? 'https:' + sm[1] : sm[1]);
+    }
+    return out;
+  }
+  async function appIconUrls() {
+    let u = iconUrlsInHtml(document.documentElement.innerHTML);
+    if (!u.length) {
+      const html = await new Promise(res => GM_xmlhttpRequest({ method: 'GET', url: APP_ICON_DOC, onload: r => res(r.responseText || ''), onerror: () => res(''), ontimeout: () => res('') }));
+      u = iconUrlsInHtml(html);
+    }
     u.push(APP_ICON_URL);
     return [...new Set(u)];
   }
@@ -334,7 +348,7 @@
     const sizes = [64, 180, 192, 512], out = {};
     try {
       let blob = null;
-      for (const u of appIconUrls()) { blob = await fetchBlob(u); if (blob) break; }
+      for (const u of await appIconUrls()) { blob = await fetchBlob(u); if (blob) break; }
       if (blob) { try { GM_setValue(APP_ICON_KEY, await blobToDataURL(blob)); } catch (e) {} }
       else { const d = GM_getValue(APP_ICON_KEY, ''); if (d) blob = await (await fetch(d)).blob(); }
       if (!blob) { console.warn('[namu-extract] 앱 아이콘을 못 받아 글자 타일로 대체'); throw 0; }
