@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         namu.wiki 카드 이름 추출
 // @namespace    k.namu.extract
-// @version      1.52
+// @version      1.54
 // @match        https://namu.wiki/w/*
 // @grant        GM_setClipboard
 // @grant        GM_xmlhttpRequest
@@ -320,13 +320,24 @@
   // icons: {키: 'data:image/webp;base64,…'} — 단일 HTML 저장 때만 넘긴다. 아이콘 하나가 변수에 한 번만 들어간다.
   // PWA 아이콘: 나무위키의 게임 아이콘(webp)을 받아 PNG 로 바꿔 base64 로 넣는다. 못 받으면 글자 타일로 대체.
   const APP_ICON_URL = 'https://i.namu.wiki/i/ze-f8X2nl5sxqcTr0KPa7oHsb35B53i46Y77rlDMYmQeujre__6A1rPZovjZaHWUOH7KqCHFXSaAh-Qh9xaJ1K0IEK6KVv3U5UnnM3pdCzCIyNcdeelkKPfnVt77xQ-pM5e4bYg4sEBfahWLLcPtvw.webp';
+  const APP_ICON_KEY = 'namu-extract-appicon'; // 한 번 받은 아이콘(dataURL)을 기억 — 주소가 바뀌어도 쓴다
+  // 페이지 안의 "트릭컬 리바이브 아이콘" 이미지를 먼저 찾고(주소 해시가 바뀌어도 따라감), 없으면 고정 주소
+  function appIconUrls() {
+    const u = [];
+    document.querySelectorAll('img[alt]').forEach(i => { if (/트릭컬 리바이브 아이콘/.test(i.getAttribute('alt')) && srcOf(i)) u.push(srcOf(i)); });
+    u.push(APP_ICON_URL);
+    return [...new Set(u)];
+  }
   let appIcons = null; // {64,180,192,512: dataURL}
   async function loadAppIcons() {
     if (appIcons) return appIcons;
     const sizes = [64, 180, 192, 512], out = {};
     try {
-      const blob = await fetchBlob(APP_ICON_URL);
-      if (!blob) throw 0;
+      let blob = null;
+      for (const u of appIconUrls()) { blob = await fetchBlob(u); if (blob) break; }
+      if (blob) { try { GM_setValue(APP_ICON_KEY, await blobToDataURL(blob)); } catch (e) {} }
+      else { const d = GM_getValue(APP_ICON_KEY, ''); if (d) blob = await (await fetch(d)).blob(); }
+      if (!blob) { console.warn('[namu-extract] 앱 아이콘을 못 받아 글자 타일로 대체'); throw 0; }
       const im = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = URL.createObjectURL(blob); });
       sizes.forEach(sz => {
         const c = document.createElement('canvas'); c.width = c.height = sz;
@@ -506,7 +517,7 @@ th{width:52px;padding-right:10px}th img{width:22px;height:22px}
 </form>
 <p id="de" role="alert" hidden>올바른 URL이 아닙니다</p>
 <div id="dc" hidden><b id="dcn"></b><label title="이 분류는 사도 하나에 하나만 둘 수 있다 (예: 성우)"><input type="checkbox" id="dcu">사도당 하나만</label><label title="카드 메뉴의 「분류에 추가」 목록에 이 분류를 보여 준다"><input type="checkbox" id="dcq">메뉴에서 빠른 추가</label></div>
-<div class="dz"><button id="dex" type="button">전체 내보내기</button><button id="dim" type="button">가져오기</button><input id="dfi" type="file" accept=".txt,.json,text/plain,application/json" hidden></div>
+<div class="dz"><button id="dex" type="button">전체 내보내기</button><button id="dim" type="button">가져오기</button><button id="drs" type="button" title="현재 하이퍼링크를 파일로 백업한 뒤(저장 확인 필수) 이 기기의 하이퍼링크를 모두 지우고 서버의 hyperlink 파일을 다시 읽는다">서버로 초기화</button><input id="dfi" type="file" accept=".txt,.json,text/plain,application/json" hidden></div>
 </dialog>
 <script>
 // 하이퍼링크 파일 주소(txt 또는 json). 비워 두면 이 HTML 과 같은 폴더의 hyperlink.txt → hyperlink.json 순으로 읽는다.
@@ -853,13 +864,35 @@ q.value=v;find();
 }
 addEventListener('hashchange',fromHash);
 // hyperlink.json 자동 로드: HYPERLINK_JSON_URL 이 있으면 먼저, 없거나 실패하면 같은 폴더의 hyperlink.json
-function load(list){
-if(!list.length||!window.fetch)return;
-fetch(list[0],{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;return r.text()}).then(function(t){var o=parseAny(t);if(!o)throw 0;return o})
-.then(function(o){if(o&&o.__cats&&typeof o.__cats==='object')catsBase=o.__cats;base=clean(o);fillCats();mark();if(d.open)render();var sg2=null;try{sg2=localStorage.getItem('cat')}catch(x){}if(!$('t-cat').hidden&&sg2)buildCat(sg2)})
-.catch(function(){load(list.slice(1))});
+function load(list){ // 서버 파일을 차례로 시도. 성공하면 true
+if(!list.length||!window.fetch)return Promise.resolve(false);
+return fetch(list[0],{cache:'no-store'}).then(function(r){if(!r.ok)throw 0;return r.text()}).then(function(t){var o=parseAny(t);if(!o)throw 0;return o})
+.then(function(o){if(o&&o.__cats&&typeof o.__cats==='object')catsBase=o.__cats;base=clean(o);fillCats();mark();if(d.open)render();var sg2=null;try{sg2=localStorage.getItem('cat')}catch(x){}if(!$('t-cat').hidden&&sg2)buildCat(sg2);return true})
+.catch(function(){return load(list.slice(1))});
 }
-load((HYPERLINK_JSON_URL?[HYPERLINK_JSON_URL]:[]).concat(location.protocol==='file:'?[]:['hyperlink.txt','hyperlink.json']));
+var SRC=(HYPERLINK_JSON_URL?[HYPERLINK_JSON_URL]:[]).concat(location.protocol==='file:'?[]:['hyperlink.txt','hyperlink.json']);
+load(SRC);
+// 서버로 초기화: 백업 파일을 사용자가 고른 위치에 쓰고(성공 확인) → 이 기기의 하이퍼링크·분류 설정 삭제 → 서버 파일 다시 읽기
+function backupName(){var t=new Date(),p=function(n){return (n<10?'0':'')+n};return 'hyperlink-backup-'+t.getFullYear()+p(t.getMonth()+1)+p(t.getDate())+'-'+p(t.getHours())+p(t.getMinutes())+'.txt'}
+function saveBackup(text){ // 저장이 확인되면 true, 취소/실패면 false
+var name=backupName();
+if(window.showSaveFilePicker){
+return showSaveFilePicker({suggestedName:name,types:[{description:'하이퍼링크 백업',accept:{'text/plain':['.txt']}}]})
+.then(function(h){return h.createWritable()}).then(function(w){return w.write(text).then(function(){return w.close()})}).then(function(){return true})
+.catch(function(e){if(e&&e.name!=='AbortError')alert('백업 저장 실패: '+e.message);return false});
+}
+var a=el('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));a.download=name;document.body.appendChild(a);a.click();a.remove();
+return Promise.resolve(confirm('백업 파일 「'+name+'」 이 다운로드 폴더에 저장됐는지 확인하세요.\\n\\n확인을 누르면 이 기기의 하이퍼링크를 모두 지우고 서버 설정을 가져옵니다.'));
+}
+$('drs').onclick=function(){
+var out=merged(),co={};cats().forEach(function(g){co[g]=catOpt(g)});out.__cats=co;
+var b=$('drs');b.disabled=true;
+saveBackup(toText(out)).then(function(ok){
+if(!ok)return;
+db={};catsDb={};base={};catsBase={};try{localStorage.removeItem(KEY);localStorage.removeItem(CKEY)}catch(x){}
+return load(SRC).then(function(got){fillCats();reset();render();mark();if(!got)alert('서버에서 hyperlink 파일을 읽지 못했습니다. 이 기기의 하이퍼링크는 비워진 상태입니다(백업 파일로 가져오기 가능).')});
+}).then(function(){b.disabled=false});
+};
 fillCats();
 var s=null,sg=null;try{s=localStorage.getItem('tab');sg=localStorage.getItem('cat')}catch(x){}
 if(s==='t-cat'&&sg&&cats().indexOf(sg)>=0)viewCat(sg);else if(s&&s!=='t-cat'&&document.getElementById(s))show(s);
