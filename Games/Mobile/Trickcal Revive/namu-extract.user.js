@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         namu.wiki 카드 이름 추출
 // @namespace    k.namu.extract
-// @version      1.55
+// @version      1.56
 // @match        https://namu.wiki/w/*
 // @grant        GM_setClipboard
 // @grant        GM_xmlhttpRequest
@@ -283,35 +283,63 @@
   // 한글 검색용 분해. 저장되는 HTML 에도 그대로 들어간다.
   //  jamo(이름)        → 음절마다 ^초성+중성+종성 으로 푼 문자열   예) 에르핀 → ^ㅇㅔ^ㄹㅡ^ㅍㅣㄴ
   //  jamo(검색어,true) → 그 문자열에 대는 정규식 (없으면 null)
-  // 검색어 규칙: 완성된 글자는 그 음절의 앞부분과 일치, 낱자음(ㄹ, ㄿ=ㄹㅍ)은 초성과 일치,
-  //              받침은 다음 글자의 초성으로도 본다(삭→사과, 엺→에르핀).
+  //  양쪽 다 먼저 영문자를 두벌식 자판 기준 한글 낱자로 바꾸고(r→ㄱ, dk→아) 낱자 열을 음절로 조합한다.
+  //  그래서 영어↔한글이 서로 통한다: dkapffldk(r41) = 아멜리아(R41), 아멜리아(ㄱ = 아멜리아(R
+  //  검색어의 낱자음은 초성(ㄹㄴ=로네), 낱모음은 중성(ㅗㅔ=로네)으로 찾는다.
   function jamo(s, query) {
     var C = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
-    var V = ['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅗㅏ','ㅗㅐ','ㅗㅣ','ㅛ','ㅜ','ㅜㅓ','ㅜㅔ','ㅜㅣ','ㅠ','ㅡ','ㅡㅣ','ㅣ'];
-    var T = ['','ㄱ','ㄲ','ㄱㅅ','ㄴ','ㄴㅈ','ㄴㅎ','ㄷ','ㄹ','ㄹㄱ','ㄹㅁ','ㄹㅂ','ㄹㅅ','ㄹㅌ','ㄹㅍ','ㄹㅎ','ㅁ','ㅂ','ㅂㅅ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+    var V21 = ['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ'];
+    var T28 = ['','ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
     var M = { 'ㅘ':'ㅗㅏ','ㅙ':'ㅗㅐ','ㅚ':'ㅗㅣ','ㅝ':'ㅜㅓ','ㅞ':'ㅜㅔ','ㅟ':'ㅜㅣ','ㅢ':'ㅡㅣ','ㄳ':'ㄱㅅ','ㄵ':'ㄴㅈ','ㄶ':'ㄴㅎ',
               'ㄺ':'ㄹㄱ','ㄻ':'ㄹㅁ','ㄼ':'ㄹㅂ','ㄽ':'ㄹㅅ','ㄾ':'ㄹㅌ','ㄿ':'ㄹㅍ','ㅀ':'ㄹㅎ','ㅄ':'ㅂㅅ' };
-    var REST = '[^^]*'; // 그 음절의 나머지를 건너뜀
-    var out = '';
+    var MR = {}; Object.keys(M).forEach(function (k) { MR[M[k]] = k; }); // 'ㅗㅏ' → 'ㅘ'
+    var KEY = { q:'ㅂ',w:'ㅈ',e:'ㄷ',r:'ㄱ',t:'ㅅ',y:'ㅛ',u:'ㅕ',i:'ㅑ',o:'ㅐ',p:'ㅔ',a:'ㅁ',s:'ㄴ',d:'ㅇ',f:'ㄹ',g:'ㅎ',h:'ㅗ',j:'ㅓ',k:'ㅏ',l:'ㅣ',z:'ㅋ',x:'ㅌ',c:'ㅊ',v:'ㅍ',b:'ㅠ',n:'ㅜ',m:'ㅡ' };
+    var isC = function (c) { return c >= 'ㄱ' && c <= 'ㅎ'; }, isV = function (c) { return c >= 'ㅏ' && c <= 'ㅣ'; };
+    // 1) 영문자 → 낱자, 2) 낱자 열 → 음절 조합 (두벌식 오토마타)
+    var cho = '', jung = '', jong = '', res = '';
+    function flush() {
+      if (cho && jung) res += String.fromCharCode(0xac00 + (C.indexOf(cho) * 21 + V21.indexOf(jung)) * 28 + T28.indexOf(jong));
+      else res += cho + jung + jong; // 조합 안 되는 낱자는 그대로
+      cho = jung = jong = '';
+    }
     s = String(s).toLowerCase().replace(/[\s^]+/g, '');
     for (var i = 0; i < s.length; i++) {
-      var ch = s[i], n = s.charCodeAt(i) - 0xac00;
+      var ch = KEY[s[i]] || s[i];
+      if (isC(ch)) {
+        if (!cho) cho = ch;
+        else if (!jung) { flush(); cho = ch; }
+        else if (!jong) { if (T28.indexOf(ch) > 0) jong = ch; else { flush(); cho = ch; } }
+        else if (MR[jong + ch] && T28.indexOf(MR[jong + ch]) > 0) jong = MR[jong + ch];
+        else { flush(); cho = ch; }
+      } else if (isV(ch)) {
+        if (cho && !jung) jung = ch;
+        else if (cho && jung && !jong) { if (MR[jung + ch]) jung = MR[jung + ch]; else { flush(); jung = ch; } }
+        else if (jong) { var j2 = M[jong] ? M[jong] : jong, keep = j2.length === 2 ? j2[0] : '', next = j2.length === 2 ? j2[1] : j2; jong = keep; flush(); cho = next; jung = ch; }
+        else if (!cho && jung) { if (MR[jung + ch]) jung = MR[jung + ch]; else { flush(); jung = ch; } }
+        else { flush(); jung = ch; }
+      } else { flush(); res += ch; }
+    }
+    flush();
+    s = res;
+    // 3) 음절 → ^초성중성종성 (이름) / 정규식 (검색어)
+    var V = V21.map(function (v) { return M[v] || v; }), T = T28.map(function (t) { return M[t] || t; });
+    var REST = '[^^]*'; // 그 음절의 나머지를 건너뜀
+    var out = '';
+    for (i = 0; i < s.length; i++) {
+      ch = s[i]; var n = s.charCodeAt(i) - 0xac00;
       if (n >= 0 && n < 11172) {
-        var cho = C[Math.floor(n / 588)], jung = V[Math.floor(n / 28) % 21], jong = T[n % 28];
-        if (!query) { out += '^' + cho + jung + jong; continue; }
-        out += '\\^' + cho + jung;
-        if (jong.length === 1) out += '(?:' + jong + '|\\^' + jong + REST + ')';
-        else if (jong.length === 2) out += '(?:' + jong + '|' + jong[0] + '\\^' + jong[1] + REST + '|\\^' + jong[0] + REST + '\\^' + jong[1] + REST + ')';
+        var c0 = C[Math.floor(n / 588)], v0 = V[Math.floor(n / 28) % 21], t0 = T[n % 28];
+        if (!query) { out += '^' + c0 + v0 + t0; continue; }
+        out += '\\^' + c0 + v0;
+        if (t0.length === 1) out += '(?:' + t0 + '|\\^' + t0 + REST + ')';
+        else if (t0.length === 2) out += '(?:' + t0 + '|' + t0[0] + '\\^' + t0[1] + REST + '|\\^' + t0[0] + REST + '\\^' + t0[1] + REST + ')';
         continue;
       }
       var j = M[ch] || ch;
       if (!query) { out += j; continue; }
-      for (var k = 0; k < j.length; k++) {
-        var c = j.charCodeAt(k);
-        if (c >= 0x3131 && c <= 0x314e) out += '\\^' + j[k] + REST;       // 낱자음 = 초성
-        else if (c >= 0x314f && c <= 0x3163) out += j[k];                 // 낱모음
-        else out += j[k].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');          // 그 밖의 문자
-      }
+      if (isC(ch)) out += '(?:\\^' + j + REST + '|' + j + ')';                 // 낱자음 = 초성 (또는 그대로)
+      else if (isV(ch)) out += '(?:\\^[ㄱ-ㅎ]' + j + REST + '|' + j + ')';     // 낱모음 = 중성 (또는 그대로)
+      else out += ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');                  // 그 밖의 문자
     }
     return query ? (out ? new RegExp(out) : null) : out;
   }
